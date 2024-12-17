@@ -1,0 +1,222 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+length: {
+    #[test('10km')]
+    fn km_to_string(): str {
+        return 10km;
+    }
+
+    #[test(100hm)]
+    fn km_to_hm(): hm {
+        return 10km;
+    }
+
+    #[test(100000cm)]
+    fn km_to_cm(): cm {
+        return 1km as cm;
+    }
+
+    #[test(24045.9cm)]
+    fn add_other(): cm {
+        return 0.23km + 10459mm;
+    }
+
+    #[test(-10m)]
+    fn sub_other(): m {
+        return 10m - 2000cm;
+    }
+
+    #[test(110mm)]
+    fn mul_other(): mm {
+        return 2m * 55mm;
+    }
+
+    add_two: {
+        fn add_two(a: float, b: float): float {
+            return a + b;
+        }
+
+        #[test]
+        fn add_no_units() {
+            assertEq(self.add_two(4, 3), 7);
+        }
+
+        #[test]
+        fn add_same_units() {
+            assertEq(self.add_two(2km, 4km), 6km);
+        }
+
+        #[test]
+        fn add_diff_units() {
+            assertEq(self.add_two(2mm, 100000um), 10.2cm);
+        }
+
+        #[test]
+        fn eq_no_units() {
+            let res = self.add_two(2km, 1000m);
+            assertEq(res, 3);
+        }
+    }
+
+    imperial: {
+        #[test(3.107mi)]
+        fn km_to_miles(): mi {
+            return (5km as mi).round(3);
+        }
+
+        #[test(11yards)]
+        fn to_yards(): yd {
+            return 33ft;
+        }
+
+        #[test]
+        fn miles() {
+            assertEq(1mi, 5280ft);
+        }
+
+        #[test(24inches)]
+        fn inches(): in {
+            return 2ft;
+        }
+    }
+}
+
+time: {
+    #[test(3days)]
+    fn to_days(): days {
+        return 3 * 24hrs;
+    }
+
+    #[test(12000000000ns)]
+    fn seconds_to_ns(): float {
+        return 12s as ns;
+    }
+
+    #[test(12mins)]
+    fn minutes(): min {
+        return 12minutes;
+    }
+
+    #[test(21min)]
+    fn microseconds_to_minutes(): min {
+        return (1234567893us as min).round();
+    }
+
+    #[test(14ms)]
+    fn millis(): float {
+        return 12ms + 33 / 12;
+    }
+
+    any: {
+        fn to_ms(val: float): ms {
+            return val;
+        }
+
+        #[test]
+        fn convert() {
+            assertEq(self.to_ms(12), 12ms);
+            assertEq(self.to_ms(12s), 12000ms);
+            assertEq(self.to_ms(12hr), 43200000);
+
+            assertEq(1day, 24hrs);
+            assertEq(60mins, 1hr as days);
+        }
+    }
+}
+
+temperature: {
+    #[test(12K)]
+    fn kelvin(): K {
+        return 12K;
+    }
+
+    #[test(293.15K)]
+    fn c_to_k(): Kelvin {
+        return 20C;
+    }
+
+    #[test(0)]
+    fn f_to_c(): float {
+        return 32F as C;
+    }
+
+    #[test(212F)]
+    fn c_to_f(): F {
+        return 100C;
+    }
+
+    #[test(294.26K)]
+    fn f_to_k(): K {
+        return (70F as K).round(2);
+    }
+}
+
+mass: {
+    #[test]
+    fn lbs_to_kg() {
+        assertEq((150lbs as kg).round(3), 68.039kg);
+    }
+
+    #[test(16ounces)]
+    fn lbs_to_oz(): oz {
+        return 1pound;
+    }
+
+    #[test(510.291grams)]
+    fn oz_to_g(): g {
+        return 18oz;
+    }
+}
+
+angles: {
+    #[test]
+    fn non_positive_clamped() {
+        // For non-positive angles, clamped to [0deg, +-360deg]
+        assertEq((360deg * 122).toString(), '360deg');
+        assertEq((122 * 360deg).toString(), '360deg');
+        assertEq((-360deg * 122).toString(), '-360deg');
+        assertEq((122 * -360deg).toString(), '-360deg');
+        assertEq(455deg, 95deg);
+        assertEq(-15deg.toString(), '-15deg');
+        assertEq(0deg, 360deg); // gets cast to pdegrees for equality
+        assert(0deg == 360deg);
+    }
+
+    #[test]
+    fn positive_clamped() {
+        // For positive angles, clamped to [0deg, +360deg)
+        assertEq((360pdeg * 122).toString(), '0pdeg');
+        assertEq((122 * 360pdeg).toString(), '0pdeg');
+        assertEq((-360pdeg * 122).toString(), '0pdeg');
+        assertEq((122 * -360pdeg).toString(), '0pdeg');
+        assertEq(455pdeg, 95deg);
+        assertEq(-15pdeg.toString(), '345pdeg');
+    }
+
+    #[test]
+    fn addition() {
+        assertEq(90deg + 360deg, 90deg);
+    }
+
+    #[test]
+    fn subtraction() {
+        // Subtraction (here's where 'pdeg' comes in handy sometimes (and for eq))
+        assertEq(90deg - 180deg, 270deg);
+        assertEq((90deg - 180deg).toString(), '-90deg');
+        assertEq((90pdeg - 180pdeg).toString(), '270pdeg');
+    }
+}

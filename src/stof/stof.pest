@@ -1,0 +1,167 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+// Stof document
+document = { SOI ~ doc_statement* ~ EOI }
+
+// Special whitespace and comment rules
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+COMMENT    = _{ "//" ~ (!NEWLINE ~ ANY)* }
+
+// Numbers
+integer = @{ "+"? ~ "-"? ~ ASCII_DIGIT+ }
+decimal = @{ "+"? ~ "-"? ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
+special =  { "/" | "^" }
+units   = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | special)* }
+number  = ${ (decimal | integer) ~ units? }
+
+// Identifiers and strings
+ident         = @{ (ASCII_ALPHA | "_" | "@" | "-") ~ (ASCII_ALPHANUMERIC | "_" | "@" | "-")* ~ (("." | "::" | ":" | "-") ~ (ASCII_ALPHA | "_" | "@" | "-") ~ (ASCII_ALPHANUMERIC | "_" | "@" | "-")*)* }
+string        = @{ double_quotes | single_quotes }
+double_quotes = @{ "\"" ~ ("\"\"" | (!"\"" ~ ANY))* ~ "\"" }
+single_quotes = @{ "'" ~ ("''" | (!"'" ~ ANY))* ~ "'" }
+
+// File path identifiers
+path       = ${ ("\"" ~ inner_path ~ "\"") | ("'" ~ inner_path ~ "'") }
+inner_path = @{ ("." | "/")* ~ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | ":" | "_" | "-" | "/" | ".")* }
+
+// Literals
+bool    = { "true" | "false" }
+null    = { "null" }
+literal = { bool | null | string | number | ident }
+
+// Types
+tuple         = { "(" ~ atype ~ ("," ~ atype)+ ~ ")" }
+atype         = { tuple | ident }
+
+// Document statements
+doc_statement = _{ line_comment | block_comment | NEWLINE | stof_type_declaration | import | function | field | typed_field | ref_field | json_fields }
+line_comment  = _{ "//" ~ (!NEWLINE ~ ANY)* }
+block_comment = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+import        =  { "import" ~ import_format? ~ path ~ ("as" ~ ident)? ~ (";" | ",")? }
+import_format =  { ident }
+
+// Object type declaration
+stof_type_attribute = { "#" ~ "[" ~ ident ~ ("(" ~ expr ~ ")")? ~ "]" }
+stof_type_declaration = { stof_type_attribute* ~ "type" ~ ident ~ ("extends" ~ ident)? ~ "{" ~ (stof_type_field | function | NEWLINE | block_comment | line_comment)* ~ "}" }
+stof_type_field       = { ident ~ ":" ~ atype ~ ("=" ~ expr)? ~ (";" | ",")? }
+
+// Field attribute
+field_attribute = { "#" ~ "[" ~ ident ~ ("(" ~ expr ~ ")")? ~ "]" }
+
+// Fields in the document
+json_fields  = { "{" ~ doc_statement* ~ "}" }
+ref_field    = { "ref" ~ (string | ident) ~ ("," | ";")? }
+typed_field  = { field_attribute* ~ atype ~ field }
+field        = { field_attribute* ~ (string | ident) ~ ":" ~ value ~ ("," | ";")? }
+value        = { object_value | expr | array_value }
+object_value = { "{" ~ doc_statement* ~ "}" }
+array_value  = {
+    "[" ~ "]"
+  | "[" ~ value ~ ("," ~ value)* ~ (",")? ~ "]"
+}
+
+// Function attribute
+func_attribute = { "#" ~ "[" ~ ident ~ ("(" ~ expr ~ ")")? ~ "]" }
+
+// Functions
+function    =  { func_attribute* ~ "fn" ~ ident ~ "(" ~ func_params? ~ ")" ~ (":" ~ atype)? ~ block }
+func_params = _{ func_param ~ ("," ~ func_param)* }
+func_param  =  { ident ~ ":" ~ atype ~ ("=" ~ expr)? }
+
+// A block of statements
+block             =  { "{" ~ (line_comment | block_comment | NEWLINE | block_statement)* ~ "}" }
+single_block      =  { block_statement }
+block_statement   = _{ return_statement | empty_return | if_statement | while_loop | for_loop | for_in_loop | break_stat | continue_stat | statement | empty_statement | block }
+if_statement      =  { "if" ~ "(" ~ expr ~ ")" ~ (block | single_block) ~ else_if_statement* ~ else_statement? }
+else_if_statement =  { "else if" ~ "(" ~ expr ~ ")" ~ (block | single_block) }
+else_statement    =  { "else" ~ (block | single_block) }
+empty_return      =  { "return" ~ ";" }
+return_statement  =  { "return" ~ expr ~ ";" }
+while_loop        =  { "while" ~ "(" ~ expr ~ ")" ~ (block | single_block) }
+break_stat        =  { "break" ~ ";" }
+continue_stat     =  { "continue" ~ ";" }
+empty_statement   = _{ ";" }
+
+// For loop
+for_loop    = { "for" ~ "(" ~ declare? ~ ";" ~ expr? ~ ";" ~ (assign | add_assign | sub_assign | mul_assign | div_assign | rem_assign)? ~ ";"? ~ ")" ~ (block | single_block) }
+for_in_loop = { "for" ~ "(" ~ ident ~ "in" ~ expr ~ ")" ~ (block | single_block) }
+
+// Statements
+statement  = _{ (declare | assign | move_stat | rename | drop | add_assign | sub_assign | mul_assign | div_assign | rem_assign | expr) ~ ";" }
+declare    =  { "let" ~ ident ~ (":" ~ atype)? ~ "=" ~ expr }
+assign     =  { ident ~ "=" ~ expr }
+drop       =  { "drop" ~ ident ~ ("," ~ ident)* }
+move_stat  =  { "move" ~ ident ~ ("->" ~ ident)? }
+rename     =  { "rename" ~ ident ~ "->" ~ expr }
+add_assign =  { ident ~ "+=" ~ expr }
+sub_assign =  { ident ~ "-=" ~ expr }
+mul_assign =  { ident ~ "*=" ~ expr }
+div_assign =  { ident ~ "/=" ~ expr }
+rem_assign =  { ident ~ "%=" ~ expr }
+
+// Expressions
+expr              = { (stof_type_constructor | arrow_function | not_expr | type_name_expr | type_of_expr | ref_expr | deref_expr | if_expr | math_expr | expr_call | tuple_expr | range_expr | array_expr | chain_index | index_expr | chain_call | call | block | fmt_expr | literal | wrapped_expr) ~ ("as" ~ atype)? }
+call              = { ident ~ "(" ~ call_params? ~ ")" }
+call_params       = { expr ~ ("," ~ expr)* }
+expr_call         = { ( arrow_function | tuple_expr | range_expr | array_expr | chain_index | index_expr | fmt_expr | literal | wrapped_expr) ~ "." ~ call }
+chain_call        = { (call | expr_call) ~ ("." ~ (call | expr_call))+ }
+wrapped_expr      = { bang? ~ unary_minus? ~ "(" ~ expr ~ ")" }
+tuple_expr        = { "(" ~ expr ~ ("," ~ expr)+ ~ ")" }
+array_expr        = { "[" ~ (expr ~ ("," ~ expr)*)? ~ (",")? ~ "]" }
+range_expr        = { number ~ ".." ~ number ~ ("|" ~ number)? }
+index_expr        = { ident ~ "[" ~ expr ~ ("," ~ expr)* ~ "]" }
+chain_index       = { ident ~ chain_index_inner ~ chain_index_inner+ }
+chain_index_inner = { "[" ~ expr ~ ("," ~ expr)* ~ "]" }
+type_of_expr      = { "typeof" ~ expr }
+type_name_expr    = { "typename" ~ expr }
+ref_expr          = { "ref" ~ expr }
+deref_expr        = { "deref" ~ expr }
+not_expr          = { "!" ~ expr }
+if_expr           = { (chain_call | expr_call | not_expr | math_expr | chain_index | index_expr | call | block | fmt_expr | literal | wrapped_expr) ~ "?" ~ expr ~ ":" ~ expr }
+
+// Arrow function expression
+arrow_function = { "(" ~ func_params? ~ ")" ~ (":" ~ atype)? ~ "=>" ~ (block | expr) }
+
+// String format expression
+fmt_expr   = ${ "`" ~ fmt_expr_i ~ "`" }
+fmt_expr_i =  { (fmt_inner | "``" | (!"`" ~ ANY))* }
+fmt_inner  =  { "${" ~ expr ~ "}" }
+
+// Type constructor
+stof_type_constructor  = { "new" ~ ident? ~ "{" ~ (stof_type_field_create ~ (("," | ";")? ~ stof_type_field_create)*)? ~ ("," | ";")? ~ "}" }
+stof_type_field_create = { (string | ident) ~ ":" ~ expr }
+
+// Math expressions
+math_expr   =  { math_atom ~ (math_op ~ math_atom)+ }
+unary_minus =  { "-" }
+bang        =  { "!" }
+primary     = _{ expr_call | chain_call | not_expr | type_name_expr | type_of_expr | ref_expr | deref_expr | tuple_expr | range_expr | array_expr | chain_index | index_expr | call | block | fmt_expr | literal | wrapped_expr | "(" ~ math_expr ~ ")" }
+math_atom   = _{ unary_minus? ~ primary }
+math_op     = _{ and | or | add | sub | mul | div | rem | eq | neq | gte | lte | gt | lt }
+and         =  { "&&" }
+or          =  { "||" }
+add         =  { "+" }
+sub         =  { "-" }
+mul         =  { "*" }
+div         =  { "/" }
+rem         =  { "%" }
+eq          =  { "==" }
+neq         =  { "!=" }
+gte         =  { ">=" }
+lte         =  { "<=" }
+gt          =  { ">" }
+lt          =  { "<" }

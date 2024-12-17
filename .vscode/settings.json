@@ -1,0 +1,15 @@
+{
+    "workbench.colorCustomizations": {
+        "titleBar.activeBackground": "#ffffff",
+        "titleBar.activeForeground": "#000000",
+        "titleBar.inactiveForeground": "#fff",
+        "titleBar.border": "#fff",
+        "activityBar.activeBackground": "#fff",
+        "activityBar.activeBorder": "#fff",
+        "activityBar.inactiveForeground": "#fff",
+        "activityBar.foreground": "#000",
+    },
+    "rust-analyzer.showUnlinkedFileNotification": false,
+    "deno.enablePaths": ["typescript"],
+    "deno.enable": false
+}

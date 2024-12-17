@@ -1,0 +1,57 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+fn test_function(a: float, b: float, c: float): float {
+    return a * b / c;
+}
+
+#[test]
+fn function_name() {
+    let func = self.test_function;
+    assertEq(func.name(), 'test_function');
+}
+
+#[test]
+fn function_parameters() {
+    let func = self.test_function;
+    let params = func.parameters();
+    assertEq(params, [('a', 'float'), ('b', 'float'), ('c', 'float')]);
+}
+
+#[test]
+fn function_return_type() {
+    let func = self.test_function;
+    assertEq(func.returnType(), 'float');
+}
+
+#[test]
+fn function_object() {
+    let func = self.test_function;
+    assertEq(func.object(), self);
+}
+
+#[test]
+fn function_objects() {
+    let func = self.test_function;
+    assertEq(func.objects(), [self]);
+}
+
+#[test]
+fn function_call() {
+    let func = self.test_function;
+    assertEq(func.call(1, 2, 2), 1);
+}

@@ -1,0 +1,275 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+/**
+ * Number Tests.
+ */
+import 'src/tests/numbers/ops.stof' as Numbers.Operations;
+import 'src/tests/numbers/units.stof' as Numbers.Units;
+import 'src/tests/numbers/std.stof' as Numbers.StdLib;
+import 'src/tests/numbers/iteration.stof' as Numbers.Iteration;
+
+
+/**
+ * String Tests.
+ */
+import 'src/tests/strings/std.stof' as Strings.StdLib;
+import 'src/tests/strings/iteration.stof' as Strings.Iteration;
+
+
+/**
+ * Function Tests.
+ */
+import 'src/tests/functions/decorators.stof' as Functions.Decorators;
+import 'src/tests/functions/arrows.stof' as Functions.Arrows;
+import 'src/tests/functions/std.stof' as Functions.StdLib;
+
+
+/**
+ * Dec Types Tests.
+ */
+import 'src/tests/types/geometry.stof' as Types.Geometry;
+
+
+/**
+ * Control Flow Tests.
+ */
+import 'src/tests/control/flow.stof' as Control.Flow;
+
+
+/**
+ * Format Tests.
+ */
+import 'src/tests/formats/json.stof' as Formats.JSON;
+import 'src/tests/formats/toml.stof' as Formats.TOML;
+import 'src/tests/formats/yaml.stof' as Formats.YAML;
+import 'src/tests/formats/xml.stof' as Formats.XML;
+import 'src/tests/formats/text.stof' as Formats.TEXT;
+import 'src/tests/formats/bytes.stof' as Formats.BYTES;
+import 'src/tests/formats/url.stof' as Formats.URL;
+
+
+/**
+ * Practical Tests.
+ */
+import 'src/tests/practical/merge.stof' as Practical.Merge;
+
+
+/**
+ * Init test.
+ * Functions with the 'init' attribute get executed at the end of everything being parsed.
+ * If they have an expr, that expr will be executed and passed in as a parameter.
+ */
+init: {
+    #[init]
+    fn some_init() {
+        self.initialized = true;
+    }
+
+    fn initParam(): int { return 20; }
+    #[init(self.initParam())]
+    fn param_init(param: int) {
+        self.param = param;
+    }
+
+    #[test]
+    fn initialized() {
+        assert(self.initialized);
+        assertEq(self.param, 20);
+    }
+}
+
+
+/**
+ * Standard Library Tests.
+ * These functions can always be found in Stof documents in the 'std' library.
+ */
+stdlib: {
+    parse: {
+        #[test]
+        fn std_parse() {
+            // Parses 'myfield' into self with a value of true
+            parse('myfield: true', 'stof', 'self');
+            assertEq(self.myfield, true);
+        }
+    }
+    blobify: {
+        exfield: 'hello'
+
+        #[test]
+        fn std_blobify() {
+            let blb: blob = blobify(self, 'json');
+            std.parse(blb, 'json', 'self.parsed');
+            assertEq(self.parsed.exfield, 'hello');
+        }
+    }
+    stringify: {
+        exfield: 'hello'
+
+        #[test]
+        fn std_stringify() {
+            let json: str = stringify(self, 'json');
+            parse(json, 'json', 'self.parsed');
+            assertEq(self.parsed.exfield, 'hello');
+        }
+    }
+
+    #[test]
+    fn has_format() {
+        assert(hasFormat('json'));
+    }
+
+    #[test]
+    fn formats() {
+        assert(formats().len() > 1);
+        assert(formats().has('json'));
+
+        let toml = formats().has('toml') ? 'yup' : 'nope';
+        assertEq(toml, 'yup');
+    }
+
+    #[test]
+    fn has_lib() {
+        assert(hasLib('Number'));
+        assert(hasLibrary('Array'));
+    }
+
+    #[test]
+    fn libraries() {
+        assert(libraries().len() > 1);
+    }
+
+    #[test]
+    fn println() {
+        pln('pln exists'); // If no error, then the func exists...
+    }
+
+    #[test]
+    fn dbgln() {
+        dbg('dbg exists');
+    }
+
+    #[test]
+    fn error() {
+        err('err exists');
+    }
+
+    #[test]
+    #[errors]
+    fn throw() {
+        throw('This is supposed to throw an error');
+    }
+
+    #[test]
+    fn assert() {
+        assert(true);
+    }
+
+    #[test]
+    #[errors]
+    fn assert_errors() {
+        assert(0); // 0 is falsy
+    }
+
+    #[test]
+    fn assert_not() {
+        assertNot(false);
+    }
+
+    #[test]
+    #[errors]
+    fn assert_not_errors() {
+        assertNot(true);
+    }
+
+    #[test]
+    fn assert_null() {
+        assertNull(null);
+    }
+
+    #[test]
+    #[errors]
+    fn assert_null_errors() {
+        assertNull(true);
+    }
+
+    #[test]
+    fn assert_obj() {
+        assertObject(self);
+    }
+
+    #[test]
+    #[errors]
+    fn assert_obj_errors() {
+        assertObject(32);
+    }
+
+    #[test]
+    fn assert_array() {
+        assertArray([3, 3]);
+    }
+
+    #[test]
+    #[errors]
+    fn assert_array_errors() {
+        assertArray(32);
+    }
+
+    #[test]
+    fn assert_tuple() {
+        assertTuple((1, 2));
+    }
+
+    #[test]
+    #[errors]
+    fn assert_tuple_errors() {
+        assertTuple(new {});
+    }
+
+    #[test]
+    fn assert_number() {
+        assertNumber(3);
+    }
+
+    #[test]
+    #[errors]
+    fn assert_number_errors() {
+        assertNumber(false);
+    }
+
+    #[test]
+    fn assert_eq() {
+        assertEq(3, 3);
+    }
+
+    #[test]
+    #[errors]
+    fn assert_eq_errors() {
+        assertEq(3, 4);
+    }
+
+    #[test]
+    fn assert_neq() {
+        assertNeq(3, 4);
+    }
+
+    #[test]
+    #[errors]
+    fn assert_neq_errors() {
+        assertNeq(4, 4);
+    }
+}

@@ -1,0 +1,18 @@
+{
+	"copyright": {
+		"description": "A snippet to insert the copyright notice.",
+		"prefix": "copyright",
+		"scope": "typescript,javascript,css,html,md,txt,rust,wat",
+		"body": [
+			"//\n// Copyright 2024 Formata, Inc. All rights reserved.\n//\n// Licensed under the Apache License, Version 2.0 (the \"License\");\n// you may not use this file except in compliance with the License.\n// You may obtain a copy of the License at\n//\n//    http://www.apache.org/licenses/LICENSE-2.0\n//\n// Unless required by applicable law or agreed to in writing, software\n// distributed under the License is distributed on an \"AS IS\" BASIS,\n// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n// See the License for the specific language governing permissions and\n// limitations under the License.\n//"
+		]
+	},
+	"blocksep": {
+		"description": "A snippet to insert a separation block.",
+		"prefix": "blocksep",
+		"scope": "typescript,javascript,css,html,md,rust",
+		"body": [
+			"/*****************************************************************************\n * $1\n *****************************************************************************/\n$2"
+		]
+	}
+}

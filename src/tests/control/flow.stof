@@ -1,0 +1,232 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+break: {
+    #[test]
+    fn break_in_while() {
+        let i = 0;
+        let additions = 0;
+        while (i < 200) {
+            i += 1;
+            if (i > 100) break;
+            additions += 1;
+        }
+        assertEq(additions, 100);
+    }
+
+    #[test]
+    fn break_in_for() {
+        let additions = 0;
+        for (let i = 0; i < 200; i += 1) {
+            if (i >= 100) break;
+            additions += 1;
+        }
+        assertEq(additions, 100);
+    }
+
+    #[test]
+    fn break_for_in() {
+        let additions = 0;
+        for (i in 200) {
+            if (i >= 100) break;
+            additions += 1;
+        }
+        assertEq(additions, 100);
+    }
+
+    #[test]
+    fn break_in_block() {
+        let i = 0;
+        {
+            i += 2;
+            break; // Stops statements execution here
+
+            i += 5;
+        }
+        i += 1;
+        assertEq(i, 3);
+    }
+
+    #[test]
+    fn break_in_if() {
+        let a = 6;
+        if (a < 3) {}
+        else {
+            a -= 2;
+            break;
+
+            a -= 2;
+        }
+        assertEq(a, 4);
+    }
+
+    #[test(54)]
+    fn break_in_nested(): int {
+        let array = [[0..3, 0..3, 0..3], [1..4, 1..4, 1..4], [2..5, 2..5, 2..5]];
+        let total = 0;
+        for (let i = 0; i < 3; i += 1) {
+            for (let j = 0; j < 3; j += 1) { // 3 times
+                for (let k = 0; k < 3; k += 1) { // 9 times
+                    let num = array.at(i).at(j).at(k);
+                    total += num;
+                    if (k > 1) break;
+                }
+                if (j > 1) break;
+            }
+            if (i > 1) break;
+        }
+        return total;
+    }
+}
+
+continue: {
+    #[test]
+    fn continue_in_while() {
+        let i = 0;
+        let additions = 0;
+        while (i < 200) {
+            if (i % 2 == 0) {
+                i += 1;
+                continue;
+            }
+            additions += 1;
+            i += 1;
+        }
+        assertEq(additions, 100);
+    }
+
+    #[test]
+    fn continue_in_for() {
+        let additions = 0;
+        for (let i = 0; i < 200; i += 1) {
+            if (i % 2 != 0) continue;
+            additions += 1;
+        }
+        assertEq(additions, 100);
+    }
+
+    #[test]
+    fn continue_for_in() {
+        let additions = 0;
+        for (i in 200) {
+            if (i % 2 != 0) continue;
+            additions += 1;
+        }
+        assertEq(additions, 100);
+    }
+
+    #[test]
+    fn continue_in_block() {
+        let i = 0;
+        {
+            i += 2;
+            continue; // Stops statements execution here
+
+            i += 5;
+        }
+        i += 1;
+        assertEq(i, 3);
+    }
+
+    #[test]
+    fn continue_in_if() {
+        let a = 6;
+        if (a < 3) {}
+        else {
+            a -= 2;
+            continue;
+
+            a -= 2;
+        }
+        assertEq(a, 4);
+    }
+
+    #[test(2520)]
+    fn continue_in_nested(): int {
+        let total = 0;
+        for (let i = 0; i < 10; i += 1) {
+            if (i < 1) continue;
+
+            for (let j = 0; j < 10; j += 1) { // gets executed 9 times
+                if (j < 2) continue;
+
+                for (let k = 0; k < 10; k += 1) { // called 72 times
+                    if (k < 5) continue;
+                    total += k;
+                }
+            }
+        }
+        return total;
+    }
+}
+
+return: {
+    #[test(10)]
+    fn return_from_if(): int {
+        if (true) {
+            if (true) {
+                if (false) {
+                    return 100;
+                } else {
+                    return 10;
+                }
+            }
+        }
+        return 1;
+    }
+
+    #[test(6)]
+    fn return_from_while(): int {
+        let i = 0;
+        while (i < 10) {
+            i += 1;
+            if (i > 5) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    #[test(8)]
+    fn return_from_for(): int {
+        for (let i = 0; i < 10; i += 1) {
+            if (i > 7) return i;
+        }
+        return 0;
+    }
+
+    #[test(11)]
+    fn return_from_for_in(): int {
+        for (i in 20) {
+            if (i > 10) return i;
+        }
+        return 0;
+    }
+
+    #[test(15)]
+    fn return_from_nested(): int {
+        for (let i = 0; i < 10; i += 1) {
+            for (let j = 0; j < 10; j += 1) {
+                for (let k = 0; k < 10; k += 1) {
+                    if (i > 5 && j > 4 && k > 3) {
+                        return i + j + k;
+                    }
+                }
+            }
+        }
+        return 0;
+    }
+}
