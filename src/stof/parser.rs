@@ -765,15 +765,67 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
             Rule::for_in_loop => { // iterable must have a "len" lib function and an "at" lib function
                 let mut inner_statements = Statements::default();
                 let mut iterable_expr = Expr::Literal(SVal::Null);
+                let mut atype_str = String::default();
                 for pair in pair.into_inner() {
                     match pair.as_rule() {
+                        Rule::atype => {
+                            atype_str = pair.as_str().to_owned();
+                        },
                         Rule::ident => {
-                            let var_name = pair.as_str().to_owned();
-                            inner_statements.push(Statement::Declare(var_name.into(), Expr::Call {
+                            // Set the expression to declare with
+                            let mut dec_expr = Expr::Call {
                                 scope: "iterable".to_string(),
                                 name: "at".to_string(),
                                 params: vec![Expr::Variable("index".into())],
-                            }));
+                            };
+
+                            // Cast this expression to another type (if possible and required)!
+                            if atype_str.len() > 0 {
+                                let stype = SType::from(atype_str.as_str());
+                                if stype.is_object() && atype_str != "obj" {
+                                    let mut type_path: Vec<&str> = atype_str.split('.').collect();
+                                    let custom_type_name = type_path.pop().unwrap();
+
+                                    // Find a scope to use other than our own?
+                                    let mut type_scope = env.scope(doc);
+                                    if type_path.len() > 0 {
+                                        let path = type_path.join("/");
+                                        if path.starts_with("self") || path.starts_with("super") {
+                                            if let Some(nref) = doc.graph.node_ref(&path, Some(&type_scope)) {
+                                                type_scope = nref;
+                                            } else {
+                                                return Err(anyhow!("Cannot find referenced type scope for iterating with an object value"));
+                                            }
+                                        } else {
+                                            if let Some(nref) = doc.graph.node_ref(&path, None) {
+                                                type_scope = nref;
+                                            } else {
+                                                return Err(anyhow!("Cannot find referenced type scope for iterating with an object value"));
+                                            }
+                                        }
+                                    }
+
+                                    // Try assigning the prototype of this object since its not a value type
+                                    if let Some(custom_type) = doc.types.find(&doc.graph, custom_type_name, &type_scope) {
+                                        if custom_type.is_private() && !env.scope(doc).is_child_of(&doc.graph, &type_scope) {
+                                            // Custom type is private and the current scope is not equal or a child of the type's scope
+                                            return Err(anyhow!("Cannot cast object expr to private type for object value iteration: {}", atype_str));
+                                        }
+                                        let mut block_statements = Vec::new();
+                                        block_statements.push(Statement::Declare("tmp".into(), Expr::DeRef(Box::new(dec_expr))));
+                                        block_statements.push(Statement::Assign("tmp.__prototype__".into(), Expr::Literal(SVal::String(custom_type.location()))));
+                                        block_statements.push(Statement::Return(Expr::Variable("tmp".into())));
+                                        dec_expr = Expr::Block(Statements::from(block_statements));
+                                    } else {
+                                        return Err(anyhow!("Cannot cast object expr to type: {} for object value iteration", atype_str));
+                                    }
+                                } else {
+                                    dec_expr = Expr::Cast(stype, Box::new(dec_expr));
+                                }
+                            }
+
+                            let var_name = pair.as_str().to_owned();
+                            inner_statements.push(Statement::Declare(var_name.into(), dec_expr));
                         },
                         Rule::expr => {
                             // Array (or iterable) expression!

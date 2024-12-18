@@ -15,6 +15,16 @@
 //
 
 example: {
+    type User {
+        first: str;
+        last: str;
+        user_for: days;
+
+        fn fullName(): str {
+            return `${self.first} ${self.last}`;
+        }
+    }
+
     users: [
         {
             first: 'Bob'
@@ -49,5 +59,14 @@ example: {
     fn get_oldest(): str {
         let oldest = self.oldest();
         return `${oldest.first} ${oldest.last} has been a user for ${oldest.user_for as hours}`;
+    }
+
+    #[test(['Bob Smith', 'Jane Doe', 'Jerry Smith'])]
+    fn full_names(): vec {
+        let names = [];
+        for (User user in self.users) {
+            names.push(user.fullName());
+        }
+        return names;
     }
 }
