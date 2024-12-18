@@ -14,10 +14,6 @@ Stof is a dutch/german word for cloth, stuff, or fabric. It makes a good pun "ju
 - [Contact us](https://formata.io/contact-us) for more information.
 
 ## Adding Stof to your Project
-### Node.js
-```sh
-npm install stof
-```
 ### Rust
 ```sh
 cargo add stof

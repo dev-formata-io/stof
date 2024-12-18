@@ -137,7 +137,7 @@ if_expr           = { (chain_call | expr_call | not_expr | math_expr | chain_ind
 arrow_function = { "(" ~ func_params? ~ ")" ~ (":" ~ atype)? ~ "=>" ~ (block | expr) }
 
 // String format expression
-fmt_expr   = ${ "`" ~ fmt_expr_i ~ "`" }
+fmt_expr   =  { "`" ~ fmt_expr_i ~ "`" }
 fmt_expr_i =  { (fmt_inner | "``" | (!"`" ~ ANY))* }
 fmt_inner  =  { "${" ~ expr ~ "}" }
 

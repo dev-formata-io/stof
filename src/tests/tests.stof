@@ -67,6 +67,7 @@ import 'src/tests/formats/url.stof' as Formats.URL;
  * Practical Tests.
  */
 import 'src/tests/practical/merge.stof' as Practical.Merge;
+import 'src/tests/practical/docs.stof' as Practical.Docs;
 
 
 /**
