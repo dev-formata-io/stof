@@ -4,8 +4,6 @@
 
 Created for and used in the [Formata](https://formata.io) platform, Stof is useful for creating distributed systems, API development, system integration, configurations, and data organization in general.
 
-Stof is not "the one" or "the standard" data format. Rather, Stof embraces the entropy of this situation and works with all other data formats, converting them to Stof so that they can all be used together at once. So keep using JSON or YAML or whatever you want for your interfaces - Stof will upgrade them all to the same format when you need it, enabling you to work with all of those interfaces together, regardless of thier unique implementations.
-
 Stof is a dutch/german word for cloth, stuff, or fabric. It makes a good pun "just use some Stof" and a good file extension ".stof". Also makes sense since Stof weaves data together (if meaning matters to you). Personally, I like the pun and it hasn't gotten old yet.
 
 ## Getting Started
@@ -25,33 +23,79 @@ We're adding languages and ways to use Stof all the time - please help if your i
 
 As a programmer, the code, SDKs, and APIs required just to get data into and out of an application is a huge pain. It leads to a lot of system fragility and difficult to maintain software - costing time, frustration, and lots of dread for engineers.
 
-Whether you create your own services/APIs to handle this logic (microservice), an iPaaS platform, or an SDK/embedded solution, dealing with this at the application layer always requires some special logic, parsing, or manipulation to be useful. This is because we have application interfaces and data formats, but no data interfaces - the burden of making data useful falls on the application (programmer) using it, often requiring a lot of custom middleware or additional dependencies.
+Whether you create your own services/APIs to handle this logic (microservice), an iPaaS platform, or an SDK/embedded solution, dealing with this at the application layer always requires some special logic, parsing, or manipulation to be useful. This is because we have application interfaces and data formats, but a lack of data interfaces. The burden of making data useful falls on the application (programmer) using it, often requiring a lot of custom middleware or additional dependencies.
 
 Stof solves this, allowing you to create the data interface that makes sense for your application/use-case and move the complexity of combining, parsing, and structuring data into Stof. With Stof, the data molds itself to your use cases instead of the application having to wrangle the data over and over again to use it.
 
-At [Formata](https://formata.io), we take this concept to the next level by offering a hosted solution for Stof logic that combines many distributed systems and APIs the way you need them. Formata does the work of talking with remote systems, turning the conversation into and out of Stof where needed, and manipulating data with your use-case specific Stof interfaces before presenting it to your app, ready to use. This enables you to completely remove the integration complexity from your application and work only with the data and interfaces under your control, on your own terms. Added bells and whistles include observability, collaboration, documentation, versioning, automation, interface marketplace, etc...
+[Formata](https://formata.io) takes this concept to the next level by offering a hosted solution for Stof logic that combines many distributed systems and APIs the way you need them. [Contact us](https://formata.io/contact-us) if Formata sounds like it could be a good fit for your needs.
 
-[Contact us](https://formata.io/contact-us) if Formata sounds interesting and we can discuss further.
+## Example
+``` rust
+/**
+ * We're already in the 'root' object scope, so outer braces are optional.
+ * Field names don't need quotes, but can be double or single-quoted.
+ * We don't need commas to separate fields.
+ *     - Optional commas or semi-colons to end declarations.
+ *     - Trailing commas or semi-colons are allowed.
+ *     - Trailing commas in arrays are allowed.
+ * Stof adds types, which are optional when declaring a field.
+ * Field declarations are expressions.
+ *     - Call functions, do some math, etc...
+ * Stof numbers can be an "int", "float", or some units (a variant of float).
+ *     - Unit conversions are made for you on casts and operations.
+ *
+ * Take a look at the Stof docs for a complete overview of features.
+ */
+users: [
+    {
+        first: 'Bob'
+        last: 'Smith'
+        user_for: +12days
+    },
+    {
+        first: 'Jane'
+        last: 'Doe'
+        user_for: 20hrs + 33min
+    },
+    {
+        first: 'Jerry'
+        last: 'Smith'
+        user_for: 300hrs
+    }
+]
+
+fn oldest(): obj {
+    let time = 0;
+    let oldest = null;
+    for (user in self.users) {
+        if (user.user_for > time) {
+            time = user.user_for;
+            oldest = user;
+        }
+    }
+    return oldest;
+}
+
+// Fields and functions can have attributes. Here, this function is marked
+// as a test, testing equality between the return value and given expression.
+#[test("Jerry Smith has been a user for 300hr")]
+fn get_oldest(): str {
+    let oldest = self.oldest();
+    return `${oldest.first} ${oldest.last} has been a user for ${oldest.user_for as hours}`;
+}
+```
+This test can be found in the Stof test suite in `src/tests/practical/docs.stof`. Stof tests can be run with `cargo test stof_test_suite -- --nocapture`.
 
 ## Features
 ### Data Unification
-Currently, Stof has implementations for the following formats out of the box. Stof can upgrade these formats into Stof, unifying and merging the data so it can all be worked with at once.
-- STOF
-- JSON
-- YAML
-- XML
-- TOML
-- URL-encoding
-- Text
-- Binary
-- BSTOF - binary stof document, with types, funcs, etc...
+Currently, Stof has implementations for many common data formats out of the box. Stof can upgrade these formats into Stof, unifying and merging the data so it can all be worked with at once.
 
-Formats are pluggable in Stof - you can replace these out-of-the-box formats, add your own, etc... Stof was designed with very complex data in mind, allowing in many cases for more efficient and much more capable data representation.
+Formats are pluggable in Stof - you can replace formats, add your own, etc... Stof was designed with very complex data in mind, allowing in many cases for more efficient and much more capable data representation.
 
 We're adding formats all the time, so submit an issue or reach out if you need a specific format added.
 
 ### Logic, Types, and Data Interfaces
-Stof adds functions and types to your data, as data. A Stof document can use the functions it contains to manipulate itself in its own sandboxed environment. The app/system calling into Stof has complete control over Stof's access to its internals and to the outside world. By default, Stof can only interact with certain types of data it contains (fields & functions). Even then you can put permissions on what can be accessed/modified by functions.
+Stof adds functions and types to your data, as data. A Stof document can use the functions it contains to manipulate itself in its own sandboxed environment. The app/system calling into Stof has complete control over Stof's access to its internals and to the outside world. By default, Stof can only interact with certain types of data it contains (fields & functions). You can also put permissions on what can be accessed/modified by functions.
 
 Interfaces to the Stof data in the form of types and functions can be parsed into or removed from the document at any time (just like fields or any other data). This makes it possible for interfaces to be dynamically combined when and where you need them.
 
