@@ -104,6 +104,11 @@ impl DocPermissions {
 
     /// Can write field?
     pub fn can_write_field(&mut self, graph: &SGraph, field: &SField, from: Option<&SNodeRef>) -> bool {
+        if let Some(read_only_val) = field.attributes.get("readonly") {
+            if read_only_val.is_empty() || read_only_val.truthy() {
+                return false;
+            }
+        }
         let private_field = field.attributes.contains_key("private");
         if let Some(data) = field.data_ref().data(graph) {
             for nref in &data.nodes {

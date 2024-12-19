@@ -46,6 +46,12 @@ import 'src/tests/objects/paths.stof' as Objects.Paths;
 
 
 /**
+ * Field Tests.
+ */
+import 'src/tests/fields/attributes.stof' as Fields.Attributes;
+
+
+/**
  * Dec Types Tests.
  */
 import 'src/tests/types/geometry.stof' as Types.Geometry;
