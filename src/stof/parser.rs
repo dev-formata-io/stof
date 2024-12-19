@@ -409,6 +409,7 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
         Rule::field => {
             let mut field_name = String::default();
             let mut field_value = SVal::Null;
+            let mut object_declaration = false;
             for pair in pair.into_inner() {
                 match pair.as_rule() {
                     Rule::field_attribute => {
@@ -449,12 +450,12 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
                         field_name = pair.as_str().to_owned();
                     },
                     Rule::value => {
-                        field_value = parse_value(field_type, &field_name, doc, env, pair)?;
+                        (field_value, object_declaration) = parse_value(field_type, &field_name, doc, env, pair)?;
                     },
                     rule => return Err(anyhow!("Unrecognized rule for field: {:?}", rule))
                 }
             }
-            if field_name.len() > 0 && !field_value.is_object() { // parse_value takes care of object fields!
+            if field_name.len() > 0 && !object_declaration { // parse_value takes care of object declarations!
                 let list: Vec<&str> = field_name.split('.').collect();
                 let last = list.last().unwrap().to_string();
 
@@ -470,8 +471,9 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
 
 
 /// Parse value.
-fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<SVal> {
+fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<(SVal, bool)> {
     let mut field_value = SVal::Null;
+    let mut object_declaration = false;
     for pair in pair.into_inner() {
         match pair.as_rule() {
             Rule::object_value => {
@@ -516,6 +518,7 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
 
                 // Set the field value to the newly created scope
                 field_value = SVal::Object(env.scope(doc));
+                object_declaration = true;
 
                 // Cast this expression to another type (if possible)!
                 if field_type.len() > 0 {
@@ -572,7 +575,7 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                     match pair.as_rule() {
                         Rule::value => {
                             let name = format!("_a_obj{}", nanoid!(7));
-                            array.push(parse_value("",&name, doc, env, pair)?);
+                            array.push(parse_value("",&name, doc, env, pair)?.0);
                         },
                         _ => {}
                     }
@@ -640,7 +643,7 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
             rule => return Err(anyhow!("Unrecognized inline json value rule: {:?}", rule))
         }
     }
-    Ok(field_value)
+    Ok((field_value, object_declaration))
 }
 
 

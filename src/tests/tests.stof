@@ -40,6 +40,12 @@ import 'src/tests/functions/std.stof' as Functions.StdLib;
 
 
 /**
+ * Object Tests.
+ */
+import 'src/tests/objects/paths.stof' as Objects.Paths;
+
+
+/**
  * Dec Types Tests.
  */
 import 'src/tests/types/geometry.stof' as Types.Geometry;

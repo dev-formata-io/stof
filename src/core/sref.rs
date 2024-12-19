@@ -423,6 +423,18 @@ impl SNodeRef {
                 return Self::path_constructor(graph, current, names, seen);
             }
 
+            // Is it a field in the current node that is an object?
+            if let Some(field) = SField::field(graph, next, '/', Some(&current.node_ref())) {
+                match field.value {
+                    SVal::Object(nref) => {
+                        if let Some(node) = nref.node(graph) {
+                            return Self::path_constructor(graph, node, names, seen);
+                        }
+                    },
+                    _ => {}
+                }
+            }
+
             // Make sure to return None as user expects this to be a specific node...
             // Do not just go as far into the path as possible - might alter data that isn't meant to be altered
             return None;
