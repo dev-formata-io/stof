@@ -623,6 +623,22 @@ impl SVal {
                     SType::Array => {
                         return Ok(Self::Array(vals.clone()));
                     },
+                    SType::Tuple(types) => {
+                        if types.len() == vals.len() {
+                            let mut new_tup = Vec::new();
+                            for i in 0..types.len() {
+                                let val = &vals[i];
+                                let ty = types[i].clone();
+                                if val.stype() != ty {
+                                    new_tup.push(val.cast(ty, doc)?);
+                                } else {
+                                    new_tup.push(val.clone());
+                                }
+                            }
+                            return Ok(SVal::Tuple(new_tup));
+                        }
+                        return Err(anyhow!("Cannot cast tuple of one length into a tuple of another length"))
+                    },
                     _ => {}
                 }
                 Err(anyhow!("Cannot cast tuple to anything"))
