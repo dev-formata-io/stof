@@ -15,7 +15,6 @@
 //
 
 use std::collections::BTreeMap;
-use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use crate::{lang::CustomType, IntoNodeRef, SGraph, SNodeRef};
 
@@ -37,56 +36,6 @@ impl CustomTypes {
                 }
             }
         }
-    }
-
-    /// Declare a new type (not inserted into graph yet).
-    pub fn declare(&mut self, mut custom_type: CustomType, graph: &mut SGraph, extends: &str) -> Result<()> {
-        // Insert path for this new custom type
-        let mut insert_path = format!("__stof__/prototypes/{}", &custom_type.locid);
-
-        // Handle extends if any - adds fields and functions from an extends type
-        if extends.len() > 0 {
-            let mut extends_path: Vec<&str> = extends.split('.').collect();
-            let extends_name = extends_path.pop().unwrap();
-            let mut extends_scope = SNodeRef::from(&custom_type.decid);
-            if extends_path.len() > 0 {
-                let extends_node_path = extends_path.join("/");
-                if extends_node_path.starts_with("self") || extends_node_path.starts_with("super") {
-                    if let Some(nref) = graph.node_ref(&extends_node_path, Some(&SNodeRef::from(&custom_type.decid))) {
-                        extends_scope = nref;
-                    }
-                } else {
-                    if let Some(nref) = graph.node_ref(&extends_node_path, None) {
-                        extends_scope = nref;
-                    }
-                }
-            }
-
-            if let Some(extend_type) = self.find(graph, extends_name, &extends_scope) {
-                let custom_field_names = custom_type.fieldnames();
-                for ef in &extend_type.fields {
-                    if !custom_field_names.contains(&ef.name) {
-                        custom_type.fields.push(ef.clone());
-                    }
-                }
-
-                // Set insert path as a child of the extends type
-                insert_path = format!("{}/{}", SNodeRef::new(&extend_type.locid).path(&graph), &custom_type.locid);
-            } else {
-                return Err(anyhow!("Attempting to extend a type that does not exist: {}", extends));
-            }
-        }
-
-        // Insert the custom type into the graph
-        custom_type.insert(graph, &insert_path);
-
-        // Insert into types by name
-        if let Some(types) = self.types.get_mut(&custom_type.name) {
-            types.push(custom_type);
-        } else {
-            self.types.insert(custom_type.name.clone(), vec![custom_type]);
-        }
-        Ok(())
     }
 
     /// Find a type by name from within a scope.

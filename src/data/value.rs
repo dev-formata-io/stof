@@ -18,7 +18,7 @@ use core::str;
 use std::{hash::Hash, sync::{Arc, RwLock}};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
-use crate::{SDataRef, SDoc, SGraph, SNodeRef};
+use crate::{SDataRef, SGraph, SNodeRef};
 use super::{SField, SNumType, SType, SUnits};
 
 #[cfg(feature = "json")]
@@ -504,9 +504,9 @@ impl SVal {
     }
 
     /// Cast a value to another type of value.
-    pub fn cast(&self, target: SType, doc: &mut SDoc) -> Result<Self> {
+    pub fn cast(&self, target: SType) -> Result<Self> {
         match self {
-            Self::Ref(rf) => rf.read().unwrap().cast(target, doc),
+            Self::Ref(rf) => rf.read().unwrap().cast(target),
             Self::Blob(blob) => {
                 match target {
                     SType::Array => {
@@ -555,7 +555,7 @@ impl SVal {
                                 if val_type == ty {
                                     new_vals.push(val.clone());
                                 } else {
-                                    new_vals.push(val.cast(ty, doc)?);
+                                    new_vals.push(val.cast(ty)?);
                                 }
                             }
                             return Ok(Self::Tuple(new_vals));
@@ -671,7 +671,7 @@ impl SVal {
                                 let val = &vals[i];
                                 let ty = types[i].clone();
                                 if val.stype() != ty {
-                                    new_tup.push(val.cast(ty, doc)?);
+                                    new_tup.push(val.cast(ty)?);
                                 } else {
                                     new_tup.push(val.clone());
                                 }
@@ -697,9 +697,9 @@ impl SVal {
     }
 
     /// Print this value.
-    pub fn print(&self, doc: &mut SDoc) -> String {
+    pub fn print(&self, graph: &SGraph) -> String {
         match self {
-            Self::Ref(rf) => rf.read().unwrap().print(doc),
+            Self::Ref(rf) => rf.read().unwrap().print(graph),
             Self::Void => {
                 "void".to_string()
             },
@@ -718,14 +718,14 @@ impl SVal {
             Self::Array(vals) => {
                 let mut arr = Vec::new();
                 for val in vals {
-                    arr.push(val.print(doc));
+                    arr.push(val.print(graph));
                 }
                 format!("{:?}", arr)
             },
             Self::Tuple(vals) => {
                 let mut arr = Vec::new();
                 for val in vals {
-                    arr.push(val.print(doc));
+                    arr.push(val.print(graph));
                 }
                 format!("({:?})", arr)
             },
@@ -735,13 +735,13 @@ impl SVal {
             #[allow(unused)]
             Self::Object(nref) => {
                 #[cfg(feature = "json")]
-                return JSON::stringify_node(&doc.graph, nref).expect("Unable to export node during print to JSON");
+                return JSON::stringify_node(graph, nref).expect("Unable to export node during print to JSON");
 
                 #[cfg(feature = "toml")]
-                return TOML::stringify_node(&doc.graph, nref).expect("Unable to export node during print to TOML");
+                return TOML::stringify_node(graph, nref).expect("Unable to export node during print to TOML");
 
                 #[cfg(not(feature = "json"))]
-                return self.debug(doc);
+                return self.debug(graph);
             },
             Self::Blob(blob) => {
                 format!("blob({}bytes)", blob.len())
@@ -750,10 +750,10 @@ impl SVal {
     }
 
     /// Debug this value to console.
-    pub fn debug(&self, doc: &mut SDoc) -> String {
+    pub fn debug(&self, graph: &SGraph) -> String {
         match self {
             Self::Ref(rf) => {
-                format!("Ref({})", rf.read().unwrap().debug(doc))
+                format!("Ref({})", rf.read().unwrap().debug(graph))
             },
             Self::Void => {
                 "void".to_string()
@@ -773,14 +773,14 @@ impl SVal {
             Self::Array(vals) => {
                 let mut arr = Vec::new();
                 for val in vals {
-                    arr.push(val.print(doc));
+                    arr.push(val.print(graph));
                 }
                 format!("Array({:?})", arr)
             },
             Self::Tuple(vals) => {
                 let mut arr = Vec::new();
                 for val in vals {
-                    arr.push(val.print(doc));
+                    arr.push(val.print(graph));
                 }
                 format!("Tuple({:?})", arr)
             },
@@ -788,8 +788,8 @@ impl SVal {
                 format!("Fn({})", dref.id)
             },
             Self::Object(nref) => {
-                if let Some(node) = nref.node(&doc.graph) {
-                    return node.dump(&doc.graph, 0, true);
+                if let Some(node) = nref.node(graph) {
+                    return node.dump(graph, 0, true);
                 }
                 format!("Object({})", nref.id)
             },
@@ -800,19 +800,19 @@ impl SVal {
     }
 
     /// Equality.
-    pub fn equal(&self, other: &Self, _doc: &mut SDoc) -> Result<Self> {
+    pub fn equal(&self, other: &Self, _graph: &SGraph) -> Result<Self> {
         Ok((self == other).into())
     }
 
     /// Not equals.
-    pub fn neq(&self, other: &Self, _doc: &mut SDoc) -> Result<Self> {
+    pub fn neq(&self, other: &Self, _graph: &SGraph) -> Result<Self> {
         Ok((self != other).into())
     }
 
     /// Greater than other?
-    pub fn gt(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn gt(&self, other: &Self, graph: &SGraph) -> Result<Self> {
         match self {
-            Self::Ref(rf) => rf.read().unwrap().gt(other, doc),
+            Self::Ref(rf) => rf.read().unwrap().gt(other, graph),
             Self::Array(_) => Ok(Self::Bool(false)),
             Self::Tuple(_) => Ok(Self::Bool(false)),
             Self::Bool(_) => Ok(Self::Bool(false)),
@@ -821,14 +821,14 @@ impl SVal {
             Self::Null => Ok(Self::Bool(false)),
             Self::Blob(blob) => {
                 match other {
-                    Self::Ref(rf) => self.gt(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.gt(&rf.read().unwrap(), graph),
                     Self::Blob(other_blob) => Ok(Self::Bool(blob.len() > other_blob.len())),
                     _ => Ok(Self::Bool(false))
                 }
             },
             Self::Number(val) => {
                 match other {
-                    Self::Ref(rf) => self.gt(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.gt(&rf.read().unwrap(), graph),
                     Self::Number(oval) => {
                         Ok(Self::Bool(val.gt(oval)))
                     },
@@ -837,7 +837,7 @@ impl SVal {
             },
             Self::String(val) => {
                 match other {
-                    Self::Ref(rf) => self.gt(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.gt(&rf.read().unwrap(), graph),
                     Self::String(oval) => Ok(Self::Bool(val > oval)),
                     _ => Ok(Self::Bool(false)),
                 }
@@ -847,9 +847,9 @@ impl SVal {
     }
 
     /// Less than other?
-    pub fn lt(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn lt(&self, other: &Self, graph: &SGraph) -> Result<Self> {
         match self {
-            Self::Ref(rf) => rf.read().unwrap().lt(other, doc),
+            Self::Ref(rf) => rf.read().unwrap().lt(other, graph),
             Self::Array(_) => Ok(Self::Bool(false)),
             Self::Tuple(_) => Ok(Self::Bool(false)),
             Self::Bool(_) => Ok(Self::Bool(false)),
@@ -858,14 +858,14 @@ impl SVal {
             Self::Null => Ok(Self::Bool(false)),
             Self::Blob(blob) => {
                 match other {
-                    Self::Ref(rf) => self.lt(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.lt(&rf.read().unwrap(), graph),
                     Self::Blob(other_blob) => Ok(Self::Bool(blob.len() < other_blob.len())),
                     _ => Ok(Self::Bool(false))
                 }
             },
             Self::Number(val) => {
                 match other {
-                    Self::Ref(rf) => self.lt(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.lt(&rf.read().unwrap(), graph),
                     Self::Number(oval) => {
                         Ok(Self::Bool(val.lt(oval)))
                     },
@@ -874,7 +874,7 @@ impl SVal {
             },
             Self::String(val) => {
                 match other {
-                    Self::Ref(rf) => self.lt(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.lt(&rf.read().unwrap(), graph),
                     Self::String(oval) => Ok(Self::Bool(val < oval)),
                     _ => Ok(Self::Bool(false)),
                 }
@@ -884,8 +884,8 @@ impl SVal {
     }
 
     /// Greater than or equal?
-    pub fn gte(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
-        let mut res = self.gt(other, doc)?;
+    pub fn gte(&self, other: &Self, graph: &SGraph) -> Result<Self> {
+        let mut res = self.gt(other, graph)?;
         match res {
             Self::Bool(val) => {
                 if val {
@@ -894,7 +894,7 @@ impl SVal {
             },
             _ => {}
         }
-        res = self.equal(other, doc)?;
+        res = self.equal(other, graph)?;
         match res {
             Self::Bool(_) => Ok(res),
             _ => Ok(Self::Bool(false))
@@ -902,8 +902,8 @@ impl SVal {
     }
 
     /// Less than or equal?
-    pub fn lte(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
-        let mut res = self.lt(other, doc)?;
+    pub fn lte(&self, other: &Self, graph: &SGraph) -> Result<Self> {
+        let mut res = self.lt(other, graph)?;
         match res {
             Self::Bool(val) => {
                 if val {
@@ -912,7 +912,7 @@ impl SVal {
             },
             _ => {}
         }
-        res = self.equal(other, doc)?;
+        res = self.equal(other, graph)?;
         match res {
             Self::Bool(_) => Ok(res),
             _ => Ok(Self::Bool(false))
@@ -920,11 +920,11 @@ impl SVal {
     }
 
     /// Logical and.
-    pub fn and(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn and(&self, other: &Self, graph: &SGraph) -> Result<Self> {
         match self {
-            Self::Ref(rf) => rf.read().unwrap().and(other, doc),
+            Self::Ref(rf) => rf.read().unwrap().and(other, graph),
             // Object is truthy!
-            Self::Object(_) => Self::Bool(true).and(other, doc),
+            Self::Object(_) => Self::Bool(true).and(other, graph),
             Self::Null |
             Self::Void => {
                 // null && any => false
@@ -934,7 +934,7 @@ impl SVal {
             Self::Bool(aval) => {
                 match other {
                     Self::Object(_) => Ok(Self::Bool(*aval)),
-                    Self::Ref(rf) => self.and(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.and(&rf.read().unwrap(), graph),
                     Self::Null |
                     Self::Void => {
                         // any && null => false
@@ -964,7 +964,7 @@ impl SVal {
             Self::String(aval) => {
                 match other {
                     Self::Object(_) => Ok(Self::Bool(aval.len() > 0)),
-                    Self::Ref(rf) => self.and(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.and(&rf.read().unwrap(), graph),
                     Self::Null |
                     Self::Void => {
                         // Any && null => false
@@ -994,7 +994,7 @@ impl SVal {
             Self::Number(aval) => {
                 match other {
                     Self::Object(_) => Ok(Self::Bool(aval.bool())),
-                    Self::Ref(rf) => self.and(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.and(&rf.read().unwrap(), graph),
                     Self::Null |
                     Self::Void => {
                         // any && void => false
@@ -1034,10 +1034,10 @@ impl SVal {
     }
 
     /// Logical or.
-    pub fn or(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn or(&self, other: &Self, graph: &SGraph) -> Result<Self> {
         match self {
             Self::Object(_) => Ok(Self::Bool(true)),
-            Self::Ref(rf) => rf.read().unwrap().or(other, doc),
+            Self::Ref(rf) => rf.read().unwrap().or(other, graph),
             Self::Null |
             Self::Void => {
                 Ok(Self::Bool(!other.is_empty()))
@@ -1046,7 +1046,7 @@ impl SVal {
             Self::Bool(aval) => {
                 match other {
                     Self::Object(_) => Ok(Self::Bool(true)),
-                    Self::Ref(rf) => self.or(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.or(&rf.read().unwrap(), graph),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::Bool(*aval))
@@ -1075,7 +1075,7 @@ impl SVal {
             Self::String(aval) => {
                 match other {
                     Self::Object(_) => Ok(Self::Bool(true)),
-                    Self::Ref(rf) => self.or(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.or(&rf.read().unwrap(), graph),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::Bool(aval.len() > 0))
@@ -1104,7 +1104,7 @@ impl SVal {
             Self::Number(aval) => {
                 match other {
                     Self::Object(_) => Ok(Self::Bool(true)),
-                    Self::Ref(rf) => self.or(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.or(&rf.read().unwrap(), graph),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::Bool(aval.bool()))
@@ -1143,10 +1143,10 @@ impl SVal {
     }
 
     /// Add.
-    pub fn add(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn add(&self, other: &Self, graph: &SGraph) -> Result<Self> {
         match self {
             Self::Object(_) => Err(anyhow!("Cannot add objects")),
-            Self::Ref(rf) => rf.read().unwrap().add(other, doc),
+            Self::Ref(rf) => rf.read().unwrap().add(other, graph),
             Self:: Null |
             Self::Void => {
                 Ok(other.clone())
@@ -1165,7 +1165,7 @@ impl SVal {
             Self::Bool(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot add objects")),
-                    Self::Ref(rf) => self.add(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.add(&rf.read().unwrap(), graph),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1196,7 +1196,7 @@ impl SVal {
             Self::String(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot add objects")),
-                    Self::Ref(rf) => self.add(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.add(&rf.read().unwrap(), graph),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1211,13 +1211,13 @@ impl SVal {
                         Ok(Self::String(format!("{}{}", aval, bval)))
                     },
                     Self::Array(_) => {
-                        Ok(Self::String(format!("{}{}", aval, other.print(doc))))
+                        Ok(Self::String(format!("{}{}", aval, other.print(graph))))
                     },
                     Self::Tuple(_) => {
-                        Ok(Self::String(format!("{}{}", aval, other.print(doc))))
+                        Ok(Self::String(format!("{}{}", aval, other.print(graph))))
                     },
                     Self::FnPtr(_) => {
-                        Ok(Self::String(format!("{}{}", aval, other.print(doc))))
+                        Ok(Self::String(format!("{}{}", aval, other.print(graph))))
                     },
                     Self::Blob(_) => {
                         // TODO - cast string to blob?
@@ -1228,7 +1228,7 @@ impl SVal {
             Self::Number(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot add objects")),
-                    Self::Ref(rf) => self.add(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.add(&rf.read().unwrap(), graph),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1305,8 +1305,8 @@ impl SVal {
                         Ok(Self::Array(new))
                     },
                     Self::Blob(_) => {
-                        let arr_blob = Self::Array(vals.clone()).cast(SType::Blob, doc)?;
-                        arr_blob.add(other, doc)
+                        let arr_blob = Self::Array(vals.clone()).cast(SType::Blob)?;
+                        arr_blob.add(other, graph)
                     },
                 }
             },
@@ -1320,10 +1320,10 @@ impl SVal {
     }
 
     /// Subtract.
-    pub fn sub(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn sub(&self, other: &Self, graph: &SGraph) -> Result<Self> {
         match self {
             Self::Object(_) => Err(anyhow!("Cannot subtract objects")),
-            Self::Ref(rf) => rf.read().unwrap().sub(other, doc),
+            Self::Ref(rf) => rf.read().unwrap().sub(other, graph),
             Self::Null |
             Self::Void => {
                 Err(anyhow!("Cannot subtract anything from null or void"))
@@ -1334,7 +1334,7 @@ impl SVal {
             Self::Bool(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot subtract objects")),
-                    Self::Ref(rf) => self.sub(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.sub(&rf.read().unwrap(), graph),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1365,7 +1365,7 @@ impl SVal {
             Self::String(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot subtract objects")),
-                    Self::Ref(rf) => self.sub(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.sub(&rf.read().unwrap(), graph),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1396,7 +1396,7 @@ impl SVal {
             Self::Number(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot subtract objects")),
-                    Self::Ref(rf) => self.sub(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.sub(&rf.read().unwrap(), graph),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1443,10 +1443,10 @@ impl SVal {
     }
 
     /// Multiply another value with this value.
-    pub fn mul(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn mul(&self, other: &Self, graph: &SGraph) -> Result<Self> {
         match self {
             Self::Object(_) => Err(anyhow!("Cannot multiply objects")),
-            Self::Ref(rf) => rf.read().unwrap().mul(other, doc),
+            Self::Ref(rf) => rf.read().unwrap().mul(other, graph),
             Self::Null |
             Self::Void => {
                 Ok(other.clone())
@@ -1457,7 +1457,7 @@ impl SVal {
             Self::Bool(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot multiply objects")),
-                    Self::Ref(rf) => self.mul(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.mul(&rf.read().unwrap(), graph),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1488,7 +1488,7 @@ impl SVal {
             Self::String(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot multiply objects")),
-                    Self::Ref(rf) => self.mul(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.mul(&rf.read().unwrap(), graph),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1523,7 +1523,7 @@ impl SVal {
             Self::Number(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot multiply objects")),
-                    Self::Ref(rf) => self.mul(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.mul(&rf.read().unwrap(), graph),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1568,10 +1568,10 @@ impl SVal {
     }
 
     /// Divide another value with this value.
-    pub fn div(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn div(&self, other: &Self, graph: &SGraph) -> Result<Self> {
         match self {
             Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-            Self::Ref(rf) => rf.read().unwrap().div(other, doc),
+            Self::Ref(rf) => rf.read().unwrap().div(other, graph),
             Self::Null |
             Self::Void => {
                 Ok(other.clone())
@@ -1582,7 +1582,7 @@ impl SVal {
             Self::Bool(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-                    Self::Ref(rf) => self.div(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.div(&rf.read().unwrap(), graph),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1613,7 +1613,7 @@ impl SVal {
             Self::String(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-                    Self::Ref(rf) => self.div(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.div(&rf.read().unwrap(), graph),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1649,7 +1649,7 @@ impl SVal {
             Self::Number(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-                    Self::Ref(rf) => self.div(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.div(&rf.read().unwrap(), graph),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1694,10 +1694,10 @@ impl SVal {
     }
 
     /// Modulus/remainder (mod) another value with this value.
-    pub fn rem(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn rem(&self, other: &Self, graph: &SGraph) -> Result<Self> {
         match self {
             Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-            Self::Ref(rf) => rf.read().unwrap().rem(other, doc),
+            Self::Ref(rf) => rf.read().unwrap().rem(other, graph),
             Self::Null |
             Self::Void => {
                 Ok(other.clone())
@@ -1708,7 +1708,7 @@ impl SVal {
             Self::Bool(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-                    Self::Ref(rf) => self.rem(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.rem(&rf.read().unwrap(), graph),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1739,7 +1739,7 @@ impl SVal {
             Self::String(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-                    Self::Ref(rf) => self.rem(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.rem(&rf.read().unwrap(), graph),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1775,7 +1775,7 @@ impl SVal {
             Self::Number(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-                    Self::Ref(rf) => self.rem(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.rem(&rf.read().unwrap(), graph),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())

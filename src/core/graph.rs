@@ -14,12 +14,35 @@
 // limitations under the License.
 //
 
-use std::{collections::{HashMap, HashSet}, ops::{Index, IndexMut}};
+use std::{collections::{HashMap, HashSet}, ops::{Index, IndexMut}, sync::{Arc, RwLock}};
 use anyhow::Result;
+use bytes::Bytes;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{SField, FKIND};
-use super::{Data, IntoDataRef, IntoNodeRef, SData, SDataRef, SDataSelection, SDataStore, SNode, SNodeRef, SNodeStore, SRef, Store, DATA_DIRTY_NODES};
+use crate::{bytes::BYTES, text::TEXT, SField, BSTOF, FKIND, STOF};
+use super::{ArrayLibrary, CustomTypes, Data, Format, FunctionLibrary, IntoDataRef, IntoNodeRef, Library, NumberLibrary, ObjectLibrary, SData, SDataRef, SDataSelection, SDataStore, SFormats, SLibraries, SNode, SNodeRef, SNodeStore, SPermissions, SRef, SStack, StdLibrary, Store, StringLibrary, TupleLibrary, DATA_DIRTY_NODES};
+
+#[cfg(feature = "js")]
+use crate::js::StofLibFunc;
+#[cfg(feature = "js")]
+use std::collections::BTreeMap;
+
+#[cfg(feature = "json")]
+use crate::json::JSON;
+#[cfg(feature = "json")]
+use crate::json::NDJSON;
+
+#[cfg(feature = "toml")]
+use crate::toml::TOML;
+
+#[cfg(feature = "yaml")]
+use crate::yaml::YAML;
+
+#[cfg(feature = "xml")]
+use crate::xml::XML;
+
+#[cfg(feature = "urlencoded")]
+use crate::urlencoded::URLENC;
 
 
 /// Stof graph versions.
@@ -40,6 +63,29 @@ pub struct SGraph {
     pub roots: Vec<SNodeRef>,
     pub nodes: Box<SNodeStore>,
     pub data: Box<SDataStore>,
+
+    /// Custom types in this graph.
+    pub types: CustomTypes,
+
+    /// Graph permissions.
+    pub perms: SPermissions,
+
+    /// Formats that this graph supports.
+    /// It is up to the local Doc to provide formats.
+    #[serde(skip)]
+    pub formats: SFormats,
+
+    /// Libraries that this graph can call when scripting.
+    /// It is up to the local Doc to provide libraries.
+    #[serde(skip)]
+    pub libraries: SLibraries,
+
+    #[serde(skip)]
+    pub(crate) stack: SStack,
+
+    #[cfg(feature = "js")]
+    #[serde(skip)]
+    pub libfuncs: Arc<RwLock<BTreeMap<String, BTreeMap<String, StofLibFunc>>>>,
 }
 impl Default for SGraph {
     fn default() -> Self {
@@ -51,6 +97,14 @@ impl Default for SGraph {
             roots: Default::default(),
             nodes: Default::default(),
             data: Default::default(),
+            types: Default::default(),
+            perms: Default::default(),
+            formats: Default::default(),
+            libraries: Default::default(),
+            stack: Default::default(),
+
+            #[cfg(feature = "js")]
+            libfuncs: Default::default(),
         }
     }
 }
@@ -806,6 +860,127 @@ impl SGraph {
             // We like unique selfs
         });
         Ok(())
+    }
+
+
+    /*****************************************************************************
+     * Formats.
+     *****************************************************************************/
+    
+    /// Load the Stof standard formats.
+    pub(crate) fn load_std_formats(&mut self) {
+        self.load_format(Arc::new(TEXT{}));
+        self.load_format(Arc::new(BYTES{}));
+
+        // STOF format ".stof" text files
+        self.load_format(Arc::new(STOF{}));
+
+        // BSTOF format ".bstof" binary files
+        self.load_format(Arc::new(BSTOF{}));
+
+        // JSON format ".json" files and NDJSON (newlines between json)
+        #[cfg(feature = "json")]
+        self.load_format(Arc::new(JSON{}));
+        #[cfg(feature = "json")]
+        self.load_format(Arc::new(NDJSON{}));
+
+        // TOML format ".toml" files
+        #[cfg(feature = "toml")]
+        self.load_format(Arc::new(TOML{}));
+
+        // YAML format ".yaml" files
+        #[cfg(feature = "yaml")]
+        self.load_format(Arc::new(YAML{}));
+
+        // XML format ".xml" files
+        #[cfg(feature = "xml")]
+        self.load_format(Arc::new(XML{}));
+
+        // URL encoding "urlencoded" format
+        #[cfg(feature = "urlencoded")]
+        self.load_format(Arc::new(URLENC{}));
+    }
+
+    /// Load a format into this document.
+    pub fn load_format(&mut self, format: Arc<dyn Format>) {
+        self.formats.insert(format);
+    }
+
+    /// Available formats
+    pub fn available_formats(&self) -> HashSet<String> {
+        self.formats.available()
+    }
+
+    /// Content type for a format.
+    pub fn format_content_type(&self, format: &str) -> Option<String> {
+        self.formats.content_type(format)
+    }
+
+    /// Header import (content type with bytes).
+    pub fn header_import(&mut self, format: &str, content_type: &str, bytes: &mut Bytes, as_name: &str) -> Result<()> {
+        self.formats.clone().header_import(format, self, content_type, bytes, as_name)
+    }
+
+    /// String import.
+    pub fn string_import(&mut self, format: &str, src: &str, as_name: &str) -> Result<()> {
+        self.formats.clone().string_import(format, self, src, as_name)
+    }
+
+    /// File import.
+    /// Stof Syntax: 'import <format> "<path>.<extension>" as <as_name>;'
+    /// If <format> isn't supplied, "format" will be "extension".
+    /// If <as_name> isn't supplied, the data should be imported into the current doc scope (or main root).
+    pub fn file_import(&mut self, format: &str, full_path: &str, extension: &str, as_name: &str) -> Result<()> {
+        self.formats.clone().file_import(format, self, full_path, extension, as_name)
+    }
+
+    /// Export document string.
+    pub fn export_string(&self, format: &str, node: Option<&SNodeRef>) -> Result<String> {
+        self.formats.export_string(format, self, node)
+    }
+
+    /// Export document min string.
+    pub fn export_min_string(&self, format: &str, node: Option<&SNodeRef>) -> Result<String> {
+        self.formats.export_min_string(format, self, node)
+    }
+
+    /// Export document bytes.
+    pub fn export_bytes(&self, format: &str, node: Option<&SNodeRef>) -> Result<Bytes> {
+        self.formats.export_bytes(format, self, node)
+    }
+
+
+    /*****************************************************************************
+     * Libraries.
+     *****************************************************************************/
+
+    /// Load the Stof standard library.
+    pub(crate) fn load_std_lib(&mut self) {
+        self.load_lib(Arc::new(RwLock::new(StdLibrary::default())));
+        self.load_lib(Arc::new(RwLock::new(ObjectLibrary::default())));
+        self.load_lib(Arc::new(RwLock::new(ArrayLibrary::default())));
+        self.load_lib(Arc::new(RwLock::new(FunctionLibrary::default())));
+        self.load_lib(Arc::new(RwLock::new(NumberLibrary::default())));
+        self.load_lib(Arc::new(RwLock::new(StringLibrary::default())));
+        self.load_lib(Arc::new(RwLock::new(TupleLibrary::default())));
+    }
+    
+    /// Load a library into this graph.
+    pub fn load_lib(&mut self, library: Arc<RwLock<dyn Library>>) {
+        self.libraries.insert(library);
+    }
+
+    /// Get a library in this graph.
+    pub fn library(&mut self, lib: &str) -> Option<Arc<RwLock<dyn Library>>> {
+        if let Some(library) = self.libraries.get(lib) {
+            return Some(library.clone());
+        }
+        None
+    }
+
+    /// Available libraries
+    pub fn available_libraries(&self) -> HashSet<String> {
+        self.libraries.available()
     }
 
 

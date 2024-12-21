@@ -16,13 +16,13 @@
 
 use std::{collections::HashSet, ops::DerefMut};
 use anyhow::{anyhow, Result};
-use crate::{Data, IntoDataRef, Library, SDoc, SField, SFunc, SType, SVal};
+use crate::{Data, IntoDataRef, Library, SGraph, SField, SFunc, SType, SVal};
 
 
 /// Object trait for calls.
 pub trait Object {
     /// Call into the Object library.
-    fn object_call(doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn object_call(graph: &mut SGraph, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
         if parameters.len() < 1 { return Err(anyhow!("Must provide an object parameter")); }
 
         // Make sure the object lib works for all refs
@@ -36,7 +36,7 @@ pub trait Object {
                         for i in 1..parameters.len() {
                             params.push(parameters[i].clone());
                         }
-                        return Self::object_call(doc, name, &mut params);
+                        return Self::object_call(graph, name, &mut params);
                     },
                     _ => {}
                 }
@@ -45,12 +45,12 @@ pub trait Object {
         }
 
         match name {
-            "toString" => Self::to_string(doc, parameters),
+            "toString" => Self::to_string(graph, parameters),
             "len" => {
                 if parameters.len() > 0 {
                     match &parameters[0] {
                         SVal::Object(nref) => {
-                            let fields = SField::fields(&doc.graph, nref);
+                            let fields = SField::fields(&graph, nref);
                             return Ok(SVal::Number((fields.len() as i32).into()));
                         },
                         _ => {}
@@ -65,15 +65,15 @@ pub trait Object {
                         SVal::Object(nref) => {
                             match &parameters[1] {
                                 SVal::String(index) => {
-                                    if let Some(field) = SField::field(&doc.graph, &index, '.', Some(nref)) {
+                                    if let Some(field) = SField::field(&graph, &index, '.', Some(nref)) {
                                         return Ok(field.value);
-                                    } else if let Some(func) = SFunc::func(&doc.graph, &index, '.', Some(nref)) {
+                                    } else if let Some(func) = SFunc::func(&graph, &index, '.', Some(nref)) {
                                         return Ok(SVal::FnPtr(func.data_ref()));
                                     }
                                     return Ok(SVal::Null); // Not found
                                 },
                                 SVal::Number(val) => {
-                                    let mut fields = SField::fields(&doc.graph, nref);
+                                    let mut fields = SField::fields(&graph, nref);
                                     let index = val.int() as usize;
                                     if index < fields.len() {
                                         let field = fields.remove(index);
@@ -84,12 +84,12 @@ pub trait Object {
                                 },
                                 _ => {}
                             }
-                            let second = &parameters[1].cast(SType::String, doc)?;
+                            let second = &parameters[1].cast(SType::String)?;
                             match second {
                                 SVal::String(index) => {
-                                    if let Some(field) = SField::field(&doc.graph, &index, '.', Some(nref)) {
+                                    if let Some(field) = SField::field(&graph, &index, '.', Some(nref)) {
                                         return Ok(field.value);
-                                    } else if let Some(func) = SFunc::func(&doc.graph, &index, '.', Some(nref)) {
+                                    } else if let Some(func) = SFunc::func(&graph, &index, '.', Some(nref)) {
                                         return Ok(SVal::FnPtr(func.data_ref()));
                                     }
                                     return Ok(SVal::Null); // Not found
@@ -105,12 +105,12 @@ pub trait Object {
                         SVal::Object(nref) => {
                             let mut array = Vec::new();
                             for i in 1..parameters.len() {
-                                let second = &parameters[i].cast(SType::String, doc)?;
+                                let second = &parameters[i].cast(SType::String)?;
                                 match second {
                                     SVal::String(index) => {
-                                        if let Some(field) = SField::field(&doc.graph, &index, '.', Some(nref)) {
+                                        if let Some(field) = SField::field(&graph, &index, '.', Some(nref)) {
                                             array.push(field.value);
-                                        } else if let Some(func) = SFunc::func(&doc.graph, &index, '.', Some(nref)) {
+                                        } else if let Some(func) = SFunc::func(&graph, &index, '.', Some(nref)) {
                                             array.push(SVal::FnPtr(func.data_ref()));
                                         }
                                     },
@@ -130,19 +130,19 @@ pub trait Object {
                     match &parameters[0] {
                         SVal::Object(nref) => {
                             let field_path = parameters[1].to_string();
-                            if let Some(mut field) = SField::field(&doc.graph, &field_path, '.', Some(&nref)) {
-                                Self::object_call(doc, "remove", &mut vec![SVal::Object(nref.clone()), SVal::String(field.name.clone())])?;
-                                field.attach(&nref, &mut doc.graph);
+                            if let Some(mut field) = SField::field(&graph, &field_path, '.', Some(&nref)) {
+                                Self::object_call(graph, "remove", &mut vec![SVal::Object(nref.clone()), SVal::String(field.name.clone())])?;
+                                field.attach(&nref, graph);
                                 return Ok(SVal::Bool(true));
-                            } else if let Some(mut field) = SField::field(&doc.graph, &field_path, '.', None) {
-                                Self::object_call(doc, "remove", &mut vec![SVal::Object(nref.clone()), SVal::String(field.name.clone())])?;
-                                field.attach(&nref, &mut doc.graph);
+                            } else if let Some(mut field) = SField::field(&graph, &field_path, '.', None) {
+                                Self::object_call(graph, "remove", &mut vec![SVal::Object(nref.clone()), SVal::String(field.name.clone())])?;
+                                field.attach(&nref, graph);
                                 return Ok(SVal::Bool(true));
-                            } else if let Some(mut func) = SFunc::func(&doc.graph, &field_path, '.', Some(&nref)) {
-                                func.attach(&nref, &mut doc.graph);
+                            } else if let Some(mut func) = SFunc::func(&graph, &field_path, '.', Some(&nref)) {
+                                func.attach(&nref, graph);
                                 return Ok(SVal::Bool(true));
-                            } else if let Some(mut func) = SFunc::func(&doc.graph, &field_path, '.', None) {
-                                func.attach(&nref, &mut doc.graph);
+                            } else if let Some(mut func) = SFunc::func(&graph, &field_path, '.', None) {
+                                func.attach(&nref, graph);
                                 return Ok(SVal::Bool(true));
                             }
                             return Ok(SVal::Bool(false));
@@ -155,12 +155,12 @@ pub trait Object {
                             match &parameters[1] {
                                 SVal::Object(context) => {
                                     let field_path = parameters[2].to_string();
-                                    if let Some(mut field) = SField::field(&doc.graph, &field_path, '.', Some(&context)) {
-                                        Self::object_call(doc, "remove", &mut vec![SVal::Object(destination.clone()), SVal::String(field.name.clone())])?;
-                                        field.attach(&destination, &mut doc.graph);
+                                    if let Some(mut field) = SField::field(&graph, &field_path, '.', Some(&context)) {
+                                        Self::object_call(graph, "remove", &mut vec![SVal::Object(destination.clone()), SVal::String(field.name.clone())])?;
+                                        field.attach(&destination, graph);
                                         return Ok(SVal::Bool(true));
-                                    } else if let Some(mut func) = SFunc::func(&doc.graph, &field_path, '.', Some(&context)) {
-                                        func.attach(&destination, &mut doc.graph);
+                                    } else if let Some(mut func) = SFunc::func(&graph, &field_path, '.', Some(&context)) {
+                                        func.attach(&destination, graph);
                                         return Ok(SVal::Bool(true));
                                     }
                                     return Ok(SVal::Bool(false));
@@ -178,7 +178,7 @@ pub trait Object {
                 if parameters.len() == 1 {
                     match &parameters[0] {
                         SVal::Object(nref) => {
-                            let fields = SField::fields(&doc.graph, nref);
+                            let fields = SField::fields(&graph, nref);
                             let mut array = Vec::new();
                             for field in fields {
                                 let value = field.value;
@@ -198,7 +198,7 @@ pub trait Object {
                 if parameters.len() == 1 {
                     match &parameters[0] {
                         SVal::Object(nref) => {
-                            let funcs = SFunc::funcs(&doc.graph, nref);
+                            let funcs = SFunc::funcs(&graph, nref);
                             let mut array = Vec::new();
                             for func in funcs {
                                 let value = SVal::FnPtr(func.id.into());
@@ -217,7 +217,7 @@ pub trait Object {
                 if parameters.len() == 1 {
                     match &parameters[0] {
                         SVal::Object(nref) => {
-                            let fields = SField::fields(&doc.graph, nref);
+                            let fields = SField::fields(&graph, nref);
                             let mut array = Vec::new();
                             for field in fields {
                                 array.push(SVal::String(field.name));
@@ -234,7 +234,7 @@ pub trait Object {
                 if parameters.len() == 1 {
                     match &parameters[0] {
                         SVal::Object(nref) => {
-                            let fields = SField::fields(&doc.graph, nref);
+                            let fields = SField::fields(&graph, nref);
                             let mut array = Vec::new();
                             for field in fields {
                                 array.push(field.value);
@@ -250,13 +250,13 @@ pub trait Object {
                 if parameters.len() == 3 {
                     match &parameters[0] {
                         SVal::Object(nref) => {
-                            let name = parameters[1].cast(SType::String, doc)?;
+                            let name = parameters[1].cast(SType::String)?;
                             match name {
                                 SVal::String(val) => {
                                     // Check for an existing field at this location
-                                    if let Some(mut field) = SField::field(&doc.graph, &val, '.', Some(nref)) {
+                                    if let Some(mut field) = SField::field(&graph, &val, '.', Some(nref)) {
                                         field.value = parameters[2].clone();
-                                        field.set(&mut doc.graph);
+                                        field.set(graph);
                                         return Ok(parameters[2].clone());
                                     }
 
@@ -267,13 +267,13 @@ pub trait Object {
                                     // Ensure the path exists if we need to add objects
                                     let mut fref = nref.clone();
                                     if path.len() > 0 {
-                                        fref = doc.graph.ensure_nodes(&path.join("/"), '/', true, Some(nref.clone()));
+                                        fref = graph.ensure_nodes(&path.join("/"), '/', true, Some(nref.clone()));
                                     }
 
                                     // Create the field on fref
                                     let value = parameters[2].clone();
                                     let mut field = SField::new(&name, value);
-                                    field.attach(&fref, &mut doc.graph);
+                                    field.attach(&fref, graph);
 
                                     return Ok(parameters[2].clone());
                                 },
@@ -291,23 +291,23 @@ pub trait Object {
                         SVal::Object(nref) => {
                             let mut field_names = HashSet::new();
                             for i in 1..parameters.len() {
-                                let value = parameters[i].cast(SType::String, doc)?;
+                                let value = parameters[i].cast(SType::String)?;
                                 match value {
                                     SVal::String(val) => field_names.insert(val),
                                     _ => false
                                 };
                             }
 
-                            let fields = SField::fields(&doc.graph, nref);
+                            let fields = SField::fields(&graph, nref);
                             let mut array = Vec::new();
                             for field in fields {
                                 if field_names.contains(&field.name) {
                                     // Remove field from the graph!
-                                    field.remove(&mut doc.graph, Some(nref));
+                                    field.remove(graph, Some(nref));
                                     // Remove object if object TODO: array objects (same with drop)
                                     match &field.value {
                                         SVal::Object(nref) => {
-                                            doc.graph.remove_node(nref);
+                                            graph.remove_node(nref);
                                         },
                                         _ => {}
                                     }
@@ -328,7 +328,7 @@ pub trait Object {
                 if parameters.len() == 1 {
                     match &parameters[0] {
                         SVal::Object(nref) => {
-                            if let Some(node) = nref.node(&doc.graph) {
+                            if let Some(node) = nref.node(&graph) {
                                 return Ok(SVal::String(node.name.clone()));
                             }
                         },
@@ -341,7 +341,7 @@ pub trait Object {
                 if parameters.len() == 1 {
                     match &parameters[0] {
                         SVal::Object(nref) => {
-                            if let Some(node) = nref.node(&doc.graph) {
+                            if let Some(node) = nref.node(&graph) {
                                 if let Some(parent) = &node.parent {
                                     return Ok(SVal::Object(parent.clone()));
                                 }
@@ -357,7 +357,7 @@ pub trait Object {
                 if parameters.len() == 1 {
                     match &parameters[0] {
                         SVal::Object(nref) => {
-                            if let Some(node) = nref.node(&doc.graph) {
+                            if let Some(node) = nref.node(&graph) {
                                 let mut children = Vec::new();
                                 for child in &node.children {
                                     children.push(SVal::Object(child.clone()));
@@ -373,21 +373,21 @@ pub trait Object {
             },
             "typename" => {
                 if parameters.len() == 1 {
-                    let typename = parameters[0].type_name(&doc.graph);
+                    let typename = parameters[0].type_name(&graph);
                     return Ok(SVal::String(typename));
                 }
                 Err(anyhow!("Object.typename(obj) requires one object parameter"))
             },
             "typestack" => {
                 if parameters.len() == 1 {
-                    let typestack = parameters[0].type_stack(&doc.graph);
+                    let typestack = parameters[0].type_stack(&graph);
                     return Ok(SVal::Array(typestack.into_iter().map(|x| SVal::String(x)).collect()));
                 }
                 Err(anyhow!("Object.typestack(obj) requires one object parameter"))
             },
             "instanceOf" => {
                 if parameters.len() == 2 {
-                    let iof = parameters[0].instance_of(&doc.graph, &parameters[1].to_string());
+                    let iof = parameters[0].instance_of(&graph, &parameters[1].to_string());
                     return Ok(SVal::Bool(iof));
                 }
                 Err(anyhow!("Object.instanceOf(obj, type) requires one object parameter and one typename string"))
@@ -397,9 +397,9 @@ pub trait Object {
     }
 
     /// To string.
-    fn to_string(doc: &mut SDoc, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn to_string(graph: &mut SGraph, parameters: &mut Vec<SVal>) -> Result<SVal> {
         if parameters.len() > 0 {
-            let value = parameters[0].print(doc);
+            let value = parameters[0].print(graph);
             return Ok(SVal::String(value));
         }
         Err(anyhow!("Failed to find a value to convert to a string"))
@@ -412,7 +412,7 @@ impl Library for ObjectLibrary {
     fn scope(&self) -> String {
         "Object".into()
     }
-    fn call(&mut self, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
-        Self::object_call(doc, name, parameters)
+    fn call(&mut self, graph: &mut SGraph, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+        Self::object_call(graph, name, parameters)
     }
 }

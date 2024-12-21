@@ -62,19 +62,19 @@ impl Format for XML {
     }
 
     /// Header import.
-    fn header_import(&self, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<()> {
+    fn header_import(&self, graph: &mut SGraph, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<()> {
         let str = std::str::from_utf8(bytes.as_ref())?;
-        self.string_import(doc, str, as_name)
+        self.string_import(graph, str, as_name)
     }
 
     /// String import.
-    fn string_import(&self, doc: &mut crate::SDoc, src: &str, as_name: &str) -> Result<()> {
+    fn string_import(&self, original: &mut SGraph, src: &str, as_name: &str) -> Result<()> {
         let mut graph = XML::parse(src)?;
         if as_name.len() > 0 && as_name != "root" {
             let mut path = as_name.replace(".", "/");
             if as_name.starts_with("self") || as_name.starts_with("super") {
-                if let Some(ptr) = doc.self_ptr() {
-                    path = format!("{}/{}", ptr.path(&doc.graph), path);
+                if let Some(ptr) = original.stack.self_ptr() {
+                    path = format!("{}/{}", ptr.path(&original), path);
                 }
             }
 
@@ -88,21 +88,21 @@ impl Format for XML {
             }
             graph = loc_graph;
         }
-        doc.graph.default_absorb_merge(graph)
+        original.default_absorb_merge(graph)
     }
 
     /// File import.
-    fn file_import(&self, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
+    fn file_import(&self, graph: &mut SGraph, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
         let src = fs::read_to_string(full_path)?;
-        self.string_import(doc, &src, as_name)
+        self.string_import(graph, &src, as_name)
     }
 
     /// Export string.
-    fn export_string(&self, doc: &crate::SDoc, node: Option<&crate::SNodeRef>) -> Result<String> {
+    fn export_string(&self, graph: &SGraph, node: Option<&crate::SNodeRef>) -> Result<String> {
         if node.is_some() {
-            XML::stringify_node(&doc.graph, node)
+            XML::stringify_node(&graph, node)
         } else {
-            XML::stringify(&doc.graph)
+            XML::stringify(&graph)
         }
     }
 }

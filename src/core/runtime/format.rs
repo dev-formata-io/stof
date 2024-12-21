@@ -14,16 +14,21 @@
 // limitations under the License.
 //
 
-use std::{collections::{BTreeMap, HashSet}, sync::Arc};
+use std::{collections::{BTreeMap, HashSet}, fmt::Debug, sync::Arc};
 use anyhow::{anyhow, Result};
 use bytes::Bytes;
-use crate::{SDoc, SNodeRef};
+use crate::{SGraph, SNodeRef};
 
 
 /// Stof Formats.
 #[derive(Default, Clone)]
 pub struct SFormats {
     pub formats: BTreeMap<String, Arc<dyn Format>>,
+}
+impl Debug for SFormats {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("SFormats")
+    }
 }
 impl SFormats {
     /// Insert a format.
@@ -61,11 +66,11 @@ impl SFormats {
     /// Header import (content type with bytes).
     /// Use an explicit "format" if you know it.
     /// Otherwise, supply a "content_type" for a more flexible format search.
-    pub fn header_import(&self, format: &str, doc: &mut SDoc, content_type: &str, bytes: &mut Bytes, as_name: &str) -> Result<()> {
+    pub fn header_import(&self, format: &str, graph: &mut SGraph, content_type: &str, bytes: &mut Bytes, as_name: &str) -> Result<()> {
         // Check for an explicit format first!
         // If not found, search for the best match via content type.
         if let Some(format) = self.get(format) {
-            return format.header_import(doc, content_type, bytes, as_name);
+            return format.header_import(graph, content_type, bytes, as_name);
         } else {
             // Search for a format with the content_type if any!
             let mut fallbacks = Vec::new();
@@ -73,29 +78,29 @@ impl SFormats {
                 let ctt = imp.content_type();
                 if ctt == content_type {
                     // Do this import - content type is an exact match
-                    return imp.header_import(doc, content_type, bytes, as_name);
+                    return imp.header_import(graph, content_type, bytes, as_name);
                 } else if content_type.contains(&ctt) || content_type.contains(fmt) {
                     fallbacks.push(imp);
                 }
             }
             // If fallbacks, just use the first one that works
             for fallback in fallbacks {
-                if let Ok(_) = fallback.header_import(doc, content_type, bytes, as_name) {
+                if let Ok(_) = fallback.header_import(graph, content_type, bytes, as_name) {
                     return Ok(());
                 }
             }
             // Finally, fallback onto the 'bytes' format!
             if format != "bytes" {
-                return self.header_import("bytes", doc, content_type, bytes, as_name);
+                return self.header_import("bytes", graph, content_type, bytes, as_name);
             }
         }
         Err(anyhow!("Did not find a format to import with"))
     }
 
     /// String import.
-    pub fn string_import(&self, format: &str, doc: &mut SDoc, src: &str, as_name: &str) -> Result<()> {
+    pub fn string_import(&self, format: &str, graph: &mut SGraph, src: &str, as_name: &str) -> Result<()> {
         if let Some(format) = self.get(format) {
-            return format.string_import(doc, src, as_name);
+            return format.string_import(graph, src, as_name);
         }
         Err(anyhow!("Did not find a format to import with"))
     }
@@ -103,10 +108,10 @@ impl SFormats {
     /// File import.
     /// Stof Syntax: 'import <format> "<path>.<extension>" as <as_name>;'
     /// If <format> isn't supplied, "format" will be "extension".
-    /// If <as_name> isn't supplied, the data should be imported into the current doc scope (or main root).
-    pub fn file_import(&self, format: &str, doc: &mut SDoc, full_path: &str, extension: &str, as_name: &str) -> Result<()> {
+    /// If <as_name> isn't supplied, the data should be imported into the current graph scope (or main root).
+    pub fn file_import(&self, format: &str, graph: &mut SGraph, full_path: &str, extension: &str, as_name: &str) -> Result<()> {
         if let Some(fmt) = self.get(format) {
-            return fmt.file_import(doc, format, full_path, extension, as_name);
+            return fmt.file_import(graph, format, full_path, extension, as_name);
         }
         Err(anyhow!("Did not find a format to import with"))
     }
@@ -116,26 +121,26 @@ impl SFormats {
      * Export.
      *****************************************************************************/
     
-    /// Export document into a string (human readable string).
-    pub fn export_string(&self, format: &str, doc: &SDoc, node: Option<&SNodeRef>) -> Result<String> {
+    /// Export graphument into a string (human readable string).
+    pub fn export_string(&self, format: &str, graph: &SGraph, node: Option<&SNodeRef>) -> Result<String> {
         if let Some(format) = self.get(format) {
-            return format.export_string(doc, node);
+            return format.export_string(graph, node);
         }
         Err(anyhow!("Did not find a format to export with"))
     }
 
-    /// Export document into a string (minified string).
-    pub fn export_min_string(&self, format: &str, doc: &SDoc, node: Option<&SNodeRef>) -> Result<String> {
+    /// Export graphument into a string (minified string).
+    pub fn export_min_string(&self, format: &str, graph: &SGraph, node: Option<&SNodeRef>) -> Result<String> {
         if let Some(format) = self.get(format) {
-            return format.export_min_string(doc, node);
+            return format.export_min_string(graph, node);
         }
         Err(anyhow!("Did not find a format to export with"))
     }
 
-    /// Export document into bytes.
-    pub fn export_bytes(&self, format: &str, doc: &SDoc, node: Option<&SNodeRef>) -> Result<Bytes> {
+    /// Export graphument into bytes.
+    pub fn export_bytes(&self, format: &str, graph: &SGraph, node: Option<&SNodeRef>) -> Result<Bytes> {
         if let Some(format) = self.get(format) {
-            return format.export_bytes(doc, node);
+            return format.export_bytes(graph, node);
         }
         Err(anyhow!("Did not find a format to export with"))
     }
@@ -167,22 +172,22 @@ pub trait Format: Send + Sync {
     
     /// Content type import.
     #[allow(unused)]
-    fn header_import(&self, doc: &mut SDoc, content_type: &str, bytes: &mut Bytes, as_name: &str) -> Result<()> {
+    fn header_import(&self, graph: &mut SGraph, content_type: &str, bytes: &mut Bytes, as_name: &str) -> Result<()> {
         Err(anyhow!("Not implemented"))
     }
 
     /// String import.
     #[allow(unused)]
-    fn string_import(&self, doc: &mut SDoc, src: &str, as_name: &str) -> Result<()> {
+    fn string_import(&self, graph: &mut SGraph, src: &str, as_name: &str) -> Result<()> {
         Err(anyhow!("Not implemented"))
     }
 
     /// File import.
     /// Stof Syntax: 'import <format> "<path>.<extension>" as <as_name>;'
     /// If <format> isn't supplied, "format" will be "extension".
-    /// If <as_name> isn't supplied, the data should be imported into the current doc scope (or main root).
+    /// If <as_name> isn't supplied, the data should be imported into the current graph scope (or main root).
     #[allow(unused)]
-    fn file_import(&self, doc: &mut SDoc, format: &str, full_path: &str, extension: &str, as_name: &str) -> Result<()> {
+    fn file_import(&self, graph: &mut SGraph, format: &str, full_path: &str, extension: &str, as_name: &str) -> Result<()> {
         Err(anyhow!("Not implemented"))
     }
 
@@ -193,20 +198,20 @@ pub trait Format: Send + Sync {
 
     /// Export document into a string (human readable string).
     #[allow(unused)]
-    fn export_string(&self, doc: &SDoc, node: Option<&SNodeRef>) -> Result<String> {
+    fn export_string(&self, graph: &SGraph, node: Option<&SNodeRef>) -> Result<String> {
         Err(anyhow!("Not implemented"))
     }
 
     /// Export document into a string (minified string).
     #[allow(unused)]
-    fn export_min_string(&self, doc: &SDoc, node: Option<&SNodeRef>) -> Result<String> {
-        self.export_string(doc, node)
+    fn export_min_string(&self, graph: &SGraph, node: Option<&SNodeRef>) -> Result<String> {
+        self.export_string(graph, node)
     }
 
     /// Export document into bytes.
     #[allow(unused)]
-    fn export_bytes(&self, doc: &SDoc, node: Option<&SNodeRef>) -> Result<Bytes> {
-        if let Ok(res) = self.export_min_string(doc, node) {
+    fn export_bytes(&self, graph: &SGraph, node: Option<&SNodeRef>) -> Result<Bytes> {
+        if let Ok(res) = self.export_min_string(graph, node) {
             return Ok(Bytes::from(res));
         }
         Err(anyhow!("Not implemented"))

@@ -17,7 +17,7 @@
 use std::{collections::HashSet, ops::Deref};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
-use crate::{Data, SDoc, SField, SVal, SFunc};
+use crate::{Data, SField, SFunc, SGraph, SVal};
 use super::Expr;
 
 
@@ -45,18 +45,18 @@ impl Statements {
         self.statements.append(&mut statements.statements);
     }
 
-    /// Execute these statements with the given doc.
-    pub fn exec(&self, doc: &mut SDoc) -> Result<StatementsRes> {
+    /// Execute these statements with the given graph.
+    pub fn exec(&self, graph: &mut SGraph) -> Result<StatementsRes> {
         for statement in &self.statements {
             match statement {
                 Statement::Declare(name, rhs) => {
                     // Check to see if the symbol already exists in the current scope
-                    if let Some(_) = doc.table.current().get(&name) {
+                    if let Some(_) = graph.stack.table.current().get(&name) {
                         return Err(anyhow!("Attempting to declare a variable that already exists in the same scope: {}", &name));
                     }
 
                     // Eval rhs, which is the value of the new variable
-                    let val = rhs.exec(doc)?;
+                    let val = rhs.exec(graph)?;
                     if val.is_void() {
                         return Err(anyhow!("Cannot declare void variable"));
                     }
@@ -65,28 +65,28 @@ impl Statements {
                     if name.contains('.') {
                         return Err(anyhow!("Cannot declare variables that are paths. If you're setting fields, drop the 'let' keyword."));
                     } else {
-                        doc.add_variable(&name, val);
+                        graph.stack.add_variable(&name, val);
                     }
                 },
                 Statement::Assign(name, rhs) => {
                     // Eval rhs, which is the value of the variable!
-                    let val = rhs.exec(doc)?;
+                    let val = rhs.exec(graph)?;
                     if val.is_void() {
                         return Err(anyhow!("Cannot assign void"));
                     }
 
                     // Try setting a variable in the symbol table
                     let mut set_var = false;
-                    if doc.set_variable(&name, val.clone()) {
+                    if graph.stack.set_variable(&name, val.clone()) {
                         set_var = true;
                     }
 
                     if !set_var && name.contains('.') && !name.ends_with('.') && !name.starts_with('.') {
                         // Try assigning via an absolute path to a field first
-                        if let Some(mut field) = SField::field(&doc.graph, &name, '.', None) {
-                            if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr().as_ref()) {
+                        if let Some(mut field) = SField::field(&graph, &name, '.', None) {
+                            if graph.perms.can_write_field(&graph, &field, graph.stack.self_ptr().as_ref()) {
                                 field.value = val;
-                                field.set(&mut doc.graph);
+                                field.set(graph);
                             }
                             return Ok(StatementsRes::None); // Go no further!
                         }
@@ -95,7 +95,7 @@ impl Statements {
                         let mut path = name.split('.').collect::<Vec<&str>>();
                         let mut context = None;
                         let mut context_path = name.clone();
-                        if let Some(symbol) = doc.get_symbol(path.remove(0)) {
+                        if let Some(symbol) = graph.stack.get_symbol(path.remove(0)) {
                             match symbol.var() {
                                 SVal::Ref(rf) => {
                                     let refval = rf.read().unwrap();
@@ -117,32 +117,32 @@ impl Statements {
                         }
                         // If no variable matches, try setting self scope
                         else if name.starts_with("self") || name.starts_with("super") {
-                            context = doc.self_ptr();
+                            context = graph.stack.self_ptr();
                         }
 
                         if let Some(mut context) = context {
                             let mut set = false;
 
                             // Already defined field?
-                            if let Some(mut field) = SField::field(&doc.graph, &context_path, '.', Some(&context)) {
-                                if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr().as_ref()) {
+                            if let Some(mut field) = SField::field(&graph, &context_path, '.', Some(&context)) {
+                                if graph.perms.can_write_field(&graph, &field, graph.stack.self_ptr().as_ref()) {
                                     field.value = val.clone();
-                                    field.set(&mut doc.graph);
+                                    field.set(graph);
                                     set = true;
                                 }
                             }
                             // Creating a new field
                             else {
-                                if doc.perms.can_write_scope(&doc.graph, &context, doc.self_ptr().as_ref()) {
+                                if graph.perms.can_write_scope(&graph, &context, graph.stack.self_ptr().as_ref()) {
                                     let mut new_field_path = context_path.split('.').collect::<Vec<&str>>();
 
                                     let field_name = new_field_path.pop().unwrap();
                                     if new_field_path.len() > 0 {
-                                        context = doc.graph.ensure_nodes(&new_field_path.join("/"), '/', true, Some(context.clone()));
+                                        context = graph.ensure_nodes(&new_field_path.join("/"), '/', true, Some(context.clone()));
                                     }
 
                                     let mut field = SField::new(field_name, val.clone());
-                                    field.attach(&context, &mut doc.graph);
+                                    field.attach(&context, graph);
                                     set = true;
                                 }
                             }
@@ -154,14 +154,14 @@ impl Statements {
                                         // New name for the source node
                                         let new_name = context_path.split('.').collect::<Vec<&str>>().pop().unwrap();
                                         let mut old_name = String::default();
-                                        if let Some(source_node) = source.node(&doc.graph) {
+                                        if let Some(source_node) = source.node(&graph) {
                                             old_name = source_node.name.clone();
                                         }
 
-                                        let mut source_ident = source.path(&doc.graph);
+                                        let mut source_ident = source.path(&graph);
                                         source_ident = source_ident.replace('/', "."); // Make a variable
 
-                                        let mut destination_ident = context.path(&doc.graph);
+                                        let mut destination_ident = context.path(&graph);
                                         destination_ident = destination_ident.replace('/', ".");
 
                                         let mut statements_vec = vec![Statement::Move(source_ident.into(), destination_ident.clone().into())];
@@ -171,7 +171,7 @@ impl Statements {
                                         }
 
                                         let statements = Statements::from(statements_vec);
-                                        statements.exec(doc)?;
+                                        statements.exec(graph)?;
                                     },
                                     SVal::Array(vals) => {
                                         let mut statement_vec = Vec::new();
@@ -179,10 +179,10 @@ impl Statements {
                                         for val in vals {
                                             match val {
                                                 SVal::Object(source) => {
-                                                    let mut source_ident = source.path(&doc.graph);
+                                                    let mut source_ident = source.path(&graph);
                                                     source_ident = source_ident.replace('/', ".");
 
-                                                    let mut destination_ident = context.path(&doc.graph);
+                                                    let mut destination_ident = context.path(&graph);
                                                     destination_ident = destination_ident.replace('/', ".");
 
                                                     statement_vec.push(Statement::Move(source_ident.into(), destination_ident.into()));
@@ -193,7 +193,7 @@ impl Statements {
 
                                         if statement_vec.len() > 0 {
                                             let statements = Statements::from(statement_vec);
-                                            statements.exec(doc)?;
+                                            statements.exec(graph)?;
                                         }
                                     },
                                     _ => {}
@@ -204,10 +204,10 @@ impl Statements {
                             let mut obj_path = name.split(".").collect::<Vec<&str>>();
                             let backup_name = obj_path.pop().unwrap();
                             if obj_path.len() > 0 {
-                                let nref = doc.graph.ensure_nodes(&obj_path.join("/"), '/', true, None);
-                                if doc.perms.can_write_scope(&doc.graph, &nref, doc.self_ptr().as_ref()) {
+                                let nref = graph.ensure_nodes(&obj_path.join("/"), '/', true, None);
+                                if graph.perms.can_write_scope(&graph, &nref, graph.stack.self_ptr().as_ref()) {
                                     let mut field = SField::new(backup_name, val);
-                                    field.attach(&nref, &mut doc.graph); // attach new field to self
+                                    field.attach(&nref, graph); // attach new field to self
                                 }
                             }
                         }
@@ -215,13 +215,13 @@ impl Statements {
                         // Assigning a root object!
                         match val {
                             SVal::Object(nref) => {
-                                if let Some(existing) = doc.graph.root_by_name(&name) {
-                                    doc.graph.remove_root(&existing.id);
+                                if let Some(existing) = graph.root_by_name(&name) {
+                                    graph.remove_root(&existing.id);
                                 }
-                                if let Some(node) = doc.graph.node_mut(nref.clone()) {
+                                if let Some(node) = graph.node_mut(nref.clone()) {
                                     node.name = name.clone();
                                 }
-                                doc.graph.roots.push(nref);
+                                graph.roots.push(nref);
                             },
                             _ => return Err(anyhow!("Cannot assign anything but an object as a root"))
                         }
@@ -230,22 +230,22 @@ impl Statements {
                 Statement::Drop(name) => {
                     // Try dropping a variable in the symbol table by name
                     let mut dropped_var = false;
-                    if let Some(symbol) = doc.drop(&name) {
+                    if let Some(symbol) = graph.stack.drop(&name) {
                         let dropped_val = symbol.var();
                         match &dropped_val {
                             SVal::Object(nref) => {
-                                if !doc.perms.can_write_scope(&doc.graph, &nref, doc.self_ptr().as_ref()) {
-                                    doc.add_variable(&name, dropped_val);
+                                if !graph.perms.can_write_scope(&graph, &nref, graph.stack.self_ptr().as_ref()) {
+                                    graph.stack.add_variable(&name, dropped_val);
                                 } else {
-                                    doc.graph.remove_node(nref);
+                                    graph.remove_node(nref);
                                 }
                             },
                             SVal::FnPtr(dref) => {
-                                let func: SFunc = dref.data(&doc.graph).unwrap().get_value().unwrap();
-                                if !doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr().as_ref()) {
-                                    doc.add_variable(&name, dropped_val);
+                                let func: SFunc = dref.data(&graph).unwrap().get_value().unwrap();
+                                if !graph.perms.can_write_func(&graph, &func, graph.stack.self_ptr().as_ref()) {
+                                    graph.stack.add_variable(&name, dropped_val);
                                 } else {
-                                    func.remove(&mut doc.graph, None);
+                                    func.remove(graph, None);
                                 }
                             },
                             _ => {}
@@ -254,18 +254,18 @@ impl Statements {
                     }
 
                     if !dropped_var {
-                        if let Some(field) = SField::field(&doc.graph, &name, '.', None) {
-                            if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr().as_ref()) {
-                                field.remove(&mut doc.graph, None);
+                        if let Some(field) = SField::field(&graph, &name, '.', None) {
+                            if graph.perms.can_write_field(&graph, &field, graph.stack.self_ptr().as_ref()) {
+                                field.remove(graph, None);
                                 match &field.value {
                                     SVal::Object(nref) => {
-                                        doc.graph.remove_node(nref);
+                                        graph.remove_node(nref);
                                     },
                                     SVal::Array(vec) => {
                                         for val in vec {
                                             match val {
                                                 SVal::Object(nref) => {
-                                                    doc.graph.remove_node(nref);
+                                                    graph.remove_node(nref);
                                                 },
                                                 _ => {}
                                             }
@@ -274,28 +274,28 @@ impl Statements {
                                     _ => {}
                                 }
                             }
-                        } else if let Some(func) = SFunc::func(&doc.graph, &name, '.', None) {
-                            if doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr().as_ref()) {
-                                func.remove(&mut doc.graph, None);
+                        } else if let Some(func) = SFunc::func(&graph, &name, '.', None) {
+                            if graph.perms.can_write_func(&graph, &func, graph.stack.self_ptr().as_ref()) {
+                                func.remove(graph, None);
                             }
-                        } else if let Some(node) = doc.graph.node_ref(&name.replace(".", "/"), None) {
-                            if doc.perms.can_write_scope(&doc.graph, &node, doc.self_ptr().as_ref()) {
-                                doc.graph.remove_node(&node);
+                        } else if let Some(node) = graph.node_ref(&name.replace(".", "/"), None) {
+                            if graph.perms.can_write_scope(&graph, &node, graph.stack.self_ptr().as_ref()) {
+                                graph.remove_node(&node);
                             }
                         } else {
                             // Get the object we are operating on, if any
                             let mut context_ptr = None;
                             let mut context_path = name.clone();
                             if name == "self" || name == "super" {
-                                context_ptr = doc.self_ptr();
+                                context_ptr = graph.stack.self_ptr();
                                 context_path = String::default();
                             } else if name.starts_with("self") || name.starts_with("super") {
-                                context_ptr = doc.self_ptr();
+                                context_ptr = graph.stack.self_ptr();
                             } else {
                                 let mut path = name.split(".").collect::<Vec<&str>>();
                                 if path.len() > 0 {
                                     let var = path.remove(0);
-                                    if let Some(symbol) = doc.get_symbol(var) {
+                                    if let Some(symbol) = graph.stack.get_symbol(var) {
                                         let var = symbol.var();
                                         match var {
                                             SVal::Ref(rf) => {
@@ -323,30 +323,30 @@ impl Statements {
                                 if context_path.len() < 1 {
                                     // We are deleting the context itself!
                                     // Have to delete the object field on parent if any and the context object
-                                    if doc.perms.can_write_scope(&doc.graph, &context, doc.self_ptr().as_ref()) {
+                                    if graph.perms.can_write_scope(&graph, &context, graph.stack.self_ptr().as_ref()) {
                                         let mut object_name = String::default();
-                                        if let Some(context_node) = context.node(&doc.graph) {
+                                        if let Some(context_node) = context.node(&graph) {
                                             object_name = context_node.name.clone();
                                         }
                                         if object_name.len() > 0 {
-                                            if let Some(field) = SField::field(&doc.graph, &format!("super.{}", object_name), '.', Some(&context)) {
-                                                field.remove(&mut doc.graph, None);
+                                            if let Some(field) = SField::field(&graph, &format!("super.{}", object_name), '.', Some(&context)) {
+                                                field.remove(graph, None);
                                             }
                                         }
-                                        doc.graph.remove_node(&context);
+                                        graph.remove_node(&context);
                                     }
-                                } else if let Some(field) = SField::field(&doc.graph, &context_path, '.', Some(&context)) {
-                                    if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr().as_ref()) {
-                                        field.remove(&mut doc.graph, None);
+                                } else if let Some(field) = SField::field(&graph, &context_path, '.', Some(&context)) {
+                                    if graph.perms.can_write_field(&graph, &field, graph.stack.self_ptr().as_ref()) {
+                                        field.remove(graph, None);
                                         match &field.value {
                                             SVal::Object(nref) => {
-                                                doc.graph.remove_node(nref);
+                                                graph.remove_node(nref);
                                             },
                                             SVal::Array(vec) => {
                                                 for val in vec {
                                                     match val {
                                                         SVal::Object(nref) => {
-                                                            doc.graph.remove_node(nref);
+                                                            graph.remove_node(nref);
                                                         },
                                                         _ => {}
                                                     }
@@ -355,9 +355,9 @@ impl Statements {
                                             _ => {}
                                         }
                                     }
-                                } else if let Some(func) = SFunc::func(&doc.graph, &context_path, '.', Some(&context)) {
-                                    if doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr().as_ref()) {
-                                        func.remove(&mut doc.graph, None);
+                                } else if let Some(func) = SFunc::func(&graph, &context_path, '.', Some(&context)) {
+                                    if graph.perms.can_write_func(&graph, &func, graph.stack.self_ptr().as_ref()) {
+                                        func.remove(graph, None);
                                     }
                                 }
                             }
@@ -365,9 +365,9 @@ impl Statements {
                     }
                 },
                 Statement::Move(name, dest) => {
-                    let mut destination = doc.self_ptr().expect("Failed to find a self pointer on the stack for move");
+                    let mut destination = graph.stack.self_ptr().expect("Failed to find a self pointer on the stack for move");
                     if dest.len() > 0 {
-                        let dest_val = Expr::Variable(dest.clone()).exec(doc)?;
+                        let dest_val = Expr::Variable(dest.clone()).exec(graph)?;
                         match dest_val {
                             SVal::Ref(rf) => {
                                 let refval = rf.read().unwrap();
@@ -387,12 +387,12 @@ impl Statements {
                             SVal::Null => {
                                 // Create the destination nodes!
                                 if dest.starts_with("self.") {
-                                    let path = destination.path(&doc.graph);
+                                    let path = destination.path(&graph);
                                     let id = dest.replace("self", "").replace("..", ".").replace(".", "/");
-                                    destination = doc.graph.ensure_nodes(&format!("{}{}", path, id), '.', true, None);
+                                    destination = graph.ensure_nodes(&format!("{}{}", path, id), '.', true, None);
                                 } else {
                                     let id = dest.replace(".", "/");
-                                    destination = doc.graph.ensure_nodes(&id, '.', true, None);
+                                    destination = graph.ensure_nodes(&id, '.', true, None);
                                 }
                             },
                             _ => {
@@ -401,18 +401,18 @@ impl Statements {
                         }
                     }
 
-                    if let Some(mut field) = SField::field(&doc.graph, &name, '.', None) {
-                        if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr().as_ref()) {
+                    if let Some(mut field) = SField::field(&graph, &name, '.', None) {
+                        if graph.perms.can_write_field(&graph, &field, graph.stack.self_ptr().as_ref()) {
                             // Move the field
-                            field.remove(&mut doc.graph, None);
-                            field.attach(&destination, &mut doc.graph);
+                            field.remove(graph, None);
+                            field.attach(&destination, graph);
 
                             // If its an object, move the object too
                             match &field.value {
                                 SVal::Object(node) => {
-                                    let id_path: HashSet<String> = HashSet::from_iter(node.id_path(&doc.graph).into_iter());
-                                    if !id_path.contains(&destination.id) && !destination.is_child_of(&doc.graph, &node) {
-                                        doc.graph.move_node(node, &destination);
+                                    let id_path: HashSet<String> = HashSet::from_iter(node.id_path(&graph).into_iter());
+                                    if !id_path.contains(&destination.id) && !destination.is_child_of(&graph, &node) {
+                                        graph.move_node(node, &destination);
                                     }
                                 },
                                 // TODO: arrays in arrays
@@ -420,9 +420,9 @@ impl Statements {
                                     for value in values {
                                         match value {
                                             SVal::Object(node) => {
-                                                let id_path: HashSet<String> = HashSet::from_iter(node.id_path(&doc.graph).into_iter());
-                                                if !id_path.contains(&destination.id) && !destination.is_child_of(&doc.graph, &node) {
-                                                    doc.graph.move_node(node, &destination);
+                                                let id_path: HashSet<String> = HashSet::from_iter(node.id_path(&graph).into_iter());
+                                                if !id_path.contains(&destination.id) && !destination.is_child_of(&graph, &node) {
+                                                    graph.move_node(node, &destination);
                                                 }
                                             },
                                             _ => {}
@@ -432,16 +432,16 @@ impl Statements {
                                 _ => {}
                             }
                         }
-                    } else if let Some(mut func) = SFunc::func(&doc.graph, &name, '.', None) {
-                        if doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr().as_ref()) {
-                            func.remove(&mut doc.graph, None);
-                            func.attach(&destination, &mut doc.graph);
+                    } else if let Some(mut func) = SFunc::func(&graph, &name, '.', None) {
+                        if graph.perms.can_write_func(&graph, &func, graph.stack.self_ptr().as_ref()) {
+                            func.remove(graph, None);
+                            func.attach(&destination, graph);
                         }
-                    } else if let Some(node) = doc.graph.node_ref(&name.replace(".", "/"), None) {
-                        if doc.perms.can_write_scope(&doc.graph, &node, doc.self_ptr().as_ref()) {
-                            let id_path: HashSet<String> = HashSet::from_iter(node.id_path(&doc.graph).into_iter());
-                            if !id_path.contains(&destination.id) && !destination.is_child_of(&doc.graph, &node) {
-                                doc.graph.move_node(&node, &destination);
+                    } else if let Some(node) = graph.node_ref(&name.replace(".", "/"), None) {
+                        if graph.perms.can_write_scope(&graph, &node, graph.stack.self_ptr().as_ref()) {
+                            let id_path: HashSet<String> = HashSet::from_iter(node.id_path(&graph).into_iter());
+                            if !id_path.contains(&destination.id) && !destination.is_child_of(&graph, &node) {
+                                graph.move_node(&node, &destination);
                             }
                         }
                     } else {
@@ -449,15 +449,15 @@ impl Statements {
                         let mut context_ptr = None;
                         let mut context_path = name.clone();
                         if name == "self" || name == "super" {
-                            context_ptr = doc.self_ptr();
+                            context_ptr = graph.stack.self_ptr();
                             context_path = String::default();
                         } else if name.starts_with("self") || name.starts_with("super") {
-                            context_ptr = doc.self_ptr();
+                            context_ptr = graph.stack.self_ptr();
                         } else {
                             let mut path = name.split(".").collect::<Vec<&str>>();
                             if path.len() > 0 {
                                 let var = path.remove(0);
-                                if let Some(symbol) = doc.get_symbol(var) {
+                                if let Some(symbol) = graph.stack.get_symbol(var) {
                                     match symbol.var() {
                                         SVal::Ref(rf) => {
                                             let refval = rf.read().unwrap();
@@ -484,33 +484,33 @@ impl Statements {
                             if context_path.len() < 1 {
                                 // We are moving the context itself!
                                 // Have to move the object field on parent if any and the context object
-                                if doc.perms.can_write_scope(&doc.graph, &context, doc.self_ptr().as_ref()) {
+                                if graph.perms.can_write_scope(&graph, &context, graph.stack.self_ptr().as_ref()) {
                                     let mut object_name = String::default();
-                                    if let Some(context_node) = context.node(&doc.graph) {
+                                    if let Some(context_node) = context.node(&graph) {
                                         object_name = context_node.name.clone();
                                     }
                                     if object_name.len() > 0 {
-                                        if let Some(mut field) = SField::field(&doc.graph, &format!("super.{}", object_name), '.', Some(&context)) {
-                                            field.remove(&mut doc.graph, None);
-                                            field.attach(&destination, &mut doc.graph);
+                                        if let Some(mut field) = SField::field(&graph, &format!("super.{}", object_name), '.', Some(&context)) {
+                                            field.remove(graph, None);
+                                            field.attach(&destination, graph);
                                         }
                                     }
 
-                                    let id_path: HashSet<String> = HashSet::from_iter(context.id_path(&doc.graph).into_iter());
-                                    if !id_path.contains(&destination.id) && !destination.is_child_of(&doc.graph, &context) {
-                                        doc.graph.move_node(&context, &destination);
+                                    let id_path: HashSet<String> = HashSet::from_iter(context.id_path(&graph).into_iter());
+                                    if !id_path.contains(&destination.id) && !destination.is_child_of(&graph, &context) {
+                                        graph.move_node(&context, &destination);
                                     }
                                 }
-                            } else if let Some(mut field) = SField::field(&doc.graph, &context_path, '.', Some(&context)) {
-                                if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr().as_ref()) {
-                                    field.remove(&mut doc.graph, None);
-                                    field.attach(&destination, &mut doc.graph);
+                            } else if let Some(mut field) = SField::field(&graph, &context_path, '.', Some(&context)) {
+                                if graph.perms.can_write_field(&graph, &field, graph.stack.self_ptr().as_ref()) {
+                                    field.remove(graph, None);
+                                    field.attach(&destination, graph);
 
                                     match &field.value {
                                         SVal::Object(node) => {
-                                            let id_path: HashSet<String> = HashSet::from_iter(node.id_path(&doc.graph).into_iter());
-                                            if !id_path.contains(&destination.id) && !destination.is_child_of(&doc.graph, &node) {
-                                                doc.graph.move_node(node, &destination);
+                                            let id_path: HashSet<String> = HashSet::from_iter(node.id_path(&graph).into_iter());
+                                            if !id_path.contains(&destination.id) && !destination.is_child_of(&graph, &node) {
+                                                graph.move_node(node, &destination);
                                             }
                                         },
                                         // TODO: arrays in arrays
@@ -518,9 +518,9 @@ impl Statements {
                                             for value in values {
                                                 match value {
                                                     SVal::Object(node) => {
-                                                        let id_path: HashSet<String> = HashSet::from_iter(node.id_path(&doc.graph).into_iter());
-                                                        if !id_path.contains(&destination.id) && !destination.is_child_of(&doc.graph, &node) {
-                                                            doc.graph.move_node(node, &destination);
+                                                        let id_path: HashSet<String> = HashSet::from_iter(node.id_path(&graph).into_iter());
+                                                        if !id_path.contains(&destination.id) && !destination.is_child_of(&graph, &node) {
+                                                            graph.move_node(node, &destination);
                                                         }
                                                     },
                                                     _ => {}
@@ -530,17 +530,17 @@ impl Statements {
                                         _ => {}
                                     }
                                 }
-                            } else if let Some(mut func) = SFunc::func(&doc.graph, &context_path, '.', Some(&context)) {
-                                if doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr().as_ref()) {
-                                    func.remove(&mut doc.graph, None);
-                                    func.attach(&destination, &mut doc.graph);
+                            } else if let Some(mut func) = SFunc::func(&graph, &context_path, '.', Some(&context)) {
+                                if graph.perms.can_write_func(&graph, &func, graph.stack.self_ptr().as_ref()) {
+                                    func.remove(graph, None);
+                                    func.attach(&destination, graph);
                                 }
                             }
                         }
                     }
                 },
                 Statement::Rename(name, new_name) => {
-                    let name_res = new_name.exec(doc)?;
+                    let name_res = new_name.exec(graph)?;
                     let new_name_val;
                     match name_res {
                         SVal::String(v) => {
@@ -560,41 +560,41 @@ impl Statements {
                     }
 
                     if name.contains('.') && !name.ends_with('.') && !name.starts_with('.') {
-                        if let Some(mut field) = SField::field(&doc.graph, &name, '.', None) {
-                            if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr().as_ref()) {
+                        if let Some(mut field) = SField::field(&graph, &name, '.', None) {
+                            if graph.perms.can_write_field(&graph, &field, graph.stack.self_ptr().as_ref()) {
                                 match &field.value {
                                     SVal::Object(node) => {
-                                        doc.graph.rename_node(node, &new_name_val);
+                                        graph.rename_node(node, &new_name_val);
                                     },
                                     _ => {}
                                 }
                                 
                                 field.name = new_name_val.clone();
-                                field.set(&mut doc.graph);
+                                field.set(graph);
                             }
-                        } else if let Some(mut func) = SFunc::func(&doc.graph, &name, '.', None) {
-                            if doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr().as_ref()) {
+                        } else if let Some(mut func) = SFunc::func(&graph, &name, '.', None) {
+                            if graph.perms.can_write_func(&graph, &func, graph.stack.self_ptr().as_ref()) {
                                 func.name = new_name_val.clone();
-                                func.set(&mut doc.graph);
+                                func.set(graph);
                             }
-                        } else if let Some(node) = doc.graph.node_ref(&name.replace(".", "/"), None) {
-                            if doc.perms.can_write_scope(&doc.graph, &node, doc.self_ptr().as_ref()) {
-                                doc.graph.rename_node(&node, &new_name_val);
+                        } else if let Some(node) = graph.node_ref(&name.replace(".", "/"), None) {
+                            if graph.perms.can_write_scope(&graph, &node, graph.stack.self_ptr().as_ref()) {
+                                graph.rename_node(&node, &new_name_val);
                             }
                         } else {
                             // Get the object we are operating on, if any
                             let mut context_ptr = None;
                             let mut context_path = name.clone();
                             if name == "self" || name == "super" {
-                                context_ptr = doc.self_ptr();
+                                context_ptr = graph.stack.self_ptr();
                                 context_path = String::default();
                             } else if name.starts_with("self") || name.starts_with("super") {
-                                context_ptr = doc.self_ptr();
+                                context_ptr = graph.stack.self_ptr();
                             } else {
                                 let mut path = name.split(".").collect::<Vec<&str>>();
                                 if path.len() > 0 {
                                     let var = path.remove(0);
-                                    if let Some(symbol) = doc.get_symbol(var) {
+                                    if let Some(symbol) = graph.stack.get_symbol(var) {
                                         match symbol.var() {
                                             SVal::Ref(rf) => {
                                                 let refval = rf.read().unwrap();
@@ -621,41 +621,41 @@ impl Statements {
                                 if context_path.len() < 1 {
                                     // We are renaming the context itself!
                                     // Have to rename the object field on parent if any
-                                    if doc.perms.can_write_scope(&doc.graph, &context, doc.self_ptr().as_ref()) {
+                                    if graph.perms.can_write_scope(&graph, &context, graph.stack.self_ptr().as_ref()) {
                                         let mut object_name = String::default();
-                                        if let Some(context_node) = context.node(&doc.graph) {
+                                        if let Some(context_node) = context.node(&graph) {
                                             object_name = context_node.name.clone();
                                         }
                                         if object_name.len() > 0 {
-                                            if let Some(mut field) = SField::field(&doc.graph, &format!("super.{}", object_name), '.', Some(&context)) {
+                                            if let Some(mut field) = SField::field(&graph, &format!("super.{}", object_name), '.', Some(&context)) {
                                                 match &field.value {
                                                     SVal::Object(node) => {
-                                                        doc.graph.rename_node(node, &new_name_val);
+                                                        graph.rename_node(node, &new_name_val);
                                                     },
                                                     _ => {}
                                                 }
                                                 
                                                 field.name = new_name_val.clone();
-                                                field.set(&mut doc.graph);
+                                                field.set(graph);
                                             }
                                         }
                                     }
-                                } else if let Some(mut field) = SField::field(&doc.graph, &context_path, '.', Some(&context)) {
-                                    if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr().as_ref()) {
+                                } else if let Some(mut field) = SField::field(&graph, &context_path, '.', Some(&context)) {
+                                    if graph.perms.can_write_field(&graph, &field, graph.stack.self_ptr().as_ref()) {
                                         match &field.value {
                                             SVal::Object(node) => {
-                                                doc.graph.rename_node(node, &new_name_val);
+                                                graph.rename_node(node, &new_name_val);
                                             },
                                             _ => {}
                                         }
                                         
                                         field.name = new_name_val.clone();
-                                        field.set(&mut doc.graph);
+                                        field.set(graph);
                                     }
-                                } else if let Some(mut func) = SFunc::func(&doc.graph, &context_path, '.', Some(&context)) {
-                                    if doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr().as_ref()) {
+                                } else if let Some(mut func) = SFunc::func(&graph, &context_path, '.', Some(&context)) {
+                                    if graph.perms.can_write_func(&graph, &func, graph.stack.self_ptr().as_ref()) {
                                         func.name = new_name_val.clone();
-                                        func.set(&mut doc.graph);
+                                        func.set(graph);
                                     }
                                 }
                             }
@@ -663,22 +663,22 @@ impl Statements {
                     }
                 },
                 Statement::If { if_expr, elif_exprs, else_expr } => {
-                    let if_res = if_expr.0.exec(doc)?;
+                    let if_res = if_expr.0.exec(graph)?;
                     if if_res.truthy() {
-                        doc.table.new_scope();
-                        let res = if_expr.1.exec(doc)?;
-                        doc.table.end_scope();
+                        graph.stack.table.new_scope();
+                        let res = if_expr.1.exec(graph)?;
+                        graph.stack.table.end_scope();
                         
                         match res {
                             StatementsRes::Break => {
                                 // If bubble, need to propogate break upwards, out of if block
-                                if doc.bubble_control_flow > 0 {
+                                if graph.stack.bubble_control_flow > 0 {
                                     return Ok(res);
                                 }
                             },
                             StatementsRes::Continue => {
                                 // If bubble, need to propogate continue upwards, out of if block
-                                if doc.bubble_control_flow > 0 {
+                                if graph.stack.bubble_control_flow > 0 {
                                     return Ok(res);
                                 }
                             },
@@ -694,22 +694,22 @@ impl Statements {
                         // If statement was not able to execute, so drop into elif exprs
                         let mut matched = false;
                         for if_expr in elif_exprs {
-                            let if_res = if_expr.0.exec(doc)?;
+                            let if_res = if_expr.0.exec(graph)?;
                             if if_res.truthy() {
-                                doc.table.new_scope();
-                                let res = if_expr.1.exec(doc)?;
-                                doc.table.end_scope();
+                                graph.stack.table.new_scope();
+                                let res = if_expr.1.exec(graph)?;
+                                graph.stack.table.end_scope();
                                 
                                 match res {
                                     StatementsRes::Break => {
                                         // If bubble, need to propogate break upwards, out of if block
-                                        if doc.bubble_control_flow > 0 {
+                                        if graph.stack.bubble_control_flow > 0 {
                                             return Ok(res);
                                         }
                                     },
                                     StatementsRes::Continue => {
                                         // If bubble, need to propogate continue upwards, out of if block
-                                        if doc.bubble_control_flow > 0 {
+                                        if graph.stack.bubble_control_flow > 0 {
                                             return Ok(res);
                                         }
                                     },
@@ -728,20 +728,20 @@ impl Statements {
                         if !matched {
                             // Didn't find an else if statement match, so look for an else statement
                             if let Some(else_statements) = else_expr {
-                                doc.table.new_scope();
-                                let res = else_statements.exec(doc)?;
-                                doc.table.end_scope();
+                                graph.stack.table.new_scope();
+                                let res = else_statements.exec(graph)?;
+                                graph.stack.table.end_scope();
                                 
                                 match res {
                                     StatementsRes::Break => {
                                         // If bubble, need to propogate break upwards, out of if block
-                                        if doc.bubble_control_flow > 0 {
+                                        if graph.stack.bubble_control_flow > 0 {
                                             return Ok(res);
                                         }
                                     },
                                     StatementsRes::Continue => {
                                         // If bubble, need to propogate continue upwards, out of if block
-                                        if doc.bubble_control_flow > 0 {
+                                        if graph.stack.bubble_control_flow > 0 {
                                             return Ok(res);
                                         }
                                     },
@@ -759,8 +759,8 @@ impl Statements {
                 },
                 Statement::Return(expr) => {
                     // Push result of expr onto the stack
-                    let val = expr.exec(doc)?;
-                    doc.push(val);
+                    let val = expr.exec(graph)?;
+                    graph.stack.push(val);
                     return Ok(StatementsRes::Return(true));
                 },
                 Statement::EmptyReturn => {
@@ -768,17 +768,17 @@ impl Statements {
                     return Ok(StatementsRes::Return(false));
                 },
                 Statement::While(expr, statements) => {
-                    while expr.exec(doc)?.truthy() {
-                        doc.table.new_scope();
-                        doc.bubble_control_flow += 1;
+                    while expr.exec(graph)?.truthy() {
+                        graph.stack.table.new_scope();
+                        graph.stack.bubble_control_flow += 1;
                         let res;
-                        let sres = statements.exec(doc);
-                        doc.bubble_control_flow -= 1;
+                        let sres = statements.exec(graph);
+                        graph.stack.bubble_control_flow -= 1;
                         match sres {
                             Ok(sres) => res = sres,
                             Err(_) => return sres,
                         }
-                        doc.table.end_scope();
+                        graph.stack.table.end_scope();
 
                         match res {
                             StatementsRes::Break => {
@@ -807,26 +807,26 @@ impl Statements {
                     return Ok(StatementsRes::Continue);
                 },
                 Statement::Expr(expr) => {
-                    expr.exec(doc)?;
+                    expr.exec(graph)?;
                 },
                 Statement::Block(statements, finally) => {
-                    doc.table.new_scope();
-                    let res = statements.exec(doc)?;
+                    graph.stack.table.new_scope();
+                    let res = statements.exec(graph)?;
                     if finally.statements.len() > 0 {
-                        finally.exec(doc)?; // We don't care about a result here
+                        finally.exec(graph)?; // We don't care about a result here
                     }
-                    doc.table.end_scope();
+                    graph.stack.table.end_scope();
 
                     match res {
                         StatementsRes::Break => {
                             // Break should propogate too if bubbling
-                            if doc.bubble_control_flow > 0 {
+                            if graph.stack.bubble_control_flow > 0 {
                                 return Ok(res);
                             }
                         },
                         StatementsRes::Continue => {
                             // Continue needs to continue propogating upwards if bubbling
-                            if doc.bubble_control_flow > 0 {
+                            if graph.stack.bubble_control_flow > 0 {
                                 return Ok(res);
                             }
                         },

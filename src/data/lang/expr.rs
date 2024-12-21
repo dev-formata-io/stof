@@ -18,7 +18,7 @@ use std::{ops::Deref, sync::{Arc, RwLock}};
 use anyhow::{anyhow, Result};
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{IntoDataRef, SDoc, SField, SFunc, SType, SVal};
+use crate::{IntoDataRef, SField, SFunc, SGraph, SType, SVal};
 use super::{Statement, Statements, StatementsRes};
 
 
@@ -75,19 +75,19 @@ impl<T> From<T> for Expr where T: Into<SVal> {
 }
 impl Expr {
     /// Execute this expression.
-    pub fn exec(&self, doc: &mut SDoc) -> Result<SVal> {
+    pub fn exec(&self, graph: &mut SGraph) -> Result<SVal> {
         match self {
             Expr::Variable(id) => {
                 // Look for a symbol first!
-                if let Some(symbol) = doc.get_symbol(&id) {
+                if let Some(symbol) = graph.stack.get_symbol(&id) {
                     let val = symbol.var();
                     return Ok(val);
                 }
 
                 // See if we are referencing self or super only
                 if id == "self" {
-                    if let Some(self_ref) = doc.self_ptr() {
-                        if doc.perms.can_read_scope(&doc.graph, &self_ref, Some(&self_ref)) {
+                    if let Some(self_ref) = graph.stack.self_ptr() {
+                        if graph.perms.can_read_scope(&graph, &self_ref, Some(&self_ref)) {
                             return Ok(SVal::Object(self_ref));
                         }
                         return Ok(SVal::Null);
@@ -95,10 +95,10 @@ impl Expr {
                         return Ok(SVal::Null);
                     }
                 } else if id == "super" {
-                    if let Some(self_ref) = doc.self_ptr() {
-                        if let Some(node) = self_ref.node(&doc.graph) {
+                    if let Some(self_ref) = graph.stack.self_ptr() {
+                        if let Some(node) = self_ref.node(&graph) {
                             if let Some(parent) = &node.parent {
-                                if doc.perms.can_read_scope(&doc.graph, parent, Some(&self_ref)) {
+                                if graph.perms.can_read_scope(&graph, parent, Some(&self_ref)) {
                                     return Ok(SVal::Object(parent.clone()));
                                 }
                             }
@@ -112,13 +112,13 @@ impl Expr {
                 // Get the context object we are working with!
                 let mut context = None;
                 if id.starts_with("self") || id.starts_with("super") {
-                    context = doc.self_ptr();
+                    context = graph.stack.self_ptr();
                 }
                 let mut context_path = id.clone();
                 {
                     let mut path: Vec<&str> = id.split('.').collect();
                     if path.len() > 1 {
-                        if let Some(symbol) = doc.get_symbol(path.remove(0)) {
+                        if let Some(symbol) = graph.stack.get_symbol(path.remove(0)) {
                             match symbol.var() {
                                 SVal::Ref(rf) => {
                                     let refval = rf.read().unwrap();
@@ -142,8 +142,8 @@ impl Expr {
                 }
 
                 // Look for a field first
-                if let Some(field) = SField::field(&doc.graph, &context_path, '.', context.as_ref()) {
-                    if doc.perms.can_read_field(&doc.graph, &field, doc.self_ptr().as_ref()) {
+                if let Some(field) = SField::field(&graph, &context_path, '.', context.as_ref()) {
+                    if graph.perms.can_read_field(&graph, &field, graph.stack.self_ptr().as_ref()) {
                         return Ok(field.value);
                     }
                     return Ok(SVal::Null);
@@ -151,16 +151,16 @@ impl Expr {
                 
                 // Look for an object in the graph next
                 let obj_path = context_path.replace('.', "/");
-                if let Some(node) = doc.graph.node_ref(&obj_path, context.as_ref()) {
-                    if doc.perms.can_read_scope(&doc.graph, &node, doc.self_ptr().as_ref()) {
+                if let Some(node) = graph.node_ref(&obj_path, context.as_ref()) {
+                    if graph.perms.can_read_scope(&graph, &node, graph.stack.self_ptr().as_ref()) {
                         return Ok(SVal::Object(node));
                     }
                     return Ok(SVal::Null);
                 }
 
                 // Look for a function in the graph
-                if let Some(func) = SFunc::func(&doc.graph, &context_path, '.', context.as_ref()) {
-                    if doc.perms.can_read_func(&doc.graph, &func, doc.self_ptr().as_ref()) {
+                if let Some(func) = SFunc::func(&graph, &context_path, '.', context.as_ref()) {
+                    if graph.perms.can_read_func(&graph, &func, graph.stack.self_ptr().as_ref()) {
                         return Ok(SVal::FnPtr(func.data_ref()));
                     }
                     return Ok(SVal::Null);
@@ -170,7 +170,7 @@ impl Expr {
                 Ok(SVal::Null)
             },
             Expr::Ref(expr) => {
-                let value = expr.exec(doc)?;
+                let value = expr.exec(graph)?;
                 match value {
                     SVal::Ref(_) => Ok(value),
                     _ => {
@@ -178,8 +178,8 @@ impl Expr {
                         // Special case when expr is a variable symbol - need to set the variable too
                         match expr.as_ref() {
                             Expr::Variable(id) => {
-                                if doc.has_symbol(&id) {
-                                    doc.set_variable(&id, new_value.clone());
+                                if graph.stack.has_symbol(&id) {
+                                    graph.stack.set_variable(&id, new_value.clone());
                                 }
                             },
                             _ => {}
@@ -189,7 +189,7 @@ impl Expr {
                 }
             },
             Expr::DeRef(expr) => {
-                let value = expr.exec(doc)?;
+                let value = expr.exec(graph)?;
                 match value {
                     SVal::Ref(rf) => {
                         let clone = rf.read().unwrap().clone();
@@ -204,21 +204,21 @@ impl Expr {
             Expr::Tuple(vals) => {
                 let mut vec: Vec<SVal> = Vec::new();
                 for val in vals {
-                    vec.push(val.exec(doc)?);
+                    vec.push(val.exec(graph)?);
                 }
                 Ok(SVal::Tuple(vec))
             },
             Expr::Array(vals) => {
                 let mut vec: Vec<SVal> = Vec::new();
                 for val in vals {
-                    vec.push(val.exec(doc)?);
+                    vec.push(val.exec(graph)?);
                 }
                 Ok(SVal::Array(vec))
             },
             Expr::Block(statements) => {
-                doc.table.new_scope();
-                let res = statements.exec(doc)?;
-                doc.table.end_scope();
+                graph.stack.table.new_scope();
+                let res = statements.exec(graph)?;
+                graph.stack.table.end_scope();
 
                 match res {
                     StatementsRes::Break |
@@ -229,7 +229,7 @@ impl Expr {
                     StatementsRes::Return(v) => {
                         if v {
                             // block returned something to the stack!
-                            return Ok(doc.pop().unwrap());
+                            return Ok(graph.stack.pop().unwrap());
                         }
                     }
                 }
@@ -238,10 +238,10 @@ impl Expr {
             },
             Expr::NewObject(statements) => {
                 let stof_object;
-                if let Some(parent) = doc.self_ptr() {
-                    stof_object = doc.graph.insert_node(&format!("obj{}", nanoid!(7)), Some(&parent));
+                if let Some(parent) = graph.stack.self_ptr() {
+                    stof_object = graph.insert_node(&format!("obj{}", nanoid!(7)), Some(&parent));
                 } else {
-                    stof_object = doc.graph.insert_node(&format!("obj{}", nanoid!(7)), None);
+                    stof_object = graph.insert_node(&format!("obj{}", nanoid!(7)), None);
                 }
 
                 // Parse initialization statements and execute them
@@ -262,40 +262,40 @@ impl Expr {
 
                 // Execute initialization statements!
                 // Make sure to set new object as self_ptr for new sub-objects!
-                doc.self_stack.push(stof_object.clone());
+                graph.stack.self_stack.push(stof_object.clone());
                 let init_statements = Statements::from(init_statements);
-                let _ = init_statements.exec(doc);
-                doc.self_stack.pop();
+                let _ = init_statements.exec(graph);
+                graph.stack.self_stack.pop();
 
                 return Ok(SVal::Object(stof_object));
             },
             Expr::Cast(stype, expr) => {
-                let value = expr.exec(doc)?;
+                let value = expr.exec(graph)?;
                 let target = stype.clone();
 
                 if value.stype() == target {
                     return Ok(value);
                 }
-                return Ok(value.cast(target, doc)?);
+                return Ok(value.cast(target)?);
             },
             Expr::TypeOf(expr) => {
-                let value = expr.exec(doc)?;
+                let value = expr.exec(graph)?;
                 let value_type = value.stype();
                 let type_of = value_type.type_of();
                 Ok(SVal::String(type_of))
             },
             Expr::TypeName(expr) => {
-                let value = expr.exec(doc)?;
-                Ok(SVal::String(value.type_name(&doc.graph)))
+                let value = expr.exec(graph)?;
+                Ok(SVal::String(value.type_name(&graph)))
             },
             Expr::Not(expr) => {
-                let value = expr.exec(doc)?;
+                let value = expr.exec(graph)?;
                 Ok(SVal::Bool(!value.truthy()))
             },
             Expr::Call { scope, name, params } => {
                 // Scope can be a symbol, library name, or path to a field, object, or function
                 let variable = Self::Variable(scope.replace('/', "."));
-                let mut variable_value = variable.exec(doc)?;
+                let mut variable_value = variable.exec(graph)?;
 
                 // Deref the variable if needed...
                 match variable_value {
@@ -322,30 +322,30 @@ impl Expr {
                         SType::Object => "Object".to_owned(),
                     };
                 }
-                if let Some(lib) = doc.library(&library_name) {
+                if let Some(lib) = graph.library(&library_name) {
                     let stype = variable_value.stype();
 
                     // If the type is an object, try getting the function from that objects scope
                     match &variable_value {
                         SVal::Object(nref) => {
                             // Look for a function on the object itself first! Always higher priority than a prototype
-                            if let Some(func) = SFunc::func(&doc.graph, name, '.', Some(&nref)) {
+                            if let Some(func) = SFunc::func(&graph, name, '.', Some(&nref)) {
                                 let mut func_params = Vec::new();
                                 for expr in params {
-                                    let val = expr.exec(doc)?;
+                                    let val = expr.exec(graph)?;
                                     if !val.is_void() {
                                         func_params.push(val);
                                     }
                                 }
-                                let current_symbol_table = doc.new_table();
-                                let res = func.call(doc, func_params, true)?;
-                                doc.set_table(current_symbol_table);
+                                let current_symbol_table = graph.stack.new_table();
+                                let res = func.call(graph, func_params, true)?;
+                                graph.stack.set_table(current_symbol_table);
                                 return Ok(res);
                             }
 
                             // Look for a prototype on this object next
-                            if let Some(prototype_field) = SField::field(&doc.graph, "__prototype__", '.', Some(nref)) {
-                                if let Some(prototype) = doc.graph.node_ref(&prototype_field.to_string(), None) {
+                            if let Some(prototype_field) = SField::field(&graph, "__prototype__", '.', Some(nref)) {
+                                if let Some(prototype) = graph.node_ref(&prototype_field.to_string(), None) {
                                     // prototype is the exact type we are referencing... we need to check typestack here!
                                     let mut current = Some(prototype);
 
@@ -356,12 +356,12 @@ impl Expr {
 
                                         let scope_type = type_scope_resolution.pop().unwrap();
                                         let mut found = false;
-                                        while let Some(typename_field) = SField::field(&doc.graph, "typename", '.', current.as_ref()) {
+                                        while let Some(typename_field) = SField::field(&graph, "typename", '.', current.as_ref()) {
                                             if typename_field.to_string() == scope_type {
                                                 found = true;
                                                 break;
                                             }
-                                            if let Some(node) = current.clone().unwrap().node(&doc.graph) {
+                                            if let Some(node) = current.clone().unwrap().node(&graph) {
                                                 if let Some(parent_ref) = &node.parent {
                                                     current = Some(parent_ref.clone());
                                                 } else {
@@ -379,23 +379,23 @@ impl Expr {
                                     }
 
                                     while current.is_some() {
-                                        if let Some(func) = SFunc::func(&doc.graph, &func_name, '.', current.as_ref()) {
+                                        if let Some(func) = SFunc::func(&graph, &func_name, '.', current.as_ref()) {
                                             let mut func_params = Vec::new();
                                             for expr in params {
-                                                let val = expr.exec(doc)?;
+                                                let val = expr.exec(graph)?;
                                                 if !val.is_void() {
                                                     func_params.push(val);
                                                 }
                                             }
-                                            let current_symbol_table = doc.new_table();
+                                            let current_symbol_table = graph.stack.new_table();
                                             // Set self to the object still...
-                                            doc.self_stack.push(nref.clone());
-                                            let res = func.call(doc, func_params, false)?;
-                                            doc.self_stack.pop();
-                                            doc.set_table(current_symbol_table);
+                                            graph.stack.self_stack.push(nref.clone());
+                                            let res = func.call(graph, func_params, false)?;
+                                            graph.stack.self_stack.pop();
+                                            graph.stack.set_table(current_symbol_table);
                                             return Ok(res);
                                         }
-                                        if let Some(node) = current.unwrap().node(&doc.graph) {
+                                        if let Some(node) = current.unwrap().node(&graph) {
                                             if let Some(parent_ref) = &node.parent {
                                                 current = Some(parent_ref.clone());
                                             } else {
@@ -413,20 +413,20 @@ impl Expr {
 
                     let mut func_params = vec![variable_value.clone()];
                     for expr in params {
-                        let val = expr.exec(doc)?;
+                        let val = expr.exec(graph)?;
                         if !val.is_void() {
                             func_params.push(val);
                         }
                     }
-                    let current_symbol_table = doc.new_table();
+                    let current_symbol_table = graph.stack.new_table();
                     let mut library = lib.write().unwrap();
-                    let res = library.call(doc, name, &mut func_params)?;
-                    doc.set_table(current_symbol_table);
+                    let res = library.call(graph, name, &mut func_params)?;
+                    graph.stack.set_table(current_symbol_table);
 
                     // Update the symbol with the mutated parameter if it's the right type
                     let new_symbol_val = func_params.first().unwrap().clone();
                     if new_symbol_val.stype() == stype {
-                        doc.set_variable(&scope, new_symbol_val);
+                        graph.stack.set_variable(&scope, new_symbol_val);
                     }
 
                     return Ok(res);
@@ -434,35 +434,35 @@ impl Expr {
 
                 // If here, scope is not a field, func, object, or symbol
                 // Check to see if scope is a library itself before falling back to std lib
-                if let Some(lib) = doc.library(&scope) {
+                if let Some(lib) = graph.library(&scope) {
                     let mut func_params = Vec::new();
                     for expr in params {
-                        let val = expr.exec(doc)?;
+                        let val = expr.exec(graph)?;
                         if !val.is_void() {
                             func_params.push(val);
                         }
                     }
-                    let current_symbol_table = doc.new_table();
+                    let current_symbol_table = graph.stack.new_table();
 
                     let mut library = lib.write().unwrap();
-                    let res = library.call(doc, name, &mut func_params)?;
+                    let res = library.call(graph, name, &mut func_params)?;
 
-                    doc.set_table(current_symbol_table);
+                    graph.stack.set_table(current_symbol_table);
                     return Ok(res);
-                } else if let Some(lib) = doc.library("std") {
+                } else if let Some(lib) = graph.library("std") {
                     let mut func_params = Vec::new();
                     for expr in params {
-                        let val = expr.exec(doc)?;
+                        let val = expr.exec(graph)?;
                         if !val.is_void() {
                             func_params.push(val);
                         }
                     }
-                    let current_symbol_table = doc.new_table();
+                    let current_symbol_table = graph.stack.new_table();
 
                     let mut library = lib.write().unwrap();
-                    let res = library.call(doc, name, &mut func_params)?;
+                    let res = library.call(graph, name, &mut func_params)?;
                     
-                    doc.set_table(current_symbol_table);
+                    graph.stack.set_table(current_symbol_table);
                     return Ok(res);
                 }
                 Err(anyhow!("Function/Call does not exist: {}({:?})", name, params))
@@ -471,12 +471,12 @@ impl Expr {
                 let mut res = SVal::Void;
                 let mut first = true;
                 for expr in exprs {
-                    let val = expr.exec(doc)?;
+                    let val = expr.exec(graph)?;
                     if first {
                         res = val;
                         first = false;
                     } else {
-                        res = res.and(&val, doc)?;
+                        res = res.and(&val, graph)?;
                     }
                 }
                 Ok(res)
@@ -485,12 +485,12 @@ impl Expr {
                 let mut res = SVal::Void;
                 let mut first = true;
                 for expr in exprs {
-                    let val = expr.exec(doc)?;
+                    let val = expr.exec(graph)?;
                     if first {
                         res = val;
                         first = false;
                     } else {
-                        res = res.or(&val, doc)?;
+                        res = res.or(&val, graph)?;
                     }
                 }
                 Ok(res)
@@ -499,12 +499,12 @@ impl Expr {
                 let mut res = SVal::Void;
                 let mut first = true;
                 for expr in exprs {
-                    let val = expr.exec(doc)?;
+                    let val = expr.exec(graph)?;
                     if first {
                         res = val;
                         first = false;
                     } else {
-                        res = res.add(&val, doc)?;
+                        res = res.add(&val, graph)?;
                     }
                 }
                 Ok(res)
@@ -513,12 +513,12 @@ impl Expr {
                 let mut res = SVal::Void;
                 let mut first = true;
                 for expr in exprs {
-                    let val = expr.exec(doc)?;
+                    let val = expr.exec(graph)?;
                     if first {
                         res = val;
                         first = false;
                     } else {
-                        res = res.sub(&val, doc)?;
+                        res = res.sub(&val, graph)?;
                     }
                 }
                 Ok(res)
@@ -527,12 +527,12 @@ impl Expr {
                 let mut res = SVal::Void;
                 let mut first = true;
                 for expr in exprs {
-                    let val = expr.exec(doc)?;
+                    let val = expr.exec(graph)?;
                     if first {
                         res = val;
                         first = false;
                     } else {
-                        res = res.mul(&val, doc)?;
+                        res = res.mul(&val, graph)?;
                     }
                 }
                 Ok(res)
@@ -541,12 +541,12 @@ impl Expr {
                 let mut res = SVal::Void;
                 let mut first = true;
                 for expr in exprs {
-                    let val = expr.exec(doc)?;
+                    let val = expr.exec(graph)?;
                     if first {
                         res = val;
                         first = false;
                     } else {
-                        res = res.div(&val, doc)?;
+                        res = res.div(&val, graph)?;
                     }
                 }
                 Ok(res)
@@ -555,45 +555,45 @@ impl Expr {
                 let mut res = SVal::Void;
                 let mut first = true;
                 for expr in exprs {
-                    let val = expr.exec(doc)?;
+                    let val = expr.exec(graph)?;
                     if first {
                         res = val;
                         first = false;
                     } else {
-                        res = res.rem(&val, doc)?;
+                        res = res.rem(&val, graph)?;
                     }
                 }
                 Ok(res)
             },
             Expr::Eq(lhs, rhs) => {
-                let lhs = lhs.exec(doc)?;
-                let rhs = rhs.exec(doc)?;
-                Ok(lhs.equal(&rhs, doc)?)
+                let lhs = lhs.exec(graph)?;
+                let rhs = rhs.exec(graph)?;
+                Ok(lhs.equal(&rhs, graph)?)
             },
             Expr::Neq(lhs, rhs) => {
-                let lhs = lhs.exec(doc)?;
-                let rhs = rhs.exec(doc)?;
-                Ok(lhs.neq(&rhs, doc)?)
+                let lhs = lhs.exec(graph)?;
+                let rhs = rhs.exec(graph)?;
+                Ok(lhs.neq(&rhs, graph)?)
             },
             Expr::Gte(lhs, rhs) => {
-                let lhs = lhs.exec(doc)?;
-                let rhs = rhs.exec(doc)?;
-                Ok(lhs.gte(&rhs, doc)?)
+                let lhs = lhs.exec(graph)?;
+                let rhs = rhs.exec(graph)?;
+                Ok(lhs.gte(&rhs, graph)?)
             },
             Expr::Lte(lhs, rhs) => {
-                let lhs = lhs.exec(doc)?;
-                let rhs = rhs.exec(doc)?;
-                Ok(lhs.lte(&rhs, doc)?)
+                let lhs = lhs.exec(graph)?;
+                let rhs = rhs.exec(graph)?;
+                Ok(lhs.lte(&rhs, graph)?)
             },
             Expr::Gt(lhs, rhs) => {
-                let lhs = lhs.exec(doc)?;
-                let rhs = rhs.exec(doc)?;
-                Ok(lhs.gt(&rhs, doc)?)
+                let lhs = lhs.exec(graph)?;
+                let rhs = rhs.exec(graph)?;
+                Ok(lhs.gt(&rhs, graph)?)
             },
             Expr::Lt(lhs, rhs) => {
-                let lhs = lhs.exec(doc)?;
-                let rhs = rhs.exec(doc)?;
-                Ok(lhs.lt(&rhs, doc)?)
+                let lhs = lhs.exec(graph)?;
+                let rhs = rhs.exec(graph)?;
+                Ok(lhs.lt(&rhs, graph)?)
             },
         }
     }

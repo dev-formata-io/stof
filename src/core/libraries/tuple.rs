@@ -16,7 +16,7 @@
 
 use std::{ops::DerefMut, sync::{Arc, RwLock}};
 use anyhow::{anyhow, Result};
-use crate::{SDoc, Library, SNum, SVal};
+use crate::{SGraph, Library, SNum, SVal};
 use super::Object;
 
 
@@ -31,7 +31,7 @@ impl Library for TupleLibrary {
     }
 
     /// Call into the Tuple library.
-    fn call(&mut self, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&mut self, graph: &mut SGraph, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
         if parameters.len() > 0 {
             if parameters[0].is_tuple() {
                 match name {
@@ -102,7 +102,7 @@ impl Library for TupleLibrary {
                 }
             }
         }
-        if let Ok(val) = Self::object_call(doc, name, parameters) {
+        if let Ok(val) = Self::object_call(graph, name, parameters) {
             return Ok(val);
         }
         Err(anyhow!("Failed to find a Tuple library method."))

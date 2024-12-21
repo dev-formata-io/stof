@@ -15,7 +15,7 @@
 //
 
 use anyhow::{anyhow, Result};
-use crate::{SDoc, Library, SNum, SNumType, SType, SUnits, SVal};
+use crate::{SGraph, Library, SNum, SNumType, SType, SUnits, SVal};
 use super::Object;
 
 
@@ -30,7 +30,7 @@ impl Library for NumberLibrary {
     }
     
     /// Call into the Number library.
-    fn call(&mut self, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&mut self, graph: &mut SGraph, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
         if parameters.len() > 0 {
             match &parameters[0] {
                 SVal::Number(nval) => {
@@ -96,7 +96,7 @@ impl Library for NumberLibrary {
                                 }
                             },
                             _ => {
-                                let second = &parameters[1].cast(SType::Number(SNumType::F64), doc)?;
+                                let second = &parameters[1].cast(SType::Number(SNumType::F64))?;
                                 match second {
                                     SVal::Number(secondval) => {
                                         match name {
@@ -123,16 +123,16 @@ impl Library for NumberLibrary {
                 },
                 _ => {
                     // Not a number, so try casting to a number and calling again
-                    let this = &parameters[0].cast(SType::Number(SNumType::F64), doc)?;
+                    let this = &parameters[0].cast(SType::Number(SNumType::F64))?;
                     let mut params = vec![this.clone()];
                     for i in 1..parameters.len() {
                         params.push(parameters[i].clone());
                     }
-                    return self.call(doc, name, &mut params);
+                    return self.call(graph, name, &mut params);
                 }
             }
         }
-        if let Ok(val) = Self::object_call(doc, name, parameters) {
+        if let Ok(val) = Self::object_call(graph, name, parameters) {
             return Ok(val);
         }
         Err(anyhow!("Failed to find a Number library method"))

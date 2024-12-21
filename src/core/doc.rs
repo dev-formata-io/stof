@@ -19,30 +19,8 @@ use anyhow::{anyhow, Result};
 use bytes::Bytes;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
-use crate::{bytes::BYTES, text::TEXT, SField, SFunc, SVal, BSTOF, STOF};
-use super::{runtime::{DocPermissions, Library, Symbol, SymbolTable}, ArrayLibrary, CustomTypes, Format, FunctionLibrary, IntoDataRef, NumberLibrary, ObjectLibrary, SFormats, SGraph, SLibraries, SNodeRef, StdLibrary, StringLibrary, TupleLibrary};
-
-#[cfg(feature = "js")]
-use crate::js::StofLibFunc;
-#[cfg(feature = "js")]
-use std::collections::BTreeMap;
-
-#[cfg(feature = "json")]
-use crate::json::JSON;
-#[cfg(feature = "json")]
-use crate::json::NDJSON;
-
-#[cfg(feature = "toml")]
-use crate::toml::TOML;
-
-#[cfg(feature = "yaml")]
-use crate::yaml::YAML;
-
-#[cfg(feature = "xml")]
-use crate::xml::XML;
-
-#[cfg(feature = "urlencoded")]
-use crate::urlencoded::URLENC;
+use crate::{SField, SFunc, SVal};
+use super::{runtime::Library, Format, IntoDataRef, SGraph, SNodeRef};
 
 
 /// Stof Document.
@@ -51,34 +29,6 @@ use crate::urlencoded::URLENC;
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SDoc {
     pub graph: SGraph,
-    pub perms: DocPermissions,
-    pub types: CustomTypes,
-
-    /// Formats that this Doc supports.
-    /// It is up to the local Doc to provide formats.
-    #[serde(skip)]
-    pub formats: SFormats,
-
-    /// Libraries that this Doc can call when scripting.
-    /// It is up to the local Doc to provide libraries.
-    #[serde(skip)]
-    pub libraries: SLibraries,
-    
-    #[serde(skip)]
-    pub(crate) self_stack: Vec<SNodeRef>,
-
-    #[serde(skip)]
-    pub(crate) stack: Vec<SVal>,
-
-    #[serde(skip)]
-    pub(crate) table: SymbolTable,
-
-    #[serde(skip)]
-    pub(crate) bubble_control_flow: u8,
-
-    #[cfg(feature = "js")]
-    #[serde(skip)]
-    pub libfuncs: Arc<RwLock<BTreeMap<String, BTreeMap<String, StofLibFunc>>>>,
 }
 impl Default for SDoc {
     fn default() -> Self {
@@ -92,20 +42,9 @@ impl SDoc {
     pub fn new(graph: SGraph) -> Self {
         let mut doc = Self {
             graph,
-            types: Default::default(),
-            stack: Default::default(),
-            table: Default::default(),
-            self_stack: Default::default(),
-            libraries: Default::default(),
-            formats: Default::default(),
-            perms: Default::default(),
-            bubble_control_flow: 0,
-
-            #[cfg(feature = "js")]
-            libfuncs: Default::default(),
         };
-        doc.load_std_formats();
-        doc.load_std_lib();
+        doc.graph.load_std_formats();
+        doc.graph.load_std_lib();
         doc
     }
 
@@ -152,64 +91,30 @@ impl SDoc {
     /*****************************************************************************
      * Formats.
      *****************************************************************************/
-    
-    /// Load the Stof standard formats.
-    fn load_std_formats(&mut self) {
-        self.load_format(Arc::new(TEXT{}));
-        self.load_format(Arc::new(BYTES{}));
-
-        // STOF format ".stof" text files
-        self.load_format(Arc::new(STOF{}));
-
-        // BSTOF format ".bstof" binary files
-        self.load_format(Arc::new(BSTOF{}));
-
-        // JSON format ".json" files and NDJSON (newlines between json)
-        #[cfg(feature = "json")]
-        self.load_format(Arc::new(JSON{}));
-        #[cfg(feature = "json")]
-        self.load_format(Arc::new(NDJSON{}));
-
-        // TOML format ".toml" files
-        #[cfg(feature = "toml")]
-        self.load_format(Arc::new(TOML{}));
-
-        // YAML format ".yaml" files
-        #[cfg(feature = "yaml")]
-        self.load_format(Arc::new(YAML{}));
-
-        // XML format ".xml" files
-        #[cfg(feature = "xml")]
-        self.load_format(Arc::new(XML{}));
-
-        // URL encoding "urlencoded" format
-        #[cfg(feature = "urlencoded")]
-        self.load_format(Arc::new(URLENC{}));
-    }
 
     /// Load a format into this document.
     pub fn load_format(&mut self, format: Arc<dyn Format>) {
-        self.formats.insert(format);
+        self.graph.load_format(format);
     }
 
     /// Available formats
     pub fn available_formats(&self) -> HashSet<String> {
-        self.formats.available()
+        self.graph.available_formats()
     }
 
     /// Content type for a format.
     pub fn format_content_type(&self, format: &str) -> Option<String> {
-        self.formats.content_type(format)
+        self.graph.format_content_type(format)
     }
 
     /// Header import (content type with bytes).
     pub fn header_import(&mut self, format: &str, content_type: &str, bytes: &mut Bytes, as_name: &str) -> Result<()> {
-        self.formats.clone().header_import(format, self, content_type, bytes, as_name)
+        self.graph.header_import(format, content_type, bytes, as_name)
     }
 
     /// String import.
     pub fn string_import(&mut self, format: &str, src: &str, as_name: &str) -> Result<()> {
-        self.formats.clone().string_import(format, self, src, as_name)
+        self.graph.string_import(format, src, as_name)
     }
 
     /// File import.
@@ -217,56 +122,42 @@ impl SDoc {
     /// If <format> isn't supplied, "format" will be "extension".
     /// If <as_name> isn't supplied, the data should be imported into the current doc scope (or main root).
     pub fn file_import(&mut self, format: &str, full_path: &str, extension: &str, as_name: &str) -> Result<()> {
-        self.formats.clone().file_import(format, self, full_path, extension, as_name)
+        self.graph.file_import(format, full_path, extension, as_name)
     }
 
     /// Export document string.
     pub fn export_string(&self, format: &str, node: Option<&SNodeRef>) -> Result<String> {
-        self.formats.export_string(format, self, node)
+        self.graph.export_string(format, node)
     }
 
     /// Export document min string.
     pub fn export_min_string(&self, format: &str, node: Option<&SNodeRef>) -> Result<String> {
-        self.formats.export_min_string(format, self, node)
+        self.graph.export_min_string(format, node)
     }
 
     /// Export document bytes.
     pub fn export_bytes(&self, format: &str, node: Option<&SNodeRef>) -> Result<Bytes> {
-        self.formats.export_bytes(format, self, node)
+        self.graph.export_bytes(format, node)
     }
 
 
     /*****************************************************************************
      * Libraries.
      *****************************************************************************/
-
-    /// Load the Stof standard library.
-    fn load_std_lib(&mut self) {
-        self.load_lib(Arc::new(RwLock::new(StdLibrary::default())));
-        self.load_lib(Arc::new(RwLock::new(ObjectLibrary::default())));
-        self.load_lib(Arc::new(RwLock::new(ArrayLibrary::default())));
-        self.load_lib(Arc::new(RwLock::new(FunctionLibrary::default())));
-        self.load_lib(Arc::new(RwLock::new(NumberLibrary::default())));
-        self.load_lib(Arc::new(RwLock::new(StringLibrary::default())));
-        self.load_lib(Arc::new(RwLock::new(TupleLibrary::default())));
-    }
     
     /// Load a library into this document.
     pub fn load_lib(&mut self, library: Arc<RwLock<dyn Library>>) {
-        self.libraries.insert(library);
+        self.graph.load_lib(library);
     }
 
     /// Get a library in this doc.
     pub fn library(&mut self, lib: &str) -> Option<Arc<RwLock<dyn Library>>> {
-        if let Some(library) = self.libraries.get(lib) {
-            return Some(library.clone());
-        }
-        None
+        self.graph.library(lib)
     }
 
     /// Available libraries
     pub fn available_libraries(&self) -> HashSet<String> {
-        self.libraries.available()
+        self.graph.available_libraries()
     }
 
 
@@ -285,7 +176,7 @@ impl SDoc {
             if let Some(params) = func.attributes.get("get") {
                 parameters.push(params.clone());
             }
-            if let Ok(res) = func.call(self, parameters, true) {
+            if let Ok(res) = func.call(&mut self.graph, parameters, true) {
                 return Some(res);
             }
         }
@@ -322,9 +213,9 @@ impl SDoc {
             if let Some(attr_val) = func.attributes.get("main") {
                 let result;
                 if attr_val.is_empty() {
-                    result = func.call(self, vec![], true);
+                    result = func.call(&mut self.graph, vec![], true);
                 } else {
-                    result = func.call(self, vec![attr_val.clone()], true);
+                    result = func.call(&mut self.graph, vec![attr_val.clone()], true);
                 }
                 if let Ok(res) = result {
                     results.push((func, res));
@@ -343,7 +234,7 @@ impl SDoc {
     /// Call a function in this document with a path.
     pub fn call_func(&mut self, path: &str, start: Option<&SNodeRef>, params: Vec<SVal>) -> Result<SVal> {
         if let Some(func) = self.func(path, start) {
-            return func.call(self, params, true);
+            return func.call(&mut self.graph, params, true);
         }
         Err(anyhow!("Did not find a function at path '{}' to call", path))
     }
@@ -351,7 +242,7 @@ impl SDoc {
     /// Call a function on this document.
     /// Function does not have to be contained within this document.
     pub fn call(&mut self, func: &SFunc, params: Vec<SVal>) -> Result<SVal> {
-        func.call(self, params, true)
+        func.call(&mut self.graph, params, true)
     }
 
     /// Test some Stof in a file.
@@ -436,7 +327,7 @@ impl SDoc {
         for func in functions {
             if let Some(res_test_val) = func.attributes.get("test") {
                 let silent = func.attributes.contains_key("silent");
-                let mut result = func.call(self, vec![], true);
+                let mut result = func.call(&mut self.graph, vec![], true);
 
                 let func_nodes = func.data_ref().nodes(&self.graph);
                 let func_path;
@@ -482,7 +373,7 @@ impl SDoc {
 
                                     let profile_start = SystemTime::now();
                                     for _ in 0..iterations {
-                                        let _ = func.call(self, vec![], true);
+                                        let _ = func.call(&mut self.graph, vec![], true);
                                     }
                                     let total_duration = profile_start.elapsed().unwrap();
                                     let total_ns = total_duration.as_nanos();
@@ -533,83 +424,5 @@ impl SDoc {
             return Err(output);
         }
         return Ok(output);
-    }
-
-
-    /*****************************************************************************
-     * Stof Parser/Runtime Interface.
-     *****************************************************************************/
-
-    /// Self pointer.
-    pub(crate) fn self_ptr(&self) -> Option<SNodeRef> {
-        if let Some(last) = self.self_stack.last() {
-            if last.exists(&self.graph) {
-                return Some(last.clone());
-            }
-        }
-        None
-    }
-
-    /// New table.
-    /// Returns the current table, replacing it with a new one.
-    /// This happens for function calls.
-    pub(crate) fn new_table(&mut self) -> SymbolTable {
-        let current = self.table.clone();
-        self.table = SymbolTable::default();
-        return current;
-    }
-
-    /// Set table.
-    pub(crate) fn set_table(&mut self, table: SymbolTable) {
-        self.table = table;
-    }
-
-    /// Add a variable to the current scope.
-    pub(crate) fn add_variable<T>(&mut self, name: &str, value: T) where T: Into<SVal> {
-        let symbol = Symbol::Variable(value.into());
-        self.table.insert(name, symbol);
-    }
-
-    /// Set a variable.
-    /// Will not add the variable if not already present.
-    /// Sets current scope or above variables!
-    pub(crate) fn set_variable<T>(&mut self, name: &str, value: T) -> bool where T: Into<SVal> {
-        self.table.set_variable(name, &value.into(), &mut self.graph)
-    }
-
-    /// Drop a symbol from the current scope.
-    pub(crate) fn drop(&mut self, name: &str) -> Option<Symbol> {
-        self.table.remove(name)
-    }
-
-    /// Get a symbol from the current scope or above.
-    pub(crate) fn get_symbol(&mut self, name: &str) -> Option<&Symbol> {
-        self.table.get(name)
-    }
-
-    /// Has a symbol from the current scope or above.
-    pub(crate) fn has_symbol(&mut self, name: &str) -> bool {
-        self.table.get(name).is_some()
-    }
-
-    /// Push a value onto the stack.
-    pub(crate) fn push<T>(&mut self, value: T) where T: Into<SVal> {
-        let val: SVal = value.into();
-        if !val.is_void() { // Prevent void from being pushed to the stack!
-            self.stack.push(val);
-        }
-    }
-
-    /// Pop a value from the stack.
-    pub(crate) fn pop(&mut self) -> Option<SVal> {
-        self.stack.pop()
-    }
-
-    /// Clean for scripting.
-    pub(crate) fn clean(&mut self) {
-        self.stack.clear();
-        self.table = Default::default();
-        self.self_stack.clear();
-        self.bubble_control_flow = 0;
     }
 }

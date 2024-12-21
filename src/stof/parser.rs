@@ -20,7 +20,7 @@ use lazy_static::lazy_static;
 use nanoid::nanoid;
 use pest_derive::Parser;
 use pest::{iterators::{Pair, Pairs}, pratt_parser::PrattParser, Parser};
-use crate::{lang::{CustomType, Expr, Statement, Statements}, Data, IntoDataRef, SData, SDoc, SField, SFunc, SNum, SNumType, SParam, SType, SUnits, SVal};
+use crate::{lang::{CustomType, Expr, Statement, Statements}, Data, IntoDataRef, SData, SField, SFunc, SGraph, SNodeRef, SNum, SNumType, SParam, SType, SUnits, SVal};
 use super::StofEnv;
 
 
@@ -98,12 +98,12 @@ enum MathOp {
 
 
 /// Parse internal.
-pub fn parse_internal(src: &str, doc: &mut SDoc, env: &mut StofEnv) -> Result<()> {
+pub fn parse_internal(src: &str, graph: &mut SGraph, env: &mut StofEnv) -> Result<()> {
     let pairs = StofParser::parse(Rule::document, src)?;
     for pair in pairs {
         match pair.as_rule() {
             Rule::document => {
-                parse_statements(doc, env, pair.into_inner())?;
+                parse_statements(graph, env, pair.into_inner())?;
             },
             _ => {
 
@@ -115,7 +115,7 @@ pub fn parse_internal(src: &str, doc: &mut SDoc, env: &mut StofEnv) -> Result<()
 
 
 /// Parse document statement.
-fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Result<()> {
+fn parse_statements(graph: &mut SGraph, env: &mut StofEnv, pairs: Pairs<Rule>) -> Result<()> {
     for pair in pairs {
         let span = pair.as_span();
         match pair.as_rule() {
@@ -165,14 +165,14 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                 if import_path.len() > 0 {
                     let compiled_path = format!("{}{}{}{}", &format, &import_path, &import_ext, &as_name);
                     if !env.compiled_path(&compiled_path) { // Don't import the same thing more than once!
-                        doc.file_import(&format, &import_path, &import_ext, &as_name)?;
+                        graph.file_import(&format, &import_path, &import_ext, &as_name)?;
                         env.add_compiled_path(&compiled_path);
                     }
                 }
             },
             Rule::function => {
-                let mut func = parse_function(doc, env, pair)?;
-                let scope = env.scope(doc);
+                let mut func = parse_function(graph, env, pair)?;
+                let scope = env.scope(graph);
 
                 // Function decorators - before func gets attached to the graph
                 let mut dec_val = func.attributes.get("@");
@@ -181,27 +181,27 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                     let mut success = false;
                     match dec_val {
                         SVal::FnPtr(dref) => {
-                            if let Ok(decorator) = SData::data::<SFunc>(&doc.graph, dref) {
+                            if let Ok(decorator) = SData::data::<SFunc>(&graph, dref) {
                                 if decorator.params.len() == 1 && decorator.params[0].ptype == SType::FnPtr && decorator.rtype == SType::FnPtr {
                                     // Make func a random name and attach to the graph
                                     let funcparamname = decorator.params[0].name.clone();
                                     let funcname = func.name.clone();
                                     func.name = format!("decfn_{}", nanoid!(7));
-                                    func.attach(&scope, &mut doc.graph);
+                                    func.attach(&scope, graph);
 
                                     // Call the decorator function with the func as the parameter
-                                    if let Ok(res_val) = decorator.call(doc, vec![SVal::FnPtr(func.data_ref())], true) {
+                                    if let Ok(res_val) = decorator.call(graph, vec![SVal::FnPtr(func.data_ref())], true) {
                                         match res_val {
                                             SVal::FnPtr(res_ref) => {
-                                                if let Ok(mut res_func) = SData::data::<SFunc>(&doc.graph, res_ref) {
+                                                if let Ok(mut res_func) = SData::data::<SFunc>(&graph, res_ref) {
                                                     res_func.name = funcname;
                                                     
                                                     let old_statments = res_func.statements.clone();
                                                     res_func.statements = Statements::from(vec![Statement::Declare(funcparamname, Expr::Literal(SVal::FnPtr(func.data_ref())))]);
                                                     res_func.statements.absorb(old_statments);
 
-                                                    res_func.set(&mut doc.graph);
-                                                    res_func.attach(&scope, &mut doc.graph); // Make sure it's in the current scope too
+                                                    res_func.set(graph);
+                                                    res_func.attach(&scope, graph); // Make sure it's in the current scope too
                                                     success = true;
                                                 }
                                             },
@@ -219,7 +219,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                         return Err(anyhow!("Cannot decorate a function with any value other than another function"));
                     }
                 } else {
-                    func.attach(&scope, &mut doc.graph);
+                    func.attach(&scope, graph);
 
                     // Is an init function?
                     if let Some(init_param_val) = func.attributes.get("init") {
@@ -236,7 +236,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                         if add {
                             let mut field = SField::new(&func.name, SVal::FnPtr(func.data_ref()));
                             field.attributes.insert("export".to_owned(), SVal::Bool(false));
-                            field.attach(&env.scope(doc), &mut doc.graph);
+                            field.attach(&env.scope(graph), graph);
                         }
                     }
                 }
@@ -258,23 +258,23 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                         rule => return Err(anyhow!("Unrecognized rule for field reference: {:?}", rule))
                     }
                 }
-                if let Some(mut field) = SField::field(&doc.graph, &field_path, '.', Some(&env.scope(doc))) {
-                    field.attach(&env.scope(doc), &mut doc.graph);
-                } else if let Some(mut field) = SField::field(&doc.graph, &field_path, '.', None) {
-                    field.attach(&env.scope(doc), &mut doc.graph);
-                } else if let Some(mut func) = SFunc::func(&doc.graph, &field_path, '.', Some(&env.scope(doc))) {
-                    func.attach(&env.scope(doc), &mut doc.graph);
-                } else if let Some(mut func) = SFunc::func(&doc.graph, &field_path, '.', None) {
-                    func.attach(&env.scope(doc), &mut doc.graph);
+                if let Some(mut field) = SField::field(&graph, &field_path, '.', Some(&env.scope(graph))) {
+                    field.attach(&env.scope(graph), graph);
+                } else if let Some(mut field) = SField::field(&graph, &field_path, '.', None) {
+                    field.attach(&env.scope(graph), graph);
+                } else if let Some(mut func) = SFunc::func(&graph, &field_path, '.', Some(&env.scope(graph))) {
+                    func.attach(&env.scope(graph), graph);
+                } else if let Some(mut func) = SFunc::func(&graph, &field_path, '.', None) {
+                    func.attach(&env.scope(graph), graph);
                 }
             },
             Rule::typed_field |
             Rule::field => {
                 let mut attributes = BTreeMap::new();
-                parse_field(doc, env, pair, "", &mut attributes)?;
+                parse_field(graph, env, pair, "", &mut attributes)?;
             },
             Rule::json_fields => {
-                parse_statements(doc, env, pair.into_inner())?;
+                parse_statements(graph, env, pair.into_inner())?;
             },
             Rule::stof_type_declaration => {
                 let mut ident = String::default();
@@ -293,8 +293,8 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                         key = pair.as_str().to_string();
                                     },
                                     Rule::expr => {
-                                        let value_expr = parse_expression(doc, env, pair)?;
-                                        let result = value_expr.exec(doc);
+                                        let value_expr = parse_expression(graph, env, pair)?;
+                                        let result = value_expr.exec(graph);
                                         match result {
                                             Ok(sval) => {
                                                 value = sval;
@@ -331,7 +331,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                         stype = SType::from(pair.as_str());
                                     },
                                     Rule::expr => {
-                                        default = Some(parse_expression(doc, env, pair)?);
+                                        default = Some(parse_expression(graph, env, pair)?);
                                     },
                                     _ => {}
                                 }
@@ -339,15 +339,60 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                             params.push(SParam::new(&field_name, stype, default));
                         },
                         Rule::function => {
-                            functions.push(parse_function(doc, env, pair)?);
+                            functions.push(parse_function(graph, env, pair)?);
                         },
                         _ => {}
                     }
                 }
                 if ident.len() > 0 {
-                    let mut ctype = CustomType::new(&env.scope(doc).id, &ident, params, functions);
+                    let mut ctype = CustomType::new(&env.scope(graph).id, &ident, params, functions);
                     ctype.attributes = attributes;
-                    doc.types.declare(ctype, &mut doc.graph, &extends)?;
+                    
+                    // Insert path for this new custom type
+                    let mut insert_path = format!("__stof__/prototypes/{}", &ctype.locid);
+
+                    // Handle extends if any - adds fields and functions from an extends type
+                    if extends.len() > 0 {
+                        let mut extends_path: Vec<&str> = extends.split('.').collect();
+                        let extends_name = extends_path.pop().unwrap();
+                        let mut extends_scope = SNodeRef::from(&ctype.decid);
+                        if extends_path.len() > 0 {
+                            let extends_node_path = extends_path.join("/");
+                            if extends_node_path.starts_with("self") || extends_node_path.starts_with("super") {
+                                if let Some(nref) = graph.node_ref(&extends_node_path, Some(&SNodeRef::from(&ctype.decid))) {
+                                    extends_scope = nref;
+                                }
+                            } else {
+                                if let Some(nref) = graph.node_ref(&extends_node_path, None) {
+                                    extends_scope = nref;
+                                }
+                            }
+                        }
+
+                        if let Some(extend_type) = graph.types.find(graph, extends_name, &extends_scope) {
+                            let custom_field_names = ctype.fieldnames();
+                            for ef in &extend_type.fields {
+                                if !custom_field_names.contains(&ef.name) {
+                                    ctype.fields.push(ef.clone());
+                                }
+                            }
+
+                            // Set insert path as a child of the extends type
+                            insert_path = format!("{}/{}", SNodeRef::new(&extend_type.locid).path(&graph), &ctype.locid);
+                        } else {
+                            return Err(anyhow!("Attempting to extend a type that does not exist: {}", extends));
+                        }
+                    }
+
+                    // Insert the custom type into the graph
+                    ctype.insert(graph, &insert_path);
+
+                    // Insert into types by name
+                    if let Some(types) = graph.types.types.get_mut(&ctype.name) {
+                        types.push(ctype);
+                    } else {
+                        graph.types.types.insert(ctype.name.clone(), vec![ctype]);
+                    }
                 }
             },
             Rule::EOI => {
@@ -363,7 +408,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
 
 
 /// Parse a field.
-fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: &str, attributes: &mut BTreeMap<String, SVal>) -> Result<()> {
+fn parse_field(graph: &mut SGraph, env: &mut StofEnv, pair: Pair<Rule>, field_type: &str, attributes: &mut BTreeMap<String, SVal>) -> Result<()> {
     match pair.as_rule() {
         Rule::typed_field => {
             let mut stype = String::default();
@@ -378,8 +423,8 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
                                     key = pair.as_str().to_string();
                                 },
                                 Rule::expr => {
-                                    let value_expr = parse_expression(doc, env, pair)?;
-                                    let result = value_expr.exec(doc);
+                                    let value_expr = parse_expression(graph, env, pair)?;
+                                    let result = value_expr.exec(graph);
                                     match result {
                                         Ok(sval) => {
                                             value = sval;
@@ -400,7 +445,7 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
                         stype = pair.as_str().to_owned();
                     },
                     Rule::field => {
-                        parse_field(doc, env, pair, &stype, attributes)?;
+                        parse_field(graph, env, pair, &stype, attributes)?;
                     },
                     _ => {}
                 }
@@ -421,8 +466,8 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
                                     key = pair.as_str().to_string();
                                 },
                                 Rule::expr => {
-                                    let value_expr = parse_expression(doc, env, pair)?;
-                                    let result = value_expr.exec(doc);
+                                    let value_expr = parse_expression(graph, env, pair)?;
+                                    let result = value_expr.exec(graph);
                                     match result {
                                         Ok(sval) => {
                                             value = sval;
@@ -450,7 +495,7 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
                         field_name = pair.as_str().to_owned();
                     },
                     Rule::value => {
-                        (field_value, object_declaration) = parse_value(field_type, &field_name, doc, env, pair)?;
+                        (field_value, object_declaration) = parse_value(field_type, &field_name, graph, env, pair)?;
                     },
                     rule => return Err(anyhow!("Unrecognized rule for field: {:?}", rule))
                 }
@@ -461,7 +506,7 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
 
                 let mut field = SField::new(&last, field_value);
                 field.attributes = attributes.clone();
-                env.insert_field(doc, &env.scope(&doc), &mut field);
+                env.insert_field(graph, &env.scope(&graph), &mut field);
             }
         },
         rule => return Err(anyhow!("Unrecognized inline json import rule: {:?}", rule))
@@ -471,7 +516,7 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
 
 
 /// Parse value.
-fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<(SVal, bool)> {
+fn parse_value(field_type: &str, field_name: &str, graph: &mut SGraph, env: &mut StofEnv, pair: Pair<Rule>) -> Result<(SVal, bool)> {
     let mut field_value = SVal::Null;
     let mut object_declaration = false;
     for pair in pair.into_inner() {
@@ -484,8 +529,8 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                     path = list.join("/");
                     fields = false; // no fields for root nodes
                 } else {
-                    let current_scope = &env.scope(doc);
-                    let current_path = current_scope.path(&doc.graph);
+                    let current_scope = &env.scope(graph);
+                    let current_path = current_scope.path(&graph);
                     path = format!("{}/{}", current_path, list.join("/"));
                 }
 
@@ -496,7 +541,7 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
 
                 // Check to see if this object collides with an existing field in the current scope
                 // If so, it will be added to an array... so the name should be unique and fields shouldn't be created for it
-                let collision_field = SField::field(&doc.graph, &path, '/', None);
+                let collision_field = SField::field(&graph, &path, '/', None);
                 if collision_field.is_some() {
                     fields = false;
                     let name = format!("_a_obj{}", nanoid!(7));
@@ -507,40 +552,40 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                 }
 
                 // Create the fields needed and add the scope to the table
-                let created = env.push_scope(doc, &path, '/', fields);
+                let created = env.push_scope(graph, &path, '/', fields);
 
                 // If there was a collision field, union that field with the newly created object
                 if let Some(mut collision_field) = collision_field {
                     let new_field = SField::new(&collision_field.name, SVal::Object(created));
                     collision_field.union(&new_field);
-                    collision_field.set(&mut doc.graph);
+                    collision_field.set(graph);
                 }
 
                 // Set the field value to the newly created scope
-                field_value = SVal::Object(env.scope(doc));
+                field_value = SVal::Object(env.scope(graph));
                 object_declaration = true;
 
                 // Cast this expression to another type (if possible)!
                 if field_type.len() > 0 {
                     let stype = SType::from(field_type);
                     if stype.is_object() && field_type != "obj" && field_type != "root" {
-                        let scope = env.scope(doc);
+                        let scope = env.scope(graph);
 
                         let mut type_path: Vec<&str> = field_type.split('.').collect();
                         let custom_type_name = type_path.pop().unwrap();
 
                         // Find a scope to use other than our own?
-                        let mut type_scope = env.scope(doc);
+                        let mut type_scope = env.scope(graph);
                         if type_path.len() > 0 {
                             let path = type_path.join("/");
                             if path.starts_with("self") || path.starts_with("super") {
-                                if let Some(nref) = doc.graph.node_ref(&path, Some(&type_scope)) {
+                                if let Some(nref) = graph.node_ref(&path, Some(&type_scope)) {
                                     type_scope = nref;
                                 } else {
                                     return Err(anyhow!("Cannot find referenced type scope for constructing an object"));
                                 }
                             } else {
-                                if let Some(nref) = doc.graph.node_ref(&path, None) {
+                                if let Some(nref) = graph.node_ref(&path, None) {
                                     type_scope = nref;
                                 } else {
                                     return Err(anyhow!("Cannot find referenced type scope for constructing an object"));
@@ -548,13 +593,13 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                             }
                         }
 
-                        if let Some(custom_type) = doc.types.find(&doc.graph, custom_type_name, &type_scope) {
-                            if custom_type.is_private() && !scope.is_child_of(&doc.graph, &type_scope) {
+                        if let Some(custom_type) = graph.types.find(&graph, custom_type_name, &type_scope) {
+                            if custom_type.is_private() && !scope.is_child_of(&graph, &type_scope) {
                                 // Custom type is private and the current scope is not equal or a child of the type's scope
                                 return Err(anyhow!("Cannot cast object to private type: {}", field_type));
                             }
-                            let prototype_location = custom_type.path(&doc.graph);
-                            SField::new_string(&mut doc.graph, "__prototype__", &prototype_location, &scope);
+                            let prototype_location = custom_type.path(&graph);
+                            SField::new_string(graph, "__prototype__", &prototype_location, &scope);
                         } else {
                             return Err(anyhow!("Cannot cast object to type: {}", field_type));
                         }
@@ -564,10 +609,10 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                 }
 
                 // Now keep parsing statements in this object
-                parse_statements(doc, env, pair.into_inner())?;
+                parse_statements(graph, env, pair.into_inner())?;
 
                 // Pop the scope
-                env.pop_scope(doc);
+                env.pop_scope(graph);
             },
             Rule::array_value => {
                 let mut array = Vec::new();
@@ -575,7 +620,7 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                     match pair.as_rule() {
                         Rule::value => {
                             let name = format!("_a_obj{}", nanoid!(7));
-                            array.push(parse_value("",&name, doc, env, pair)?.0);
+                            array.push(parse_value("",&name, graph, env, pair)?.0);
                         },
                         _ => {}
                     }
@@ -583,7 +628,7 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                 field_value = SVal::Array(array);
             },
             Rule::expr => {
-                let mut expr = parse_expression(doc, env, pair)?;
+                let mut expr = parse_expression(graph, env, pair)?;
 
                 // Cast expr if needed!
                 if field_type.len() > 0 {
@@ -593,17 +638,17 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                         let custom_type_name = type_path.pop().unwrap();
 
                         // Find a scope to use other than our own?
-                        let mut type_scope = env.scope(doc);
+                        let mut type_scope = env.scope(graph);
                         if type_path.len() > 0 {
                             let path = type_path.join("/");
                             if path.starts_with("self") || path.starts_with("super") {
-                                if let Some(nref) = doc.graph.node_ref(&path, Some(&type_scope)) {
+                                if let Some(nref) = graph.node_ref(&path, Some(&type_scope)) {
                                     type_scope = nref;
                                 } else {
                                     return Err(anyhow!("Cannot find referenced type scope for constructing an object"));
                                 }
                             } else {
-                                if let Some(nref) = doc.graph.node_ref(&path, None) {
+                                if let Some(nref) = graph.node_ref(&path, None) {
                                     type_scope = nref;
                                 } else {
                                     return Err(anyhow!("Cannot find referenced type scope for constructing an object"));
@@ -612,14 +657,14 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                         }
 
                         // Try assigning the prototype of this object since its not a value type
-                        if let Some(custom_type) = doc.types.find(&doc.graph, custom_type_name, &type_scope) {
-                            if custom_type.is_private() && !env.scope(doc).is_child_of(&doc.graph, &type_scope) {
+                        if let Some(custom_type) = graph.types.find(&graph, custom_type_name, &type_scope) {
+                            if custom_type.is_private() && !env.scope(graph).is_child_of(&graph, &type_scope) {
                                 // Custom type is private and the current scope is not equal or a child of the type's scope
                                 return Err(anyhow!("Cannot cast expr to private object type: {}", field_type));
                             }
                             let mut block_statements = Vec::new();
                             block_statements.push(Statement::Declare("tmp".into(), expr));
-                            block_statements.push(Statement::Assign("tmp.__prototype__".into(), Expr::Literal(SVal::String(custom_type.path(&doc.graph)))));
+                            block_statements.push(Statement::Assign("tmp.__prototype__".into(), Expr::Literal(SVal::String(custom_type.path(&graph)))));
                             block_statements.push(Statement::Return(Expr::Variable("tmp".into())));
                             expr = Expr::Block(Statements::from(block_statements));
                         } else {
@@ -630,7 +675,7 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                     }
                 }
 
-                let result = expr.exec(doc);
+                let result = expr.exec(graph);
                 match result {
                     Ok(sval) => {
                         field_value = sval;
@@ -648,7 +693,7 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
 
 
 /// Parse a function to declare in the current scope.
-fn parse_function(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<SFunc> {
+fn parse_function(graph: &mut SGraph, env: &mut StofEnv, pair: Pair<Rule>) -> Result<SFunc> {
     let mut name = String::from("arrow");
     let mut params = Vec::new();
     let mut rtype = SType::Void;
@@ -665,8 +710,8 @@ fn parse_function(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result
                             key = pair.as_str().to_string();
                         },
                         Rule::expr => {
-                            let value_expr = parse_expression(doc, env, pair)?;
-                            let result = value_expr.exec(doc);
+                            let value_expr = parse_expression(graph, env, pair)?;
+                            let result = value_expr.exec(graph);
                             match result {
                                 Ok(sval) => {
                                     value = sval;
@@ -699,7 +744,7 @@ fn parse_function(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result
                             atype = pair.as_str().into();
                         },
                         Rule::expr => {
-                            default = Some(parse_expression(doc, env, pair)?);
+                            default = Some(parse_expression(graph, env, pair)?);
                         },
                         _ => {
                             return Err(anyhow!("Unrecognized rule for function parameter"));
@@ -712,10 +757,10 @@ fn parse_function(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result
                 rtype = pair.as_str().into();
             },
             Rule::block => {
-                statements = parse_block(doc, env, pair)?;
+                statements = parse_block(graph, env, pair)?;
             },
             Rule::expr => {
-                statements.statements.push(Statement::Return(parse_expression(doc, env, pair)?));
+                statements.statements.push(Statement::Return(parse_expression(graph, env, pair)?));
             },
             Rule::EOI => {},
             _ => {
@@ -731,7 +776,7 @@ fn parse_function(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result
 
 
 /// Parse a block of statements.
-fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<Statements> {
+fn parse_block(graph: &mut SGraph, env: &mut StofEnv, pair: Pair<Rule>) -> Result<Statements> {
     let mut statements = Vec::new();
     for pair in pair.into_inner() {
         match pair.as_rule() {
@@ -739,7 +784,7 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                 for pair in pair.into_inner() {
                     match pair.as_rule() {
                         Rule::expr => {
-                            statements.push(Statement::Return(parse_expression(doc, env, pair)?));
+                            statements.push(Statement::Return(parse_expression(graph, env, pair)?));
                         },
                         _ => {}
                     }
@@ -754,11 +799,11 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                 for pair in pair.into_inner() {
                     match pair.as_rule() {
                         Rule::expr => {
-                            expr = parse_expression(doc, env, pair)?;
+                            expr = parse_expression(graph, env, pair)?;
                         },
                         Rule::single_block |
                         Rule::block => {
-                            while_statements = parse_block(doc, env, pair)?;
+                            while_statements = parse_block(graph, env, pair)?;
                         },
                         rule => return Err(anyhow!("Unrecognized rule in while loop: {:?}", rule))
                     }
@@ -790,17 +835,17 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                                     let custom_type_name = type_path.pop().unwrap();
 
                                     // Find a scope to use other than our own?
-                                    let mut type_scope = env.scope(doc);
+                                    let mut type_scope = env.scope(graph);
                                     if type_path.len() > 0 {
                                         let path = type_path.join("/");
                                         if path.starts_with("self") || path.starts_with("super") {
-                                            if let Some(nref) = doc.graph.node_ref(&path, Some(&type_scope)) {
+                                            if let Some(nref) = graph.node_ref(&path, Some(&type_scope)) {
                                                 type_scope = nref;
                                             } else {
                                                 return Err(anyhow!("Cannot find referenced type scope for iterating with an object value"));
                                             }
                                         } else {
-                                            if let Some(nref) = doc.graph.node_ref(&path, None) {
+                                            if let Some(nref) = graph.node_ref(&path, None) {
                                                 type_scope = nref;
                                             } else {
                                                 return Err(anyhow!("Cannot find referenced type scope for iterating with an object value"));
@@ -809,14 +854,14 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                                     }
 
                                     // Try assigning the prototype of this object since its not a value type
-                                    if let Some(custom_type) = doc.types.find(&doc.graph, custom_type_name, &type_scope) {
-                                        if custom_type.is_private() && !env.scope(doc).is_child_of(&doc.graph, &type_scope) {
+                                    if let Some(custom_type) = graph.types.find(&graph, custom_type_name, &type_scope) {
+                                        if custom_type.is_private() && !env.scope(graph).is_child_of(&graph, &type_scope) {
                                             // Custom type is private and the current scope is not equal or a child of the type's scope
                                             return Err(anyhow!("Cannot cast object expr to private type for object value iteration: {}", atype_str));
                                         }
                                         let mut block_statements = Vec::new();
                                         block_statements.push(Statement::Declare("tmp".into(), Expr::DeRef(Box::new(dec_expr))));
-                                        block_statements.push(Statement::Assign("tmp.__prototype__".into(), Expr::Literal(SVal::String(custom_type.path(&doc.graph)))));
+                                        block_statements.push(Statement::Assign("tmp.__prototype__".into(), Expr::Literal(SVal::String(custom_type.path(&graph)))));
                                         block_statements.push(Statement::Return(Expr::Variable("tmp".into())));
                                         dec_expr = Expr::Block(Statements::from(block_statements));
                                     } else {
@@ -832,11 +877,11 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                         },
                         Rule::expr => {
                             // Array (or iterable) expression!
-                            iterable_expr = parse_expression(doc, env, pair)?;
+                            iterable_expr = parse_expression(graph, env, pair)?;
                         },
                         Rule::single_block |
                         Rule::block => {
-                            inner_statements.absorb(parse_block(doc, env, pair)?);
+                            inner_statements.absorb(parse_block(graph, env, pair)?);
                         },
                         rule => return Err(anyhow!("Unrecognized rule in for 'in' loop: {:?}", rule))
                     }
@@ -872,14 +917,14 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                 for pair in pair.into_inner() {
                     match pair.as_rule() {
                         Rule::declare => {
-                            for_statements.push(parse_declare(doc, env, pair)?);
+                            for_statements.push(parse_declare(graph, env, pair)?);
                         },
                         Rule::expr => {
-                            expr = parse_expression(doc, env, pair)?;
+                            expr = parse_expression(graph, env, pair)?;
                         },
                         Rule::single_block |
                         Rule::block => {
-                            while_statements = parse_block(doc, env, pair)?;
+                            while_statements = parse_block(graph, env, pair)?;
                         },
                         Rule::assign |
                         Rule::add_assign |
@@ -887,7 +932,7 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                         Rule::mul_assign |
                         Rule::div_assign |
                         Rule::rem_assign => {
-                            end_while_statement = parse_assignment(doc, env, pair)?;
+                            end_while_statement = parse_assignment(graph, env, pair)?;
                         },
                         rule => return Err(anyhow!("Unrecognized rule in for loop: {:?}", rule))
                     }
@@ -915,16 +960,16 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                     match pair.as_rule() {
                         Rule::expr => {
                             if set_first_expr {
-                                let expr = parse_expression(doc, env, pair)?;
+                                let expr = parse_expression(graph, env, pair)?;
                                 if_expr.1 = Statements::from(vec![Statement::Expr(expr)]);
                             } else {
-                                if_expr.0 = parse_expression(doc, env, pair)?;
+                                if_expr.0 = parse_expression(graph, env, pair)?;
                                 set_first_expr = true;
                             }
                         },
                         Rule::single_block |
                         Rule::block => {
-                            if_expr.1 = parse_block(doc, env, pair)?;
+                            if_expr.1 = parse_block(graph, env, pair)?;
                         },
                         Rule::else_if_statement => {
                             let mut set_elif_first_expr = false;
@@ -933,16 +978,16 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                                 match pair.as_rule() {
                                     Rule::expr => {
                                         if set_elif_first_expr {
-                                            let expr = parse_expression(doc, env, pair)?;
+                                            let expr = parse_expression(graph, env, pair)?;
                                             elif_expr.1 = Statements::from(vec![Statement::Expr(expr)]);
                                         } else {
-                                            elif_expr.0 = parse_expression(doc, env, pair)?;
+                                            elif_expr.0 = parse_expression(graph, env, pair)?;
                                             set_elif_first_expr = true;
                                         }
                                     },
                                     Rule::single_block |
                                     Rule::block => {
-                                        elif_expr.1 = parse_block(doc, env, pair)?;
+                                        elif_expr.1 = parse_block(graph, env, pair)?;
                                     },
                                     rule => {
                                         return Err(anyhow!("Unrecognized rule in else-if-statement: {:?}", rule));
@@ -955,11 +1000,11 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                             for pair in pair.into_inner() {
                                 match pair.as_rule() {
                                     Rule::expr => {
-                                        else_expr = Some(Statements::from(vec![Statement::Expr(parse_expression(doc, env, pair)?)]));
+                                        else_expr = Some(Statements::from(vec![Statement::Expr(parse_expression(graph, env, pair)?)]));
                                     },
                                     Rule::single_block |
                                     Rule::block => {
-                                        else_expr = Some(parse_block(doc, env, pair)?);
+                                        else_expr = Some(parse_block(graph, env, pair)?);
                                     },
                                     rule => {
                                         return Err(anyhow!("Unrecognized rule in else statement: {:?}", rule));
@@ -980,7 +1025,7 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                 });
             },
             Rule::declare => {
-                statements.push(parse_declare(doc, env, pair)?);
+                statements.push(parse_declare(graph, env, pair)?);
             },
             Rule::drop => {
                 for pair in pair.into_inner() {
@@ -1024,7 +1069,7 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                             ident = pair.as_str().to_owned();
                         },
                         Rule::expr => {
-                            expr = parse_expression(doc, env, pair)?;
+                            expr = parse_expression(graph, env, pair)?;
                         },
                         _ => {
                             return Err(anyhow!("Unrecognized rule in move statement: \"{}\"", pair.as_span().as_str()));
@@ -1041,13 +1086,13 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
             Rule::mul_assign |
             Rule::div_assign |
             Rule::rem_assign => {
-                statements.push(parse_assignment(doc, env, pair)?);
+                statements.push(parse_assignment(graph, env, pair)?);
             },
             Rule::expr => {
-                statements.push(Statement::Expr(parse_expression(doc, env, pair)?));
+                statements.push(Statement::Expr(parse_expression(graph, env, pair)?));
             },
             Rule::block => {
-                let block_statements = parse_block(doc, env, pair)?;
+                let block_statements = parse_block(graph, env, pair)?;
                 statements.push(Statement::Block(block_statements, Statements::default()));
             },
             _ => {
@@ -1060,7 +1105,7 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
 
 
 /// Parse declare statement.
-fn parse_declare(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<Statement> {
+fn parse_declare(graph: &mut SGraph, env: &mut StofEnv, pair: Pair<Rule>) -> Result<Statement> {
     let mut ident = String::default();
     let mut expr = Expr::Literal("".into());
     let mut atype = SType::Void;
@@ -1075,7 +1120,7 @@ fn parse_declare(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<
                 atype = SType::from(pair.as_str());
             },
             Rule::expr => {
-                expr = parse_expression(doc, env, pair)?;
+                expr = parse_expression(graph, env, pair)?;
             },
             _ => {
                 return Err(anyhow!("Unrecognized rule in declare statement (block): \"{}\"", pair.as_span().as_str()));
@@ -1091,17 +1136,17 @@ fn parse_declare(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<
                 let custom_type_name = type_path.pop().unwrap();
 
                 // Find a scope to use other than our own?
-                let mut type_scope = env.scope(doc);
+                let mut type_scope = env.scope(graph);
                 if type_path.len() > 0 {
                     let path = type_path.join("/");
                     if path.starts_with("self") || path.starts_with("super") {
-                        if let Some(nref) = doc.graph.node_ref(&path, Some(&type_scope)) {
+                        if let Some(nref) = graph.node_ref(&path, Some(&type_scope)) {
                             type_scope = nref;
                         } else {
                             return Err(anyhow!("Cannot find referenced type scope for constructing an object"));
                         }
                     } else {
-                        if let Some(nref) = doc.graph.node_ref(&path, None) {
+                        if let Some(nref) = graph.node_ref(&path, None) {
                             type_scope = nref;
                         } else {
                             return Err(anyhow!("Cannot find referenced type scope for constructing an object"));
@@ -1110,14 +1155,14 @@ fn parse_declare(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<
                 }
 
                 // Try assigning the prototype of this object since its not a value type
-                if let Some(custom_type) = doc.types.find(&doc.graph, custom_type_name, &type_scope) {
-                    if custom_type.is_private() && !env.scope(doc).is_child_of(&doc.graph, &type_scope) {
+                if let Some(custom_type) = graph.types.find(&graph, custom_type_name, &type_scope) {
+                    if custom_type.is_private() && !env.scope(graph).is_child_of(&graph, &type_scope) {
                         // Custom type is private and the current scope is not equal or a child of the type's scope
                         return Err(anyhow!("Cannot cast object declaration to private type: {}", atype_str));
                     }
                     let mut block_statements = Vec::new();
                     block_statements.push(Statement::Declare("tmp".into(), expr));
-                    block_statements.push(Statement::Assign("tmp.__prototype__".into(), Expr::Literal(SVal::String(custom_type.path(&doc.graph)))));
+                    block_statements.push(Statement::Assign("tmp.__prototype__".into(), Expr::Literal(SVal::String(custom_type.path(&graph)))));
                     block_statements.push(Statement::Return(Expr::Variable("tmp".into())));
                     expr = Expr::Block(Statements::from(block_statements));
                 } else {
@@ -1134,7 +1179,7 @@ fn parse_declare(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<
 
 
 /// Parse assignment.
-fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<Statement> {
+fn parse_assignment(graph: &mut SGraph, env: &mut StofEnv, pair: Pair<Rule>) -> Result<Statement> {
     match pair.as_rule() {
         Rule::assign => {
             let mut ident = String::default();
@@ -1145,7 +1190,7 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                         ident = pair.as_str().to_owned();
                     },
                     Rule::expr => {
-                        expr = parse_expression(doc, env, pair)?;
+                        expr = parse_expression(graph, env, pair)?;
                         if let Some(cast_type) = env.assign_type_stack.last().unwrap().get(&ident) {
                             expr = Expr::Cast(cast_type.clone(), Box::new(expr));
                         }
@@ -1166,7 +1211,7 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                         ident = pair.as_str().to_owned();
                     },
                     Rule::expr => {
-                        expr = parse_expression(doc, env, pair)?;
+                        expr = parse_expression(graph, env, pair)?;
                         if let Some(cast_type) = env.assign_type_stack.last().unwrap().get(&ident) {
                             expr = Expr::Cast(cast_type.clone(), Box::new(expr));
                         }
@@ -1191,7 +1236,7 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                         ident = pair.as_str().to_owned();
                     },
                     Rule::expr => {
-                        expr = parse_expression(doc, env, pair)?;
+                        expr = parse_expression(graph, env, pair)?;
                         if let Some(cast_type) = env.assign_type_stack.last().unwrap().get(&ident) {
                             expr = Expr::Cast(cast_type.clone(), Box::new(expr));
                         }
@@ -1216,7 +1261,7 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                         ident = pair.as_str().to_owned();
                     },
                     Rule::expr => {
-                        expr = parse_expression(doc, env, pair)?;
+                        expr = parse_expression(graph, env, pair)?;
                         if let Some(cast_type) = env.assign_type_stack.last().unwrap().get(&ident) {
                             expr = Expr::Cast(cast_type.clone(), Box::new(expr));
                         }
@@ -1241,7 +1286,7 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                         ident = pair.as_str().to_owned();
                     },
                     Rule::expr => {
-                        expr = parse_expression(doc, env, pair)?;
+                        expr = parse_expression(graph, env, pair)?;
                         if let Some(cast_type) = env.assign_type_stack.last().unwrap().get(&ident) {
                             expr = Expr::Cast(cast_type.clone(), Box::new(expr));
                         }
@@ -1266,7 +1311,7 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                         ident = pair.as_str().to_owned();
                     },
                     Rule::expr => {
-                        expr = parse_expression(doc, env, pair)?;
+                        expr = parse_expression(graph, env, pair)?;
                         if let Some(cast_type) = env.assign_type_stack.last().unwrap().get(&ident) {
                             expr = Expr::Cast(cast_type.clone(), Box::new(expr));
                         }
@@ -1289,7 +1334,7 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
 
 /// Parse expressions (expr rule).
 /// SType is available for parsing if able.
-fn parse_expression(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<Expr> {
+fn parse_expression(graph: &mut SGraph, env: &mut StofEnv, pair: Pair<Rule>) -> Result<Expr> {
     let mut res: Expr = Expr::Literal(SVal::Null);
     for pair in pair.into_inner() {
         match pair.as_rule() {
@@ -1302,17 +1347,17 @@ fn parse_expression(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                     let custom_type_name = type_path.pop().unwrap();
 
                     // Find a scope to use other than our own?
-                    let mut type_scope = env.scope(doc);
+                    let mut type_scope = env.scope(graph);
                     if type_path.len() > 0 {
                         let path = type_path.join("/");
                         if path.starts_with("self") || path.starts_with("super") {
-                            if let Some(nref) = doc.graph.node_ref(&path, Some(&type_scope)) {
+                            if let Some(nref) = graph.node_ref(&path, Some(&type_scope)) {
                                 type_scope = nref;
                             } else {
                                 return Err(anyhow!("Cannot find referenced type scope for constructing an object"));
                             }
                         } else {
-                            if let Some(nref) = doc.graph.node_ref(&path, None) {
+                            if let Some(nref) = graph.node_ref(&path, None) {
                                 type_scope = nref;
                             } else {
                                 return Err(anyhow!("Cannot find referenced type scope for constructing an object"));
@@ -1321,14 +1366,14 @@ fn parse_expression(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                     }
 
                     // Try assigning the prototype of this object since its not a value type
-                    if let Some(custom_type) = doc.types.find(&doc.graph, custom_type_name, &type_scope) {
-                        if custom_type.is_private() && !env.scope(doc).is_child_of(&doc.graph, &type_scope) {
+                    if let Some(custom_type) = graph.types.find(&graph, custom_type_name, &type_scope) {
+                        if custom_type.is_private() && !env.scope(graph).is_child_of(&graph, &type_scope) {
                             // Custom type is private and the current scope is not equal or a child of the type's scope
                             return Err(anyhow!("Cannot cast object expr to private type: {}", pair_str));
                         }
                         let mut block_statements = Vec::new();
                         block_statements.push(Statement::Declare("tmp".into(), res));
-                        block_statements.push(Statement::Assign("tmp.__prototype__".into(), Expr::Literal(SVal::String(custom_type.path(&doc.graph)))));
+                        block_statements.push(Statement::Assign("tmp.__prototype__".into(), Expr::Literal(SVal::String(custom_type.path(&graph)))));
                         block_statements.push(Statement::Return(Expr::Variable("tmp".into())));
                         res = Expr::Block(Statements::from(block_statements));
                     } else {
@@ -1347,14 +1392,14 @@ fn parse_expression(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                     match pair.as_rule() {
                         Rule::expr => {
                             if set_first {
-                                second = parse_expression(doc, env, pair)?;
+                                second = parse_expression(graph, env, pair)?;
                             } else {
-                                first = parse_expression(doc, env, pair)?;
+                                first = parse_expression(graph, env, pair)?;
                                 set_first = true;
                             }
                         },
                         _ => {
-                            if_expr = parse_expr_pair(doc, env, pair)?;
+                            if_expr = parse_expr_pair(graph, env, pair)?;
                         }
                     }
                 }
@@ -1366,7 +1411,7 @@ fn parse_expression(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                 res = Expr::Block(Statements::from(vec![if_statement]));
             },
             _ => {
-                res = parse_expr_pair(doc, env, pair)?;
+                res = parse_expr_pair(graph, env, pair)?;
             }
         }
     }
@@ -1375,14 +1420,14 @@ fn parse_expression(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
 
 
 /// Parse expression pair.
-fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<Expr> {
+fn parse_expr_pair(graph: &mut SGraph, env: &mut StofEnv, pair: Pair<Rule>) -> Result<Expr> {
     let mut res: Expr = Expr::Literal(SVal::Null);
     match pair.as_rule() {
         Rule::type_of_expr => {
             for pair in pair.into_inner() {
                 match pair.as_rule() {
                     Rule::expr => {
-                        res = Expr::TypeOf(Box::new(parse_expression(doc, env, pair)?));
+                        res = Expr::TypeOf(Box::new(parse_expression(graph, env, pair)?));
                     },
                     _ => {}
                 }
@@ -1392,7 +1437,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
             for pair in pair.into_inner() {
                 match pair.as_rule() {
                     Rule::expr => {
-                        res = Expr::TypeName(Box::new(parse_expression(doc, env, pair)?));
+                        res = Expr::TypeName(Box::new(parse_expression(graph, env, pair)?));
                     },
                     _ => {}
                 }
@@ -1402,7 +1447,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
             for pair in pair.into_inner() {
                 match pair.as_rule() {
                     Rule::expr => {
-                        res = Expr::Not(Box::new(parse_expression(doc, env, pair)?));
+                        res = Expr::Not(Box::new(parse_expression(graph, env, pair)?));
                     },
                     _ => {}
                 }
@@ -1412,7 +1457,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
             for pair in pair.into_inner() {
                 match pair.as_rule() {
                     Rule::expr => {
-                        res = Expr::Ref(Box::new(parse_expression(doc, env, pair)?));
+                        res = Expr::Ref(Box::new(parse_expression(graph, env, pair)?));
                     },
                     _ => {}
                 }
@@ -1422,21 +1467,21 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
             for pair in pair.into_inner() {
                 match pair.as_rule() {
                     Rule::expr => {
-                        res = Expr::DeRef(Box::new(parse_expression(doc, env, pair)?));
+                        res = Expr::DeRef(Box::new(parse_expression(graph, env, pair)?));
                     },
                     _ => {}
                 }
             }
         },
         Rule::math_expr => {
-            res = parse_math_pairs(doc, env, pair.into_inner()).to_expr();
+            res = parse_math_pairs(graph, env, pair.into_inner()).to_expr();
         },
         Rule::tuple_expr => {
             let mut vec: Vec<Expr> = Vec::new();
             for pair in pair.into_inner() {
                 match pair.as_rule() {
                     Rule::expr => {
-                        vec.push(parse_expression(doc, env, pair)?);
+                        vec.push(parse_expression(graph, env, pair)?);
                     },
                     rule => {
                         return Err(anyhow!("Unrecognized rule in tuple constructor: {:?}", rule));
@@ -1450,7 +1495,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
             for pair in pair.into_inner() {
                 match pair.as_rule() {
                     Rule::expr => {
-                        vec.push(parse_expression(doc, env, pair)?);
+                        vec.push(parse_expression(graph, env, pair)?);
                     },
                     rule => {
                         return Err(anyhow!("Unrecognized rule in tuple constructor: {:?}", rule));
@@ -1530,7 +1575,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         }
                     },
                     Rule::expr => {
-                        params.push(parse_expression(doc, env, pair)?);
+                        params.push(parse_expression(graph, env, pair)?);
                     },
                     _ => {}
                 }
@@ -1560,7 +1605,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         for pair in pair.into_inner() {
                             match pair.as_rule() {
                                 Rule::expr => {
-                                    params.push(parse_expression(doc, env, pair)?);
+                                    params.push(parse_expression(graph, env, pair)?);
                                 },
                                 _ => {}
                             }
@@ -1584,7 +1629,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
             for pair in pair.into_inner() {
                 match pair.as_rule() {
                     Rule::call => {
-                        let mut expr = parse_expr_pair(doc, env, pair)?;
+                        let mut expr = parse_expr_pair(graph, env, pair)?;
                         match &mut expr {
                             Expr::Call { scope, name: _, params: _ } => {
                                 *scope = "tmp".to_string();
@@ -1594,7 +1639,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         block_statements.push(Statement::Return(expr));
                     },
                     _ => {
-                        block_statements.push(Statement::Declare("tmp".into(), parse_expr_pair(doc, env, pair)?));
+                        block_statements.push(Statement::Declare("tmp".into(), parse_expr_pair(graph, env, pair)?));
                     }
                 }
             }
@@ -1607,7 +1652,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                 match pair.as_rule() {
                     Rule::expr_call |
                     Rule::call => {
-                        let mut expr = parse_expr_pair(doc, env, pair)?;
+                        let mut expr = parse_expr_pair(graph, env, pair)?;
                         if declared {
                             match &mut expr {
                                 Expr::Call { scope, name: _, params: _ } => {
@@ -1651,7 +1696,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         for pair in pair.into_inner() {
                             match pair.as_rule() {
                                 Rule::expr => {
-                                    let expr = parse_expression(doc, env, pair)?;
+                                    let expr = parse_expression(graph, env, pair)?;
                                     params.push(expr);
                                 },
                                 _ => {
@@ -1672,7 +1717,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
             }
         },
         Rule::block => {
-            let statements = parse_block(doc, env, pair)?;
+            let statements = parse_block(graph, env, pair)?;
             res = Expr::Block(statements);
         },
         Rule::fmt_expr => {
@@ -1696,7 +1741,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                                         match pair.as_rule() {
                                             Rule::expr => {
                                                 // Parse the val expression
-                                                let val = parse_expression(doc, env, pair)?;
+                                                let val = parse_expression(graph, env, pair)?;
 
                                                 // Assign the substring
                                                 let start = span.start() - fmt_start;
@@ -1799,7 +1844,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         not = true;
                     },
                     Rule::expr => {
-                        res = parse_expression(doc, env, pair)?;
+                        res = parse_expression(graph, env, pair)?;
                     },
                     _ => {}
                 }
@@ -1812,14 +1857,14 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
             }
         },
         Rule::arrow_function => {
-            let mut function = parse_function(doc, env, pair)?;
+            let mut function = parse_function(graph, env, pair)?;
             // Set anonymous name for function
             let func_name = format!("func{}", nanoid!(7));
             function.name = func_name;
             
             // Declare the function in the current scope
-            let scope = env.scope(doc);
-            function.attach(&scope, &mut doc.graph);
+            let scope = env.scope(graph);
+            function.attach(&scope, graph);
 
             // Return a function pointer literal
             res = Expr::Literal(SVal::FnPtr(function.data_ref()));
@@ -1836,17 +1881,17 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         let custom_type_name = type_path.pop().unwrap();
 
                         // Find a scope to use other than our own?
-                        let mut type_scope = env.scope(doc);
+                        let mut type_scope = env.scope(graph);
                         if type_path.len() > 0 {
                             let path = type_path.join("/");
                             if path.starts_with("self") || path.starts_with("super") {
-                                if let Some(nref) = doc.graph.node_ref(&path, Some(&type_scope)) {
+                                if let Some(nref) = graph.node_ref(&path, Some(&type_scope)) {
                                     type_scope = nref;
                                 } else {
                                     return Err(anyhow!("Cannot find referenced type scope for constructing an object"));
                                 }
                             } else {
-                                if let Some(nref) = doc.graph.node_ref(&path, None) {
+                                if let Some(nref) = graph.node_ref(&path, None) {
                                     type_scope = nref;
                                 } else {
                                     return Err(anyhow!("Cannot find referenced type scope for constructing an object"));
@@ -1854,13 +1899,13 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                             }
                         }
 
-                        if let Some(custom_type) = doc.types.find(&doc.graph, custom_type_name, &type_scope) {
-                            if custom_type.is_private() && !env.scope(doc).is_child_of(&doc.graph, &type_scope) {
+                        if let Some(custom_type) = graph.types.find(&graph, custom_type_name, &type_scope) {
+                            if custom_type.is_private() && !env.scope(graph).is_child_of(&graph, &type_scope) {
                                 // Custom type is private and the current scope is not equal or a child of the type's scope
                                 return Err(anyhow!("Cannot cast object expr to private type: {}", pair.as_str()));
                             }
                             type_name = custom_type.name.clone();
-                            prototype_location = custom_type.path(&doc.graph);
+                            prototype_location = custom_type.path(&graph);
                             prototype_fields = custom_type.fields.clone();
                         } else {
                             return Err(anyhow!("Attempting to construct a type that has not been defined: {}", pair.as_str()));
@@ -1880,7 +1925,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                                     field_name = field_name.trim_start_matches("'").trim_end_matches("'").to_owned();
                                 },
                                 Rule::expr => {
-                                    expr = parse_expression(doc, env, pair)?;
+                                    expr = parse_expression(graph, env, pair)?;
                                 },
                                 _ => {}
                             }
@@ -1938,11 +1983,11 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
 
 
 /// Parse math expression pairs.
-fn parse_math_pairs(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> MathExpr {
+fn parse_math_pairs(graph: &mut SGraph, env: &mut StofEnv, pairs: Pairs<Rule>) -> MathExpr {
     MATH_OPS_PARSER
         .map_primary(|primary| match primary.as_rule() {
             _ => {
-                MathExpr::Expr(parse_expr_pair(doc, env, primary).expect("Expr::parse_math creating expr"))
+                MathExpr::Expr(parse_expr_pair(graph, env, primary).expect("Expr::parse_math creating expr"))
             },
         })
         .map_infix(|lhs, op, rhs| {

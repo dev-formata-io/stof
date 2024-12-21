@@ -14,16 +14,21 @@
 // limitations under the License.
 //
 
-use std::{collections::{BTreeMap, HashSet}, sync::{Arc, RwLock}};
+use std::{collections::{BTreeMap, HashSet}, fmt::Debug, sync::{Arc, RwLock}};
 use anyhow::{anyhow, Result};
 use bytes::Bytes;
-use crate::{SType, SVal, SDoc};
+use crate::{SGraph, SType, SVal};
 
 
 /// Stof Libraries.
 #[derive(Default, Clone)]
 pub struct SLibraries {
     pub libraries: BTreeMap<String, Arc<RwLock<dyn Library>>>,
+}
+impl Debug for SLibraries {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("SLibraries")
+    }
 }
 impl SLibraries {
     /// Insert a library.
@@ -59,7 +64,7 @@ pub trait Library: Sync + Send {
     fn scope(&self) -> String;
 
     /// Call a library function with a set of parameters.
-    fn call(&mut self, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal>;
+    fn call(&mut self, graph: &mut SGraph, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal>;
 }
 
 
@@ -73,7 +78,7 @@ impl Library for StdLibrary {
     }
 
     /// Call a standard library function.
-    fn call(&mut self, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&mut self, graph: &mut SGraph, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
         match name {
             "parse" => {
                 if parameters.len() > 0 {
@@ -82,8 +87,8 @@ impl Library for StdLibrary {
                         format = parameters[1].to_string();
                     }
                     let mut as_name = "root".to_string();
-                    if let Some(self_ptr) = doc.self_ptr() {
-                        as_name = self_ptr.path(&doc.graph); // Absolute path to current location
+                    if let Some(self_ptr) = graph.stack.self_ptr() {
+                        as_name = self_ptr.path(&graph); // Absolute path to current location
                     }
                     if parameters.len() > 2 {
                         let req_name = parameters[2].to_string();
@@ -97,12 +102,12 @@ impl Library for StdLibrary {
                     }
                     match &parameters[0] {
                         SVal::String(src) => {
-                            doc.string_import(&format, &src, &as_name)?;
+                            graph.string_import(&format, &src, &as_name)?;
                             return Ok(SVal::Bool(true));
                         },
                         SVal::Blob(bytes) => {
                             let mut bytes = Bytes::from(bytes.clone());
-                            doc.header_import(&format, &format, &mut bytes, &as_name)?;
+                            graph.header_import(&format, &format, &mut bytes, &as_name)?;
                             return Ok(SVal::Bool(true));
                         },
                         _ => {}
@@ -111,14 +116,14 @@ impl Library for StdLibrary {
                 Ok(SVal::Bool(false))
             },
             "blobify" => {
-                if parameters.len() > 0 { // Must have an object/value - will use STOF as the default format
-                    let mut format = "stof".to_string();
+                if parameters.len() > 0 { // Must have an object/value - will use BSTOF as the default format
+                    let mut format = "bstof".to_string();
                     if parameters.len() > 1 {
                         format = parameters[1].to_string();
                     }
                     match &parameters[0] {
                         SVal::Object(nref) => {
-                            let res = doc.export_bytes(&format, Some(nref))?;
+                            let res = graph.export_bytes(&format, Some(nref))?;
                             return Ok(SVal::Blob(res.to_vec()));
                         },
                         _ => {}
@@ -127,8 +132,8 @@ impl Library for StdLibrary {
                 Ok(SVal::Null)
             },
             "stringify" => {
-                if parameters.len() > 0 { // Must have an object/value - will use STOF as the default format
-                    let mut format = "stof".to_string();
+                if parameters.len() > 0 { // Must have an object/value - will use JSON as the default format
+                    let mut format = "json".to_string();
                     if parameters.len() > 1 {
                         format = parameters[1].to_string();
                     }
@@ -140,9 +145,9 @@ impl Library for StdLibrary {
                         SVal::Object(nref) => {
                             let res;
                             if min {
-                                res = doc.export_min_string(&format, Some(nref))?;
+                                res = graph.export_min_string(&format, Some(nref))?;
                             } else {
-                                res = doc.export_string(&format, Some(nref))?;
+                                res = graph.export_string(&format, Some(nref))?;
                             }
                             return Ok(SVal::String(res));
                         },
@@ -154,34 +159,34 @@ impl Library for StdLibrary {
             "hasFormat" => {
                 if parameters.len() > 0 {
                     let format = parameters[0].to_string();
-                    let available = doc.available_formats();
+                    let available = graph.available_formats();
                     return Ok(SVal::Bool(available.contains(&format)));
                 }
                 Err(anyhow!("Must provide a format string to look for"))
             },
             "formats" => {
-                let formats: Vec<SVal> = doc.available_formats().into_iter().map(|fmt| SVal::String(fmt)).collect();
+                let formats: Vec<SVal> = graph.available_formats().into_iter().map(|fmt| SVal::String(fmt)).collect();
                 Ok(SVal::Array(formats))
             },
             "hasLib" |
             "hasLibrary" => {
                 if parameters.len() > 0 {
                     let lib = parameters[0].to_string();
-                    let available = doc.available_libraries();
+                    let available = graph.available_libraries();
                     return Ok(SVal::Bool(available.contains(&lib)));
                 }
                 Err(anyhow!("Must provide a library name to look for"))
             },
             "libs" |
             "libraries" => {
-                let libs: Vec<SVal> = doc.available_libraries().into_iter().map(|fmt| SVal::String(fmt)).collect();
+                let libs: Vec<SVal> = graph.available_libraries().into_iter().map(|fmt| SVal::String(fmt)).collect();
                 Ok(SVal::Array(libs))
             },
             "pln" => {
                 let mut res = String::default();
                 for i in 0..parameters.len() {
                     let param = &parameters[i];
-                    let print = param.print(doc);
+                    let print = param.print(graph);
                     
                     match param.stype() {
                         SType::String => {
@@ -204,7 +209,7 @@ impl Library for StdLibrary {
                 let mut res = String::default();
                 for i in 0..parameters.len() {
                     let param = &parameters[i];
-                    let print = param.debug(doc);
+                    let print = param.debug(graph);
                     
                     match param.stype() {
                         SType::String => {
@@ -228,7 +233,7 @@ impl Library for StdLibrary {
                 let mut res = String::default();
                 for i in 0..parameters.len() {
                     let param = &parameters[i];
-                    let print = param.print(doc);
+                    let print = param.print(graph);
                     
                     match param.stype() {
                         SType::String => {
@@ -251,7 +256,7 @@ impl Library for StdLibrary {
                 let mut res = String::default();
                 for i in 0..parameters.len() {
                     let param = &parameters[i];
-                    let print = param.print(doc);
+                    let print = param.print(graph);
                     
                     match param.stype() {
                         SType::String => {
@@ -336,7 +341,7 @@ impl Library for StdLibrary {
             },
             "assertEq" => {
                 if parameters.len() == 2 {
-                    let equals = parameters[0].equal(&parameters[1], doc);
+                    let equals = parameters[0].equal(&parameters[1], graph);
                     match equals {
                         Ok(val) => {
                             let truthy = val.truthy();
@@ -354,7 +359,7 @@ impl Library for StdLibrary {
             },
             "assertNeq" => {
                 if parameters.len() == 2 {
-                    let nequals = parameters[0].neq(&parameters[1], doc);
+                    let nequals = parameters[0].neq(&parameters[1], graph);
                     match nequals {
                         Ok(val) => {
                             let truthy = val.truthy();
@@ -371,7 +376,7 @@ impl Library for StdLibrary {
                 Err(anyhow!("Assert not equals must have 2 parameters"))
             },
             /*"dump" => {
-                doc.graph.dump(true);
+                graph.dump(true);
                 Ok(SVal::Void)
             },*/
             _ => {

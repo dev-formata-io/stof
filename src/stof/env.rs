@@ -15,7 +15,7 @@
 //
 
 use std::collections::{HashMap, HashSet};
-use crate::{Data, IntoNodeRef, SData, SDoc, SField, SFunc, SNodeRef, SType, SVal};
+use crate::{Data, IntoNodeRef, SData, SField, SFunc, SGraph, SNodeRef, SType, SVal};
 
 
 /// Stof parse environment.
@@ -41,12 +41,12 @@ pub struct StofEnv {
 }
 impl StofEnv {
     /// Construct a new Stof env from a document.
-    pub fn new(doc: &mut SDoc) -> Self {
+    pub fn new(graph: &mut SGraph) -> Self {
         let main;
-        if doc.graph.roots.len() < 1 {
-            main = doc.graph.insert_root("root");
+        if graph.roots.len() < 1 {
+            main = graph.insert_root("root");
         } else {
-            main = doc.graph.main_root().unwrap();
+            main = graph.main_root().unwrap();
         }
         Self {
             main,
@@ -58,9 +58,9 @@ impl StofEnv {
     }
 
     /// Construct a new Stof env from a document and main node.
-    pub fn new_at_node(doc: &mut SDoc, node: impl IntoNodeRef) -> Option<Self> {
+    pub fn new_at_node(graph: &mut SGraph, node: impl IntoNodeRef) -> Option<Self> {
         let nref = node.node_ref();
-        if nref.exists(&doc.graph) {
+        if nref.exists(&graph) {
             return Some(Self {
                 main: nref,
                 init_funcs: Default::default(),
@@ -74,10 +74,10 @@ impl StofEnv {
 
     /// Insert a field onto a node.
     /// Check for field collisions on the node, merging fields if necessary.
-    pub(crate) fn insert_field(&mut self, doc: &mut SDoc, node: impl IntoNodeRef, field: &mut SField) {
+    pub(crate) fn insert_field(&mut self, graph: &mut SGraph, node: impl IntoNodeRef, field: &mut SField) {
         let node_ref = node.node_ref();
         if !self.node_field_collisions.contains_key(&node_ref.id) {
-            let existing_fields = SField::fields(&doc.graph, &node_ref);
+            let existing_fields = SField::fields(&graph, &node_ref);
             let mut map = HashMap::new();
             for field in existing_fields {
                 map.insert(field.name, field.id);
@@ -89,9 +89,9 @@ impl StofEnv {
             if existing.contains_key(&field.name) {
                 // This field collides with an existing one on this node!
                 // Union the existing field with the new field, and set the existing back into the graph
-                if let Ok(mut existing_field) = SData::data::<SField>(&doc.graph, existing.get(&field.name).unwrap()) {
+                if let Ok(mut existing_field) = SData::data::<SField>(&graph, existing.get(&field.name).unwrap()) {
                     existing_field.union(field);
-                    existing_field.set(&mut doc.graph);
+                    existing_field.set(graph);
                     merged = true;
                 }
             } else {
@@ -100,19 +100,19 @@ impl StofEnv {
             }
         }
         if !merged {
-            field.attach(&node_ref, &mut doc.graph);
+            field.attach(&node_ref, graph);
         }
     }
 
     /// Before parse.
-    pub fn before_parse(&mut self, doc: &mut SDoc) {
-        doc.self_stack.push(self.main.clone());
+    pub fn before_parse(&mut self, graph: &mut SGraph) {
+        graph.stack.self_stack.push(self.main.clone());
     }
 
     /// After parse.
-    pub fn after_parse(&mut self, doc: &mut SDoc) {
-        self.call_init_functions(doc);
-        doc.clean();
+    pub fn after_parse(&mut self, graph: &mut SGraph) {
+        self.call_init_functions(graph);
+        graph.stack.clean();
     }
 
     /// Already compiled this file?
@@ -126,8 +126,8 @@ impl StofEnv {
     }
 
     /// Current scope.
-    pub fn scope(&self, doc: &SDoc) -> SNodeRef {
-        if let Some(nref) = doc.self_ptr() {
+    pub fn scope(&self, graph: &SGraph) -> SNodeRef {
+        if let Some(nref) = graph.stack.self_ptr() {
             nref
         } else {
             self.main.clone()
@@ -136,28 +136,28 @@ impl StofEnv {
 
     /// Set scope of this graph!
     /// Adds every node in the path if needed and sets the current scope.
-    pub fn push_scope(&mut self, doc: &mut SDoc, path: &str, sep: char, fields: bool) -> SNodeRef {
-        let nref = doc.graph.ensure_nodes(path, sep, fields, None);
-        self.push_scope_ref(doc, nref.clone());
+    pub fn push_scope(&mut self, graph: &mut SGraph, path: &str, sep: char, fields: bool) -> SNodeRef {
+        let nref = graph.ensure_nodes(path, sep, fields, None);
+        self.push_scope_ref(graph, nref.clone());
         nref
     }
 
     /// Push scope ref.
-    pub fn push_scope_ref(&mut self, doc: &mut SDoc, nref: SNodeRef) {
-        doc.self_stack.push(nref);
+    pub fn push_scope_ref(&mut self, graph: &mut SGraph, nref: SNodeRef) {
+        graph.stack.self_stack.push(nref);
         self.assign_type_stack.push(HashMap::default());
     }
 
     /// Pop scope.
-    pub fn pop_scope(&mut self, doc: &mut SDoc) {
-        doc.self_stack.pop();
+    pub fn pop_scope(&mut self, graph: &mut SGraph) {
+        graph.stack.self_stack.pop();
         self.assign_type_stack.pop();
     }
 
     /// Call init functions with the document.
-    pub fn call_init_functions(&self, doc: &mut SDoc) {
+    pub fn call_init_functions(&self, graph: &mut SGraph) {
         for (func, params) in &self.init_funcs {
-            func.call(doc, params.clone(), true).expect(&format!("Failed to call init function: {:?}", func));
+            func.call(graph, params.clone(), true).expect(&format!("Failed to call init function: {:?}", func));
         }
     }
 }

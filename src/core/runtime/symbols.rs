@@ -15,7 +15,7 @@
 //
 
 use std::collections::HashMap;
-use crate::{SVal, SGraph};
+use crate::SVal;
 
 
 /// Scope of symbols.
@@ -46,9 +46,9 @@ impl SymbolScope {
 
     /// Set a variable by name.
     /// Will not insert if not present!
-    pub fn set_variable(&mut self, name: &str, value: SVal, graph: &mut SGraph) -> bool {
+    pub fn set_variable(&mut self, name: &str, value: SVal) -> bool {
         if let Some(var) = self.get_mut(name) {
-            var.set(value, graph);
+            var.set(value);
             return true;
         }
         false
@@ -70,7 +70,7 @@ impl Symbol {
     }
 
     /// Set variable.
-    pub fn set(&mut self, val: SVal, _graph: &mut SGraph) {
+    pub fn set(&mut self, val: SVal) {
         match self {
             Symbol::Variable(var) => {
                 if var.is_ref() && !val.is_ref() {
@@ -151,10 +151,10 @@ impl SymbolTable {
 
     /// Set a variable by name.
     /// Will not insert if not present!
-    pub fn set_variable(&mut self, name: &str, value: &SVal, graph: &mut SGraph) -> bool {
+    pub fn set_variable(&mut self, name: &str, value: &SVal) -> bool {
         for i in (0..self.scope + 1).rev() {
             if let Some(scope) = self.scopes.get_mut(&i) {
-                if scope.set_variable(name, value.clone(), graph) {
+                if scope.set_variable(name, value.clone()) {
                     return true;
                 }
             }
