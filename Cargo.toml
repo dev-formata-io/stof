@@ -1,6 +1,6 @@
 [package]
 name = "stof"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 authors = ["CJ Cummings <cj@formata.io>"]
 description = "Stof is a unified data interface and interchange format for creating, sharing, and manipulating data. Stof removes the fragile and cumbersome parts of combining and using data in applications."

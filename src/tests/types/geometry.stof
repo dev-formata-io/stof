@@ -50,6 +50,26 @@ fields: {
         assertEq(point2.Point2D::len().round(2), 2.24cm);
         assertEq(point2.len().round(2), 3.74cm);
     }
+
+    #[test]
+    fn instance_of() {
+        assert(self.point.instanceOf("Point"));
+        assert(self.point.instanceOf("Point2D"));
+        assertEq(self.point.typename(), 'Point');
+        assertEq(typename self.point, 'Point');
+
+        let pt = new Point2D {};
+        assert(pt.instanceOf("Point2D"));
+        assertNot(pt.instanceOf("Point"));
+        assertEq(pt.typename(), 'Point2D');
+        assertEq(typename pt, 'Point2D');
+    }
+
+    #[test]
+    fn typestack() {
+        let stack = self.point.typestack();
+        assertEq(stack, ['Point', 'Point2D']);
+    }
 }
 
 defaults: {

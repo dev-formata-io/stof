@@ -371,6 +371,27 @@ pub trait Object {
                 }
                 Err(anyhow!("Object.children(obj) requires one object parameter"))
             },
+            "typename" => {
+                if parameters.len() == 1 {
+                    let typename = parameters[0].type_name(&doc.graph);
+                    return Ok(SVal::String(typename));
+                }
+                Err(anyhow!("Object.typename(obj) requires one object parameter"))
+            },
+            "typestack" => {
+                if parameters.len() == 1 {
+                    let typestack = parameters[0].type_stack(&doc.graph);
+                    return Ok(SVal::Array(typestack.into_iter().map(|x| SVal::String(x)).collect()));
+                }
+                Err(anyhow!("Object.typestack(obj) requires one object parameter"))
+            },
+            "instanceOf" => {
+                if parameters.len() == 2 {
+                    let iof = parameters[0].instance_of(&doc.graph, &parameters[1].to_string());
+                    return Ok(SVal::Bool(iof));
+                }
+                Err(anyhow!("Object.instanceOf(obj, type) requires one object parameter and one typename string"))
+            },
             _ => Err(anyhow!("No Object implementation"))
         }
     }

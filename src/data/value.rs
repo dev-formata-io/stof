@@ -398,6 +398,46 @@ impl SVal {
         }
     }
 
+    /// Typestack.
+    pub fn type_stack(&self, graph: &SGraph) -> Vec<String> {
+        match self {
+            Self::Ref(rf) => rf.read().unwrap().type_stack(graph),
+            Self::Object(nref) => {
+                let mut type_stack = Vec::new();
+                if let Some(prototype) = SField::field(graph, "__prototype__", '.', Some(nref)) {
+                    if let Some(node) = graph.node_ref(&prototype.string(), None) {
+                        let mut current = Some(node);
+                        while let Some(typename) = SField::field(graph, "typename", '.', current.as_ref()) {
+                            type_stack.push(typename.to_string());
+
+                            if let Some(node) = current.unwrap().node(graph) {
+                                if let Some(parent_ref) = &node.parent {
+                                    current = Some(parent_ref.clone());
+                                } else {
+                                    break;
+                                }
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                }
+                type_stack
+            },
+            _ => vec![]
+        }
+    }
+
+    /// Instance of?
+    pub fn instance_of(&self, graph: &SGraph, typename: &str) -> bool {
+        for htype in self.type_stack(graph).iter().rev() {
+            if htype == typename {
+                return true;
+            }
+        }
+        false
+    }
+
     /// Typename.
     pub fn type_name(&self, graph: &SGraph) -> String {
         match self {
