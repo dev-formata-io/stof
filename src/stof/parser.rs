@@ -553,7 +553,7 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                                 // Custom type is private and the current scope is not equal or a child of the type's scope
                                 return Err(anyhow!("Cannot cast object to private type: {}", field_type));
                             }
-                            let prototype_location = custom_type.location();
+                            let prototype_location = custom_type.path(&doc.graph);
                             SField::new_string(&mut doc.graph, "__prototype__", &prototype_location, &scope);
                         } else {
                             return Err(anyhow!("Cannot cast object to type: {}", field_type));
@@ -619,7 +619,7 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                             }
                             let mut block_statements = Vec::new();
                             block_statements.push(Statement::Declare("tmp".into(), expr));
-                            block_statements.push(Statement::Assign("tmp.__prototype__".into(), Expr::Literal(SVal::String(custom_type.location()))));
+                            block_statements.push(Statement::Assign("tmp.__prototype__".into(), Expr::Literal(SVal::String(custom_type.path(&doc.graph)))));
                             block_statements.push(Statement::Return(Expr::Variable("tmp".into())));
                             expr = Expr::Block(Statements::from(block_statements));
                         } else {
@@ -816,7 +816,7 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                                         }
                                         let mut block_statements = Vec::new();
                                         block_statements.push(Statement::Declare("tmp".into(), Expr::DeRef(Box::new(dec_expr))));
-                                        block_statements.push(Statement::Assign("tmp.__prototype__".into(), Expr::Literal(SVal::String(custom_type.location()))));
+                                        block_statements.push(Statement::Assign("tmp.__prototype__".into(), Expr::Literal(SVal::String(custom_type.path(&doc.graph)))));
                                         block_statements.push(Statement::Return(Expr::Variable("tmp".into())));
                                         dec_expr = Expr::Block(Statements::from(block_statements));
                                     } else {
@@ -1117,7 +1117,7 @@ fn parse_declare(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<
                     }
                     let mut block_statements = Vec::new();
                     block_statements.push(Statement::Declare("tmp".into(), expr));
-                    block_statements.push(Statement::Assign("tmp.__prototype__".into(), Expr::Literal(SVal::String(custom_type.location()))));
+                    block_statements.push(Statement::Assign("tmp.__prototype__".into(), Expr::Literal(SVal::String(custom_type.path(&doc.graph)))));
                     block_statements.push(Statement::Return(Expr::Variable("tmp".into())));
                     expr = Expr::Block(Statements::from(block_statements));
                 } else {
@@ -1328,7 +1328,7 @@ fn parse_expression(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                         }
                         let mut block_statements = Vec::new();
                         block_statements.push(Statement::Declare("tmp".into(), res));
-                        block_statements.push(Statement::Assign("tmp.__prototype__".into(), Expr::Literal(SVal::String(custom_type.location()))));
+                        block_statements.push(Statement::Assign("tmp.__prototype__".into(), Expr::Literal(SVal::String(custom_type.path(&doc.graph)))));
                         block_statements.push(Statement::Return(Expr::Variable("tmp".into())));
                         res = Expr::Block(Statements::from(block_statements));
                     } else {
@@ -1860,7 +1860,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                                 return Err(anyhow!("Cannot cast object expr to private type: {}", pair.as_str()));
                             }
                             type_name = custom_type.name.clone();
-                            prototype_location = custom_type.location();
+                            prototype_location = custom_type.path(&doc.graph);
                             prototype_fields = custom_type.fields.clone();
                         } else {
                             return Err(anyhow!("Attempting to construct a type that has not been defined: {}", pair.as_str()));

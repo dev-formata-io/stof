@@ -17,7 +17,7 @@
 use std::collections::{BTreeMap, HashSet};
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{Data, SField, SFunc, SGraph, SParam, SVal};
+use crate::{Data, SField, SFunc, SGraph, SParam, SVal, SNodeRef};
 
 
 /// Custom type declaration information.
@@ -59,8 +59,8 @@ impl CustomType {
 
     /// Location path in the graph for functions.
     /// Also the scope for calling functions on this type.
-    pub fn location(&self) -> String {
-        format!("__stof__/prototypes/{}", &self.locid)
+    pub fn path(&self, graph: &SGraph) -> String {
+        SNodeRef::new(&self.locid).path(graph)
     }
 
     /// Field names.
@@ -74,16 +74,15 @@ impl CustomType {
 
     /// Get functions.
     pub fn get_functions(&self, graph: &SGraph) -> Vec<SFunc> {
-        if let Some(location) = graph.node_ref(&self.location(), None) {
-            return SFunc::funcs(graph, &location);
-        }
-        vec![]
+        SFunc::funcs(graph, &SNodeRef::new(&self.locid))
     }
 
     /// Insert this custom type into the graph.
-    pub fn insert(&mut self, graph: &mut SGraph) {
-        let location = self.location();
-        let nref = graph.ensure_nodes(&location, '/', true, None);
+    pub fn insert(&mut self, graph: &mut SGraph, location: &str) {
+        let nref = graph.ensure_nodes(location, '/', true, None);
+        
+        // Set the location of this custom type so it is not lost
+        self.locid = nref.id.clone();
 
         // Insert functions into the graph
         for f in &mut self.functions {

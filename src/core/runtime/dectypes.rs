@@ -41,6 +41,9 @@ impl CustomTypes {
 
     /// Declare a new type (not inserted into graph yet).
     pub fn declare(&mut self, mut custom_type: CustomType, graph: &mut SGraph, extends: &str) -> Result<()> {
+        // Insert path for this new custom type
+        let mut insert_path = format!("__stof__/prototypes/{}", &custom_type.locid);
+
         // Handle extends if any - adds fields and functions from an extends type
         if extends.len() > 0 {
             let mut extends_path: Vec<&str> = extends.split('.').collect();
@@ -66,23 +69,16 @@ impl CustomTypes {
                         custom_type.fields.push(ef.clone());
                     }
                 }
-                for mut ef in extend_type.get_functions(graph) {
-                    ef.id = String::default(); // Make sure a new ID is generated when attached
-                    for custom_func in &custom_type.functions {
-                        if custom_func.name == ef.name {
-                            ef.name = format!("super::{}", ef.name);
-                            break;
-                        }
-                    }
-                    custom_type.functions.push(ef);
-                }
+
+                // Set insert path as a child of the extends type
+                insert_path = format!("{}/{}", SNodeRef::new(&extend_type.locid).path(&graph), &custom_type.locid);
             } else {
                 return Err(anyhow!("Attempting to extend a type that does not exist: {}", extends));
             }
         }
 
         // Insert the custom type into the graph
-        custom_type.insert(graph);
+        custom_type.insert(graph, &insert_path);
 
         // Insert into types by name
         if let Some(types) = self.types.get_mut(&custom_type.name) {

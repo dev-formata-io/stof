@@ -295,7 +295,16 @@ impl Expr {
             Expr::Call { scope, name, params } => {
                 // Scope can be a symbol, library name, or path to a field, object, or function
                 let variable = Self::Variable(scope.replace('/', "."));
-                let variable_value = variable.exec(doc)?;
+                let mut variable_value = variable.exec(doc)?;
+
+                // Deref the variable if needed...
+                match variable_value {
+                    SVal::Ref(rf) => {
+                        let val = rf.read().unwrap();
+                        variable_value = val.deref().clone();
+                    },
+                    _ => {}
+                }
 
                 let mut library_name = String::default();
                 if !variable_value.is_empty() {
@@ -319,29 +328,7 @@ impl Expr {
                     // If the type is an object, try getting the function from that objects scope
                     match &variable_value {
                         SVal::Object(nref) => {
-                            // Look for a prototype on this object first!
-                            if let Some(prototype_field) = SField::field(&doc.graph, "__prototype__", '.', Some(nref)) {
-                                if let Some(prototype) = doc.graph.node_ref(&prototype_field.string(), None) {
-                                    if let Some(func) = SFunc::func(&doc.graph, name, '.', Some(&prototype)) {
-                                        let mut func_params = Vec::new();
-                                        for expr in params {
-                                            let val = expr.exec(doc)?;
-                                            if !val.is_void() {
-                                                func_params.push(val);
-                                            }
-                                        }
-                                        let current_symbol_table = doc.new_table();
-                                        // Set self to the object still...
-                                        doc.self_stack.push(nref.clone());
-                                        let res = func.call(doc, func_params, false)?;
-                                        doc.self_stack.pop();
-                                        doc.set_table(current_symbol_table);
-                                        return Ok(res);
-                                    }
-                                }
-                            }
-                            
-                            // Look for a function on the object itself next
+                            // Look for a function on the object itself first! Always higher priority than a prototype
                             if let Some(func) = SFunc::func(&doc.graph, name, '.', Some(&nref)) {
                                 let mut func_params = Vec::new();
                                 for expr in params {
@@ -354,6 +341,71 @@ impl Expr {
                                 let res = func.call(doc, func_params, true)?;
                                 doc.set_table(current_symbol_table);
                                 return Ok(res);
+                            }
+
+                            // Look for a prototype on this object next
+                            if let Some(prototype_field) = SField::field(&doc.graph, "__prototype__", '.', Some(nref)) {
+                                if let Some(prototype) = doc.graph.node_ref(&prototype_field.to_string(), None) {
+                                    // prototype is the exact type we are referencing... we need to check typestack here!
+                                    let mut current = Some(prototype);
+
+                                    let mut func_name = name.clone();
+                                    let mut type_scope_resolution: Vec<&str> = name.split("::").collect();
+                                    if type_scope_resolution.len() == 2 {
+                                        func_name = type_scope_resolution.pop().unwrap().to_string();
+
+                                        let scope_type = type_scope_resolution.pop().unwrap();
+                                        let mut found = false;
+                                        while let Some(typename_field) = SField::field(&doc.graph, "typename", '.', current.as_ref()) {
+                                            if typename_field.to_string() == scope_type {
+                                                found = true;
+                                                break;
+                                            }
+                                            if let Some(node) = current.clone().unwrap().node(&doc.graph) {
+                                                if let Some(parent_ref) = &node.parent {
+                                                    current = Some(parent_ref.clone());
+                                                } else {
+                                                    break;
+                                                }
+                                            } else {
+                                                break;
+                                            }
+                                        }
+                                        if !found {
+                                            return Err(anyhow!("Cannot find the requested type scope in the extends stack of this object for the requested function call"));
+                                        }
+                                    } else if type_scope_resolution.len() > 1 {
+                                        return Err(anyhow!("Cannot specify more than one type scope for a function call"));
+                                    }
+
+                                    while current.is_some() {
+                                        if let Some(func) = SFunc::func(&doc.graph, &func_name, '.', current.as_ref()) {
+                                            let mut func_params = Vec::new();
+                                            for expr in params {
+                                                let val = expr.exec(doc)?;
+                                                if !val.is_void() {
+                                                    func_params.push(val);
+                                                }
+                                            }
+                                            let current_symbol_table = doc.new_table();
+                                            // Set self to the object still...
+                                            doc.self_stack.push(nref.clone());
+                                            let res = func.call(doc, func_params, false)?;
+                                            doc.self_stack.pop();
+                                            doc.set_table(current_symbol_table);
+                                            return Ok(res);
+                                        }
+                                        if let Some(node) = current.unwrap().node(&doc.graph) {
+                                            if let Some(parent_ref) = &node.parent {
+                                                current = Some(parent_ref.clone());
+                                            } else {
+                                                break;
+                                            }
+                                        } else {
+                                            break;
+                                        }
+                                    }
+                                }
                             }
                         },
                         _ => {}

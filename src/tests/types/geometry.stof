@@ -33,21 +33,21 @@ fields: {
     #[test]
     fn typed_point_field() {
         let point = self.point;
-        assertEq(point.super::len().round(2), 2.24cm);
+        assertEq(point.Point2D::len().round(2), 2.24cm);
         assertEq(point.len().round(2), 3.74cm);
     }
 
     #[test]
     fn untyped_point_field_as() {
         let point2 = self.point2 as super.Geometry.Point;
-        assertEq(point2.super::len().round(2), 2.24cm);
+        assertEq(point2.Point2D::len().round(2), 2.24cm);
         assertEq(point2.len().round(2), 3.74cm);
     }
 
     #[test]
     fn untyped_point_field() {
         let point2: super.Geometry.Point = self.point2;
-        assertEq(point2.super::len().round(2), 2.24cm);
+        assertEq(point2.Point2D::len().round(2), 2.24cm);
         assertEq(point2.len().round(2), 3.74cm);
     }
 }
@@ -78,7 +78,7 @@ local: {
             y: 1cm
             z: 3cm
         };
-        assertEq(point.super::len().round(2), 2.24cm);
+        assertEq(point.Point2D::len().round(2), 2.24cm);
         assertEq(point.len().round(2), 3.74cm);
     }
 
@@ -89,7 +89,7 @@ local: {
             y: 1cm
             z: 3cm
         };
-        assertEq(point.super::len().round(2), 2.24cm);
+        assertEq(point.Point2D::len().round(2), 2.24cm);
         assertEq(point.len().round(2), 3.74cm);
     }
 
@@ -100,8 +100,8 @@ local: {
             y: 1cm
             z: 3cm
         } as super.Geometry.Point;
-        assertEq(point.super::len().round(2), 2.24cm);
-        assertEq(point.len().round(2), 3.74cm);
+        assertEq(point.Point2D::len().round(2), 2.24cm);
+        assertEq(point.Point::len().round(2), 3.74cm);
     }
 }
 

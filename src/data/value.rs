@@ -401,6 +401,7 @@ impl SVal {
     /// Typename.
     pub fn type_name(&self, graph: &SGraph) -> String {
         match self {
+            Self::Ref(rf) => rf.read().unwrap().type_name(graph),
             Self::Object(nref) => {
                 if let Some(prototype) = SField::field(graph, "__prototype__", '.', Some(nref)) {
                     if let Some(node) = graph.node_ref(&prototype.string(), None) {
