@@ -15,18 +15,16 @@
 //
 
 pub mod parser;
-use bytes::Bytes;
-use export::{Stof, StofExportEnv};
 pub use parser::*;
 
-pub mod export;
+use bytes::Bytes;
 
 pub mod env;
 pub use env::*;
 
 use std::fs;
 use anyhow::{anyhow, Result};
-use crate::{Format, IntoNodeRef, SDoc, SGraph};
+use crate::{Format, SDoc, SGraph};
 
 #[cfg(test)]
 mod tests;
@@ -157,36 +155,6 @@ impl STOF {
         }
         res
     }
-
-    /// Stringify a document into a STOF string.
-    pub fn stringify(doc: &SDoc) -> String {
-        let mut env = StofExportEnv::default();
-        doc.stof("", None, &mut env)
-    }
-
-    /// Stringify a single node as a STOF string.
-    pub fn stringify_node(doc: &SDoc, node: impl IntoNodeRef) -> Result<String> {
-        if let Some(node) = node.node_ref().node(&doc.graph) {
-            let mut env = StofExportEnv::default();
-            return Ok(node.stof("", Some(doc), &mut env));
-        }
-        Err(anyhow!("Could not strinfigy node into STOF"))
-    }
-
-    /// Stringify a document into a STOF string.
-    pub fn stringify_min(doc: &SDoc) -> String {
-        let mut env = StofExportEnv::default();
-        doc.min_stof("", None, &mut env)
-    }
-
-    /// Stringify a single node as a STOF string.
-    pub fn stringify_node_min(doc: &SDoc, node: impl IntoNodeRef) -> Result<String> {
-        if let Some(node) = node.node_ref().node(&doc.graph) {
-            let mut env = StofExportEnv::default();
-            return Ok(node.min_stof("", Some(doc), &mut env));
-        }
-        Err(anyhow!("Could not strinfigy node into min STOF"))
-    }
 }
 impl Format for STOF {
     /// Format for STOF.
@@ -240,23 +208,5 @@ impl Format for STOF {
     fn file_import(&self, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
         let src = fs::read_to_string(full_path)?;
         self.string_import(doc, &src, as_name)
-    }
-
-    /// Export string.
-    fn export_string(&self, doc: &SDoc, node: Option<&crate::SNodeRef>) -> Result<String> {
-        if node.is_some() {
-            STOF::stringify_node(doc, node)
-        } else {
-            Ok(STOF::stringify(doc))
-        }
-    }
-
-    /// Export minimum version of STOF string.
-    fn export_min_string(&self, doc: &SDoc, node: Option<&crate::SNodeRef>) -> Result<String> {
-        if node.is_some() {
-            STOF::stringify_node_min(doc, node)
-        } else {
-            Ok(STOF::stringify_min(doc))
-        }
     }
 }

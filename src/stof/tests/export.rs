@@ -18,21 +18,6 @@ use crate::SDoc;
 
 
 #[test]
-fn export_simple_stof() {
-    let json = r#"
-    {
-        "a": "A",
-        "b": "B",
-        "c": "C"
-    }
-    "#;
-    let doc = SDoc::src(json, "json").unwrap();
-    let _export = doc.export_string("stof", None).unwrap();
-    //assert_eq!(export, "a: \"A\"\nb: \"B\"\nc: \"C\"");
-}
-
-
-#[test]
 fn export_type() {
     let stof = r#"
         #[testexport]
@@ -145,45 +130,4 @@ fn export_type() {
     "#, "").unwrap();
     let res = import_doc.call_func("test", None, vec![]).unwrap();
     assert_eq!(res, "test".into());
-}
-
-
-#[test]
-fn export_stof_string_inner() {
-    let stof = r#"
-        name: 'CJ'
-        age: 29
-        male: true
-
-        parent: {
-            name: 'Jody'
-            male: false
-            arr: [1, 2, 'hi', { dude: false val: 3km }, { another: false inner: [{ messedup: true }]}]
-
-            #[field]
-            fn isFemale(): bool {
-                return !self.male;
-            }
-        }
-
-        #[another]
-        #[dude]
-        #[main]
-        fn main(): str {
-            let stof0 = stringify(self, 'stof');
-            let stof = stringify(self, 'stof');
-            assertEq(stof, stof0); // must be a predictable order of fields, etc...
-
-            parse(stof, 'stof', 'self.check');
-            assertEq(self.parent.name, self.check.parent.name);
-            assertEq(self.parent.male, self.check.parent.male);
-            assertEq(self.parent.arr[2], self.check.parent.arr[2]);
-            assertEq(self.check.parent.arr[1], 2);
-
-            return 'done';
-        }
-    "#;
-    let mut doc = SDoc::src(stof, "stof").unwrap();
-    let res = doc.call_func("main", None, vec![]).unwrap();
-    assert_eq!(res, "done".into())
 }
