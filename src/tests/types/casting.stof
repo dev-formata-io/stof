@@ -71,3 +71,30 @@ poly: {
         assert(object.Base::isBase());
     }
 }
+
+upcast: {
+    obj empty: {}
+
+    #[test]
+    fn upcast_extends() {
+        let object = self.empty as Extends;
+        assertNot(object.isBase());
+        assertEq(typename object, 'Extends');
+        assert(object.instanceOf('Extends'));
+        assert(object.instanceOf('Base'));
+
+        object = object as Base; // Already of type Base...
+        assertNot(object.isBase());
+        assertEq(typename object, 'Extends');
+        assert(object.instanceOf('Extends'));
+        assert(object.instanceOf('Base'));
+
+        assert(object.upcast());
+        assert(object.isBase());
+        assertEq(typename object, 'Base');
+        assert(object.instanceOf('Base'));
+        assertNot(object.instanceOf('Extends'));
+
+        assertNot(object.upcast()); // Nowhere to upcast to...
+    }
+}

@@ -392,6 +392,30 @@ pub trait Object {
                 }
                 Err(anyhow!("Object.instanceOf(obj, type) requires one object parameter and one typename string"))
             },
+            "upcast" => {
+                if parameters.len() == 1 {
+                    match &parameters[0] {
+                        SVal::Object(nref) => {
+                            if let Some(mut prototype_field) = SField::field(&doc.graph, "__prototype__", '.', Some(nref)) {
+                                if let Some(prototype) = doc.graph.node_from(&prototype_field.to_string(), None) {
+                                    if let Some(parent_ref) = &prototype.parent {
+                                        if let Some(parent) = parent_ref.node(&doc.graph) {
+                                            if parent.name != "__stof__" && parent.name != "prototypes" {
+                                                prototype_field.value = SVal::String(parent_ref.path(&doc.graph));
+                                                prototype_field.set(&mut doc.graph);
+                                                return Ok(SVal::Bool(true));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            return Ok(SVal::Bool(false));
+                        },
+                        _ => {}
+                    }
+                }
+                Err(anyhow!("Object.upcast(obj) requires one object parameter with a prototype"))
+            },
             _ => Err(anyhow!("No Object implementation"))
         }
     }
