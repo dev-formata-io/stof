@@ -235,7 +235,7 @@ impl SFunc {
         parameters.reverse();
         for i in 0..parameters.len() {
             let mut arg_val = parameters.pop().unwrap();
-            let mut arg_type = arg_val.stype();
+            let mut arg_type = arg_val.stype(&doc.graph);
             let param = &self.params[i];
 
             if arg_type != param.ptype {
@@ -271,7 +271,7 @@ impl SFunc {
             return Ok(SVal::Void);
         } else if res.is_some() {
             let mut res = res.unwrap();
-            let mut res_type = res.stype();
+            let mut res_type = res.stype(&doc.graph);
 
             // Try casting result to our return type if needed
             if res_type != self.rtype {
@@ -284,7 +284,7 @@ impl SFunc {
             if res_type == self.rtype {
                 return Ok(res);
             }
-            return Err(anyhow!("Failed to validate return of function: {}. Expected: {:?}, received: {:?}: {:?}", &self.name, self.rtype, res, res.stype()));
+            return Err(anyhow!("Failed to validate return of function: {}. Expected: {:?}, received: {:?}: {:?}", &self.name, self.rtype, res, res.stype(&doc.graph)));
         }
         Err(anyhow!("Failed to validate return of function: {}. Expected: {:?}, received: {:?}", &self.name, self.rtype, res))
     }

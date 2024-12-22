@@ -183,7 +183,7 @@ impl Library for StdLibrary {
                     let param = &parameters[i];
                     let print = param.print(doc);
                     
-                    match param.stype() {
+                    match param.stype(&doc.graph) {
                         SType::String => {
                             // Don't do any gaps for strings!
                             res.push_str(&format!("{}", print));
@@ -206,7 +206,7 @@ impl Library for StdLibrary {
                     let param = &parameters[i];
                     let print = param.debug(doc);
                     
-                    match param.stype() {
+                    match param.stype(&doc.graph) {
                         SType::String => {
                             // Don't do any gaps for strings!
                             res.push_str(&format!("{}", print));
@@ -230,7 +230,7 @@ impl Library for StdLibrary {
                     let param = &parameters[i];
                     let print = param.print(doc);
                     
-                    match param.stype() {
+                    match param.stype(&doc.graph) {
                         SType::String => {
                             // Don't do any gaps for strings!
                             res.push_str(&format!("{}", print));
@@ -253,7 +253,7 @@ impl Library for StdLibrary {
                     let param = &parameters[i];
                     let print = param.print(doc);
                     
-                    match param.stype() {
+                    match param.stype(&doc.graph) {
                         SType::String => {
                             // Don't do any gaps for strings!
                             res.push_str(&format!("{}", print));

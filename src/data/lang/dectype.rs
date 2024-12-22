@@ -96,5 +96,14 @@ impl CustomType {
         } else {
             SField::new_string(graph, "typename", &self.name, &nref);
         }
+
+        // Insert typepath into the graph, which includes the declaration path
+        let typepath = SNodeRef::new(&self.decid).path(&graph).replace('/', ".");
+        if let Some(mut typepath_field) = SField::field(graph, "typepath", '.', Some(&nref)) {
+            typepath_field.value = SVal::String(format!("{}.{}", typepath, self.name));
+            typepath_field.set(graph);
+        } else {
+            SField::new_string(graph, "typepath", &format!("{}.{}", typepath, self.name), &nref);
+        }
     }
 }

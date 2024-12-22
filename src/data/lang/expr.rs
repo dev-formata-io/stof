@@ -273,14 +273,17 @@ impl Expr {
                 let value = expr.exec(doc)?;
                 let target = stype.clone();
 
-                if value.stype() == target {
+                if value.stype(&doc.graph) == target {
                     return Ok(value);
                 }
                 return Ok(value.cast(target, doc)?);
             },
             Expr::TypeOf(expr) => {
                 let value = expr.exec(doc)?;
-                let value_type = value.stype();
+                let value_type = value.stype(&doc.graph);
+                if value_type.is_object() { // No custom object types here
+                    return Ok(SVal::String("obj".to_string()));
+                }
                 let type_of = value_type.type_of();
                 Ok(SVal::String(type_of))
             },
@@ -308,7 +311,7 @@ impl Expr {
 
                 let mut library_name = String::default();
                 if !variable_value.is_empty() {
-                    let stype = variable_value.stype();
+                    let stype = variable_value.stype(&doc.graph);
                     library_name = match stype {
                         SType::Null |
                         SType::Void => String::default(),
@@ -319,11 +322,13 @@ impl Expr {
                         SType::Bool => "Bool".to_owned(),
                         SType::Tuple(_) => "Tuple".to_owned(),
                         SType::Blob => "Blob".to_owned(),
-                        SType::Object => "Object".to_owned(),
+                        SType::Object(_typename) => {
+                            "Object".to_owned()
+                        },
                     };
                 }
                 if let Some(lib) = doc.library(&library_name) {
-                    let stype = variable_value.stype();
+                    let stype = variable_value.stype(&doc.graph);
 
                     // If the type is an object, try getting the function from that objects scope
                     match &variable_value {
@@ -425,7 +430,7 @@ impl Expr {
 
                     // Update the symbol with the mutated parameter if it's the right type
                     let new_symbol_val = func_params.first().unwrap().clone();
-                    if new_symbol_val.stype() == stype {
+                    if new_symbol_val.stype(&doc.graph) == stype {
                         doc.set_variable(&scope, new_symbol_val);
                     }
 

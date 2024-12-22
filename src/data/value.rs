@@ -18,7 +18,7 @@ use core::str;
 use std::{hash::Hash, sync::{Arc, RwLock}};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
-use crate::{SDataRef, SDoc, SGraph, SNodeRef};
+use crate::{Data, SDataRef, SDoc, SGraph, SNodeRef};
 use super::{SField, SNumType, SType, SUnits};
 
 #[cfg(feature = "json")]
@@ -271,8 +271,8 @@ impl Eq for SVal {}
 impl SVal {
     /// Schema equals another value?
     /// True if the values have the same type.
-    pub fn schema_eq(&self, other: &Self) -> bool {
-        self.stype() == other.stype()
+    pub fn schema_eq(&self, other: &Self, graph: &SGraph) -> bool {
+        self.stype(graph) == other.stype(graph)
     }
 
     /// Is void?
@@ -285,7 +285,12 @@ impl SVal {
 
     /// Is empty?
     pub fn is_empty(&self) -> bool {
-        self.stype().is_empty()
+        match self {
+            Self::Ref(rf) => rf.read().unwrap().is_empty(),
+            Self::Null |
+            Self::Void => true,
+            _ => false,
+        }
     }
 
     /// Is null?
@@ -344,9 +349,9 @@ impl SVal {
     }
 
     /// Type for this value.
-    pub fn stype(&self) -> SType {
+    pub fn stype(&self, graph: &SGraph) -> SType {
         match self {
-            Self::Ref(rf) => rf.read().unwrap().stype(),
+            Self::Ref(rf) => rf.read().unwrap().stype(graph),
             Self::Void => SType::Void,
             Self::Bool(_) => SType::Bool,
             Self::Number(val) => SType::Number(val.stype()),
@@ -355,11 +360,21 @@ impl SVal {
             Self::Null => SType::Null,
             Self::Tuple(vals) => {
                 let mut types: Vec<SType> = Vec::new();
-                for val in vals { types.push(val.stype()); }
+                for val in vals { types.push(val.stype(graph)); }
                 SType::Tuple(types)
             },
             Self::FnPtr(_) => SType::FnPtr,
-            Self::Object(_) => SType::Object,
+            Self::Object(nref) => {
+                if let Some(prototype) = SField::field(graph, "__prototype__", '.', Some(nref)) {
+                    if let Some(node_ref) = graph.node_ref(&prototype.to_string(), None) {
+                        // Use the full typepath here, so that we arrive at the correct type when casting, etc...
+                        if let Some(typepath) = SField::field(graph, "typepath", '.', Some(&node_ref)) {
+                            return SType::Object(typepath.to_string());
+                        }
+                    }
+                }
+                SType::Object("obj".to_string())
+            },
             Self::Blob(_) => SType::Blob,
         }
     }
@@ -438,25 +453,64 @@ impl SVal {
         false
     }
 
-    /// Typename.
-    pub fn type_name(&self, graph: &SGraph) -> String {
+    /// Typepath stack.
+    pub fn typepath_stack(&self, graph: &SGraph) -> Vec<String> {
         match self {
-            Self::Ref(rf) => rf.read().unwrap().type_name(graph),
+            Self::Ref(rf) => rf.read().unwrap().typepath_stack(graph),
             Self::Object(nref) => {
+                let mut type_stack = Vec::new();
                 if let Some(prototype) = SField::field(graph, "__prototype__", '.', Some(nref)) {
                     if let Some(node) = graph.node_ref(&prototype.string(), None) {
-                        if let Some(typename) = SField::field(graph, "typename", '.', Some(&node)) {
-                            return typename.string();
+                        let mut current = Some(node);
+                        while let Some(typename) = SField::field(graph, "typepath", '.', current.as_ref()) {
+                            type_stack.push(typename.to_string());
+
+                            if let Some(node) = current.unwrap().node(graph) {
+                                if let Some(parent_ref) = &node.parent {
+                                    current = Some(parent_ref.clone());
+                                } else {
+                                    break;
+                                }
+                            } else {
+                                break;
+                            }
                         }
                     }
                 }
-                "obj".into()
+                type_stack
             },
-            _ => {
-                let stype = self.stype();
-                stype.type_of()
+            _ => vec![]
+        }
+    }
+
+    /// Instance of a typepath?
+    pub fn instance_of_typepath(&self, graph: &SGraph, typepath: &str) -> bool {
+        for htype in self.typepath_stack(graph).iter().rev() {
+            if htype == typepath {
+                return true;
             }
         }
+        false
+    }
+
+    /// Typename.
+    pub fn type_name(&self, graph: &SGraph) -> String {
+        match self {
+            Self::Object(nref) => {
+                if let Some(prototype) = SField::field(graph, "__prototype__", '.', Some(nref)) {
+                    if let Some(node_ref) = graph.node_ref(&prototype.to_string(), None) {
+                        // Don't use the full typepath here of stype... use just the typename field
+                        if let Some(typename) = SField::field(graph, "typename", '.', Some(&node_ref)) {
+                            return typename.to_string();
+                        }
+                    }
+                }
+                return "obj".to_string();
+            },
+            _ => {}
+        }
+        let stype = self.stype(graph);
+        stype.type_of()
     }
 
     /// Union this value with another, manipulating this value as the result.
@@ -541,7 +595,7 @@ impl SVal {
                     },
                     SType::Tuple(types) => {
                         let tup = Self::Tuple(vals.clone());
-                        if tup.stype() == SType::Tuple(types.clone()) {
+                        if tup.stype(&doc.graph) == SType::Tuple(types.clone()) {
                             return Ok(tup);
                         }
                         // Try to convert every individual value
@@ -550,7 +604,7 @@ impl SVal {
                             for i in 0..types.len() {
                                 let ty = types[i].clone();
                                 let val = &vals[i];
-                                let val_type = val.stype();
+                                let val_type = val.stype(&doc.graph);
                                 
                                 if val_type == ty {
                                     new_vals.push(val.clone());
@@ -670,7 +724,7 @@ impl SVal {
                             for i in 0..types.len() {
                                 let val = &vals[i];
                                 let ty = types[i].clone();
-                                if val.stype() != ty {
+                                if val.stype(&doc.graph) != ty {
                                     new_tup.push(val.cast(ty, doc)?);
                                 } else {
                                     new_tup.push(val.clone());
@@ -687,9 +741,67 @@ impl SVal {
             Self::Void => {
                 Err(anyhow!("Cannot cast void to anything"))
             },
-            Self::Object(_) => {
+            Self::Object(nref) => {
                 match target {
-                    SType::Object => Ok(self.clone()),
+                    SType::Object(typepath) => {
+                        if typepath == "obj" || typepath == "root" { // Any object can cast to an obj, shouldn't hit "root" case though
+                            return Ok(self.clone());
+                        }
+
+                        // Check the current type of the object, to see if we already are an instance of this custom type
+                        if self.instance_of_typepath(&doc.graph, &typepath) {
+                            return Ok(self.clone());
+                        }
+
+                        let current_scope;
+                        if let Some(scope) = doc.self_ptr() {
+                            current_scope = scope;
+                        } else if let Some(main) = doc.graph.main_root() {
+                            current_scope = main;
+                        } else {
+                            current_scope = doc.graph.insert_root("root");
+                        }
+
+                        let mut type_path: Vec<&str> = typepath.split('.').collect();
+                        let custom_type_name = type_path.pop().unwrap();
+
+                        // Find a scope to use other than our own?
+                        let mut type_scope = current_scope.clone();
+                        if type_path.len() > 0 {
+                            let path = type_path.join("/");
+                            if path.starts_with("self") || path.starts_with("super") {
+                                if let Some(nref) = doc.graph.node_ref(&path, Some(&type_scope)) {
+                                    type_scope = nref;
+                                } else {
+                                    return Err(anyhow!("Cannot find referenced type scope for casting an object to {}", typepath));
+                                }
+                            } else {
+                                if let Some(nref) = doc.graph.node_ref(&path, None) {
+                                    type_scope = nref;
+                                } else {
+                                    return Err(anyhow!("Cannot find referenced type scope for casting an object to {}", typepath));
+                                }
+                            }
+                        }
+
+                        // Try assigning the prototype of this object since its not a value type
+                        if let Some(custom_type) = doc.types.find(&doc.graph, custom_type_name, &type_scope) {
+                            if custom_type.is_private() && !current_scope.is_child_of(&doc.graph, &type_scope) {
+                                // Custom type is private and the current scope is not equal or a child of the type's scope
+                                return Err(anyhow!("Cannot cast expr to private object type: {}", typepath));
+                            }
+
+                            let prototype_path = custom_type.path(&doc.graph);
+                            if let Some(mut prototype_field) = SField::field(&doc.graph, "__prototype__", '.', Some(nref)) {
+                                prototype_field.value = Self::String(prototype_path);
+                                prototype_field.set(&mut doc.graph);
+                            } else {
+                                SField::new_string(&mut doc.graph, "__prototype__", &prototype_path, nref);
+                            }
+                            return Ok(self.clone());
+                        }
+                        Err(anyhow!("Cannot cast expr to object type: {}", typepath))
+                    },
                     _ => Err(anyhow!("Cannot cast Object into {:?}", target))
                 }
             },

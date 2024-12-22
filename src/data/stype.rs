@@ -27,7 +27,7 @@ pub enum SType {
     Bool,
     Number(SNumType),
     String,
-    Object,
+    Object(String),
     FnPtr,
     Array,
     Tuple(Vec<SType>),
@@ -80,7 +80,7 @@ impl SType {
     /// Is object?
     pub fn is_object(&self) -> bool {
         match self {
-            SType::Object => true,
+            SType::Object(_) => true,
             _ =>  false
         }
     }
@@ -222,7 +222,7 @@ impl SType {
                 res
             },
             Self::Void => "void".into(),
-            Self::Object => "obj".into(),
+            Self::Object(ctype) => ctype.clone(),
         }
     }
 }
@@ -247,14 +247,14 @@ impl From<&str> for SType {
                     "null" => Self::Null,
                     "void" => Self::Void,
                     "vec" => Self::Array,
-                    "obj" => Self::Object,
+                    "obj" => Self::Object("obj".to_string()),
                     "fn" => Self::FnPtr,
                     _ => {
                         let units = SUnits::from(val);
                         if units.has_units() && !units.is_undefined() {
                             Self::Number(SNumType::Units(units))
                         } else {
-                            Self::Object
+                            Self::Object(val.to_string())
                         }
                     }
                 };
@@ -263,22 +263,22 @@ impl From<&str> for SType {
             return Self::tuple(types);
         }
         match value {
-            "int" => Self::i64(),
-            "float" => Self::f64(),
+            "int" => Self::Number(SNumType::I64),
+            "float" => Self::Number(SNumType::F64),
             "str" => Self::String,
             "blob" => Self::Blob,
             "bool" => Self::Bool,
             "null" => Self::Null,
             "void" => Self::Void,
             "vec" => Self::Array,
-            "obj" => Self::Object,
+            "obj" => Self::Object("obj".to_string()),
             "fn" => Self::FnPtr,
             _ => {
                 let units = SUnits::from(value);
                 if units.has_units() && !units.is_undefined() {
                     Self::Number(SNumType::Units(units))
                 } else {
-                    Self::Object
+                    Self::Object(value.to_string())
                 }
             }
         }
