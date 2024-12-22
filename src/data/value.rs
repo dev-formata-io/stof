@@ -694,19 +694,19 @@ impl SVal {
                                 if let Ok(res) = val.replace('+', "").parse::<i64>() {
                                     return Ok(Self::Number(SNum::I64(res)));
                                 }
-                                Err(anyhow!("Value '{}' is not i64", val))
+                                Err(anyhow!("Value '{}' is not an int", val))
                             },
                             SNumType::F64 => {
                                 if let Ok(res) = val.replace('+', "").parse::<f64>() {
                                     return Ok(Self::Number(SNum::F64(res)));
                                 }
-                                Err(anyhow!("Value '{}' is not f64", val))
+                                Err(anyhow!("Value '{}' is not a float", val))
                             },
                             SNumType::Units(units) => {
                                 if let Ok(res) = val.replace('+', "").parse::<f64>() {
                                     return Ok(Self::Number(SNum::Units(res, units)));
                                 }
-                                Err(anyhow!("Value '{}' is not f64", val))
+                                Err(anyhow!("Value '{}' is not a float (to units)", val))
                             },
                         }
                     },
@@ -780,6 +780,8 @@ impl SVal {
                         }
 
                         // Try assigning the prototype of this object since its not a value type
+                        let mut success = false;
+                        let mut typefields = Vec::new();
                         if let Some(custom_type) = doc.types.find(&doc.graph, custom_type_name, &type_scope) {
                             if custom_type.is_private() && !current_scope.is_child_of(&doc.graph, &type_scope) {
                                 // Custom type is private and the current scope is not equal or a child of the type's scope
@@ -791,12 +793,34 @@ impl SVal {
                                 return Ok(self.clone());
                             }
 
+                            // Have to move typefields out of the borrow...
+                            typefields = custom_type.fields.clone();
+
                             let prototype_path = custom_type.path(&doc.graph);
                             if let Some(mut prototype_field) = SField::field(&doc.graph, "__prototype__", '.', Some(nref)) {
                                 prototype_field.value = Self::String(prototype_path);
                                 prototype_field.set(&mut doc.graph);
                             } else {
                                 SField::new_string(&mut doc.graph, "__prototype__", &prototype_path, nref);
+                            }
+                            success = true;
+                        }
+                        if success {
+                            // Check for fields on this object in the correct type, otherwise create with the defaults from the custom type
+                            for typefield in typefields {
+                                if let Some(mut field) = SField::field(&doc.graph, &typefield.name, '.', Some(nref)) {
+                                    let existing_type = field.value.stype(&doc.graph);
+                                    if existing_type != typefield.ptype {
+                                        field.value = field.value.cast(typefield.ptype, doc)?;
+                                        field.set(&mut doc.graph);
+                                    }
+                                } else if let Some(default) = &typefield.default {
+                                    let default_value = default.exec(doc)?;
+                                    let mut field = SField::new(&typefield.name, default_value);
+                                    field.attach(nref, &mut doc.graph);
+                                } else {
+                                    return Err(anyhow!("Could not find or create the field '{}' while casting object into '{}'", typefield.name, typepath));
+                                }
                             }
                             return Ok(self.clone());
                         }

@@ -520,6 +520,9 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                 field_value = SVal::Object(env.scope(doc));
                 object_declaration = true;
 
+                // Now keep parsing statements in this object
+                parse_statements(doc, env, pair.into_inner())?;
+
                 // Cast this expression to another type (if possible)!
                 if field_type.len() > 0 {
                     let stype = SType::from(field_type);
@@ -529,9 +532,6 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                         return Err(anyhow!("Cannot cast an object to a non-object type"));
                     }
                 }
-
-                // Now keep parsing statements in this object
-                parse_statements(doc, env, pair.into_inner())?;
 
                 // Pop the scope
                 env.pop_scope(doc);
