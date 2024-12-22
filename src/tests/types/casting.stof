@@ -1,0 +1,73 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+type Base {
+    fn isBase(): bool {
+        return true;
+    }
+}
+type Extends extends Base {
+    fn isBase(): bool {
+        return false;
+    }
+}
+
+return: {
+    obj empty: {}
+    fn create_base(): Base {
+        return self.empty;
+    }
+
+    #[test]
+    fn cast_on_return() {
+        let base = self.create_base();
+        assertEq(typename base, 'Base');
+        assert(base.isBase());
+    }
+}
+
+as: {
+    obj as_cast: {}
+
+    #[test]
+    fn cast_on_as() {
+        let as_cast = self.as_cast as Base;
+        assertEq(typename as_cast, 'Base');
+        assert(as_cast.instanceOf('Base'));
+        assert(as_cast.isBase());
+    }
+}
+
+poly: {
+    Extends extends_obj: {}
+    fn get_base(object: obj): Base {
+        return object;
+    }
+
+    #[test]
+    fn instance_of_catch() {
+        assertEq(typename self.extends_obj, 'Extends');
+
+        let object = self.get_base(self.extends_obj);
+        assertEq(typename object, 'Extends');
+        assert(object.instanceOf('Extends'));
+        assert(object.instanceOf('Base'));
+
+        assertNot(object.isBase());
+        assert(object.Base::isBase());
+    }
+}

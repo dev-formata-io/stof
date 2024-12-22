@@ -748,11 +748,6 @@ impl SVal {
                             return Ok(self.clone());
                         }
 
-                        // Check the current type of the object, to see if we already are an instance of this custom type
-                        if self.instance_of_typepath(&doc.graph, &typepath) {
-                            return Ok(self.clone());
-                        }
-
                         let current_scope;
                         if let Some(scope) = doc.self_ptr() {
                             current_scope = scope;
@@ -789,6 +784,11 @@ impl SVal {
                             if custom_type.is_private() && !current_scope.is_child_of(&doc.graph, &type_scope) {
                                 // Custom type is private and the current scope is not equal or a child of the type's scope
                                 return Err(anyhow!("Cannot cast expr to private object type: {}", typepath));
+                            }
+
+                            // Check the current type of the object, to see if we already are an instance of this custom type
+                            if self.instance_of_typepath(&doc.graph, &custom_type.typepath(&doc.graph)) {
+                                return Ok(self.clone());
                             }
 
                             let prototype_path = custom_type.path(&doc.graph);

@@ -77,6 +77,12 @@ impl CustomType {
         SFunc::funcs(graph, &SNodeRef::new(&self.locid))
     }
 
+    /// Typepath for this type.
+    pub fn typepath(&self, graph: &SGraph) -> String {
+        let typepath = SNodeRef::new(&self.decid).path(&graph).replace('/', ".");
+        format!("{}.{}", typepath, self.name)
+    }
+
     /// Insert this custom type into the graph.
     pub fn insert(&mut self, graph: &mut SGraph, location: &str) {
         let nref = graph.ensure_nodes(location, '/', true, None);
