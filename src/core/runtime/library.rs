@@ -16,7 +16,9 @@
 
 use std::{collections::{BTreeMap, HashSet}, sync::{Arc, RwLock}};
 use anyhow::{anyhow, Result};
+use async_trait::async_trait;
 use bytes::Bytes;
+use tokio::sync::Mutex;
 use crate::{SType, SVal, SDoc};
 
 
@@ -54,12 +56,19 @@ impl SLibraries {
 
 
 /// Stof library.
+#[async_trait]
 pub trait Library: Sync + Send {
     /// Library name/scope.
     fn scope(&self) -> String;
 
     /// Call a library function with a set of parameters.
     fn call(&mut self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal>;
+
+    /// Engine call into this library.
+    async fn engine_call(&mut self, pid: &str, doc: Arc<Mutex<SDoc>>, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+        let mut doc = doc.lock().await;
+        self.call(pid, &mut doc, name, parameters)
+    }
 }
 
 

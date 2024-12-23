@@ -1056,11 +1056,11 @@ impl SVal {
     }
 
     /// Logical and.
-    pub fn and(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn and(&self, other: &Self) -> Result<Self> {
         match self {
-            Self::Ref(rf) => rf.read().unwrap().and(other, doc),
+            Self::Ref(rf) => rf.read().unwrap().and(other),
             // Object is truthy!
-            Self::Object(_) => Self::Bool(true).and(other, doc),
+            Self::Object(_) => Self::Bool(true).and(other),
             Self::Null |
             Self::Void => {
                 // null && any => false
@@ -1070,7 +1070,7 @@ impl SVal {
             Self::Bool(aval) => {
                 match other {
                     Self::Object(_) => Ok(Self::Bool(*aval)),
-                    Self::Ref(rf) => self.and(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.and(&rf.read().unwrap()),
                     Self::Null |
                     Self::Void => {
                         // any && null => false
@@ -1100,7 +1100,7 @@ impl SVal {
             Self::String(aval) => {
                 match other {
                     Self::Object(_) => Ok(Self::Bool(aval.len() > 0)),
-                    Self::Ref(rf) => self.and(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.and(&rf.read().unwrap()),
                     Self::Null |
                     Self::Void => {
                         // Any && null => false
@@ -1130,7 +1130,7 @@ impl SVal {
             Self::Number(aval) => {
                 match other {
                     Self::Object(_) => Ok(Self::Bool(aval.bool())),
-                    Self::Ref(rf) => self.and(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.and(&rf.read().unwrap()),
                     Self::Null |
                     Self::Void => {
                         // any && void => false
@@ -1170,10 +1170,10 @@ impl SVal {
     }
 
     /// Logical or.
-    pub fn or(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn or(&self, other: &Self) -> Result<Self> {
         match self {
             Self::Object(_) => Ok(Self::Bool(true)),
-            Self::Ref(rf) => rf.read().unwrap().or(other, doc),
+            Self::Ref(rf) => rf.read().unwrap().or(other),
             Self::Null |
             Self::Void => {
                 Ok(Self::Bool(!other.is_empty()))
@@ -1182,7 +1182,7 @@ impl SVal {
             Self::Bool(aval) => {
                 match other {
                     Self::Object(_) => Ok(Self::Bool(true)),
-                    Self::Ref(rf) => self.or(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.or(&rf.read().unwrap()),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::Bool(*aval))
@@ -1211,7 +1211,7 @@ impl SVal {
             Self::String(aval) => {
                 match other {
                     Self::Object(_) => Ok(Self::Bool(true)),
-                    Self::Ref(rf) => self.or(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.or(&rf.read().unwrap()),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::Bool(aval.len() > 0))
@@ -1240,7 +1240,7 @@ impl SVal {
             Self::Number(aval) => {
                 match other {
                     Self::Object(_) => Ok(Self::Bool(true)),
-                    Self::Ref(rf) => self.or(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.or(&rf.read().unwrap()),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::Bool(aval.bool()))
@@ -1457,10 +1457,10 @@ impl SVal {
     }
 
     /// Subtract.
-    pub fn sub(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn sub(&self, other: &Self) -> Result<Self> {
         match self {
             Self::Object(_) => Err(anyhow!("Cannot subtract objects")),
-            Self::Ref(rf) => rf.read().unwrap().sub(other, doc),
+            Self::Ref(rf) => rf.read().unwrap().sub(other),
             Self::Null |
             Self::Void => {
                 Err(anyhow!("Cannot subtract anything from null or void"))
@@ -1471,7 +1471,7 @@ impl SVal {
             Self::Bool(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot subtract objects")),
-                    Self::Ref(rf) => self.sub(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.sub(&rf.read().unwrap()),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1502,7 +1502,7 @@ impl SVal {
             Self::String(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot subtract objects")),
-                    Self::Ref(rf) => self.sub(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.sub(&rf.read().unwrap()),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1533,7 +1533,7 @@ impl SVal {
             Self::Number(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot subtract objects")),
-                    Self::Ref(rf) => self.sub(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.sub(&rf.read().unwrap()),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1580,10 +1580,10 @@ impl SVal {
     }
 
     /// Multiply another value with this value.
-    pub fn mul(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn mul(&self, other: &Self) -> Result<Self> {
         match self {
             Self::Object(_) => Err(anyhow!("Cannot multiply objects")),
-            Self::Ref(rf) => rf.read().unwrap().mul(other, doc),
+            Self::Ref(rf) => rf.read().unwrap().mul(other),
             Self::Null |
             Self::Void => {
                 Ok(other.clone())
@@ -1594,7 +1594,7 @@ impl SVal {
             Self::Bool(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot multiply objects")),
-                    Self::Ref(rf) => self.mul(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.mul(&rf.read().unwrap()),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1625,7 +1625,7 @@ impl SVal {
             Self::String(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot multiply objects")),
-                    Self::Ref(rf) => self.mul(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.mul(&rf.read().unwrap()),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1660,7 +1660,7 @@ impl SVal {
             Self::Number(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot multiply objects")),
-                    Self::Ref(rf) => self.mul(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.mul(&rf.read().unwrap()),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1705,10 +1705,10 @@ impl SVal {
     }
 
     /// Divide another value with this value.
-    pub fn div(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn div(&self, other: &Self) -> Result<Self> {
         match self {
             Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-            Self::Ref(rf) => rf.read().unwrap().div(other, doc),
+            Self::Ref(rf) => rf.read().unwrap().div(other),
             Self::Null |
             Self::Void => {
                 Ok(other.clone())
@@ -1719,7 +1719,7 @@ impl SVal {
             Self::Bool(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-                    Self::Ref(rf) => self.div(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.div(&rf.read().unwrap()),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1750,7 +1750,7 @@ impl SVal {
             Self::String(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-                    Self::Ref(rf) => self.div(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.div(&rf.read().unwrap()),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1786,7 +1786,7 @@ impl SVal {
             Self::Number(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-                    Self::Ref(rf) => self.div(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.div(&rf.read().unwrap()),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1831,10 +1831,10 @@ impl SVal {
     }
 
     /// Modulus/remainder (mod) another value with this value.
-    pub fn rem(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn rem(&self, other: &Self) -> Result<Self> {
         match self {
             Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-            Self::Ref(rf) => rf.read().unwrap().rem(other, doc),
+            Self::Ref(rf) => rf.read().unwrap().rem(other),
             Self::Null |
             Self::Void => {
                 Ok(other.clone())
@@ -1845,7 +1845,7 @@ impl SVal {
             Self::Bool(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-                    Self::Ref(rf) => self.rem(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.rem(&rf.read().unwrap()),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1876,7 +1876,7 @@ impl SVal {
             Self::String(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-                    Self::Ref(rf) => self.rem(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.rem(&rf.read().unwrap()),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1912,7 +1912,7 @@ impl SVal {
             Self::Number(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-                    Self::Ref(rf) => self.rem(&rf.read().unwrap(), doc),
+                    Self::Ref(rf) => self.rem(&rf.read().unwrap()),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())

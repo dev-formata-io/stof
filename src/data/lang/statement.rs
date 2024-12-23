@@ -14,9 +14,10 @@
 // limitations under the License.
 //
 
-use std::{collections::HashSet, ops::Deref};
+use std::{collections::HashSet, ops::Deref, sync::Arc};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
+use tokio::sync::Mutex;
 use crate::{Data, SDoc, SField, SVal, SFunc};
 use super::Expr;
 
@@ -815,6 +816,408 @@ impl Statements {
                     if finally.statements.len() > 0 {
                         finally.exec(pid, doc)?; // We don't care about a result here
                     }
+                    doc.end_scope(pid);
+
+                    match res {
+                        StatementsRes::Break => {
+                            // Break should propogate too if bubbling
+                            if doc.bubble_control_flow(pid) {
+                                return Ok(res);
+                            }
+                        },
+                        StatementsRes::Continue => {
+                            // Continue needs to continue propogating upwards if bubbling
+                            if doc.bubble_control_flow(pid) {
+                                return Ok(res);
+                            }
+                        },
+                        StatementsRes::None => {
+                            // Do nothing here
+                        },
+                        StatementsRes::Return(_) => {
+                            // Propagate returns all the way back up
+                            return Ok(res);
+                        }
+                    }
+                },
+            }
+        }
+        Ok(StatementsRes::None)
+    }
+
+    /// Engine exec.
+    pub async fn engine_exec(&self, pid: &str, doc: &Arc<Mutex<SDoc>>) -> Result<StatementsRes> {
+        for statement in &self.statements {
+            match statement {
+                Statement::Declare(name, rhs) => {
+                    // Check to see if the symbol already exists in the current scope
+                    if doc.lock().await.has_var_with_name_in_current(pid, name) {
+                        return Err(anyhow!("Attempting to declare a variable that already exists in the same scope: {}", &name));
+                    }
+
+                    // Eval rhs, which is the value of the new variable
+                    let val = Box::pin(rhs.engine_exec(pid, doc)).await?;
+                    if val.is_void() {
+                        return Err(anyhow!("Cannot declare void variable"));
+                    }
+
+                    // Do not allow fields to be set on declare!
+                    if name.contains('.') {
+                        return Err(anyhow!("Cannot declare variables that are paths. If you're setting fields, drop the 'let' keyword."));
+                    } else {
+                        doc.lock().await.add_variable(pid, &name, val);
+                    }
+                },
+                Statement::Assign(name, rhs) => {
+                    // Eval rhs, which is the value of the variable!
+                    let val = Box::pin(rhs.engine_exec(pid, doc)).await?;
+                    if val.is_void() {
+                        return Err(anyhow!("Cannot assign void"));
+                    }
+
+                    // Try setting a variable in the symbol table
+                    let mut set_var = false;
+                    if doc.lock().await.set_variable(pid, &name, val.clone()) {
+                        set_var = true;
+                    }
+
+                    if !set_var && name.contains('.') && !name.ends_with('.') && !name.starts_with('.') {
+                        // Try assigning via an absolute path to a field first
+                        if let Some(mut field) = SField::field(&doc.lock().await.graph, &name, '.', None) {
+                            let mut doc = doc.lock().await;
+                            if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr(pid).as_ref()) {
+                                field.value = val;
+                                field.set(&mut doc.graph);
+                            }
+                            return Ok(StatementsRes::None); // Go no further!
+                        }
+
+                        // Look for a variable that is the first token in the path next
+                        let mut path = name.split('.').collect::<Vec<&str>>();
+                        let mut context = None;
+                        let mut context_path = name.clone();
+                        if let Some(symbol) = doc.lock().await.get_symbol(pid, path.remove(0)) {
+                            match symbol.var() {
+                                SVal::Ref(rf) => {
+                                    let refval = rf.read().unwrap();
+                                    let val = refval.deref();
+                                    match val {
+                                        SVal::Object(nref) => {
+                                            context = Some(nref.clone());
+                                            context_path = path.join(".");
+                                        },
+                                        _ => {}
+                                    }
+                                },
+                                SVal::Object(nref) => {
+                                    context = Some(nref);
+                                    context_path = path.join(".");
+                                },
+                                _ => {}
+                            }
+                        }
+                        // If no variable matches, try setting self scope
+                        else if name.starts_with("self") || name.starts_with("super") {
+                            context = doc.lock().await.self_ptr(pid);
+                        }
+
+                        if let Some(mut context) = context {
+                            let mut set = false;
+
+                            // Already defined field?
+                            if let Some(mut field) = SField::field(&doc.lock().await.graph, &context_path, '.', Some(&context)) {
+                                let mut doc = doc.lock().await;
+                                if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr(pid).as_ref()) {
+                                    field.value = val.clone();
+                                    field.set(&mut doc.graph);
+                                    set = true;
+                                }
+                            }
+                            // Creating a new field
+                            else {
+                                let mut doc = doc.lock().await;
+                                if doc.perms.can_write_scope(&doc.graph, &context, doc.self_ptr(pid).as_ref()) {
+                                    let mut new_field_path = context_path.split('.').collect::<Vec<&str>>();
+
+                                    let field_name = new_field_path.pop().unwrap();
+                                    if new_field_path.len() > 0 {
+                                        context = doc.graph.ensure_nodes(&new_field_path.join("/"), '/', true, Some(context.clone()));
+                                    }
+
+                                    let mut field = SField::new(field_name, val.clone());
+                                    field.attach(&context, &mut doc.graph);
+                                    set = true;
+                                }
+                            }
+
+                            // If val is an object, move it to context destination by default and rename to field name (usually, this is what folks want)
+                            if set {
+                                match &val {
+                                    SVal::Object(source) => {
+                                        // New name for the source node
+                                        let new_name = context_path.split('.').collect::<Vec<&str>>().pop().unwrap();
+                                        let mut old_name = String::default();
+                                        let mut source_ident;
+                                        let mut destination_ident;
+                                        {
+                                            let doc = doc.lock().await;
+                                            if let Some(source_node) = source.node(&doc.graph) {
+                                                old_name = source_node.name.clone();
+                                            }
+
+                                            source_ident = source.path(&doc.graph);
+                                            source_ident = source_ident.replace('/', "."); // Make a variable
+
+                                            destination_ident = context.path(&doc.graph);
+                                            destination_ident = destination_ident.replace('/', ".");
+                                        }
+
+                                        let mut statements_vec = vec![Statement::Move(source_ident.into(), destination_ident.clone().into())];
+                                        if old_name.len() > 0 {
+                                            let new_location = format!("{}.{}", destination_ident, old_name);
+                                            statements_vec.push(Statement::Rename(new_location.into(), Expr::Literal(SVal::String(new_name.to_owned()))));
+                                        }
+
+                                        let statements = Statements::from(statements_vec);
+                                        Box::pin(statements.engine_exec(pid, doc)).await?;
+                                    },
+                                    SVal::Array(vals) => {
+                                        let mut statement_vec = Vec::new();
+
+                                        for val in vals {
+                                            match val {
+                                                SVal::Object(source) => {
+                                                    let doc = doc.lock().await;
+                                                    let mut source_ident = source.path(&doc.graph);
+                                                    source_ident = source_ident.replace('/', ".");
+
+                                                    let mut destination_ident = context.path(&doc.graph);
+                                                    destination_ident = destination_ident.replace('/', ".");
+
+                                                    statement_vec.push(Statement::Move(source_ident.into(), destination_ident.into()));
+                                                },
+                                                _ => {}
+                                            }
+                                        }
+
+                                        if statement_vec.len() > 0 {
+                                            let statements = Statements::from(statement_vec);
+                                            Box::pin(statements.engine_exec(pid, doc)).await?;
+                                        }
+                                    },
+                                    _ => {}
+                                }
+                            }
+                        } else {
+                            // Create a new object and add a field to it
+                            let mut obj_path = name.split(".").collect::<Vec<&str>>();
+                            let backup_name = obj_path.pop().unwrap();
+                            if obj_path.len() > 0 {
+                                let mut doc = doc.lock().await;
+                                let nref = doc.graph.ensure_nodes(&obj_path.join("/"), '/', true, None);
+                                if doc.perms.can_write_scope(&doc.graph, &nref, doc.self_ptr(pid).as_ref()) {
+                                    let mut field = SField::new(backup_name, val);
+                                    field.attach(&nref, &mut doc.graph); // attach new field to self
+                                }
+                            }
+                        }
+                    } else if !set_var && !name.contains('.') && !name.ends_with('.') && !name.starts_with('.') {
+                        // Assigning a root object!
+                        match val {
+                            SVal::Object(nref) => {
+                                let mut doc = doc.lock().await;
+                                if let Some(existing) = doc.graph.root_by_name(&name) {
+                                    doc.graph.remove_root(&existing.id);
+                                }
+                                if let Some(node) = doc.graph.node_mut(nref.clone()) {
+                                    node.name = name.clone();
+                                }
+                                doc.graph.roots.push(nref);
+                            },
+                            _ => return Err(anyhow!("Cannot assign anything but an object as a root"))
+                        }
+                    }
+                },
+                Statement::Drop(_) => {
+                    let mut doc = doc.lock().await;
+                    return self.exec(pid, &mut doc);
+                },
+                Statement::Move(_, _) => {
+                    let mut doc = doc.lock().await;
+                    return self.exec(pid, &mut doc);
+                },
+                Statement::Rename(_, _) => {
+                    let mut doc = doc.lock().await;
+                    return self.exec(pid, &mut doc);
+                },
+                Statement::If { if_expr, elif_exprs, else_expr } => {
+                    let if_res = Box::pin(if_expr.0.engine_exec(pid, doc)).await?;
+                    if if_res.truthy() {
+                        doc.lock().await.new_scope(pid);
+                        let res = Box::pin(if_expr.1.engine_exec(pid, doc)).await?;
+
+                        let mut doc = doc.lock().await;
+                        doc.end_scope(pid);
+                        
+                        match res {
+                            StatementsRes::Break => {
+                                // If bubble, need to propogate break upwards, out of if block
+                                if doc.bubble_control_flow(pid) {
+                                    return Ok(res);
+                                }
+                            },
+                            StatementsRes::Continue => {
+                                // If bubble, need to propogate continue upwards, out of if block
+                                if doc.bubble_control_flow(pid) {
+                                    return Ok(res);
+                                }
+                            },
+                            StatementsRes::Return(_) => {
+                                // Return statements always go all the way back up
+                                return Ok(res);
+                            },
+                            StatementsRes::None => {
+                                // Nothing to do here
+                            }
+                        }
+                    } else {
+                        // If statement was not able to execute, so drop into elif exprs
+                        let mut matched = false;
+                        for if_expr in elif_exprs {
+                            let if_res = Box::pin(if_expr.0.engine_exec(pid, doc)).await?;
+                            if if_res.truthy() {
+                                doc.lock().await.new_scope(pid);
+                                let res = Box::pin(if_expr.1.engine_exec(pid, doc)).await?;
+                                
+                                let mut doc = doc.lock().await;
+                                doc.end_scope(pid);
+                                
+                                match res {
+                                    StatementsRes::Break => {
+                                        // If bubble, need to propogate break upwards, out of if block
+                                        if doc.bubble_control_flow(pid) {
+                                            return Ok(res);
+                                        }
+                                    },
+                                    StatementsRes::Continue => {
+                                        // If bubble, need to propogate continue upwards, out of if block
+                                        if doc.bubble_control_flow(pid) {
+                                            return Ok(res);
+                                        }
+                                    },
+                                    StatementsRes::Return(_) => {
+                                        // Return statements always go all the way back up
+                                        return Ok(res);
+                                    },
+                                    StatementsRes::None => {
+                                        // Nothing to do here
+                                    }
+                                }
+                                matched = true;
+                                break;
+                            }
+                        }
+                        if !matched {
+                            // Didn't find an else if statement match, so look for an else statement
+                            if let Some(else_statements) = else_expr {
+                                doc.lock().await.new_scope(pid);
+                                let res = Box::pin(else_statements.engine_exec(pid, doc)).await?;
+                                
+                                let mut doc = doc.lock().await;
+                                doc.end_scope(pid);
+                                
+                                match res {
+                                    StatementsRes::Break => {
+                                        // If bubble, need to propogate break upwards, out of if block
+                                        if doc.bubble_control_flow(pid) {
+                                            return Ok(res);
+                                        }
+                                    },
+                                    StatementsRes::Continue => {
+                                        // If bubble, need to propogate continue upwards, out of if block
+                                        if doc.bubble_control_flow(pid) {
+                                            return Ok(res);
+                                        }
+                                    },
+                                    StatementsRes::Return(_) => {
+                                        // Return statements always go all the way back up
+                                        return Ok(res);
+                                    },
+                                    StatementsRes::None => {
+                                        // Nothing to do here
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                Statement::Return(expr) => {
+                    // Push result of expr onto the stack
+                    let val = Box::pin(expr.engine_exec(pid, doc)).await?;
+                    doc.lock().await.push(pid, val);
+                    return Ok(StatementsRes::Return(true));
+                },
+                Statement::EmptyReturn => {
+                    // Return without putting anything on the stack
+                    return Ok(StatementsRes::Return(false));
+                },
+                Statement::While(expr, statements) => {
+                    while Box::pin(expr.engine_exec(pid, doc)).await?.truthy() {
+                        {
+                            let mut doc = doc.lock().await;
+                            doc.new_scope(pid);
+                            doc.inc_bubble_control(pid);
+                        }
+                        let res;
+                        let sres = Box::pin(statements.engine_exec(pid, doc)).await;
+                        
+                        {
+                            let mut doc = doc.lock().await;
+                            doc.dinc_bubble_control(pid);
+                            match sres {
+                                Ok(sres) => res = sres,
+                                Err(_) => return sres,
+                            }
+                            doc.end_scope(pid);
+                        }
+
+                        match res {
+                            StatementsRes::Break => {
+                                // Exit the while loop!
+                                break;
+                            },
+                            StatementsRes::Continue => {
+                                // Continue the while loop!
+                            },
+                            StatementsRes::None => {
+                                // Do nothing here
+                            },
+                            StatementsRes::Return(_) => {
+                                // Propagate returns all the way back up
+                                return Ok(res);
+                            }
+                        }
+                    }
+                },
+                Statement::Break => {
+                    // No more statements in this block!
+                    return Ok(StatementsRes::Break);
+                },
+                Statement::Continue => {
+                    // No more statements in this block, but keep evaluating expr in while
+                    return Ok(StatementsRes::Continue);
+                },
+                Statement::Expr(expr) => {
+                    Box::pin(expr.engine_exec(pid, doc)).await?;
+                },
+                Statement::Block(statements, finally) => {
+                    doc.lock().await.new_scope(pid);
+                    let res = Box::pin(statements.engine_exec(pid, doc)).await?;
+                    if finally.statements.len() > 0 {
+                        Box::pin(finally.engine_exec(pid, doc)).await?; // We don't care about a result here
+                    }
+
+                    let mut doc = doc.lock().await;
                     doc.end_scope(pid);
 
                     match res {

@@ -61,7 +61,7 @@ impl DocPermissions {
     }
 
     /// Can read field?
-    pub fn can_read_field(&mut self, graph: &SGraph, field: &SField, from: Option<&SNodeRef>) -> bool {
+    pub fn can_read_field(&self, graph: &SGraph, field: &SField, from: Option<&SNodeRef>) -> bool {
         let private_field = field.attributes.contains_key("private");
         if let Some(data) = field.data_ref().data(graph) {
             for nref in &data.nodes {
@@ -82,7 +82,7 @@ impl DocPermissions {
     }
 
     /// Can read func?
-    pub fn can_read_func(&mut self, graph: &SGraph, func: &SFunc, from: Option<&SNodeRef>) -> bool {
+    pub fn can_read_func(&self, graph: &SGraph, func: &SFunc, from: Option<&SNodeRef>) -> bool {
         let private_func = func.attributes.contains_key("private");
         if let Some(data) = func.data_ref().data(graph) {
             for nref in &data.nodes {
@@ -103,7 +103,7 @@ impl DocPermissions {
     }
 
     /// Can write field?
-    pub fn can_write_field(&mut self, graph: &SGraph, field: &SField, from: Option<&SNodeRef>) -> bool {
+    pub fn can_write_field(&self, graph: &SGraph, field: &SField, from: Option<&SNodeRef>) -> bool {
         if let Some(read_only_val) = field.attributes.get("readonly") {
             if read_only_val.is_empty() || read_only_val.truthy() {
                 return false;
@@ -129,7 +129,7 @@ impl DocPermissions {
     }
 
     /// Can write function?
-    pub fn can_write_func(&mut self, graph: &SGraph, func: &SFunc, from: Option<&SNodeRef>) -> bool {
+    pub fn can_write_func(&self, graph: &SGraph, func: &SFunc, from: Option<&SNodeRef>) -> bool {
         let private_func = func.attributes.contains_key("private");
         if let Some(data) = func.data_ref().data(graph) {
             for nref in &data.nodes {
@@ -150,13 +150,13 @@ impl DocPermissions {
     }
 
     /// Can read at scope?
-    pub fn can_read_scope(&mut self, graph: &SGraph, scope: &SNodeRef, from: Option<&SNodeRef>) -> bool {
+    pub fn can_read_scope(&self, graph: &SGraph, scope: &SNodeRef, from: Option<&SNodeRef>) -> bool {
         let access = self.permissions.access(graph, scope, from);
         access.can_read()
     }
 
     /// Can write at scope?
-    pub fn can_write_scope(&mut self, graph: &SGraph, scope: &SNodeRef, from: Option<&SNodeRef>) -> bool {
+    pub fn can_write_scope(&self, graph: &SGraph, scope: &SNodeRef, from: Option<&SNodeRef>) -> bool {
         let access = self.permissions.access(graph, scope, from);
         access.can_write()
     }

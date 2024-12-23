@@ -14,35 +14,27 @@
 // limitations under the License.
 //
 
-pub mod doc;
-pub use doc::*;
+use std::sync::Arc;
+use tokio::{runtime::{Builder, Runtime}, sync::Mutex};
+use super::SDoc;
 
-pub mod engine;
-pub use engine::*;
 
-pub mod processes;
-pub use processes::*;
-
-pub mod graph;
-pub use graph::*;
-
-pub mod store;
-pub use store::*;
-
-pub mod node;
-pub use node::*;
-
-pub mod data;
-pub use data::*;
-
-pub mod sref;
-pub use sref::*;
-
-pub mod selection;
-pub use selection::*;
-
-pub mod runtime;
-pub use runtime::*;
-
-pub mod libraries;
-pub use libraries::*;
+/// Stof Engine.
+pub struct SEngine {
+    pub doc: Arc<Mutex<SDoc>>,
+    pub runtime: Arc<Runtime>,
+}
+impl Default for SEngine {
+    fn default() -> Self {
+        Self::new(SDoc::default())
+    }
+}
+impl SEngine {
+    /// Create a new engine.
+    pub fn new(doc: SDoc) -> Self {
+        Self {
+            doc: Arc::new(Mutex::new(doc)),
+            runtime: Arc::new(Builder::new_current_thread().build().unwrap()),
+        }
+    }
+}
