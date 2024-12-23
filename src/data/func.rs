@@ -292,14 +292,14 @@ impl SFunc {
 
     /// Call this function with the given doc.
     /// Parameters get put onto the doc stack, and statements get executed.
-    pub async fn engine_call(&self, pid: &str, doc: &Arc<Mutex<SDoc>>, mut parameters: Vec<SVal>, add_self: bool) -> Result<SVal> {
+    pub async fn engine_call(&self, pid: &str, doc: Arc<Mutex<SDoc>>, mut parameters: Vec<SVal>, add_self: bool) -> Result<SVal> {
         // Validate the number of parameters required to call this function
         if self.params.len() != parameters.len() {
             let mut index = parameters.len();
             while index < self.params.len() {
                 let param = &self.params[index];
                 if let Some(default) = &param.default {
-                    let value = Box::pin(default.engine_exec(pid, doc)).await?;
+                    let value = Box::pin(default.engine_exec(pid, &doc)).await?;
                     parameters.push(value);
                 } else {
                     break;
@@ -361,7 +361,7 @@ impl SFunc {
         }
 
         // Execute all of the statements with this doc in a scope (block)
-        Box::pin(self.statements.engine_exec(pid, doc)).await?;
+        Box::pin(self.statements.engine_exec(pid, &doc)).await?;
 
         // Safe to get doc for the rest of the func.
         let mut doc = doc.lock().await;

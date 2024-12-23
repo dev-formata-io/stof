@@ -48,6 +48,11 @@ impl SProcesses {
         pid
     }
 
+    /// Kill a process.
+    pub fn kill(&mut self, pid: &str) {
+        self.processes.remove(pid);
+    }
+
     /// Get a process.
     pub fn get(&self, pid: &str) -> Option<&SProcess> {
         self.processes.get(pid)
