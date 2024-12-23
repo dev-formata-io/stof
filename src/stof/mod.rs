@@ -83,7 +83,7 @@ impl Format for BSTOF {
     }
 
     /// Header import.
-    fn header_import(&self, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, _as_name: &str) -> Result<()> {
+    fn header_import(&self, _pid: &str, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, _as_name: &str) -> Result<()> {
         let mut new_doc = BSTOF::parse(&bytes)?;
 
         // Before we merge the types, we have to re-link the decids with the collisions that happened
@@ -119,13 +119,13 @@ impl Format for BSTOF {
     }
 
     /// File import.
-    fn file_import(&self, doc: &mut crate::SDoc, format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
+    fn file_import(&self, pid: &str, doc: &mut crate::SDoc, format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
         let mut bytes = Bytes::from(fs::read(full_path)?);
-        self.header_import(doc, format, &mut bytes, as_name)
+        self.header_import(pid, doc, format, &mut bytes, as_name)
     }
 
     /// Export to binary form.
-    fn export_bytes(&self, doc: &SDoc, _node: Option<&crate::SNodeRef>) -> Result<Bytes> {
+    fn export_bytes(&self, _pid: &str, doc: &SDoc, _node: Option<&crate::SNodeRef>) -> Result<Bytes> {
         BSTOF::doc_to_bytes(doc)
     }
 }
@@ -134,21 +134,21 @@ impl Format for BSTOF {
 pub struct STOF;
 impl STOF {
     /// Parse a STOF string into a new document.
-    pub fn parse_new(stof: &str, env: Option<&mut StofEnv>) -> Result<SDoc> {
+    pub fn parse_new(pid: &str, stof: &str, env: Option<&mut StofEnv>) -> Result<SDoc> {
         let mut doc = SDoc::default();
-        Self::parse(&mut doc, stof, env)?;
+        Self::parse(pid, &mut doc, stof, env)?;
         Ok(doc)
     }
 
     /// Parse a STOF string into a Stof graph.
-    pub fn parse(doc: &mut SDoc, stof: &str, env: Option<&mut StofEnv>) -> Result<()> {
+    pub fn parse(pid: &str, doc: &mut SDoc, stof: &str, env: Option<&mut StofEnv>) -> Result<()> {
         let res;
         if let Some(env_ref) = env {
             env_ref.before_parse(doc);
             res = parse_internal(stof, doc, env_ref);
             env_ref.after_parse(doc);
         } else {
-            let mut internal_env = StofEnv::new(doc);
+            let mut internal_env = StofEnv::new(pid, doc);
             internal_env.before_parse(doc);
             res = parse_internal(stof, doc, &mut internal_env);
             internal_env.after_parse(doc);
@@ -168,45 +168,41 @@ impl Format for STOF {
     }
 
     /// Header import.
-    fn header_import(&self, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<()> {
+    fn header_import(&self, pid: &str, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<()> {
         let str = std::str::from_utf8(bytes.as_ref())?;
-        self.string_import(doc, str, as_name)
+        self.string_import(pid, doc, str, as_name)
     }
 
     /// String import.
-    fn string_import(&self, doc: &mut crate::SDoc, src: &str, as_name: &str) -> Result<()> {
+    fn string_import(&self, pid: &str, doc: &mut crate::SDoc, src: &str, as_name: &str) -> Result<()> {
         if doc.graph.roots.len() < 1 {
             doc.graph.insert_root("root");
         }
         let mut location = doc.graph.main_root().unwrap();
         if as_name.len() > 0 && as_name != "root" {
             if as_name.starts_with("self") || as_name.starts_with("super") {
-                location = doc.graph.ensure_nodes(as_name, '.', true, doc.self_ptr());
+                location = doc.graph.ensure_nodes(as_name, '.', true, doc.self_ptr(pid));
             } else {
                 location = doc.graph.ensure_nodes(as_name, '.', true, None);
             }
         }
 
-        let stack = doc.stack.clone();
-        let self_stack = doc.self_stack.clone();
-        let table = doc.table.clone();
-        let bubble = doc.bubble_control_flow;
-        
-        let mut env = StofEnv::new_at_node(doc, &location).unwrap();
-        STOF::parse(doc, src, Some(&mut env))?;
+
+        let process = doc.processes.get(pid).cloned();
+        let mut env = StofEnv::new_at_node(pid, doc, &location).unwrap();
+        STOF::parse(pid, doc, src, Some(&mut env))?;
 
         // Undo the clean that happens...
-        doc.bubble_control_flow = bubble;
-        doc.stack = stack;
-        doc.self_stack = self_stack;
-        doc.table = table;
+        if let Some(process) = process {
+            doc.processes.processes.insert(pid.to_owned(), process);
+        }
 
         Ok(())
     }
 
     /// File import.
-    fn file_import(&self, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
+    fn file_import(&self, pid: &str, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
         let src = fs::read_to_string(full_path)?;
-        self.string_import(doc, &src, as_name)
+        self.string_import(pid, doc, &src, as_name)
     }
 }

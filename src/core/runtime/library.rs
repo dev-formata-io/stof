@@ -59,7 +59,7 @@ pub trait Library: Sync + Send {
     fn scope(&self) -> String;
 
     /// Call a library function with a set of parameters.
-    fn call(&mut self, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal>;
+    fn call(&mut self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal>;
 }
 
 
@@ -73,7 +73,7 @@ impl Library for StdLibrary {
     }
 
     /// Call a standard library function.
-    fn call(&mut self, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&mut self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
         match name {
             "parse" => {
                 if parameters.len() > 0 {
@@ -82,7 +82,7 @@ impl Library for StdLibrary {
                         format = parameters[1].to_string();
                     }
                     let mut as_name = "root".to_string();
-                    if let Some(self_ptr) = doc.self_ptr() {
+                    if let Some(self_ptr) = doc.self_ptr(pid) {
                         as_name = self_ptr.path(&doc.graph); // Absolute path to current location
                     }
                     if parameters.len() > 2 {
@@ -97,12 +97,12 @@ impl Library for StdLibrary {
                     }
                     match &parameters[0] {
                         SVal::String(src) => {
-                            doc.string_import(&format, &src, &as_name)?;
+                            doc.string_import(pid, &format, &src, &as_name)?;
                             return Ok(SVal::Bool(true));
                         },
                         SVal::Blob(bytes) => {
                             let mut bytes = Bytes::from(bytes.clone());
-                            doc.header_import(&format, &format, &mut bytes, &as_name)?;
+                            doc.header_import(pid, &format, &format, &mut bytes, &as_name)?;
                             return Ok(SVal::Bool(true));
                         },
                         _ => {}
@@ -118,7 +118,7 @@ impl Library for StdLibrary {
                     }
                     match &parameters[0] {
                         SVal::Object(nref) => {
-                            let res = doc.export_bytes(&format, Some(nref))?;
+                            let res = doc.export_bytes(pid, &format, Some(nref))?;
                             return Ok(SVal::Blob(res.to_vec()));
                         },
                         _ => {}
@@ -140,9 +140,9 @@ impl Library for StdLibrary {
                         SVal::Object(nref) => {
                             let res;
                             if min {
-                                res = doc.export_min_string(&format, Some(nref))?;
+                                res = doc.export_min_string(pid, &format, Some(nref))?;
                             } else {
-                                res = doc.export_string(&format, Some(nref))?;
+                                res = doc.export_string(pid, &format, Some(nref))?;
                             }
                             return Ok(SVal::String(res));
                         },

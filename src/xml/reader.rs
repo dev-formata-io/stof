@@ -248,6 +248,6 @@ mod tests {
 </point>"#;
 
         let doc = SDoc::src(xml, "xml").unwrap();
-        assert_eq!(doc.export_string("json", None).unwrap(), "{\"point\":{\"attributes\":{\"type\":\"2d\"},\"processing\":[\"xml-stylesheet href = \\\"tutorialspointstyle.css\\\" type = \\\"text/css\\\"\",\"xml-stylesheet href = \\\"tutorialspointstyle.css\\\" type = \\\"text/css\\\"\"],\"x\":{\"comments\":[\"X Position of the point\",\"Should be less than 1000\"],\"text\":\"12.2345\"},\"xx\":\"12.2345\",\"y\":{\"comments\":[\"Y Position of the point\"],\"text\":\"18.63433\"},\"yy\":\"18.63433\",\"z\":{\"attributes\":{\"type\":\"3D_na\"}}}}");
+        assert_eq!(doc.export_string("main", "json", None).unwrap(), "{\"point\":{\"attributes\":{\"type\":\"2d\"},\"processing\":[\"xml-stylesheet href = \\\"tutorialspointstyle.css\\\" type = \\\"text/css\\\"\",\"xml-stylesheet href = \\\"tutorialspointstyle.css\\\" type = \\\"text/css\\\"\"],\"x\":{\"comments\":[\"X Position of the point\",\"Should be less than 1000\"],\"text\":\"12.2345\"},\"xx\":\"12.2345\",\"y\":{\"comments\":[\"Y Position of the point\"],\"text\":\"18.63433\"},\"yy\":\"18.63433\",\"z\":{\"attributes\":{\"type\":\"3D_na\"}}}}");
     }
 }

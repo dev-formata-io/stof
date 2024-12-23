@@ -133,18 +133,18 @@ impl Format for JSON {
     }
 
     /// Header import.
-    fn header_import(&self, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<()> {
+    fn header_import(&self, pid: &str, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<()> {
         let str = std::str::from_utf8(bytes.as_ref())?;
-        self.string_import(doc, str, as_name)
+        self.string_import(pid, doc, str, as_name)
     }
 
     /// String import.
-    fn string_import(&self, doc: &mut crate::SDoc, src: &str, as_name: &str) -> Result<()> {
+    fn string_import(&self, pid: &str, doc: &mut crate::SDoc, src: &str, as_name: &str) -> Result<()> {
         let mut graph = JSON::parse(src)?;
         if as_name.len() > 0 && as_name != "root" {
             let mut path = as_name.replace(".", "/");
             if as_name.starts_with("self") || as_name.starts_with("super") {
-                if let Some(ptr) = doc.self_ptr() {
+                if let Some(ptr) = doc.self_ptr(pid) {
                     path = format!("{}/{}", ptr.path(&doc.graph), path);
                 }
             }
@@ -163,13 +163,13 @@ impl Format for JSON {
     }
 
     /// File import.
-    fn file_import(&self, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
+    fn file_import(&self, pid: &str, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
         let src = fs::read_to_string(full_path)?;
-        self.string_import(doc, &src, as_name)
+        self.string_import(pid, doc, &src, as_name)
     }
 
     /// Export string.
-    fn export_string(&self, doc: &crate::SDoc, node: Option<&crate::SNodeRef>) -> Result<String> {
+    fn export_string(&self, _pid: &str, doc: &crate::SDoc, node: Option<&crate::SNodeRef>) -> Result<String> {
         if node.is_some() {
             JSON::stringify_node(&doc.graph, node)
         } else {
@@ -191,18 +191,18 @@ impl Format for NDJSON {
     }
 
     /// Header import.
-    fn header_import(&self, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<()> {
+    fn header_import(&self, pid: &str, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<()> {
         let str = std::str::from_utf8(bytes.as_ref())?;
-        self.string_import(doc, str, as_name)
+        self.string_import(pid, doc, str, as_name)
     }
 
     /// String import.
-    fn string_import(&self, doc: &mut crate::SDoc, src: &str, as_name: &str) -> Result<()> {
+    fn string_import(&self, pid: &str, doc: &mut crate::SDoc, src: &str, as_name: &str) -> Result<()> {
         let mut graph = NDJSON::parse(src)?;
         if as_name.len() > 0 && as_name != "root" {
             let mut path = as_name.replace(".", "/");
             if as_name.starts_with("self") || as_name.starts_with("super") {
-                if let Some(ptr) = doc.self_ptr() {
+                if let Some(ptr) = doc.self_ptr(pid) {
                     path = format!("{}/{}", ptr.path(&doc.graph), path);
                 }
             }
@@ -221,14 +221,14 @@ impl Format for NDJSON {
     }
 
     /// File import.
-    fn file_import(&self, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
+    fn file_import(&self, pid: &str, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
         let src = fs::read_to_string(full_path)?;
-        self.string_import(doc, &src, as_name)
+        self.string_import(pid, doc, &src, as_name)
     }
 
     /// Export string.
     /// NDJSON is just JSON here...
-    fn export_string(&self, doc: &crate::SDoc, node: Option<&crate::SNodeRef>) -> Result<String> {
+    fn export_string(&self, _pid: &str, doc: &crate::SDoc, node: Option<&crate::SNodeRef>) -> Result<String> {
         if node.is_some() {
             JSON::stringify_node(&doc.graph, node)
         } else {

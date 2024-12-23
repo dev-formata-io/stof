@@ -45,10 +45,10 @@ fn export_type() {
         }
     "#;
     let doc = SDoc::src(stof, "stof").unwrap();
-    let export = doc.export_bytes("bstof", None).unwrap();
+    let export = doc.export_bytes("main", "bstof", None).unwrap();
 
     let mut import_doc = SDoc::bytes(export, "bstof").unwrap();
-    import_doc.string_import("stof", r#"
+    import_doc.string_import("main", "stof", r#"
         root Geometry: {
             type Point2D {
                 x: float;

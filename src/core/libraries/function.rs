@@ -31,7 +31,7 @@ impl Library for FunctionLibrary {
     }
     
     /// Call into the Function library.
-    fn call(&mut self, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&mut self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
         if parameters.len() > 0 {
             match name {
                 "name" => {
@@ -168,14 +168,14 @@ impl Library for FunctionLibrary {
                             match v {
                                 SVal::FnPtr(dref) => {
                                     let func: SFunc = dref.data(&doc.graph).unwrap().get_value().unwrap();
-                                    return func.call(doc, values, true);
+                                    return func.call(pid, doc, values, true);
                                 },
                                 _ => {}
                             }
                         },
                         SVal::FnPtr(dref) => {
                             let func: SFunc = dref.data(&doc.graph).unwrap().get_value().unwrap();
-                            return func.call(doc, values, true);
+                            return func.call(pid, doc, values, true);
                         },
                         _ => return Err(anyhow!("Must provide a function pointer to call using the Function library"))
                     }
@@ -185,7 +185,7 @@ impl Library for FunctionLibrary {
         }
 
         // try object scope
-        if let Ok(val) = Self::object_call(doc, name, parameters) {
+        if let Ok(val) = Self::object_call(pid, doc, name, parameters) {
             return Ok(val);
         }
         Err(anyhow!("Failed to find a Function library method."))

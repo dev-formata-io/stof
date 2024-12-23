@@ -165,7 +165,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                 if import_path.len() > 0 {
                     let compiled_path = format!("{}{}{}{}", &format, &import_path, &import_ext, &as_name);
                     if !env.compiled_path(&compiled_path) { // Don't import the same thing more than once!
-                        doc.file_import(&format, &import_path, &import_ext, &as_name)?;
+                        doc.file_import(&env.pid, &format, &import_path, &import_ext, &as_name)?;
                         env.add_compiled_path(&compiled_path);
                     }
                 }
@@ -190,7 +190,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                     func.attach(&scope, &mut doc.graph);
 
                                     // Call the decorator function with the func as the parameter
-                                    if let Ok(res_val) = decorator.call(doc, vec![SVal::FnPtr(func.data_ref())], true) {
+                                    if let Ok(res_val) = decorator.call(&env.pid, doc, vec![SVal::FnPtr(func.data_ref())], true) {
                                         match res_val {
                                             SVal::FnPtr(res_ref) => {
                                                 if let Ok(mut res_func) = SData::data::<SFunc>(&doc.graph, res_ref) {
@@ -294,7 +294,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                     },
                                     Rule::expr => {
                                         let value_expr = parse_expression(doc, env, pair)?;
-                                        let result = value_expr.exec(doc);
+                                        let result = value_expr.exec(&env.pid, doc);
                                         match result {
                                             Ok(sval) => {
                                                 value = sval;
@@ -379,7 +379,7 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
                                 },
                                 Rule::expr => {
                                     let value_expr = parse_expression(doc, env, pair)?;
-                                    let result = value_expr.exec(doc);
+                                    let result = value_expr.exec(&env.pid, doc);
                                     match result {
                                         Ok(sval) => {
                                             value = sval;
@@ -422,7 +422,7 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
                                 },
                                 Rule::expr => {
                                     let value_expr = parse_expression(doc, env, pair)?;
-                                    let result = value_expr.exec(doc);
+                                    let result = value_expr.exec(&env.pid, doc);
                                     match result {
                                         Ok(sval) => {
                                             value = sval;
@@ -527,7 +527,7 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                 if field_type.len() > 0 {
                     let stype = SType::from(field_type);
                     if stype.is_object() && field_type != "obj" && field_type != "root" {
-                        field_value = field_value.cast(stype, doc)?;
+                        field_value = field_value.cast(stype, &env.pid, doc)?;
                     } else if !stype.is_object() {
                         return Err(anyhow!("Cannot cast an object to a non-object type"));
                     }
@@ -557,7 +557,7 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                     expr = Expr::Cast(stype, Box::new(expr));
                 }
 
-                let result = expr.exec(doc);
+                let result = expr.exec(&env.pid, doc);
                 match result {
                     Ok(sval) => {
                         field_value = sval;
@@ -593,7 +593,7 @@ fn parse_function(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result
                         },
                         Rule::expr => {
                             let value_expr = parse_expression(doc, env, pair)?;
-                            let result = value_expr.exec(doc);
+                            let result = value_expr.exec(&env.pid, doc);
                             match result {
                                 Ok(sval) => {
                                     value = sval;

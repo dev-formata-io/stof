@@ -558,9 +558,9 @@ impl SVal {
     }
 
     /// Cast a value to another type of value.
-    pub fn cast(&self, target: SType, doc: &mut SDoc) -> Result<Self> {
+    pub fn cast(&self, target: SType, pid: &str, doc: &mut SDoc) -> Result<Self> {
         match self {
-            Self::Ref(rf) => rf.read().unwrap().cast(target, doc),
+            Self::Ref(rf) => rf.read().unwrap().cast(target, pid, doc),
             Self::Blob(blob) => {
                 match target {
                     SType::Array => {
@@ -609,7 +609,7 @@ impl SVal {
                                 if val_type == ty {
                                     new_vals.push(val.clone());
                                 } else {
-                                    new_vals.push(val.cast(ty, doc)?);
+                                    new_vals.push(val.cast(ty, pid, doc)?);
                                 }
                             }
                             return Ok(Self::Tuple(new_vals));
@@ -725,7 +725,7 @@ impl SVal {
                                 let val = &vals[i];
                                 let ty = types[i].clone();
                                 if val.stype(&doc.graph) != ty {
-                                    new_tup.push(val.cast(ty, doc)?);
+                                    new_tup.push(val.cast(ty, pid, doc)?);
                                 } else {
                                     new_tup.push(val.clone());
                                 }
@@ -749,7 +749,7 @@ impl SVal {
                         }
 
                         let current_scope;
-                        if let Some(scope) = doc.self_ptr() {
+                        if let Some(scope) = doc.self_ptr(pid) {
                             current_scope = scope;
                         } else if let Some(main) = doc.graph.main_root() {
                             current_scope = main;
@@ -811,11 +811,11 @@ impl SVal {
                                 if let Some(mut field) = SField::field(&doc.graph, &typefield.name, '.', Some(nref)) {
                                     let existing_type = field.value.stype(&doc.graph);
                                     if existing_type != typefield.ptype {
-                                        field.value = field.value.cast(typefield.ptype, doc)?;
+                                        field.value = field.value.cast(typefield.ptype, pid, doc)?;
                                         field.set(&mut doc.graph);
                                     }
                                 } else if let Some(default) = &typefield.default {
-                                    let default_value = default.exec(doc)?;
+                                    let default_value = default.exec(pid, doc)?;
                                     let mut field = SField::new(&typefield.name, default_value);
                                     field.attach(nref, &mut doc.graph);
                                 } else {
@@ -1441,7 +1441,8 @@ impl SVal {
                         Ok(Self::Array(new))
                     },
                     Self::Blob(_) => {
-                        let arr_blob = Self::Array(vals.clone()).cast(SType::Blob, doc)?;
+                        // PID here doesn't matter, because they only get used when casting with objects...
+                        let arr_blob = Self::Array(vals.clone()).cast(SType::Blob, "main", doc)?;
                         arr_blob.add(other, doc)
                     },
                 }

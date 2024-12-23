@@ -31,7 +31,7 @@ impl Library for ArrayLibrary {
     }
     
     /// Call into the Array library.
-    fn call(&mut self, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&mut self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
         if parameters.len() > 0 {
             match name {
                 "push" => {
@@ -60,7 +60,7 @@ impl Library for ArrayLibrary {
                                 _ => unreachable!()
                             }
                         } else {
-                            let ival = self.call(doc, "find", parameters)?;
+                            let ival = self.call(pid, doc, "find", parameters)?;
                             match ival {
                                 SVal::Number(nval) => {
                                     index = nval.int() as usize;
@@ -294,7 +294,7 @@ impl Library for ArrayLibrary {
                 },
                 "join" => {
                     if parameters.len() == 2 {
-                        let separator = parameters[1].cast(SType::String, doc)?;
+                        let separator = parameters[1].cast(SType::String, pid, doc)?;
                         match separator {
                             SVal::String(separator) => {
                                 match &mut parameters[0] {
@@ -305,7 +305,7 @@ impl Library for ArrayLibrary {
                                             SVal::Array(vals) => {
                                                 let mut str_vals = Vec::new();
                                                 for v in vals {
-                                                    let str_val = v.cast(SType::String, doc)?;
+                                                    let str_val = v.cast(SType::String, pid, doc)?;
                                                     match str_val {
                                                         SVal::String(str_val) => str_vals.push(str_val),
                                                         _ => {}
@@ -319,7 +319,7 @@ impl Library for ArrayLibrary {
                                     SVal::Array(vals) => {
                                         let mut str_vals = Vec::new();
                                         for v in vals {
-                                            let str_val = v.cast(SType::String, doc)?;
+                                            let str_val = v.cast(SType::String, pid, doc)?;
                                             match str_val {
                                                 SVal::String(str_val) => str_vals.push(str_val),
                                                 _ => {}
@@ -424,7 +424,7 @@ impl Library for ArrayLibrary {
                 "remove" => {
                     if parameters.len() == 2 {
                         let index;
-                        let ival = self.call(doc, "find", parameters);
+                        let ival = self.call(pid, doc, "find", parameters);
                         if ival.is_err() {
                             return Ok(SVal::Null); // nothing removed...
                         }
@@ -568,7 +568,7 @@ impl Library for ArrayLibrary {
         }
 
         // try object scope
-        if let Ok(val) = Self::object_call(doc, name, parameters) {
+        if let Ok(val) = Self::object_call(pid, doc, name, parameters) {
             return Ok(val);
         }
         Err(anyhow!("Failed to find an Array library method."))

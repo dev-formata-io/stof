@@ -75,18 +75,18 @@ impl<T> From<T> for Expr where T: Into<SVal> {
 }
 impl Expr {
     /// Execute this expression.
-    pub fn exec(&self, doc: &mut SDoc) -> Result<SVal> {
+    pub fn exec(&self, pid: &str, doc: &mut SDoc) -> Result<SVal> {
         match self {
             Expr::Variable(id) => {
                 // Look for a symbol first!
-                if let Some(symbol) = doc.get_symbol(&id) {
+                if let Some(symbol) = doc.get_symbol(pid, &id) {
                     let val = symbol.var();
                     return Ok(val);
                 }
 
                 // See if we are referencing self or super only
                 if id == "self" {
-                    if let Some(self_ref) = doc.self_ptr() {
+                    if let Some(self_ref) = doc.self_ptr(pid) {
                         if doc.perms.can_read_scope(&doc.graph, &self_ref, Some(&self_ref)) {
                             return Ok(SVal::Object(self_ref));
                         }
@@ -95,7 +95,7 @@ impl Expr {
                         return Ok(SVal::Null);
                     }
                 } else if id == "super" {
-                    if let Some(self_ref) = doc.self_ptr() {
+                    if let Some(self_ref) = doc.self_ptr(pid) {
                         if let Some(node) = self_ref.node(&doc.graph) {
                             if let Some(parent) = &node.parent {
                                 if doc.perms.can_read_scope(&doc.graph, parent, Some(&self_ref)) {
@@ -112,13 +112,13 @@ impl Expr {
                 // Get the context object we are working with!
                 let mut context = None;
                 if id.starts_with("self") || id.starts_with("super") {
-                    context = doc.self_ptr();
+                    context = doc.self_ptr(pid);
                 }
                 let mut context_path = id.clone();
                 {
                     let mut path: Vec<&str> = id.split('.').collect();
                     if path.len() > 1 {
-                        if let Some(symbol) = doc.get_symbol(path.remove(0)) {
+                        if let Some(symbol) = doc.get_symbol(pid, path.remove(0)) {
                             match symbol.var() {
                                 SVal::Ref(rf) => {
                                     let refval = rf.read().unwrap();
@@ -143,7 +143,7 @@ impl Expr {
 
                 // Look for a field first
                 if let Some(field) = SField::field(&doc.graph, &context_path, '.', context.as_ref()) {
-                    if doc.perms.can_read_field(&doc.graph, &field, doc.self_ptr().as_ref()) {
+                    if doc.perms.can_read_field(&doc.graph, &field, doc.self_ptr(pid).as_ref()) {
                         return Ok(field.value);
                     }
                     return Ok(SVal::Null);
@@ -152,7 +152,7 @@ impl Expr {
                 // Look for an object in the graph next
                 let obj_path = context_path.replace('.', "/");
                 if let Some(node) = doc.graph.node_ref(&obj_path, context.as_ref()) {
-                    if doc.perms.can_read_scope(&doc.graph, &node, doc.self_ptr().as_ref()) {
+                    if doc.perms.can_read_scope(&doc.graph, &node, doc.self_ptr(pid).as_ref()) {
                         return Ok(SVal::Object(node));
                     }
                     return Ok(SVal::Null);
@@ -160,7 +160,7 @@ impl Expr {
 
                 // Look for a function in the graph
                 if let Some(func) = SFunc::func(&doc.graph, &context_path, '.', context.as_ref()) {
-                    if doc.perms.can_read_func(&doc.graph, &func, doc.self_ptr().as_ref()) {
+                    if doc.perms.can_read_func(&doc.graph, &func, doc.self_ptr(pid).as_ref()) {
                         return Ok(SVal::FnPtr(func.data_ref()));
                     }
                     return Ok(SVal::Null);
@@ -170,7 +170,7 @@ impl Expr {
                 Ok(SVal::Null)
             },
             Expr::Ref(expr) => {
-                let value = expr.exec(doc)?;
+                let value = expr.exec(pid, doc)?;
                 match value {
                     SVal::Ref(_) => Ok(value),
                     _ => {
@@ -178,8 +178,8 @@ impl Expr {
                         // Special case when expr is a variable symbol - need to set the variable too
                         match expr.as_ref() {
                             Expr::Variable(id) => {
-                                if doc.has_symbol(&id) {
-                                    doc.set_variable(&id, new_value.clone());
+                                if doc.has_symbol(pid, &id) {
+                                    doc.set_variable(pid, &id, new_value.clone());
                                 }
                             },
                             _ => {}
@@ -189,7 +189,7 @@ impl Expr {
                 }
             },
             Expr::DeRef(expr) => {
-                let value = expr.exec(doc)?;
+                let value = expr.exec(pid, doc)?;
                 match value {
                     SVal::Ref(rf) => {
                         let clone = rf.read().unwrap().clone();
@@ -204,21 +204,21 @@ impl Expr {
             Expr::Tuple(vals) => {
                 let mut vec: Vec<SVal> = Vec::new();
                 for val in vals {
-                    vec.push(val.exec(doc)?);
+                    vec.push(val.exec(pid, doc)?);
                 }
                 Ok(SVal::Tuple(vec))
             },
             Expr::Array(vals) => {
                 let mut vec: Vec<SVal> = Vec::new();
                 for val in vals {
-                    vec.push(val.exec(doc)?);
+                    vec.push(val.exec(pid, doc)?);
                 }
                 Ok(SVal::Array(vec))
             },
             Expr::Block(statements) => {
-                doc.table.new_scope();
-                let res = statements.exec(doc)?;
-                doc.table.end_scope();
+                doc.new_scope(pid);
+                let res = statements.exec(pid, doc)?;
+                doc.end_scope(pid);
 
                 match res {
                     StatementsRes::Break |
@@ -229,7 +229,7 @@ impl Expr {
                     StatementsRes::Return(v) => {
                         if v {
                             // block returned something to the stack!
-                            return Ok(doc.pop().unwrap());
+                            return Ok(doc.pop(pid).unwrap());
                         }
                     }
                 }
@@ -238,7 +238,7 @@ impl Expr {
             },
             Expr::NewObject(statements) => {
                 let stof_object;
-                if let Some(parent) = doc.self_ptr() {
+                if let Some(parent) = doc.self_ptr(pid) {
                     stof_object = doc.graph.insert_node(&format!("obj{}", nanoid!(7)), Some(&parent));
                 } else {
                     stof_object = doc.graph.insert_node(&format!("obj{}", nanoid!(7)), None);
@@ -262,24 +262,24 @@ impl Expr {
 
                 // Execute initialization statements!
                 // Make sure to set new object as self_ptr for new sub-objects!
-                doc.self_stack.push(stof_object.clone());
+                doc.push_self(pid, stof_object.clone());
                 let init_statements = Statements::from(init_statements);
-                let _ = init_statements.exec(doc);
-                doc.self_stack.pop();
+                let _ = init_statements.exec(pid, doc);
+                doc.pop_self(pid);
 
                 return Ok(SVal::Object(stof_object));
             },
             Expr::Cast(stype, expr) => {
-                let value = expr.exec(doc)?;
+                let value = expr.exec(pid, doc)?;
                 let target = stype.clone();
 
                 if value.stype(&doc.graph) == target {
                     return Ok(value);
                 }
-                return Ok(value.cast(target, doc)?);
+                return Ok(value.cast(target, pid, doc)?);
             },
             Expr::TypeOf(expr) => {
-                let value = expr.exec(doc)?;
+                let value = expr.exec(pid, doc)?;
                 let value_type = value.stype(&doc.graph);
                 if value_type.is_object() { // No custom object types here
                     return Ok(SVal::String("obj".to_string()));
@@ -288,17 +288,17 @@ impl Expr {
                 Ok(SVal::String(type_of))
             },
             Expr::TypeName(expr) => {
-                let value = expr.exec(doc)?;
+                let value = expr.exec(pid, doc)?;
                 Ok(SVal::String(value.type_name(&doc.graph)))
             },
             Expr::Not(expr) => {
-                let value = expr.exec(doc)?;
+                let value = expr.exec(pid, doc)?;
                 Ok(SVal::Bool(!value.truthy()))
             },
             Expr::Call { scope, name, params } => {
                 // Scope can be a symbol, library name, or path to a field, object, or function
                 let variable = Self::Variable(scope.replace('/', "."));
-                let mut variable_value = variable.exec(doc)?;
+                let mut variable_value = variable.exec(pid, doc)?;
 
                 // Deref the variable if needed...
                 match variable_value {
@@ -337,14 +337,14 @@ impl Expr {
                             if let Some(func) = SFunc::func(&doc.graph, name, '.', Some(&nref)) {
                                 let mut func_params = Vec::new();
                                 for expr in params {
-                                    let val = expr.exec(doc)?;
+                                    let val = expr.exec(pid, doc)?;
                                     if !val.is_void() {
                                         func_params.push(val);
                                     }
                                 }
-                                let current_symbol_table = doc.new_table();
-                                let res = func.call(doc, func_params, true)?;
-                                doc.set_table(current_symbol_table);
+                                let current_symbol_table = doc.new_table(pid);
+                                let res = func.call(pid, doc, func_params, true)?;
+                                doc.set_table(pid, current_symbol_table);
                                 return Ok(res);
                             }
 
@@ -387,17 +387,17 @@ impl Expr {
                                         if let Some(func) = SFunc::func(&doc.graph, &func_name, '.', current.as_ref()) {
                                             let mut func_params = Vec::new();
                                             for expr in params {
-                                                let val = expr.exec(doc)?;
+                                                let val = expr.exec(pid, doc)?;
                                                 if !val.is_void() {
                                                     func_params.push(val);
                                                 }
                                             }
-                                            let current_symbol_table = doc.new_table();
+                                            let current_symbol_table = doc.new_table(pid);
                                             // Set self to the object still...
-                                            doc.self_stack.push(nref.clone());
-                                            let res = func.call(doc, func_params, false)?;
-                                            doc.self_stack.pop();
-                                            doc.set_table(current_symbol_table);
+                                            doc.push_self(pid, nref.clone());
+                                            let res = func.call(pid, doc, func_params, false)?;
+                                            doc.pop_self(pid);
+                                            doc.set_table(pid, current_symbol_table);
                                             return Ok(res);
                                         }
                                         if let Some(node) = current.unwrap().node(&doc.graph) {
@@ -418,20 +418,20 @@ impl Expr {
 
                     let mut func_params = vec![variable_value.clone()];
                     for expr in params {
-                        let val = expr.exec(doc)?;
+                        let val = expr.exec(pid, doc)?;
                         if !val.is_void() {
                             func_params.push(val);
                         }
                     }
-                    let current_symbol_table = doc.new_table();
+                    let current_symbol_table = doc.new_table(pid);
                     let mut library = lib.write().unwrap();
-                    let res = library.call(doc, name, &mut func_params)?;
-                    doc.set_table(current_symbol_table);
+                    let res = library.call(pid, doc, name, &mut func_params)?;
+                    doc.set_table(pid, current_symbol_table);
 
                     // Update the symbol with the mutated parameter if it's the right type
                     let new_symbol_val = func_params.first().unwrap().clone();
                     if new_symbol_val.stype(&doc.graph) == stype {
-                        doc.set_variable(&scope, new_symbol_val);
+                        doc.set_variable(pid, &scope, new_symbol_val);
                     }
 
                     return Ok(res);
@@ -442,32 +442,32 @@ impl Expr {
                 if let Some(lib) = doc.library(&scope) {
                     let mut func_params = Vec::new();
                     for expr in params {
-                        let val = expr.exec(doc)?;
+                        let val = expr.exec(pid, doc)?;
                         if !val.is_void() {
                             func_params.push(val);
                         }
                     }
-                    let current_symbol_table = doc.new_table();
+                    let current_symbol_table = doc.new_table(pid);
 
                     let mut library = lib.write().unwrap();
-                    let res = library.call(doc, name, &mut func_params)?;
+                    let res = library.call(pid, doc, name, &mut func_params)?;
 
-                    doc.set_table(current_symbol_table);
+                    doc.set_table(pid, current_symbol_table);
                     return Ok(res);
                 } else if let Some(lib) = doc.library("std") {
                     let mut func_params = Vec::new();
                     for expr in params {
-                        let val = expr.exec(doc)?;
+                        let val = expr.exec(pid, doc)?;
                         if !val.is_void() {
                             func_params.push(val);
                         }
                     }
-                    let current_symbol_table = doc.new_table();
+                    let current_symbol_table = doc.new_table(pid);
 
                     let mut library = lib.write().unwrap();
-                    let res = library.call(doc, name, &mut func_params)?;
+                    let res = library.call(pid, doc, name, &mut func_params)?;
                     
-                    doc.set_table(current_symbol_table);
+                    doc.set_table(pid, current_symbol_table);
                     return Ok(res);
                 }
                 Err(anyhow!("Function/Call does not exist: {}({:?})", name, params))
@@ -476,7 +476,7 @@ impl Expr {
                 let mut res = SVal::Void;
                 let mut first = true;
                 for expr in exprs {
-                    let val = expr.exec(doc)?;
+                    let val = expr.exec(pid, doc)?;
                     if first {
                         res = val;
                         first = false;
@@ -490,7 +490,7 @@ impl Expr {
                 let mut res = SVal::Void;
                 let mut first = true;
                 for expr in exprs {
-                    let val = expr.exec(doc)?;
+                    let val = expr.exec(pid, doc)?;
                     if first {
                         res = val;
                         first = false;
@@ -504,7 +504,7 @@ impl Expr {
                 let mut res = SVal::Void;
                 let mut first = true;
                 for expr in exprs {
-                    let val = expr.exec(doc)?;
+                    let val = expr.exec(pid, doc)?;
                     if first {
                         res = val;
                         first = false;
@@ -518,7 +518,7 @@ impl Expr {
                 let mut res = SVal::Void;
                 let mut first = true;
                 for expr in exprs {
-                    let val = expr.exec(doc)?;
+                    let val = expr.exec(pid, doc)?;
                     if first {
                         res = val;
                         first = false;
@@ -532,7 +532,7 @@ impl Expr {
                 let mut res = SVal::Void;
                 let mut first = true;
                 for expr in exprs {
-                    let val = expr.exec(doc)?;
+                    let val = expr.exec(pid, doc)?;
                     if first {
                         res = val;
                         first = false;
@@ -546,7 +546,7 @@ impl Expr {
                 let mut res = SVal::Void;
                 let mut first = true;
                 for expr in exprs {
-                    let val = expr.exec(doc)?;
+                    let val = expr.exec(pid, doc)?;
                     if first {
                         res = val;
                         first = false;
@@ -560,7 +560,7 @@ impl Expr {
                 let mut res = SVal::Void;
                 let mut first = true;
                 for expr in exprs {
-                    let val = expr.exec(doc)?;
+                    let val = expr.exec(pid, doc)?;
                     if first {
                         res = val;
                         first = false;
@@ -571,33 +571,33 @@ impl Expr {
                 Ok(res)
             },
             Expr::Eq(lhs, rhs) => {
-                let lhs = lhs.exec(doc)?;
-                let rhs = rhs.exec(doc)?;
+                let lhs = lhs.exec(pid, doc)?;
+                let rhs = rhs.exec(pid, doc)?;
                 Ok(lhs.equal(&rhs, doc)?)
             },
             Expr::Neq(lhs, rhs) => {
-                let lhs = lhs.exec(doc)?;
-                let rhs = rhs.exec(doc)?;
+                let lhs = lhs.exec(pid, doc)?;
+                let rhs = rhs.exec(pid, doc)?;
                 Ok(lhs.neq(&rhs, doc)?)
             },
             Expr::Gte(lhs, rhs) => {
-                let lhs = lhs.exec(doc)?;
-                let rhs = rhs.exec(doc)?;
+                let lhs = lhs.exec(pid, doc)?;
+                let rhs = rhs.exec(pid, doc)?;
                 Ok(lhs.gte(&rhs, doc)?)
             },
             Expr::Lte(lhs, rhs) => {
-                let lhs = lhs.exec(doc)?;
-                let rhs = rhs.exec(doc)?;
+                let lhs = lhs.exec(pid, doc)?;
+                let rhs = rhs.exec(pid, doc)?;
                 Ok(lhs.lte(&rhs, doc)?)
             },
             Expr::Gt(lhs, rhs) => {
-                let lhs = lhs.exec(doc)?;
-                let rhs = rhs.exec(doc)?;
+                let lhs = lhs.exec(pid, doc)?;
+                let rhs = rhs.exec(pid, doc)?;
                 Ok(lhs.gt(&rhs, doc)?)
             },
             Expr::Lt(lhs, rhs) => {
-                let lhs = lhs.exec(doc)?;
-                let rhs = rhs.exec(doc)?;
+                let lhs = lhs.exec(pid, doc)?;
+                let rhs = rhs.exec(pid, doc)?;
                 Ok(lhs.lt(&rhs, doc)?)
             },
         }

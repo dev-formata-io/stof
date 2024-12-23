@@ -188,14 +188,14 @@ impl SFunc {
 
     /// Call this function with the given doc.
     /// Parameters get put onto the doc stack, and statements get executed.
-    pub fn call(&self, doc: &mut SDoc, mut parameters: Vec<SVal>, add_self: bool) -> Result<SVal> {
+    pub fn call(&self, pid: &str, doc: &mut SDoc, mut parameters: Vec<SVal>, add_self: bool) -> Result<SVal> {
         // Validate the number of parameters required to call this function
         if self.params.len() != parameters.len() {
             let mut index = parameters.len();
             while index < self.params.len() {
                 let param = &self.params[index];
                 if let Some(default) = &param.default {
-                    let value = default.exec(doc)?;
+                    let value = default.exec(pid, doc)?;
                     parameters.push(value);
                 } else {
                     break;
@@ -211,14 +211,14 @@ impl SFunc {
         if add_self {
             if let Some(data) = doc.graph.data_from_ref(&self.data_ref()) {
                 if let Some(nref) = data.nodes.last() {
-                    doc.self_stack.push(nref.clone());
+                    doc.push_self(pid, nref.clone());
                 } else {
                     // Data isn't in the graph, so add main as root
                     if doc.graph.roots.len() < 1 {
                         doc.graph.insert_root("root");
                     }
                     let main_ref = doc.graph.main_root().unwrap();
-                    doc.self_stack.push(main_ref);
+                    doc.push_self(pid, main_ref);
                 }
             } else {
                 // Data isn't in the graph, so add main as root
@@ -226,7 +226,7 @@ impl SFunc {
                     doc.graph.insert_root("root");
                 }
                 let main_ref = doc.graph.main_root().unwrap();
-                doc.self_stack.push(main_ref);
+                doc.push_self(pid, main_ref);
             }
         }
 
@@ -239,34 +239,34 @@ impl SFunc {
             let param = &self.params[i];
 
             if arg_type != param.ptype {
-                arg_val = arg_val.cast(param.ptype.clone(), doc)?;
+                arg_val = arg_val.cast(param.ptype.clone(), pid, doc)?;
                 arg_type = param.ptype.clone(); // for null, etc..
             }
 
             if arg_type == param.ptype {
                 let name = &param.name;
                 added.push(name.clone());
-                doc.add_variable(name, arg_val);
+                doc.add_variable(pid, name, arg_val);
             } else {
                 for name in added {
-                    doc.drop(&name);
+                    doc.drop(pid, &name);
                 }
                 return Err(anyhow!("Failed to match parameter types for function: {}", &self.name));
             }
         }
 
         // Execute all of the statements with this doc in a scope (block)
-        doc.table.new_scope();
-        self.statements.exec(doc)?;
-        doc.table.end_scope();
+        doc.new_scope(pid);
+        self.statements.exec(pid, doc)?;
+        doc.end_scope(pid);
 
         // Pop the self stack!
         if add_self {
-            doc.self_stack.pop();
+            doc.pop_self(pid);
         }
 
         // Validate the return/result of this function
-        let res = doc.pop();
+        let res = doc.pop(pid);
         if self.rtype.is_void() && res.is_none() {
             return Ok(SVal::Void);
         } else if res.is_some() {
@@ -275,7 +275,7 @@ impl SFunc {
 
             // Try casting result to our return type if needed
             if res_type != self.rtype {
-                if let Ok(new_res) = res.cast(self.rtype.clone(), doc) {
+                if let Ok(new_res) = res.cast(self.rtype.clone(), pid, doc) {
                     res = new_res;
                     res_type = self.rtype.clone();
                 }

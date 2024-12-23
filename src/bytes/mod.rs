@@ -73,12 +73,12 @@ impl Format for BYTES {
     }
 
     /// Header import.
-    fn header_import(&self, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<()> {
+    fn header_import(&self, pid: &str, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<()> {
         let mut graph = BYTES::parse(bytes);
         if as_name.len() > 0 && as_name != "root" {
             let mut path = as_name.replace(".", "/");
             if as_name.starts_with("self") || as_name.starts_with("super") {
-                if let Some(ptr) = doc.self_ptr() {
+                if let Some(ptr) = doc.self_ptr(pid) {
                     path = format!("{}/{}", ptr.path(&doc.graph), path);
                 }
             }
@@ -97,20 +97,20 @@ impl Format for BYTES {
     }
 
     /// String import.
-    fn string_import(&self, doc: &mut crate::SDoc, src: &str, as_name: &str) -> Result<()> {
+    fn string_import(&self, pid: &str, doc: &mut crate::SDoc, src: &str, as_name: &str) -> Result<()> {
         let mut bytes = Bytes::from(src.to_string());
-        self.header_import(doc, "bytes", &mut bytes, as_name)
+        self.header_import(pid, doc, "bytes", &mut bytes, as_name)
     }
 
     /// File import.
-    fn file_import(&self, doc: &mut crate::SDoc, format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
+    fn file_import(&self, pid: &str, doc: &mut crate::SDoc, format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
         let src = fs::read(full_path)?;
         let mut bytes = Bytes::from(src);
-        self.header_import(doc, format, &mut bytes, as_name)
+        self.header_import(pid, doc, format, &mut bytes, as_name)
     }
 
     /// Export bytes.
-    fn export_bytes(&self, doc: &SDoc, node: Option<&crate::SNodeRef>) -> Result<Bytes> {
+    fn export_bytes(&self, _pid: &str, doc: &SDoc, node: Option<&crate::SNodeRef>) -> Result<Bytes> {
         if node.is_some() {
             BYTES::node_to_bytes(&doc.graph, node)
         } else {
@@ -120,8 +120,8 @@ impl Format for BYTES {
 
     /// Export string.
     /// Tries exporting these bytes as a utf-8 string.
-    fn export_string(&self, doc: &SDoc, node: Option<&crate::SNodeRef>) -> Result<String> {
-        let bytes = self.export_bytes(doc, node)?;
+    fn export_string(&self, pid: &str, doc: &SDoc, node: Option<&crate::SNodeRef>) -> Result<String> {
+        let bytes = self.export_bytes(pid, doc, node)?;
         Ok(str::from_utf8(&bytes)?.to_string())
     }
 }
