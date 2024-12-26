@@ -14,7 +14,6 @@
 // limitations under the License.
 //
 
-use std::ops::DerefMut;
 use anyhow::{anyhow, Result};
 use crate::{SDoc, SFunc, Library, SVal};
 use super::Object;
@@ -36,17 +35,6 @@ impl Library for FunctionLibrary {
             match name {
                 "name" => {
                     match &parameters[0] {
-                        SVal::Ref(rf) => {
-                            let mut val = rf.write().unwrap();
-                            let v = val.deref_mut();
-                            match v {
-                                SVal::FnPtr(dref) => {
-                                    let func: SFunc = dref.data(&doc.graph).unwrap().get_value().unwrap();
-                                    return Ok(SVal::String(func.name));
-                                },
-                                _ => {}
-                            }
-                        },
                         SVal::FnPtr(dref) => {
                             let func: SFunc = dref.data(&doc.graph).unwrap().get_value().unwrap();
                             return Ok(SVal::String(func.name));
@@ -56,21 +44,6 @@ impl Library for FunctionLibrary {
                 },
                 "parameters" => {
                     match &parameters[0] {
-                        SVal::Ref(rf) => {
-                            let mut val = rf.write().unwrap();
-                            let v = val.deref_mut();
-                            match v {
-                                SVal::FnPtr(dref) => {
-                                    let func: SFunc = dref.data(&doc.graph).unwrap().get_value().unwrap();
-                                    let mut params = Vec::new();
-                                    for param in &func.params {
-                                        params.push(SVal::Tuple(vec![SVal::String(param.name.clone()), SVal::String(param.ptype.type_of())]));
-                                    }
-                                    return Ok(SVal::Array(params));
-                                },
-                                _ => {}
-                            }
-                        },
                         SVal::FnPtr(dref) => {
                             let func: SFunc = dref.data(&doc.graph).unwrap().get_value().unwrap();
                             let mut params = Vec::new();
@@ -84,17 +57,6 @@ impl Library for FunctionLibrary {
                 },
                 "returnType" => {
                     match &parameters[0] {
-                        SVal::Ref(rf) => {
-                            let mut val = rf.write().unwrap();
-                            let v = val.deref_mut();
-                            match v {
-                                SVal::FnPtr(dref) => {
-                                    let func: SFunc = dref.data(&doc.graph).unwrap().get_value().unwrap();
-                                    return Ok(SVal::String(func.rtype.type_of()));
-                                },
-                                _ => {}
-                            }
-                        },
                         SVal::FnPtr(dref) => {
                             let func: SFunc = dref.data(&doc.graph).unwrap().get_value().unwrap();
                             return Ok(SVal::String(func.rtype.type_of()));
@@ -104,19 +66,6 @@ impl Library for FunctionLibrary {
                 },
                 "object" => {
                     match &parameters[0] {
-                        SVal::Ref(rf) => {
-                            let mut val = rf.write().unwrap();
-                            let v = val.deref_mut();
-                            match v {
-                                SVal::FnPtr(dref) => {
-                                    let data = dref.data(&doc.graph).unwrap();
-                                    for node in &data.nodes {
-                                        return Ok(SVal::Object(node.clone()));
-                                    }
-                                },
-                                _ => {}
-                            }
-                        },
                         SVal::FnPtr(dref) => {
                             let data = dref.data(&doc.graph).unwrap();
                             for node in &data.nodes {
@@ -128,21 +77,6 @@ impl Library for FunctionLibrary {
                 },
                 "objects" => {
                     match &parameters[0] {
-                        SVal::Ref(rf) => {
-                            let mut val = rf.write().unwrap();
-                            let v = val.deref_mut();
-                            match v {
-                                SVal::FnPtr(dref) => {
-                                    let data = dref.data(&doc.graph).unwrap();
-                                    let mut objs = Vec::new();
-                                    for node in &data.nodes {
-                                        objs.push(SVal::Object(node.clone()));
-                                    }
-                                    return Ok(SVal::Array(objs));
-                                },
-                                _ => {}
-                            }
-                        },
                         SVal::FnPtr(dref) => {
                             let data = dref.data(&doc.graph).unwrap();
                             let mut objs = Vec::new();
@@ -162,17 +96,6 @@ impl Library for FunctionLibrary {
                         }
                     }
                     match &parameters[0] {
-                        SVal::Ref(rf) => {
-                            let mut val = rf.write().unwrap();
-                            let v = val.deref_mut();
-                            match v {
-                                SVal::FnPtr(dref) => {
-                                    let func: SFunc = dref.data(&doc.graph).unwrap().get_value().unwrap();
-                                    return func.call(pid, doc, values, true);
-                                },
-                                _ => {}
-                            }
-                        },
                         SVal::FnPtr(dref) => {
                             let func: SFunc = dref.data(&doc.graph).unwrap().get_value().unwrap();
                             return func.call(pid, doc, values, true);

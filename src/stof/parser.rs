@@ -1215,26 +1215,6 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                 }
             }
         },
-        Rule::ref_expr => {
-            for pair in pair.into_inner() {
-                match pair.as_rule() {
-                    Rule::expr => {
-                        res = Expr::Ref(Box::new(parse_expression(doc, env, pair)?));
-                    },
-                    _ => {}
-                }
-            }
-        },
-        Rule::deref_expr => {
-            for pair in pair.into_inner() {
-                match pair.as_rule() {
-                    Rule::expr => {
-                        res = Expr::DeRef(Box::new(parse_expression(doc, env, pair)?));
-                    },
-                    _ => {}
-                }
-            }
-        },
         Rule::math_expr => {
             res = parse_math_pairs(doc, env, pair.into_inner()).to_expr();
         },

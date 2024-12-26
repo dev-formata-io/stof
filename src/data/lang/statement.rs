@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::{collections::HashSet, ops::Deref, sync::Arc};
+use std::{collections::HashSet, sync::Arc};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
@@ -98,17 +98,6 @@ impl Statements {
                         let mut context_path = name.clone();
                         if let Some(symbol) = doc.get_symbol(pid, path.remove(0)) {
                             match symbol.var() {
-                                SVal::Ref(rf) => {
-                                    let refval = rf.read().unwrap();
-                                    let val = refval.deref();
-                                    match val {
-                                        SVal::Object(nref) => {
-                                            context = Some(nref.clone());
-                                            context_path = path.join(".");
-                                        },
-                                        _ => {}
-                                    }
-                                },
                                 SVal::Object(nref) => {
                                     context = Some(nref);
                                     context_path = path.join(".");
@@ -299,17 +288,6 @@ impl Statements {
                                     if let Some(symbol) = doc.get_symbol(pid, var) {
                                         let var = symbol.var();
                                         match var {
-                                            SVal::Ref(rf) => {
-                                                let refval = rf.read().unwrap();
-                                                let val = refval.deref();
-                                                match val {
-                                                    SVal::Object(nref) => {
-                                                        context_ptr = Some(nref.clone());
-                                                        context_path = path.join(".");
-                                                    },
-                                                    _ => {}
-                                                }
-                                            },
                                             SVal::Object(nref) => {
                                                 context_ptr = Some(nref);
                                                 context_path = path.join(".");
@@ -370,18 +348,6 @@ impl Statements {
                     if dest.len() > 0 {
                         let dest_val = Expr::Variable(dest.clone()).exec(pid, doc)?;
                         match dest_val {
-                            SVal::Ref(rf) => {
-                                let refval = rf.read().unwrap();
-                                let val = refval.deref();
-                                match val {
-                                    SVal::Object(node) => {
-                                        destination = node.clone();
-                                    },
-                                    _ => {
-                                        return Err(anyhow!("Cannot move into anything but an object (from ref)"));
-                                    }
-                                }
-                            },
                             SVal::Object(node) => {
                                 destination = node;
                             },
@@ -460,17 +426,6 @@ impl Statements {
                                 let var = path.remove(0);
                                 if let Some(symbol) = doc.get_symbol(pid, var) {
                                     match symbol.var() {
-                                        SVal::Ref(rf) => {
-                                            let refval = rf.read().unwrap();
-                                            let val = refval.deref();
-                                            match val {
-                                                SVal::Object(nref) => {
-                                                    context_ptr = Some(nref.clone());
-                                                    context_path = path.join(".");
-                                                },
-                                                _ => {}
-                                            }
-                                        },
                                         SVal::Object(nref) => {
                                             context_ptr = Some(nref);
                                             context_path = path.join(".");
@@ -547,16 +502,6 @@ impl Statements {
                         SVal::String(v) => {
                             new_name_val = v;
                         },
-                        SVal::Ref(rf) => {
-                            let refval = rf.read().unwrap();
-                            let val = refval.deref();
-                            match val {
-                                SVal::String(v) => {
-                                    new_name_val = v.clone();
-                                },
-                                _ => return Err(anyhow!("Cannot rename to a non-string value"))
-                            }
-                        },
                         _ => return Err(anyhow!("Cannot rename to a non-string value"))
                     }
 
@@ -597,17 +542,6 @@ impl Statements {
                                     let var = path.remove(0);
                                     if let Some(symbol) = doc.get_symbol(pid, var) {
                                         match symbol.var() {
-                                            SVal::Ref(rf) => {
-                                                let refval = rf.read().unwrap();
-                                                let val = refval.deref();
-                                                match val {
-                                                    SVal::Object(nref) => {
-                                                        context_ptr = Some(nref.clone());
-                                                        context_path = path.join(".");
-                                                    },
-                                                    _ => {}
-                                                }
-                                            },
                                             SVal::Object(nref) => {
                                                 context_ptr = Some(nref);
                                                 context_path = path.join(".");
@@ -898,17 +832,6 @@ impl Statements {
                         let mut context_path = name.clone();
                         if let Some(symbol) = doc.lock().await.get_symbol(pid, path.remove(0)) {
                             match symbol.var() {
-                                SVal::Ref(rf) => {
-                                    let refval = rf.read().unwrap();
-                                    let val = refval.deref();
-                                    match val {
-                                        SVal::Object(nref) => {
-                                            context = Some(nref.clone());
-                                            context_path = path.join(".");
-                                        },
-                                        _ => {}
-                                    }
-                                },
                                 SVal::Object(nref) => {
                                     context = Some(nref);
                                     context_path = path.join(".");

@@ -14,7 +14,6 @@
 // limitations under the License.
 //
 
-use std::ops::Deref;
 use toml::{Table, Value};
 use crate::{SField, SGraph, SNodeRef, SNum, SVal};
 
@@ -30,17 +29,7 @@ pub(crate) fn toml_value_from_node(graph: &SGraph, node_ref: &SNodeRef) -> Table
             }
         }
         if do_export {
-            let value;
             match field.value {
-                SVal::Ref(rf) => {
-                    let val = rf.read().unwrap();
-                    value = val.deref().clone();
-                },
-                _ => {
-                    value = field.value;
-                }
-            }
-            match value {
                 SVal::String(val) => map.insert(field.name, Value::String(val)),
                 SVal::Bool(val) => map.insert(field.name, Value::Boolean(val)),
                 SVal::Number(val) => {
@@ -73,17 +62,7 @@ pub(crate) fn toml_value_from_node(graph: &SGraph, node_ref: &SNodeRef) -> Table
 fn value_from_array(graph: &SGraph, vals: Vec<SVal>) -> Value {
     let mut results: Vec<Value> = Vec::new();
     for val in vals {
-        let value;
         match val {
-            SVal::Ref(rf) => {
-                let val = rf.read().unwrap();
-                value = val.deref().clone();
-            },
-            _ => {
-                value = val;
-            }
-        }
-        match value {
             SVal::String(val) => results.push(Value::String(val)),
             SVal::Bool(val) => results.push(Value::Boolean(val)),
             SVal::Number(val) => {

@@ -628,15 +628,6 @@ impl SDoc {
         }
     }
 
-    /// Has a symbol from the current scope or above.
-    pub(crate) fn has_symbol(&mut self, pid: &str, name: &str) -> bool {
-        if let Some(processes) = self.processes.get_mut(pid) {
-            processes.has_symbol(name)
-        } else {
-            false
-        }
-    }
-
     /// Push a value onto the stack.
     pub(crate) fn push<T>(&mut self, pid: &str, value: T) where T: Into<SVal> {
         if let Some(process) = self.processes.get_mut(pid) {

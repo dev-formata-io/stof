@@ -14,7 +14,6 @@
 // limitations under the License.
 //
 
-use std::ops::Deref;
 use serde_json::{Map, Number, Value};
 use crate::{SField, SGraph, SNodeRef, SNum, SVal};
 
@@ -30,18 +29,7 @@ pub(crate) fn json_value_from_node(graph: &SGraph, node_ref: &SNodeRef) -> Value
             }
         }
         if do_export {
-            let value;
             match field.value {
-                SVal::Ref(rf) => {
-                    let val = rf.read().unwrap();
-                    value = val.deref().clone();
-                },
-                _ => {
-                    value = field.value;
-                }
-            }
-            match value {
-                SVal::Ref(_) => map.insert(field.name, Value::Null), // handled above
                 SVal::Void => map.insert(field.name, Value::Null),
                 SVal::Null => map.insert(field.name, Value::Null),
                 SVal::String(val) => map.insert(field.name, Value::String(val)),
@@ -63,18 +51,7 @@ pub(crate) fn json_value_from_node(graph: &SGraph, node_ref: &SNodeRef) -> Value
 fn value_from_array(graph: &SGraph, vals: Vec<SVal>) -> Value {
     let mut results: Vec<Value> = Vec::new();
     for val in vals {
-        let value;
         match val {
-            SVal::Ref(rf) => {
-                let val = rf.read().unwrap();
-                value = val.deref().clone();
-            },
-            _ => {
-                value = val;
-            }
-        }
-        match value {
-            SVal::Ref(_) => results.push(Value::Null), // handled above
             SVal::Void => results.push(Value::Null),
             SVal::Null => results.push(Value::Null),
             SVal::String(val) => results.push(Value::String(val)),

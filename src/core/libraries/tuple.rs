@@ -14,7 +14,6 @@
 // limitations under the License.
 //
 
-use std::{ops::DerefMut, sync::{Arc, RwLock}};
 use anyhow::{anyhow, Result};
 use crate::{SDoc, Library, SNum, SVal};
 use super::Object;
@@ -39,16 +38,6 @@ impl Library for TupleLibrary {
                         if parameters.len() == 1 {
                             // Return the length of the tuple
                             match &parameters[0] {
-                                SVal::Ref(rf) => {
-                                    let mut val = rf.write().unwrap();
-                                    let v = val.deref_mut();
-                                    match v {
-                                        SVal::Tuple(vals) => {
-                                            return Ok(SVal::Number(SNum::I64(vals.len() as i64)));
-                                        },
-                                        _ => {}
-                                    }
-                                },
                                 SVal::Tuple(vals) => {
                                     return Ok(SVal::Number(SNum::I64(vals.len() as i64)));
                                 },
@@ -68,28 +57,9 @@ impl Library for TupleLibrary {
                                     _ => return Err(anyhow!("Cannot call at with anything but a number index"))
                                 }
                             }
-                            match &mut parameters[0] {
-                                SVal::Ref(rf) => {
-                                    let mut val = rf.write().unwrap();
-                                    let v = val.deref_mut();
-                                    match v {
-                                        SVal::Tuple(vals) => {
-                                            if let Some(val) = vals.get_mut(index) {
-                                                if !val.is_ref() {
-                                                    *val = SVal::Ref(Arc::new(RwLock::new(val.clone())));
-                                                }
-                                                return Ok(val.clone());
-                                            }
-                                            return Err(anyhow!("Index out of range"));
-                                        },
-                                        _ => {}
-                                    }
-                                },
+                            match &parameters[0] {
                                 SVal::Tuple(vals) => {
-                                    if let Some(val) = vals.get_mut(index) {
-                                        if !val.is_ref() {
-                                            *val = SVal::Ref(Arc::new(RwLock::new(val.clone())));
-                                        }
+                                    if let Some(val) = vals.get(index) {
                                         return Ok(val.clone());
                                     }
                                     return Err(anyhow!("Index out of range"));

@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::{collections::HashSet, ops::DerefMut};
+use std::collections::HashSet;
 use anyhow::{anyhow, Result};
 use crate::{Data, IntoDataRef, Library, SDoc, SField, SFunc, SType, SVal};
 
@@ -24,26 +24,6 @@ pub trait Object {
     /// Call into the Object library.
     fn object_call(pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
         if parameters.len() < 1 { return Err(anyhow!("Must provide an object parameter")); }
-
-        // Make sure the object lib works for all refs
-        match &parameters[0] {
-            SVal::Ref(rf) => {
-                let mut val = rf.write().unwrap();
-                let v = val.deref_mut();
-                match v {
-                    SVal::Object(nref) => {
-                        let mut params = vec![SVal::Object(nref.clone())];
-                        for i in 1..parameters.len() {
-                            params.push(parameters[i].clone());
-                        }
-                        return Self::object_call(pid, doc, name, &mut params);
-                    },
-                    _ => {}
-                }
-            },
-            _ => {}
-        }
-
         match name {
             "toString" => Self::to_string(doc, parameters),
             "len" => {

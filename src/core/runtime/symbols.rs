@@ -73,7 +73,9 @@ impl Symbol {
     pub fn set(&mut self, val: SVal) {
         match self {
             Symbol::Variable(var) => {
-                if var.is_ref() && !val.is_ref() {
+                *var = val;
+
+                /*if var.is_ref() && !val.is_ref() {
                     // Set the value for everyone since this is a ref!
                     match var {
                         SVal::Ref(rf) => {
@@ -83,7 +85,7 @@ impl Symbol {
                     }
                 } else {
                     *var = val;
-                }
+                }*/
             }
         }
     }

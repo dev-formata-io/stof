@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::{ops::Deref, sync::{Arc, RwLock}};
+use std::sync::Arc;
 use anyhow::{anyhow, Result};
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
@@ -35,9 +35,6 @@ pub enum Expr {
     /// Get a field from an ID ('.' separated path)
     /// Get a function from an ID ('.' separated path)
     Variable(String),
-
-    Ref(Box<Expr>),
-    DeRef(Box<Expr>),
 
     Cast(SType, Box<Expr>),
     TypeOf(Box<Expr>),
@@ -121,17 +118,6 @@ impl Expr {
                     if path.len() > 1 {
                         if let Some(symbol) = doc.get_symbol(pid, path.remove(0)) {
                             match symbol.var() {
-                                SVal::Ref(rf) => {
-                                    let refval = rf.read().unwrap();
-                                    let val = refval.deref();
-                                    match val {
-                                        SVal::Object(nref) => {
-                                            context = Some(nref.clone());
-                                            context_path = path.join(".");
-                                        },
-                                        _ => {}
-                                    }
-                                },
                                 SVal::Object(nref) => {
                                     context = Some(nref.clone());
                                     context_path = path.join(".");
@@ -169,35 +155,6 @@ impl Expr {
 
                 // Not able to find a variable for this symbol, so return null
                 Ok(SVal::Null)
-            },
-            Expr::Ref(expr) => {
-                let value = expr.exec(pid, doc)?;
-                match value {
-                    SVal::Ref(_) => Ok(value),
-                    _ => {
-                        let new_value = SVal::Ref(Arc::new(RwLock::new(value)));
-                        // Special case when expr is a variable symbol - need to set the variable too
-                        match expr.as_ref() {
-                            Expr::Variable(id) => {
-                                if doc.has_symbol(pid, &id) {
-                                    doc.set_variable(pid, &id, new_value.clone());
-                                }
-                            },
-                            _ => {}
-                        }
-                        Ok(new_value)
-                    }
-                }
-            },
-            Expr::DeRef(expr) => {
-                let value = expr.exec(pid, doc)?;
-                match value {
-                    SVal::Ref(rf) => {
-                        let clone = rf.read().unwrap().clone();
-                        Ok(clone)
-                    },
-                    _ => Ok(value)
-                }
             },
             Expr::Literal(val) => {
                 Ok(val.clone())
@@ -299,16 +256,7 @@ impl Expr {
             Expr::Call { scope, name, params } => {
                 // Scope can be a symbol, library name, or path to a field, object, or function
                 let variable = Self::Variable(scope.replace('/', "."));
-                let mut variable_value = variable.exec(pid, doc)?;
-
-                // Deref the variable if needed...
-                match variable_value {
-                    SVal::Ref(rf) => {
-                        let val = rf.read().unwrap();
-                        variable_value = val.deref().clone();
-                    },
-                    _ => {}
-                }
+                let variable_value = variable.exec(pid, doc)?;
 
                 let mut library_name = String::default();
                 if !variable_value.is_empty() {
@@ -568,32 +516,32 @@ impl Expr {
             Expr::Eq(lhs, rhs) => {
                 let lhs = lhs.exec(pid, doc)?;
                 let rhs = rhs.exec(pid, doc)?;
-                Ok(lhs.equal(&rhs, doc)?)
+                Ok(lhs.equal(&rhs)?)
             },
             Expr::Neq(lhs, rhs) => {
                 let lhs = lhs.exec(pid, doc)?;
                 let rhs = rhs.exec(pid, doc)?;
-                Ok(lhs.neq(&rhs, doc)?)
+                Ok(lhs.neq(&rhs)?)
             },
             Expr::Gte(lhs, rhs) => {
                 let lhs = lhs.exec(pid, doc)?;
                 let rhs = rhs.exec(pid, doc)?;
-                Ok(lhs.gte(&rhs, doc)?)
+                Ok(lhs.gte(&rhs)?)
             },
             Expr::Lte(lhs, rhs) => {
                 let lhs = lhs.exec(pid, doc)?;
                 let rhs = rhs.exec(pid, doc)?;
-                Ok(lhs.lte(&rhs, doc)?)
+                Ok(lhs.lte(&rhs)?)
             },
             Expr::Gt(lhs, rhs) => {
                 let lhs = lhs.exec(pid, doc)?;
                 let rhs = rhs.exec(pid, doc)?;
-                Ok(lhs.gt(&rhs, doc)?)
+                Ok(lhs.gt(&rhs)?)
             },
             Expr::Lt(lhs, rhs) => {
                 let lhs = lhs.exec(pid, doc)?;
                 let rhs = rhs.exec(pid, doc)?;
-                Ok(lhs.lt(&rhs, doc)?)
+                Ok(lhs.lt(&rhs)?)
             },
         }
     }
@@ -604,36 +552,6 @@ impl Expr {
             Expr::Variable(_) => {
                 let mut doc = doc.lock().await;
                 return self.exec(pid, &mut doc);
-            },
-            Expr::Ref(expr) => {
-                let value = Box::pin(expr.engine_exec(pid, doc)).await?;
-                match value {
-                    SVal::Ref(_) => Ok(value),
-                    _ => {
-                        let new_value = SVal::Ref(Arc::new(RwLock::new(value)));
-                        // Special case when expr is a variable symbol - need to set the variable too
-                        match expr.as_ref() {
-                            Expr::Variable(id) => {
-                                let mut doc = doc.lock().await;
-                                if doc.has_symbol(pid, &id) {
-                                    doc.set_variable(pid, &id, new_value.clone());
-                                }
-                            },
-                            _ => {}
-                        }
-                        Ok(new_value)
-                    }
-                }
-            },
-            Expr::DeRef(expr) => {
-                let value = Box::pin(expr.engine_exec(pid, doc)).await?;
-                match value {
-                    SVal::Ref(rf) => {
-                        let clone = rf.read().unwrap().clone();
-                        Ok(clone)
-                    },
-                    _ => Ok(value)
-                }
             },
             Expr::Literal(val) => {
                 Ok(val.clone())
@@ -744,16 +662,7 @@ impl Expr {
             Expr::Call { scope, name, params } => {
                 // Scope can be a symbol, library name, or path to a field, object, or function
                 let variable = Self::Variable(scope.replace('/', "."));
-                let mut variable_value = Box::pin(variable.engine_exec(pid, doc)).await?;
-
-                // Deref the variable if needed...
-                match variable_value {
-                    SVal::Ref(rf) => {
-                        let val = rf.read().unwrap();
-                        variable_value = val.deref().clone();
-                    },
-                    _ => {}
-                }
+                let variable_value = Box::pin(variable.engine_exec(pid, doc)).await?;
 
                 let mut library_name = String::default();
                 if !variable_value.is_empty() {
@@ -774,31 +683,31 @@ impl Expr {
                         },
                     };
                 }
-                let mut doc = doc.lock().await;
-                if let Some(lib) = doc.library(&library_name) {
-                    let stype = variable_value.stype(&doc.graph);
+                let lib = doc.lock().await.library(&library_name);
+                if let Some(lib) = lib {
+                    let stype = variable_value.stype(&doc.lock().await.graph);
 
                     // If the type is an object, try getting the function from that objects scope
                     match &variable_value {
                         SVal::Object(nref) => {
                             // Look for a function on the object itself first! Always higher priority than a prototype
-                            if let Some(func) = SFunc::func(&doc.graph, name, '.', Some(&nref)) {
+                            if let Some(func) = SFunc::func(&doc.lock().await.graph, name, '.', Some(&nref)) {
                                 let mut func_params = Vec::new();
                                 for expr in params {
-                                    let val = expr.exec(pid, &mut doc)?;
+                                    let val = Box::pin(expr.engine_exec(pid, doc)).await?;
                                     if !val.is_void() {
                                         func_params.push(val);
                                     }
                                 }
-                                let current_symbol_table = doc.new_table(pid);
-                                let res = func.call(pid, &mut doc, func_params, true)?;
-                                doc.set_table(pid, current_symbol_table);
+                                let current_symbol_table = doc.lock().await.new_table(pid);
+                                let res = Box::pin(func.engine_call(pid, doc.clone(), func_params, true)).await?;
+                                doc.lock().await.set_table(pid, current_symbol_table);
                                 return Ok(res);
                             }
 
                             // Look for a prototype on this object next
-                            if let Some(prototype_field) = SField::field(&doc.graph, "__prototype__", '.', Some(nref)) {
-                                if let Some(prototype) = doc.graph.node_ref(&prototype_field.to_string(), None) {
+                            if let Some(prototype_field) = SField::field(&doc.lock().await.graph, "__prototype__", '.', Some(nref)) {
+                                if let Some(prototype) = doc.lock().await.graph.node_ref(&prototype_field.to_string(), None) {
                                     // prototype is the exact type we are referencing... we need to check typestack here!
                                     let mut current = Some(prototype);
 
@@ -809,6 +718,7 @@ impl Expr {
 
                                         let scope_type = type_scope_resolution.pop().unwrap();
                                         let mut found = false;
+                                        let doc = doc.lock().await;
                                         while let Some(typename_field) = SField::field(&doc.graph, "typename", '.', current.as_ref()) {
                                             if typename_field.to_string() == scope_type {
                                                 found = true;
@@ -832,28 +742,30 @@ impl Expr {
                                     }
 
                                     while current.is_some() {
-                                        if let Some(func) = SFunc::func(&doc.graph, &func_name, '.', current.as_ref()) {
+                                        if let Some(func) = SFunc::func(&doc.lock().await.graph, &func_name, '.', current.as_ref()) {
                                             let mut func_params = Vec::new();
                                             for expr in params {
-                                                let val = expr.exec(pid, &mut doc)?;
+                                                let val = Box::pin(expr.engine_exec(pid, doc)).await?;
                                                 if !val.is_void() {
                                                     func_params.push(val);
                                                 }
                                             }
                                             let current_symbol_table;
                                             {
+                                                let mut doc = doc.lock().await;
                                                 current_symbol_table = doc.new_table(pid);
                                                 // Set self to the object still...
                                                 doc.push_self(pid, nref.clone());
                                             }
-                                            let res = func.call(pid, &mut doc, func_params, false)?;
+                                            let res = Box::pin(func.engine_call(pid, doc.clone(), func_params, false)).await?;
                                             {
+                                                let mut doc = doc.lock().await;
                                                 doc.pop_self(pid);
                                                 doc.set_table(pid, current_symbol_table);
                                             }
                                             return Ok(res);
                                         }
-                                        if let Some(node) = current.unwrap().node(&doc.graph) {
+                                        if let Some(node) = current.unwrap().node(&doc.lock().await.graph) {
                                             if let Some(parent_ref) = &node.parent {
                                                 current = Some(parent_ref.clone());
                                             } else {
@@ -871,15 +783,16 @@ impl Expr {
 
                     let mut func_params = vec![variable_value.clone()];
                     for expr in params {
-                        let val = expr.exec(pid, &mut doc)?;
+                        let val = Box::pin(expr.engine_exec(pid, doc)).await?;
                         if !val.is_void() {
                             func_params.push(val);
                         }
                     }
                     let current_symbol_table;
-                    {
-                        current_symbol_table = doc.new_table(pid);
-                    }
+
+                    let mut doc = doc.lock().await;
+                    
+                    current_symbol_table = doc.new_table(pid);
                     let res = lib.call(pid, &mut doc, name, &mut func_params)?;
                     
                     doc.set_table(pid, current_symbol_table);
@@ -895,27 +808,31 @@ impl Expr {
 
                 // If here, scope is not a field, func, object, or symbol
                 // Check to see if scope is a library itself before falling back to std lib
-                if let Some(lib) = doc.library(&scope) {
+                let lib = doc.lock().await.library(&scope);
+                if let Some(lib) = lib {
                     let mut func_params = Vec::new();
                     for expr in params {
-                        let val = expr.exec(pid, &mut doc)?;
+                        let val = Box::pin(expr.engine_exec(pid, doc)).await?;
                         if !val.is_void() {
                             func_params.push(val);
                         }
                     }
+                    let mut doc = doc.lock().await;
                     let current_symbol_table = doc.new_table(pid);
                     let res = lib.call(pid, &mut doc, name, &mut func_params)?;
 
                     doc.set_table(pid, current_symbol_table);
                     return Ok(res);
-                } else if let Some(lib) = doc.library("std") {
+                } else if let Some(lib) = doc.lock().await.library("std") {
                     let mut func_params = Vec::new();
                     for expr in params {
-                        let val = expr.exec(pid, &mut doc)?;
+                        let val = Box::pin(expr.engine_exec(pid, doc)).await?;
                         if !val.is_void() {
                             func_params.push(val);
                         }
                     }
+                    let mut doc = doc.lock().await;
+
                     let current_symbol_table = doc.new_table(pid);
                     let res = lib.call(pid, &mut doc, name, &mut func_params)?;
                     
@@ -1026,38 +943,32 @@ impl Expr {
             Expr::Eq(lhs, rhs) => {
                 let lhs = Box::pin(lhs.engine_exec(pid, doc)).await?;
                 let rhs = Box::pin(rhs.engine_exec(pid, doc)).await?;
-                let mut doc = doc.lock().await;
-                Ok(lhs.equal(&rhs, &mut doc)?)
+                Ok(lhs.equal(&rhs)?)
             },
             Expr::Neq(lhs, rhs) => {
                 let lhs = Box::pin(lhs.engine_exec(pid, doc)).await?;
                 let rhs = Box::pin(rhs.engine_exec(pid, doc)).await?;
-                let mut doc = doc.lock().await;
-                Ok(lhs.neq(&rhs, &mut doc)?)
+                Ok(lhs.neq(&rhs)?)
             },
             Expr::Gte(lhs, rhs) => {
                 let lhs = Box::pin(lhs.engine_exec(pid, doc)).await?;
                 let rhs = Box::pin(rhs.engine_exec(pid, doc)).await?;
-                let mut doc = doc.lock().await;
-                Ok(lhs.gte(&rhs, &mut doc)?)
+                Ok(lhs.gte(&rhs)?)
             },
             Expr::Lte(lhs, rhs) => {
                 let lhs = Box::pin(lhs.engine_exec(pid, doc)).await?;
                 let rhs = Box::pin(rhs.engine_exec(pid, doc)).await?;
-                let mut doc = doc.lock().await;
-                Ok(lhs.lte(&rhs, &mut doc)?)
+                Ok(lhs.lte(&rhs)?)
             },
             Expr::Gt(lhs, rhs) => {
                 let lhs = Box::pin(lhs.engine_exec(pid, doc)).await?;
                 let rhs = Box::pin(rhs.engine_exec(pid, doc)).await?;
-                let mut doc = doc.lock().await;
-                Ok(lhs.gt(&rhs, &mut doc)?)
+                Ok(lhs.gt(&rhs)?)
             },
             Expr::Lt(lhs, rhs) => {
                 let lhs = Box::pin(lhs.engine_exec(pid, doc)).await?;
                 let rhs = Box::pin(rhs.engine_exec(pid, doc)).await?;
-                let mut doc = doc.lock().await;
-                Ok(lhs.lt(&rhs, &mut doc)?)
+                Ok(lhs.lt(&rhs)?)
             },
         }
     }

@@ -342,7 +342,7 @@ impl Library for StdLibrary {
             },
             "assertEq" => {
                 if parameters.len() == 2 {
-                    let equals = parameters[0].equal(&parameters[1], doc);
+                    let equals = parameters[0].equal(&parameters[1]);
                     match equals {
                         Ok(val) => {
                             let truthy = val.truthy();
@@ -360,7 +360,7 @@ impl Library for StdLibrary {
             },
             "assertNeq" => {
                 if parameters.len() == 2 {
-                    let nequals = parameters[0].neq(&parameters[1], doc);
+                    let nequals = parameters[0].neq(&parameters[1]);
                     match nequals {
                         Ok(val) => {
                             let truthy = val.truthy();
