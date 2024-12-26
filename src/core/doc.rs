@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::{collections::HashSet, fs, sync::{Arc, RwLock}, time::SystemTime};
+use std::{collections::HashSet, fs, sync::Arc, time::SystemTime};
 use anyhow::{anyhow, Result};
 use bytes::Bytes;
 use colored::Colorize;
@@ -230,22 +230,22 @@ impl SDoc {
 
     /// Load the Stof standard library.
     fn load_std_lib(&mut self) {
-        self.load_lib(Arc::new(RwLock::new(StdLibrary::default())));
-        self.load_lib(Arc::new(RwLock::new(ObjectLibrary::default())));
-        self.load_lib(Arc::new(RwLock::new(ArrayLibrary::default())));
-        self.load_lib(Arc::new(RwLock::new(FunctionLibrary::default())));
-        self.load_lib(Arc::new(RwLock::new(NumberLibrary::default())));
-        self.load_lib(Arc::new(RwLock::new(StringLibrary::default())));
-        self.load_lib(Arc::new(RwLock::new(TupleLibrary::default())));
+        self.load_lib(Arc::new(StdLibrary::default()));
+        self.load_lib(Arc::new(ObjectLibrary::default()));
+        self.load_lib(Arc::new(ArrayLibrary::default()));
+        self.load_lib(Arc::new(FunctionLibrary::default()));
+        self.load_lib(Arc::new(NumberLibrary::default()));
+        self.load_lib(Arc::new(StringLibrary::default()));
+        self.load_lib(Arc::new(TupleLibrary::default()));
     }
     
     /// Load a library into this document.
-    pub fn load_lib(&mut self, library: Arc<RwLock<dyn Library>>) {
+    pub fn load_lib(&mut self, library: Arc<dyn Library>) {
         self.libraries.insert(library);
     }
 
     /// Get a library in this doc.
-    pub fn library(&mut self, lib: &str) -> Option<Arc<RwLock<dyn Library>>> {
+    pub fn library(&mut self, lib: &str) -> Option<Arc<dyn Library>> {
         if let Some(library) = self.libraries.get(lib) {
             return Some(library.clone());
         }

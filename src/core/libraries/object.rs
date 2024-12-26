@@ -436,7 +436,7 @@ impl Library for ObjectLibrary {
     fn scope(&self) -> String {
         "Object".into()
     }
-    fn call(&mut self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
         Self::object_call(pid, doc, name, parameters)
     }
 }

@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::{collections::{BTreeMap, HashSet}, sync::{Arc, RwLock}};
+use std::{collections::{BTreeMap, HashSet}, sync::Arc};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -25,22 +25,19 @@ use crate::{SType, SVal, SDoc};
 /// Stof Libraries.
 #[derive(Default, Clone)]
 pub struct SLibraries {
-    pub libraries: BTreeMap<String, Arc<RwLock<dyn Library>>>,
+    pub libraries: BTreeMap<String, Arc<dyn Library>>,
 }
 impl SLibraries {
     /// Insert a library.
-    pub fn insert(&mut self, library: Arc<RwLock<dyn Library>>) {
-        let mut scope = String::default();
-        if let Ok(lib) = library.read() {
-            scope = lib.scope();
-        }
+    pub fn insert(&mut self, library: Arc<dyn Library>) {
+        let scope = library.scope();
         if scope.len() > 0 {
             self.libraries.insert(scope, library);
         }
     }
 
     /// Get a library.
-    pub fn get(&self, scope: &str) -> Option<Arc<RwLock<dyn Library>>> {
+    pub fn get(&self, scope: &str) -> Option<Arc<dyn Library>> {
         self.libraries.get(scope).cloned()
     }
 
@@ -62,7 +59,7 @@ pub trait Library: Sync + Send {
     fn scope(&self) -> String;
 
     /// Call a library function with a set of parameters.
-    fn call(&mut self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal>;
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal>;
 
     /// Engine call into this library.
     async fn engine_call(&mut self, pid: &str, doc: Arc<Mutex<SDoc>>, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
@@ -82,7 +79,7 @@ impl Library for StdLibrary {
     }
 
     /// Call a standard library function.
-    fn call(&mut self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
         match name {
             "parse" => {
                 if parameters.len() > 0 {

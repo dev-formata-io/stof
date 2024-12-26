@@ -425,8 +425,7 @@ impl Expr {
                         }
                     }
                     let current_symbol_table = doc.new_table(pid);
-                    let mut library = lib.write().unwrap();
-                    let res = library.call(pid, doc, name, &mut func_params)?;
+                    let res = lib.call(pid, doc, name, &mut func_params)?;
                     doc.set_table(pid, current_symbol_table);
 
                     // Update the symbol with the mutated parameter if it's the right type
@@ -449,10 +448,7 @@ impl Expr {
                         }
                     }
                     let current_symbol_table = doc.new_table(pid);
-
-                    let mut library = lib.write().unwrap();
-                    let res = library.call(pid, doc, name, &mut func_params)?;
-
+                    let res = lib.call(pid, doc, name, &mut func_params)?;
                     doc.set_table(pid, current_symbol_table);
                     return Ok(res);
                 } else if let Some(lib) = doc.library("std") {
@@ -464,9 +460,7 @@ impl Expr {
                         }
                     }
                     let current_symbol_table = doc.new_table(pid);
-
-                    let mut library = lib.write().unwrap();
-                    let res = library.call(pid, doc, name, &mut func_params)?;
+                    let res = lib.call(pid, doc, name, &mut func_params)?;
                     
                     doc.set_table(pid, current_symbol_table);
                     return Ok(res);
@@ -886,8 +880,7 @@ impl Expr {
                     {
                         current_symbol_table = doc.new_table(pid);
                     }
-                    let mut library = lib.write().unwrap();
-                    let res = library.call(pid, &mut doc, name, &mut func_params)?;
+                    let res = lib.call(pid, &mut doc, name, &mut func_params)?;
                     
                     doc.set_table(pid, current_symbol_table);
 
@@ -911,9 +904,7 @@ impl Expr {
                         }
                     }
                     let current_symbol_table = doc.new_table(pid);
-
-                    let mut library = lib.write().unwrap();
-                    let res = library.call(pid, &mut doc, name, &mut func_params)?;
+                    let res = lib.call(pid, &mut doc, name, &mut func_params)?;
 
                     doc.set_table(pid, current_symbol_table);
                     return Ok(res);
@@ -926,9 +917,7 @@ impl Expr {
                         }
                     }
                     let current_symbol_table = doc.new_table(pid);
-
-                    let mut library = lib.write().unwrap();
-                    let res = library.call(pid, &mut doc, name, &mut func_params)?;
+                    let res = lib.call(pid, &mut doc, name, &mut func_params)?;
                     
                     doc.set_table(pid, current_symbol_table);
                     return Ok(res);

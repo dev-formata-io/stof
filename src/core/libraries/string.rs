@@ -30,7 +30,7 @@ impl Library for StringLibrary {
     }
     
     /// Call into the String library.
-    fn call(&mut self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
         if parameters.len() > 0 {
             let this = &parameters[0].cast(SType::String, pid, doc)?;
             match this {

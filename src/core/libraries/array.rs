@@ -31,7 +31,7 @@ impl Library for ArrayLibrary {
     }
     
     /// Call into the Array library.
-    fn call(&mut self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
         if parameters.len() > 0 {
             match name {
                 "push" => {
