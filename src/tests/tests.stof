@@ -40,6 +40,13 @@ import 'src/tests/functions/std.stof' as Functions.StdLib;
 
 
 /**
+ * Array Tests.
+ */
+import 'src/tests/arrays/iteration.stof' as Arrays.Iteration;
+import 'src/tests/arrays/lib.stof' as Arrays.StdLib;
+
+
+/**
  * Object Tests.
  */
 import 'src/tests/objects/paths.stof' as Objects.Paths;

@@ -15,7 +15,7 @@
 //
 
 use anyhow::{anyhow, Result};
-use crate::{SDoc, Library, SNum, SType, SVal};
+use crate::{Library, SData, SDoc, SFunc, SNum, SType, SVal};
 use super::object::Object;
 
 
@@ -77,6 +77,20 @@ impl Library for ArrayLibrary {
                     }
                 },
                 "reverse" => {
+                    // Reverses the array in place
+                    if parameters.len() == 1 {
+                        match &mut parameters[0] {
+                            SVal::Array(vals) => {
+                                vals.reverse();
+                                return Ok(SVal::Void);
+                            },
+                            _ => {}
+                        }
+                    }
+                    return Err(anyhow!("Array.reverse(array) requires one array parameter"));
+                },
+                "reversed" => {
+                    // Clones the array in reverse order
                     if parameters.len() == 1 {
                         match &parameters[0] {
                             SVal::Array(vals) => {
@@ -89,6 +103,7 @@ impl Library for ArrayLibrary {
                             _ => {}
                         }
                     }
+                    return Err(anyhow!("Array.reversed(array) requires one array parameter"));
                 },
                 "len" => {
                     if parameters.len() == 1 {
@@ -124,7 +139,6 @@ impl Library for ArrayLibrary {
                     }
                 },
                 "at" => {
-                    // If found, converts array val to a ref, then returns another ref to it
                     if parameters.len() == 2 {
                         let index;
                         {
@@ -294,7 +308,7 @@ impl Library for ArrayLibrary {
                             _ => return Err(anyhow!("Cannot find on anything but an array in this library"))
                         }
                     }
-                }
+                },
                 "insert" => {
                     if parameters.len() > 2 {
                         // Need at least 3 (array, index, ...to insert values)
@@ -314,6 +328,9 @@ impl Library for ArrayLibrary {
                         }
                         match &mut parameters[0] {
                             SVal::Array(vals) => {
+                                if index >= vals.len() {
+                                    return Err(anyhow!("Out of bounds error"));
+                                }
                                 for v in to_insert {
                                     vals.insert(index, v);
                                     index += 1;
@@ -323,7 +340,89 @@ impl Library for ArrayLibrary {
                             _ => return Err(anyhow!("Cannot insert anything in the Array library on non-array"))
                         }
                     }
-                }
+                },
+                "set" |
+                "replace" => {
+                    if parameters.len() > 2 {
+                        // Need at least 3 (array, index, ...to insert values)
+                        let mut index;
+                        {
+                            let index_val = parameters[1].clone();
+                            match index_val {
+                                SVal::Number(nval) => {
+                                    index = nval.int() as usize;
+                                },
+                                _ => return Err(anyhow!("Cannot call at with anything but a number index"))
+                            }
+                        }
+                        let mut to_insert = Vec::new();
+                        for i in 2..parameters.len() {
+                            to_insert.push(parameters[i].clone());
+                        }
+                        match &mut parameters[0] {
+                            SVal::Array(vals) => {
+                                if index >= vals.len() {
+                                    return Err(anyhow!("Out of bounds error"));
+                                }
+                                vals.remove(index);
+                                for v in to_insert {
+                                    vals.insert(index, v);
+                                    index += 1;
+                                }
+                                return Ok(SVal::Void);
+                            },
+                            _ => return Err(anyhow!("Cannot insert anything in the Array library on non-array"))
+                        }
+                    }
+                },
+                "iter" => {
+                    // Iterate through this array, calling the given function on each value
+                    if parameters.len() == 2 {
+                        match &parameters[1] {
+                            SVal::FnPtr(dref) => {
+                                if let Ok(func) = SData::data::<SFunc>(&doc.graph, dref) {
+                                    match &mut parameters[0] {
+                                        SVal::Array(vals) => {
+                                            for val in vals {
+                                                let res = func.call(pid, doc, vec![val.clone()], true)?;
+                                                if !res.is_empty() {
+                                                    *val = res;
+                                                }
+                                            }
+                                            return Ok(SVal::Void);
+                                        },
+                                        _ => {}
+                                    }
+                                }
+                            },
+                            _ => return Err(anyhow!("Array.iter(array, fn) requires a function parameter"))
+                        }
+                    }
+                    return Err(anyhow!("Array.iter(array, fn) requires an array and function parameters"))
+                },
+                "retain" => {
+                    // Iterate through this array, calling the given function on each value and retaining the value if the return is truthy
+                    if parameters.len() == 2 {
+                        match &parameters[1] {
+                            SVal::FnPtr(dref) => {
+                                if let Ok(func) = SData::data::<SFunc>(&doc.graph, dref) {
+                                    match &mut parameters[0] {
+                                        SVal::Array(vals) => {
+                                            vals.retain(|val| -> bool {
+                                                let res = func.call(pid, doc, vec![val.clone()], true).unwrap_or(SVal::Null);
+                                                res.truthy()
+                                            });
+                                            return Ok(SVal::Void);
+                                        },
+                                        _ => {}
+                                    }
+                                }
+                            },
+                            _ => return Err(anyhow!("Array.retain(array, fn) requires a function parameter"))
+                        }
+                    }
+                    return Err(anyhow!("Array.retain(array, fn) requires an array and function parameters"))
+                },
                 _ => {}
             }
         }
