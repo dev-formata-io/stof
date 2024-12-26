@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::{collections::{BTreeMap, HashSet}, sync::{Arc, RwLock}};
+use std::{collections::{BTreeMap, HashSet}, sync::Arc};
 use anyhow::{anyhow, Result};
 use bytes::Bytes;
 use crate::{SType, SVal, SDoc};
@@ -23,22 +23,19 @@ use crate::{SType, SVal, SDoc};
 /// Stof Libraries.
 #[derive(Default, Clone)]
 pub struct SLibraries {
-    pub libraries: BTreeMap<String, Arc<RwLock<dyn Library>>>,
+    pub libraries: BTreeMap<String, Arc<dyn Library>>,
 }
 impl SLibraries {
     /// Insert a library.
-    pub fn insert(&mut self, library: Arc<RwLock<dyn Library>>) {
-        let mut scope = String::default();
-        if let Ok(lib) = library.read() {
-            scope = lib.scope();
-        }
+    pub fn insert(&mut self, library: Arc<dyn Library>) {
+        let scope = library.scope();
         if scope.len() > 0 {
             self.libraries.insert(scope, library);
         }
     }
 
     /// Get a library.
-    pub fn get(&self, scope: &str) -> Option<Arc<RwLock<dyn Library>>> {
+    pub fn get(&self, scope: &str) -> Option<Arc<dyn Library>> {
         self.libraries.get(scope).cloned()
     }
 
@@ -59,7 +56,7 @@ pub trait Library: Sync + Send {
     fn scope(&self) -> String;
 
     /// Call a library function with a set of parameters.
-    fn call(&mut self, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal>;
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal>;
 }
 
 
@@ -73,7 +70,7 @@ impl Library for StdLibrary {
     }
 
     /// Call a standard library function.
-    fn call(&mut self, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
         match name {
             "parse" => {
                 if parameters.len() > 0 {
@@ -82,7 +79,7 @@ impl Library for StdLibrary {
                         format = parameters[1].to_string();
                     }
                     let mut as_name = "root".to_string();
-                    if let Some(self_ptr) = doc.self_ptr() {
+                    if let Some(self_ptr) = doc.self_ptr(pid) {
                         as_name = self_ptr.path(&doc.graph); // Absolute path to current location
                     }
                     if parameters.len() > 2 {
@@ -97,12 +94,12 @@ impl Library for StdLibrary {
                     }
                     match &parameters[0] {
                         SVal::String(src) => {
-                            doc.string_import(&format, &src, &as_name)?;
+                            doc.string_import(pid, &format, &src, &as_name)?;
                             return Ok(SVal::Bool(true));
                         },
                         SVal::Blob(bytes) => {
                             let mut bytes = Bytes::from(bytes.clone());
-                            doc.header_import(&format, &format, &mut bytes, &as_name)?;
+                            doc.header_import(pid, &format, &format, &mut bytes, &as_name)?;
                             return Ok(SVal::Bool(true));
                         },
                         _ => {}
@@ -118,7 +115,7 @@ impl Library for StdLibrary {
                     }
                     match &parameters[0] {
                         SVal::Object(nref) => {
-                            let res = doc.export_bytes(&format, Some(nref))?;
+                            let res = doc.export_bytes(pid, &format, Some(nref))?;
                             return Ok(SVal::Blob(res.to_vec()));
                         },
                         _ => {}
@@ -140,9 +137,9 @@ impl Library for StdLibrary {
                         SVal::Object(nref) => {
                             let res;
                             if min {
-                                res = doc.export_min_string(&format, Some(nref))?;
+                                res = doc.export_min_string(pid, &format, Some(nref))?;
                             } else {
-                                res = doc.export_string(&format, Some(nref))?;
+                                res = doc.export_string(pid, &format, Some(nref))?;
                             }
                             return Ok(SVal::String(res));
                         },
@@ -183,7 +180,7 @@ impl Library for StdLibrary {
                     let param = &parameters[i];
                     let print = param.print(doc);
                     
-                    match param.stype() {
+                    match param.stype(&doc.graph) {
                         SType::String => {
                             // Don't do any gaps for strings!
                             res.push_str(&format!("{}", print));
@@ -206,7 +203,7 @@ impl Library for StdLibrary {
                     let param = &parameters[i];
                     let print = param.debug(doc);
                     
-                    match param.stype() {
+                    match param.stype(&doc.graph) {
                         SType::String => {
                             // Don't do any gaps for strings!
                             res.push_str(&format!("{}", print));
@@ -230,7 +227,7 @@ impl Library for StdLibrary {
                     let param = &parameters[i];
                     let print = param.print(doc);
                     
-                    match param.stype() {
+                    match param.stype(&doc.graph) {
                         SType::String => {
                             // Don't do any gaps for strings!
                             res.push_str(&format!("{}", print));
@@ -253,7 +250,7 @@ impl Library for StdLibrary {
                     let param = &parameters[i];
                     let print = param.print(doc);
                     
-                    match param.stype() {
+                    match param.stype(&doc.graph) {
                         SType::String => {
                             // Don't do any gaps for strings!
                             res.push_str(&format!("{}", print));
@@ -336,7 +333,7 @@ impl Library for StdLibrary {
             },
             "assertEq" => {
                 if parameters.len() == 2 {
-                    let equals = parameters[0].equal(&parameters[1], doc);
+                    let equals = parameters[0].equal(&parameters[1]);
                     match equals {
                         Ok(val) => {
                             let truthy = val.truthy();
@@ -354,7 +351,7 @@ impl Library for StdLibrary {
             },
             "assertNeq" => {
                 if parameters.len() == 2 {
-                    let nequals = parameters[0].neq(&parameters[1], doc);
+                    let nequals = parameters[0].neq(&parameters[1]);
                     match nequals {
                         Ok(val) => {
                             let truthy = val.truthy();

@@ -55,6 +55,7 @@ import 'src/tests/fields/attributes.stof' as Fields.Attributes;
  * Dec Types Tests.
  */
 import 'src/tests/types/geometry.stof' as Types.Geometry;
+import 'src/tests/types/casting.stof' as Objects.Casting;
 
 
 /**

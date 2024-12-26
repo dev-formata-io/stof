@@ -76,8 +76,8 @@ impl SField {
 
     /// Schema equals?
     /// Requires that the name and value types be the same.
-    pub fn schema_eq(&self, other: &Self) -> bool {
-        self.name == other.name && self.value.schema_eq(&other.value)
+    pub fn schema_eq(&self, other: &Self, graph: &SGraph) -> bool {
+        self.name == other.name && self.value.schema_eq(&other.value, graph)
     }
 
     /// Is null field?

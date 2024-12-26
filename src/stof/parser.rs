@@ -165,7 +165,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                 if import_path.len() > 0 {
                     let compiled_path = format!("{}{}{}{}", &format, &import_path, &import_ext, &as_name);
                     if !env.compiled_path(&compiled_path) { // Don't import the same thing more than once!
-                        doc.file_import(&format, &import_path, &import_ext, &as_name)?;
+                        doc.file_import(&env.pid, &format, &import_path, &import_ext, &as_name)?;
                         env.add_compiled_path(&compiled_path);
                     }
                 }
@@ -190,7 +190,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                     func.attach(&scope, &mut doc.graph);
 
                                     // Call the decorator function with the func as the parameter
-                                    if let Ok(res_val) = decorator.call(doc, vec![SVal::FnPtr(func.data_ref())], true) {
+                                    if let Ok(res_val) = decorator.call(&env.pid, doc, vec![SVal::FnPtr(func.data_ref())], true) {
                                         match res_val {
                                             SVal::FnPtr(res_ref) => {
                                                 if let Ok(mut res_func) = SData::data::<SFunc>(&doc.graph, res_ref) {
@@ -294,7 +294,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                     },
                                     Rule::expr => {
                                         let value_expr = parse_expression(doc, env, pair)?;
-                                        let result = value_expr.exec(doc);
+                                        let result = value_expr.exec(&env.pid, doc);
                                         match result {
                                             Ok(sval) => {
                                                 value = sval;
@@ -379,7 +379,7 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
                                 },
                                 Rule::expr => {
                                     let value_expr = parse_expression(doc, env, pair)?;
-                                    let result = value_expr.exec(doc);
+                                    let result = value_expr.exec(&env.pid, doc);
                                     match result {
                                         Ok(sval) => {
                                             value = sval;
@@ -422,7 +422,7 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
                                 },
                                 Rule::expr => {
                                     let value_expr = parse_expression(doc, env, pair)?;
-                                    let result = value_expr.exec(doc);
+                                    let result = value_expr.exec(&env.pid, doc);
                                     match result {
                                         Ok(sval) => {
                                             value = sval;
@@ -520,51 +520,18 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                 field_value = SVal::Object(env.scope(doc));
                 object_declaration = true;
 
+                // Now keep parsing statements in this object
+                parse_statements(doc, env, pair.into_inner())?;
+
                 // Cast this expression to another type (if possible)!
                 if field_type.len() > 0 {
                     let stype = SType::from(field_type);
                     if stype.is_object() && field_type != "obj" && field_type != "root" {
-                        let scope = env.scope(doc);
-
-                        let mut type_path: Vec<&str> = field_type.split('.').collect();
-                        let custom_type_name = type_path.pop().unwrap();
-
-                        // Find a scope to use other than our own?
-                        let mut type_scope = env.scope(doc);
-                        if type_path.len() > 0 {
-                            let path = type_path.join("/");
-                            if path.starts_with("self") || path.starts_with("super") {
-                                if let Some(nref) = doc.graph.node_ref(&path, Some(&type_scope)) {
-                                    type_scope = nref;
-                                } else {
-                                    return Err(anyhow!("Cannot find referenced type scope for constructing an object"));
-                                }
-                            } else {
-                                if let Some(nref) = doc.graph.node_ref(&path, None) {
-                                    type_scope = nref;
-                                } else {
-                                    return Err(anyhow!("Cannot find referenced type scope for constructing an object"));
-                                }
-                            }
-                        }
-
-                        if let Some(custom_type) = doc.types.find(&doc.graph, custom_type_name, &type_scope) {
-                            if custom_type.is_private() && !scope.is_child_of(&doc.graph, &type_scope) {
-                                // Custom type is private and the current scope is not equal or a child of the type's scope
-                                return Err(anyhow!("Cannot cast object to private type: {}", field_type));
-                            }
-                            let prototype_location = custom_type.path(&doc.graph);
-                            SField::new_string(&mut doc.graph, "__prototype__", &prototype_location, &scope);
-                        } else {
-                            return Err(anyhow!("Cannot cast object to type: {}", field_type));
-                        }
+                        field_value = field_value.cast(stype, &env.pid, doc)?;
                     } else if !stype.is_object() {
                         return Err(anyhow!("Cannot cast an object to a non-object type"));
                     }
                 }
-
-                // Now keep parsing statements in this object
-                parse_statements(doc, env, pair.into_inner())?;
 
                 // Pop the scope
                 env.pop_scope(doc);
@@ -585,52 +552,12 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
             Rule::expr => {
                 let mut expr = parse_expression(doc, env, pair)?;
 
-                // Cast expr if needed!
                 if field_type.len() > 0 {
                     let stype = SType::from(field_type);
-                    if stype.is_object() && field_type != "obj" && field_type != "root" {
-                        let mut type_path: Vec<&str> = field_type.split('.').collect();
-                        let custom_type_name = type_path.pop().unwrap();
-
-                        // Find a scope to use other than our own?
-                        let mut type_scope = env.scope(doc);
-                        if type_path.len() > 0 {
-                            let path = type_path.join("/");
-                            if path.starts_with("self") || path.starts_with("super") {
-                                if let Some(nref) = doc.graph.node_ref(&path, Some(&type_scope)) {
-                                    type_scope = nref;
-                                } else {
-                                    return Err(anyhow!("Cannot find referenced type scope for constructing an object"));
-                                }
-                            } else {
-                                if let Some(nref) = doc.graph.node_ref(&path, None) {
-                                    type_scope = nref;
-                                } else {
-                                    return Err(anyhow!("Cannot find referenced type scope for constructing an object"));
-                                }
-                            }
-                        }
-
-                        // Try assigning the prototype of this object since its not a value type
-                        if let Some(custom_type) = doc.types.find(&doc.graph, custom_type_name, &type_scope) {
-                            if custom_type.is_private() && !env.scope(doc).is_child_of(&doc.graph, &type_scope) {
-                                // Custom type is private and the current scope is not equal or a child of the type's scope
-                                return Err(anyhow!("Cannot cast expr to private object type: {}", field_type));
-                            }
-                            let mut block_statements = Vec::new();
-                            block_statements.push(Statement::Declare("tmp".into(), expr));
-                            block_statements.push(Statement::Assign("tmp.__prototype__".into(), Expr::Literal(SVal::String(custom_type.path(&doc.graph)))));
-                            block_statements.push(Statement::Return(Expr::Variable("tmp".into())));
-                            expr = Expr::Block(Statements::from(block_statements));
-                        } else {
-                            return Err(anyhow!("Cannot cast expr to object type: {}", field_type));
-                        }
-                    } else {
-                        expr = Expr::Cast(stype, Box::new(expr));
-                    }
+                    expr = Expr::Cast(stype, Box::new(expr));
                 }
 
-                let result = expr.exec(doc);
+                let result = expr.exec(&env.pid, doc);
                 match result {
                     Ok(sval) => {
                         field_value = sval;
@@ -666,7 +593,7 @@ fn parse_function(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result
                         },
                         Rule::expr => {
                             let value_expr = parse_expression(doc, env, pair)?;
-                            let result = value_expr.exec(doc);
+                            let result = value_expr.exec(&env.pid, doc);
                             match result {
                                 Ok(sval) => {
                                     value = sval;
@@ -785,46 +712,7 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                             // Cast this expression to another type (if possible and required)!
                             if atype_str.len() > 0 {
                                 let stype = SType::from(atype_str.as_str());
-                                if stype.is_object() && atype_str != "obj" {
-                                    let mut type_path: Vec<&str> = atype_str.split('.').collect();
-                                    let custom_type_name = type_path.pop().unwrap();
-
-                                    // Find a scope to use other than our own?
-                                    let mut type_scope = env.scope(doc);
-                                    if type_path.len() > 0 {
-                                        let path = type_path.join("/");
-                                        if path.starts_with("self") || path.starts_with("super") {
-                                            if let Some(nref) = doc.graph.node_ref(&path, Some(&type_scope)) {
-                                                type_scope = nref;
-                                            } else {
-                                                return Err(anyhow!("Cannot find referenced type scope for iterating with an object value"));
-                                            }
-                                        } else {
-                                            if let Some(nref) = doc.graph.node_ref(&path, None) {
-                                                type_scope = nref;
-                                            } else {
-                                                return Err(anyhow!("Cannot find referenced type scope for iterating with an object value"));
-                                            }
-                                        }
-                                    }
-
-                                    // Try assigning the prototype of this object since its not a value type
-                                    if let Some(custom_type) = doc.types.find(&doc.graph, custom_type_name, &type_scope) {
-                                        if custom_type.is_private() && !env.scope(doc).is_child_of(&doc.graph, &type_scope) {
-                                            // Custom type is private and the current scope is not equal or a child of the type's scope
-                                            return Err(anyhow!("Cannot cast object expr to private type for object value iteration: {}", atype_str));
-                                        }
-                                        let mut block_statements = Vec::new();
-                                        block_statements.push(Statement::Declare("tmp".into(), Expr::DeRef(Box::new(dec_expr))));
-                                        block_statements.push(Statement::Assign("tmp.__prototype__".into(), Expr::Literal(SVal::String(custom_type.path(&doc.graph)))));
-                                        block_statements.push(Statement::Return(Expr::Variable("tmp".into())));
-                                        dec_expr = Expr::Block(Statements::from(block_statements));
-                                    } else {
-                                        return Err(anyhow!("Cannot cast object expr to type: {} for object value iteration", atype_str));
-                                    }
-                                } else {
-                                    dec_expr = Expr::Cast(stype, Box::new(dec_expr));
-                                }
+                                dec_expr = Expr::Cast(stype, Box::new(dec_expr));
                             }
 
                             let var_name = pair.as_str().to_owned();
@@ -1064,14 +952,12 @@ fn parse_declare(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<
     let mut ident = String::default();
     let mut expr = Expr::Literal("".into());
     let mut atype = SType::Void;
-    let mut atype_str = String::default();
     for pair in pair.into_inner() {
         match pair.as_rule() {
             Rule::ident => {
                 ident = pair.as_str().to_owned();
             },
             Rule::atype => {
-                atype_str = pair.as_str().to_owned();
                 atype = SType::from(pair.as_str());
             },
             Rule::expr => {
@@ -1086,46 +972,7 @@ fn parse_declare(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<
         if !atype.is_void() {
             // Assigned a variable with a type... so future assignments must cast to this type
             env.assign_type_stack.last_mut().unwrap().insert(ident.clone(), atype.clone());
-            if atype.is_object() && atype_str != "obj" {
-                let mut type_path: Vec<&str> = atype_str.split('.').collect();
-                let custom_type_name = type_path.pop().unwrap();
-
-                // Find a scope to use other than our own?
-                let mut type_scope = env.scope(doc);
-                if type_path.len() > 0 {
-                    let path = type_path.join("/");
-                    if path.starts_with("self") || path.starts_with("super") {
-                        if let Some(nref) = doc.graph.node_ref(&path, Some(&type_scope)) {
-                            type_scope = nref;
-                        } else {
-                            return Err(anyhow!("Cannot find referenced type scope for constructing an object"));
-                        }
-                    } else {
-                        if let Some(nref) = doc.graph.node_ref(&path, None) {
-                            type_scope = nref;
-                        } else {
-                            return Err(anyhow!("Cannot find referenced type scope for constructing an object"));
-                        }
-                    }
-                }
-
-                // Try assigning the prototype of this object since its not a value type
-                if let Some(custom_type) = doc.types.find(&doc.graph, custom_type_name, &type_scope) {
-                    if custom_type.is_private() && !env.scope(doc).is_child_of(&doc.graph, &type_scope) {
-                        // Custom type is private and the current scope is not equal or a child of the type's scope
-                        return Err(anyhow!("Cannot cast object declaration to private type: {}", atype_str));
-                    }
-                    let mut block_statements = Vec::new();
-                    block_statements.push(Statement::Declare("tmp".into(), expr));
-                    block_statements.push(Statement::Assign("tmp.__prototype__".into(), Expr::Literal(SVal::String(custom_type.path(&doc.graph)))));
-                    block_statements.push(Statement::Return(Expr::Variable("tmp".into())));
-                    expr = Expr::Block(Statements::from(block_statements));
-                } else {
-                    return Err(anyhow!("Cannot cast object declaration to type: {}", atype_str));
-                }
-            } else {
-                expr = Expr::Cast(atype, Box::new(expr));
-            }
+            expr = Expr::Cast(atype, Box::new(expr));
         }
         return Ok(Statement::Declare(ident, expr));
     }
@@ -1295,48 +1142,8 @@ fn parse_expression(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
         match pair.as_rule() {
             Rule::atype => {
                 // Cast this expression to another type (if possible)!
-                let pair_str = pair.as_str();
-                let stype = SType::from(pair_str);
-                if stype.is_object() && pair_str != "obj" {
-                    let mut type_path: Vec<&str> = pair_str.split('.').collect();
-                    let custom_type_name = type_path.pop().unwrap();
-
-                    // Find a scope to use other than our own?
-                    let mut type_scope = env.scope(doc);
-                    if type_path.len() > 0 {
-                        let path = type_path.join("/");
-                        if path.starts_with("self") || path.starts_with("super") {
-                            if let Some(nref) = doc.graph.node_ref(&path, Some(&type_scope)) {
-                                type_scope = nref;
-                            } else {
-                                return Err(anyhow!("Cannot find referenced type scope for constructing an object"));
-                            }
-                        } else {
-                            if let Some(nref) = doc.graph.node_ref(&path, None) {
-                                type_scope = nref;
-                            } else {
-                                return Err(anyhow!("Cannot find referenced type scope for constructing an object"));
-                            }
-                        }
-                    }
-
-                    // Try assigning the prototype of this object since its not a value type
-                    if let Some(custom_type) = doc.types.find(&doc.graph, custom_type_name, &type_scope) {
-                        if custom_type.is_private() && !env.scope(doc).is_child_of(&doc.graph, &type_scope) {
-                            // Custom type is private and the current scope is not equal or a child of the type's scope
-                            return Err(anyhow!("Cannot cast object expr to private type: {}", pair_str));
-                        }
-                        let mut block_statements = Vec::new();
-                        block_statements.push(Statement::Declare("tmp".into(), res));
-                        block_statements.push(Statement::Assign("tmp.__prototype__".into(), Expr::Literal(SVal::String(custom_type.path(&doc.graph)))));
-                        block_statements.push(Statement::Return(Expr::Variable("tmp".into())));
-                        res = Expr::Block(Statements::from(block_statements));
-                    } else {
-                        return Err(anyhow!("Cannot cast object expr to type: {}", pair_str));
-                    }
-                } else {
-                    res = Expr::Cast(stype, Box::new(res));
-                }
+                let stype = SType::from(pair.as_str());
+                res = Expr::Cast(stype, Box::new(res));
             },
             Rule::if_expr => { // Ternary expression
                 let mut set_first = false;
@@ -1403,26 +1210,6 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                 match pair.as_rule() {
                     Rule::expr => {
                         res = Expr::Not(Box::new(parse_expression(doc, env, pair)?));
-                    },
-                    _ => {}
-                }
-            }
-        },
-        Rule::ref_expr => {
-            for pair in pair.into_inner() {
-                match pair.as_rule() {
-                    Rule::expr => {
-                        res = Expr::Ref(Box::new(parse_expression(doc, env, pair)?));
-                    },
-                    _ => {}
-                }
-            }
-        },
-        Rule::deref_expr => {
-            for pair in pair.into_inner() {
-                match pair.as_rule() {
-                    Rule::expr => {
-                        res = Expr::DeRef(Box::new(parse_expression(doc, env, pair)?));
                     },
                     _ => {}
                 }
@@ -1836,7 +1623,8 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         let custom_type_name = type_path.pop().unwrap();
 
                         // Find a scope to use other than our own?
-                        let mut type_scope = env.scope(doc);
+                        let scope = env.scope(doc);
+                        let mut type_scope = scope.clone();
                         if type_path.len() > 0 {
                             let path = type_path.join("/");
                             if path.starts_with("self") || path.starts_with("super") {
@@ -1855,7 +1643,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         }
 
                         if let Some(custom_type) = doc.types.find(&doc.graph, custom_type_name, &type_scope) {
-                            if custom_type.is_private() && !env.scope(doc).is_child_of(&doc.graph, &type_scope) {
+                            if custom_type.is_private() && !scope.is_child_of(&doc.graph, &type_scope) {
                                 // Custom type is private and the current scope is not equal or a child of the type's scope
                                 return Err(anyhow!("Cannot cast object expr to private type: {}", pair.as_str()));
                             }

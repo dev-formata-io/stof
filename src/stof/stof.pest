@@ -116,7 +116,7 @@ div_assign =  { ident ~ "/=" ~ expr }
 rem_assign =  { ident ~ "%=" ~ expr }
 
 // Expressions
-expr              = { (stof_type_constructor | arrow_function | not_expr | type_name_expr | type_of_expr | ref_expr | deref_expr | if_expr | math_expr | expr_call | tuple_expr | range_expr | array_expr | chain_index | index_expr | chain_call | call | block | fmt_expr | literal | wrapped_expr) ~ ("as" ~ atype)? }
+expr              = { (stof_type_constructor | arrow_function | not_expr | type_name_expr | type_of_expr | if_expr | math_expr | expr_call | tuple_expr | range_expr | array_expr | chain_index | index_expr | chain_call | call | block | fmt_expr | literal | wrapped_expr) ~ ("as" ~ atype)? }
 call              = { ident ~ "(" ~ call_params? ~ ")" }
 call_params       = { expr ~ ("," ~ expr)* }
 expr_call         = { ( arrow_function | tuple_expr | range_expr | array_expr | chain_index | index_expr | fmt_expr | literal | wrapped_expr) ~ "." ~ call }
@@ -130,8 +130,6 @@ chain_index       = { ident ~ chain_index_inner ~ chain_index_inner+ }
 chain_index_inner = { "[" ~ expr ~ ("," ~ expr)* ~ "]" }
 type_of_expr      = { "typeof" ~ expr }
 type_name_expr    = { "typename" ~ expr }
-ref_expr          = { "ref" ~ expr }
-deref_expr        = { "deref" ~ expr }
 not_expr          = { "!" ~ expr }
 if_expr           = { (chain_call | expr_call | not_expr | math_expr | chain_index | index_expr | call | block | fmt_expr | literal | wrapped_expr) ~ "?" ~ expr ~ ":" ~ expr }
 
@@ -151,7 +149,7 @@ stof_type_field_create = { (string | ident) ~ ":" ~ expr }
 math_expr   =  { math_atom ~ (math_op ~ math_atom)+ }
 unary_minus =  { "-" }
 bang        =  { "!" }
-primary     = _{ expr_call | chain_call | not_expr | type_name_expr | type_of_expr | ref_expr | deref_expr | tuple_expr | range_expr | array_expr | chain_index | index_expr | call | block | fmt_expr | literal | wrapped_expr | "(" ~ math_expr ~ ")" }
+primary     = _{ expr_call | chain_call | not_expr | type_name_expr | type_of_expr | tuple_expr | range_expr | array_expr | chain_index | index_expr | call | block | fmt_expr | literal | wrapped_expr | "(" ~ math_expr ~ ")" }
 math_atom   = _{ unary_minus? ~ primary }
 math_op     = _{ and | or | add | sub | mul | div | rem | eq | neq | gte | lte | gt | lt }
 and         =  { "&&" }

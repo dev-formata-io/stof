@@ -25,6 +25,9 @@ pub struct StofEnv {
     /// The "root" node we are parsing Stof source into.
     pub main: SNodeRef,
 
+    /// Process ID in which we are compiling.
+    pub pid: String,
+
     /// Paths that have been parsed already.
     pub compiled_paths: HashSet<String>,
 
@@ -41,7 +44,7 @@ pub struct StofEnv {
 }
 impl StofEnv {
     /// Construct a new Stof env from a document.
-    pub fn new(doc: &mut SDoc) -> Self {
+    pub fn new(pid: &str, doc: &mut SDoc) -> Self {
         let main;
         if doc.graph.roots.len() < 1 {
             main = doc.graph.insert_root("root");
@@ -50,6 +53,7 @@ impl StofEnv {
         }
         Self {
             main,
+            pid: pid.to_owned(),
             compiled_paths: Default::default(),
             assign_type_stack: vec![Default::default()],
             init_funcs: Default::default(),
@@ -58,11 +62,12 @@ impl StofEnv {
     }
 
     /// Construct a new Stof env from a document and main node.
-    pub fn new_at_node(doc: &mut SDoc, node: impl IntoNodeRef) -> Option<Self> {
+    pub fn new_at_node(pid: &str, doc: &mut SDoc, node: impl IntoNodeRef) -> Option<Self> {
         let nref = node.node_ref();
         if nref.exists(&doc.graph) {
             return Some(Self {
                 main: nref,
+                pid: pid.to_owned(),
                 init_funcs: Default::default(),
                 assign_type_stack: vec![Default::default()],
                 compiled_paths: Default::default(),
@@ -106,13 +111,13 @@ impl StofEnv {
 
     /// Before parse.
     pub fn before_parse(&mut self, doc: &mut SDoc) {
-        doc.self_stack.push(self.main.clone());
+        doc.push_self(&self.pid, self.main.clone());
     }
 
     /// After parse.
     pub fn after_parse(&mut self, doc: &mut SDoc) {
         self.call_init_functions(doc);
-        doc.clean();
+        doc.clean(&self.pid);
     }
 
     /// Already compiled this file?
@@ -127,7 +132,7 @@ impl StofEnv {
 
     /// Current scope.
     pub fn scope(&self, doc: &SDoc) -> SNodeRef {
-        if let Some(nref) = doc.self_ptr() {
+        if let Some(nref) = doc.self_ptr(&self.pid) {
             nref
         } else {
             self.main.clone()
@@ -144,20 +149,20 @@ impl StofEnv {
 
     /// Push scope ref.
     pub fn push_scope_ref(&mut self, doc: &mut SDoc, nref: SNodeRef) {
-        doc.self_stack.push(nref);
+        doc.push_self(&self.pid, nref);
         self.assign_type_stack.push(HashMap::default());
     }
 
     /// Pop scope.
     pub fn pop_scope(&mut self, doc: &mut SDoc) {
-        doc.self_stack.pop();
+        doc.pop_self(&self.pid);
         self.assign_type_stack.pop();
     }
 
     /// Call init functions with the document.
     pub fn call_init_functions(&self, doc: &mut SDoc) {
         for (func, params) in &self.init_funcs {
-            func.call(doc, params.clone(), true).expect(&format!("Failed to call init function: {:?}", func));
+            func.call(&self.pid, doc, params.clone(), true).expect(&format!("Failed to call init function: {:?}", func));
         }
     }
 }

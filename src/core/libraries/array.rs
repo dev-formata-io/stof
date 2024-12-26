@@ -14,7 +14,6 @@
 // limitations under the License.
 //
 
-use std::{ops::DerefMut, sync::{Arc, RwLock}};
 use anyhow::{anyhow, Result};
 use crate::{SDoc, Library, SNum, SType, SVal};
 use super::object::Object;
@@ -31,7 +30,7 @@ impl Library for ArrayLibrary {
     }
     
     /// Call into the Array library.
-    fn call(&mut self, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
         if parameters.len() > 0 {
             match name {
                 "push" => {
@@ -60,7 +59,7 @@ impl Library for ArrayLibrary {
                                 _ => unreachable!()
                             }
                         } else {
-                            let ival = self.call(doc, "find", parameters)?;
+                            let ival = self.call(pid, doc, "find", parameters)?;
                             match ival {
                                 SVal::Number(nval) => {
                                     index = nval.int() as usize;
@@ -70,16 +69,6 @@ impl Library for ArrayLibrary {
                         }
 
                         match &mut parameters[0] {
-                            SVal::Ref(rf) => {
-                                let mut val = rf.write().unwrap();
-                                let v = val.deref_mut();
-                                match v {
-                                    SVal::Array(vals) => {
-                                        return Ok(vals.remove(index));
-                                    },
-                                    _ => {}
-                                }
-                            },
                             SVal::Array(vals) => {
                                 return Ok(vals.remove(index));
                             },
@@ -90,17 +79,6 @@ impl Library for ArrayLibrary {
                 "reverse" => {
                     if parameters.len() == 1 {
                         match &parameters[0] {
-                            SVal::Ref(rf) => {
-                                let mut val = rf.write().unwrap();
-                                let v = val.deref_mut();
-                                match v {
-                                    SVal::Array(vals) => {
-                                        vals.reverse();
-                                        return Ok(SVal::Ref(rf.clone()));
-                                    },
-                                    _ => {}
-                                }
-                            },
                             SVal::Array(vals) => {
                                 let mut new_vals = Vec::new();
                                 for i in (0..vals.len()).rev() {
@@ -116,16 +94,6 @@ impl Library for ArrayLibrary {
                     if parameters.len() == 1 {
                         // Return the length of the array
                         match &parameters[0] {
-                            SVal::Ref(rf) => {
-                                let mut val = rf.write().unwrap();
-                                let v = val.deref_mut();
-                                match v {
-                                    SVal::Array(vals) => {
-                                        return Ok(SVal::Number(SNum::I64(vals.len() as i64)));
-                                    },
-                                    _ => {}
-                                }
-                            },
                             SVal::Array(vals) => {
                                 return Ok(SVal::Number(SNum::I64(vals.len() as i64)));
                             },
@@ -137,16 +105,6 @@ impl Library for ArrayLibrary {
                     if parameters.len() == 1 {
                         // Return the length of the array
                         match &parameters[0] {
-                            SVal::Ref(rf) => {
-                                let mut val = rf.write().unwrap();
-                                let v = val.deref_mut();
-                                match v {
-                                    SVal::Array(vals) => {
-                                        return Ok(SVal::Bool(vals.len() < 1));
-                                    },
-                                    _ => {}
-                                }
-                            },
                             SVal::Array(vals) => {
                                 return Ok(SVal::Bool(vals.len() < 1));
                             },
@@ -158,16 +116,6 @@ impl Library for ArrayLibrary {
                     if parameters.len() == 1 {
                         // Return the length of the array
                         match &parameters[0] {
-                            SVal::Ref(rf) => {
-                                let mut val = rf.write().unwrap();
-                                let v = val.deref_mut();
-                                match v {
-                                    SVal::Array(vals) => {
-                                        return Ok(SVal::Bool(vals.len() > 0));
-                                    },
-                                    _ => {}
-                                }
-                            },
                             SVal::Array(vals) => {
                                 return Ok(SVal::Bool(vals.len() > 0));
                             },
@@ -182,44 +130,15 @@ impl Library for ArrayLibrary {
                         {
                             let index_val = parameters[1].clone();
                             match index_val {
-                                SVal::Ref(rf) => {
-                                    let mut val = rf.write().unwrap();
-                                    let v = val.deref_mut();
-                                    match v {
-                                        SVal::Number(nval) => {
-                                            index = nval.int() as usize;
-                                        },
-                                        _ => return Err(anyhow!("Cannot call at with anything but a number index"))
-                                    }
-                                },
                                 SVal::Number(nval) => {
                                     index = nval.int() as usize;
                                 },
                                 _ => return Err(anyhow!("Cannot call at with anything but a number index"))
                             }
                         }
-                        match &mut parameters[0] {
-                            SVal::Ref(rf) => {
-                                let mut val = rf.write().unwrap();
-                                let v = val.deref_mut();
-                                match v {
-                                    SVal::Array(vals) => {
-                                        if let Some(val) = vals.get_mut(index) {
-                                            if !val.is_ref() {
-                                                *val = SVal::Ref(Arc::new(RwLock::new(val.clone())));
-                                            }
-                                            return Ok(val.clone());
-                                        }
-                                        return Err(anyhow!("Index out of range"));
-                                    },
-                                    _ => {}
-                                }
-                            },
+                        match &parameters[0] {
                             SVal::Array(vals) => {
-                                if let Some(val) = vals.get_mut(index) {
-                                    if !val.is_ref() {
-                                        *val = SVal::Ref(Arc::new(RwLock::new(val.clone())));
-                                    }
+                                if let Some(val) = vals.get(index) {
                                     return Ok(val.clone());
                                 }
                                 return Err(anyhow!("Index out of range"));
@@ -230,28 +149,9 @@ impl Library for ArrayLibrary {
                 },
                 "first" => {
                     if parameters.len() == 1 {
-                        match &mut parameters[0] {
-                            SVal::Ref(rf) => {
-                                let mut val = rf.write().unwrap();
-                                let v = val.deref_mut();
-                                match v {
-                                    SVal::Array(vals) => {
-                                        if let Some(val) = vals.first_mut() {
-                                            if !val.is_ref() {
-                                                *val = SVal::Ref(Arc::new(RwLock::new(val.clone())));
-                                            }
-                                            return Ok(val.clone());
-                                        }
-                                        return Ok(SVal::Null);
-                                    },
-                                    _ => {}
-                                }
-                            },
+                        match &parameters[0] {
                             SVal::Array(vals) => {
-                                if let Some(val) = vals.first_mut() {
-                                    if !val.is_ref() {
-                                        *val = SVal::Ref(Arc::new(RwLock::new(val.clone())));
-                                    }
+                                if let Some(val) = vals.first() {
                                     return Ok(val.clone());
                                 }
                                 return Ok(SVal::Null);
@@ -262,28 +162,9 @@ impl Library for ArrayLibrary {
                 },
                 "last" => {
                     if parameters.len() == 1 {
-                        match &mut parameters[0] {
-                            SVal::Ref(rf) => {
-                                let mut val = rf.write().unwrap();
-                                let v = val.deref_mut();
-                                match v {
-                                    SVal::Array(vals) => {
-                                        if let Some(val) = vals.last_mut() {
-                                            if !val.is_ref() {
-                                                *val = SVal::Ref(Arc::new(RwLock::new(val.clone())));
-                                            }
-                                            return Ok(val.clone());
-                                        }
-                                        return Ok(SVal::Null);
-                                    },
-                                    _ => {}
-                                }
-                            },
+                        match &parameters[0] {
                             SVal::Array(vals) => {
-                                if let Some(val) = vals.last_mut() {
-                                    if !val.is_ref() {
-                                        *val = SVal::Ref(Arc::new(RwLock::new(val.clone())));
-                                    }
+                                if let Some(val) = vals.last() {
                                     return Ok(val.clone());
                                 }
                                 return Ok(SVal::Null);
@@ -294,32 +175,14 @@ impl Library for ArrayLibrary {
                 },
                 "join" => {
                     if parameters.len() == 2 {
-                        let separator = parameters[1].cast(SType::String, doc)?;
+                        let separator = parameters[1].cast(SType::String, pid, doc)?;
                         match separator {
                             SVal::String(separator) => {
                                 match &mut parameters[0] {
-                                    SVal::Ref(rf) => {
-                                        let mut val = rf.write().unwrap();
-                                        let v = val.deref_mut();
-                                        match v {
-                                            SVal::Array(vals) => {
-                                                let mut str_vals = Vec::new();
-                                                for v in vals {
-                                                    let str_val = v.cast(SType::String, doc)?;
-                                                    match str_val {
-                                                        SVal::String(str_val) => str_vals.push(str_val),
-                                                        _ => {}
-                                                    }
-                                                }
-                                                return Ok(SVal::String(str_vals.join(&separator)));
-                                            },
-                                            _ => {}
-                                        }
-                                    },
                                     SVal::Array(vals) => {
                                         let mut str_vals = Vec::new();
                                         for v in vals {
-                                            let str_val = v.cast(SType::String, doc)?;
+                                            let str_val = v.cast(SType::String, pid, doc)?;
                                             match str_val {
                                                 SVal::String(str_val) => str_vals.push(str_val),
                                                 _ => {}
@@ -339,30 +202,9 @@ impl Library for ArrayLibrary {
                     if parameters.len() == 2 {
                         let find_val = parameters[1].clone();
                         match &mut parameters[0] {
-                            SVal::Ref(rf) => {
-                                let mut val = rf.write().unwrap();
-                                let v = val.deref_mut();
-                                match v {
-                                    SVal::Array(vals) => {
-                                        for i in 0..vals.len() {
-                                            let res = vals[i].equal(&find_val, doc);
-                                            match res {
-                                                Ok(val) => {
-                                                    if val.truthy() {
-                                                        return Ok(SVal::Bool(true));
-                                                    }
-                                                },
-                                                _ => {}
-                                            }
-                                        }
-                                        return Ok(SVal::Bool(false));
-                                    },
-                                    _ => {}
-                                }
-                            },
                             SVal::Array(vals) => {
                                 for i in 0..vals.len() {
-                                    let res = vals[i].equal(&find_val, doc);
+                                    let res = vals[i].equal(&find_val);
                                     match res {
                                         Ok(val) => {
                                             if val.truthy() {
@@ -382,30 +224,9 @@ impl Library for ArrayLibrary {
                     if parameters.len() == 2 {
                         let find_val = parameters[1].clone();
                         match &mut parameters[0] {
-                            SVal::Ref(rf) => {
-                                let mut val = rf.write().unwrap();
-                                let v = val.deref_mut();
-                                match v {
-                                    SVal::Array(vals) => {
-                                        for i in 0..vals.len() {
-                                            let res = vals[i].equal(&find_val, doc);
-                                            match res {
-                                                Ok(val) => {
-                                                    if val.truthy() {
-                                                        return Ok(SVal::Number(SNum::I64(i as i64)));
-                                                    }
-                                                },
-                                                _ => {}
-                                            }
-                                        }
-                                        return Ok(SVal::Number(SNum::I64(-1 as i64)));
-                                    },
-                                    _ => {}
-                                }
-                            },
                             SVal::Array(vals) => {
                                 for i in 0..vals.len() {
-                                    let res = vals[i].equal(&find_val, doc);
+                                    let res = vals[i].equal(&find_val);
                                     match res {
                                         Ok(val) => {
                                             if val.truthy() {
@@ -424,7 +245,7 @@ impl Library for ArrayLibrary {
                 "remove" => {
                     if parameters.len() == 2 {
                         let index;
-                        let ival = self.call(doc, "find", parameters);
+                        let ival = self.call(pid, doc, "find", parameters);
                         if ival.is_err() {
                             return Ok(SVal::Null); // nothing removed...
                         }
@@ -440,16 +261,6 @@ impl Library for ArrayLibrary {
                         }
 
                         match &mut parameters[0] {
-                            SVal::Ref(rf) => {
-                                let mut val = rf.write().unwrap();
-                                let v = val.deref_mut();
-                                match v {
-                                    SVal::Array(vals) => {
-                                        return Ok(vals.remove(index));
-                                    },
-                                    _ => {}
-                                }
-                            },
                             SVal::Array(vals) => {
                                 return Ok(vals.remove(index));
                             },
@@ -461,36 +272,10 @@ impl Library for ArrayLibrary {
                     if parameters.len() == 2 {
                         let find_val = parameters[1].clone();
                         match &mut parameters[0] {
-                            SVal::Ref(rf) => {
-                                let mut val = rf.write().unwrap();
-                                let v = val.deref_mut();
-                                match v {
-                                    SVal::Array(vals) => {
-                                        let mut to_remove = Vec::new();
-                                        for i in 0..vals.len() {
-                                            let res = vals[i].equal(&find_val, doc);
-                                            match res {
-                                                Ok(val) => {
-                                                    if val.truthy() {
-                                                        to_remove.push(i);
-                                                    }
-                                                },
-                                                _ => {}
-                                            }
-                                        }
-                                        to_remove.reverse();
-                                        for index in &to_remove {
-                                            vals.remove(*index);
-                                        }
-                                        return Ok(SVal::Bool(to_remove.len() > 0));
-                                    },
-                                    _ => {}
-                                }
-                            },
                             SVal::Array(vals) => {
                                 let mut to_remove = Vec::new();
                                 for i in 0..vals.len() {
-                                    let res = vals[i].equal(&find_val, doc);
+                                    let res = vals[i].equal(&find_val);
                                     match res {
                                         Ok(val) => {
                                             if val.truthy() {
@@ -517,16 +302,6 @@ impl Library for ArrayLibrary {
                         {
                             let index_val = parameters[1].clone();
                             match index_val {
-                                SVal::Ref(rf) => {
-                                    let mut val = rf.write().unwrap();
-                                    let v = val.deref_mut();
-                                    match v {
-                                        SVal::Number(nval) => {
-                                            index = nval.int() as usize;
-                                        },
-                                        _ => return Err(anyhow!("Cannot call at with anything but a number index"))
-                                    }
-                                },
                                 SVal::Number(nval) => {
                                     index = nval.int() as usize;
                                 },
@@ -538,20 +313,6 @@ impl Library for ArrayLibrary {
                             to_insert.push(parameters[i].clone());
                         }
                         match &mut parameters[0] {
-                            SVal::Ref(rf) => {
-                                let mut val = rf.write().unwrap();
-                                let v = val.deref_mut();
-                                match v {
-                                    SVal::Array(vals) => {
-                                        for v in to_insert {
-                                            vals.insert(index, v);
-                                            index += 1;
-                                        }
-                                        return Ok(SVal::Void);
-                                    },
-                                    _ => {}
-                                }
-                            },
                             SVal::Array(vals) => {
                                 for v in to_insert {
                                     vals.insert(index, v);
@@ -568,7 +329,7 @@ impl Library for ArrayLibrary {
         }
 
         // try object scope
-        if let Ok(val) = Self::object_call(doc, name, parameters) {
+        if let Ok(val) = Self::object_call(pid, doc, name, parameters) {
             return Ok(val);
         }
         Err(anyhow!("Failed to find an Array library method."))
@@ -580,16 +341,6 @@ impl ArrayLibrary {
     ///
     fn push(array: &mut SVal, values: Vec<SVal>) {
         match array {
-            SVal::Ref(rf) => {
-                let mut val = rf.write().unwrap();
-                let v = val.deref_mut();
-                match v {
-                    SVal::Array(vals) => {
-                        for v in values { vals.push(v); }
-                    },
-                    _ => {}
-                }
-            },
             SVal::Array(vals) => {
                 for v in values { vals.push(v); }
             },
@@ -603,19 +354,6 @@ impl ArrayLibrary {
     ///
     fn pop(array: &mut SVal) -> Result<SVal> {
         match array {
-            SVal::Ref(rf) => {
-                let mut val = rf.write().unwrap();
-                let v = val.deref_mut();
-                match v {
-                    SVal::Array(vals) => {
-                        if let Some(val) = vals.pop() {
-                            return Ok(val);
-                        }
-                        return Ok(SVal::Null);
-                    },
-                    _ => {}
-                }
-            },
             SVal::Array(vals) => {
                 if let Some(val) = vals.pop() {
                     return Ok(val);

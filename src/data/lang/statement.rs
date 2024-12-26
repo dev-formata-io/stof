@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::{collections::HashSet, ops::Deref};
+use std::collections::HashSet;
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use crate::{Data, SDoc, SField, SVal, SFunc};
@@ -46,17 +46,17 @@ impl Statements {
     }
 
     /// Execute these statements with the given doc.
-    pub fn exec(&self, doc: &mut SDoc) -> Result<StatementsRes> {
+    pub fn exec(&self, pid: &str, doc: &mut SDoc) -> Result<StatementsRes> {
         for statement in &self.statements {
             match statement {
                 Statement::Declare(name, rhs) => {
                     // Check to see if the symbol already exists in the current scope
-                    if let Some(_) = doc.table.current().get(&name) {
+                    if doc.has_var_with_name_in_current(pid, name) {
                         return Err(anyhow!("Attempting to declare a variable that already exists in the same scope: {}", &name));
                     }
 
                     // Eval rhs, which is the value of the new variable
-                    let val = rhs.exec(doc)?;
+                    let val = rhs.exec(pid, doc)?;
                     if val.is_void() {
                         return Err(anyhow!("Cannot declare void variable"));
                     }
@@ -65,26 +65,26 @@ impl Statements {
                     if name.contains('.') {
                         return Err(anyhow!("Cannot declare variables that are paths. If you're setting fields, drop the 'let' keyword."));
                     } else {
-                        doc.add_variable(&name, val);
+                        doc.add_variable(pid, &name, val);
                     }
                 },
                 Statement::Assign(name, rhs) => {
                     // Eval rhs, which is the value of the variable!
-                    let val = rhs.exec(doc)?;
+                    let val = rhs.exec(pid, doc)?;
                     if val.is_void() {
                         return Err(anyhow!("Cannot assign void"));
                     }
 
                     // Try setting a variable in the symbol table
                     let mut set_var = false;
-                    if doc.set_variable(&name, val.clone()) {
+                    if doc.set_variable(pid, &name, val.clone()) {
                         set_var = true;
                     }
 
                     if !set_var && name.contains('.') && !name.ends_with('.') && !name.starts_with('.') {
                         // Try assigning via an absolute path to a field first
                         if let Some(mut field) = SField::field(&doc.graph, &name, '.', None) {
-                            if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr().as_ref()) {
+                            if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr(pid).as_ref()) {
                                 field.value = val;
                                 field.set(&mut doc.graph);
                             }
@@ -95,19 +95,8 @@ impl Statements {
                         let mut path = name.split('.').collect::<Vec<&str>>();
                         let mut context = None;
                         let mut context_path = name.clone();
-                        if let Some(symbol) = doc.get_symbol(path.remove(0)) {
+                        if let Some(symbol) = doc.get_symbol(pid, path.remove(0)) {
                             match symbol.var() {
-                                SVal::Ref(rf) => {
-                                    let refval = rf.read().unwrap();
-                                    let val = refval.deref();
-                                    match val {
-                                        SVal::Object(nref) => {
-                                            context = Some(nref.clone());
-                                            context_path = path.join(".");
-                                        },
-                                        _ => {}
-                                    }
-                                },
                                 SVal::Object(nref) => {
                                     context = Some(nref);
                                     context_path = path.join(".");
@@ -117,7 +106,7 @@ impl Statements {
                         }
                         // If no variable matches, try setting self scope
                         else if name.starts_with("self") || name.starts_with("super") {
-                            context = doc.self_ptr();
+                            context = doc.self_ptr(pid);
                         }
 
                         if let Some(mut context) = context {
@@ -125,7 +114,7 @@ impl Statements {
 
                             // Already defined field?
                             if let Some(mut field) = SField::field(&doc.graph, &context_path, '.', Some(&context)) {
-                                if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr().as_ref()) {
+                                if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr(pid).as_ref()) {
                                     field.value = val.clone();
                                     field.set(&mut doc.graph);
                                     set = true;
@@ -133,7 +122,7 @@ impl Statements {
                             }
                             // Creating a new field
                             else {
-                                if doc.perms.can_write_scope(&doc.graph, &context, doc.self_ptr().as_ref()) {
+                                if doc.perms.can_write_scope(&doc.graph, &context, doc.self_ptr(pid).as_ref()) {
                                     let mut new_field_path = context_path.split('.').collect::<Vec<&str>>();
 
                                     let field_name = new_field_path.pop().unwrap();
@@ -171,7 +160,7 @@ impl Statements {
                                         }
 
                                         let statements = Statements::from(statements_vec);
-                                        statements.exec(doc)?;
+                                        statements.exec(pid, doc)?;
                                     },
                                     SVal::Array(vals) => {
                                         let mut statement_vec = Vec::new();
@@ -193,7 +182,7 @@ impl Statements {
 
                                         if statement_vec.len() > 0 {
                                             let statements = Statements::from(statement_vec);
-                                            statements.exec(doc)?;
+                                            statements.exec(pid, doc)?;
                                         }
                                     },
                                     _ => {}
@@ -205,7 +194,7 @@ impl Statements {
                             let backup_name = obj_path.pop().unwrap();
                             if obj_path.len() > 0 {
                                 let nref = doc.graph.ensure_nodes(&obj_path.join("/"), '/', true, None);
-                                if doc.perms.can_write_scope(&doc.graph, &nref, doc.self_ptr().as_ref()) {
+                                if doc.perms.can_write_scope(&doc.graph, &nref, doc.self_ptr(pid).as_ref()) {
                                     let mut field = SField::new(backup_name, val);
                                     field.attach(&nref, &mut doc.graph); // attach new field to self
                                 }
@@ -230,20 +219,20 @@ impl Statements {
                 Statement::Drop(name) => {
                     // Try dropping a variable in the symbol table by name
                     let mut dropped_var = false;
-                    if let Some(symbol) = doc.drop(&name) {
+                    if let Some(symbol) = doc.drop(pid, &name) {
                         let dropped_val = symbol.var();
                         match &dropped_val {
                             SVal::Object(nref) => {
-                                if !doc.perms.can_write_scope(&doc.graph, &nref, doc.self_ptr().as_ref()) {
-                                    doc.add_variable(&name, dropped_val);
+                                if !doc.perms.can_write_scope(&doc.graph, &nref, doc.self_ptr(pid).as_ref()) {
+                                    doc.add_variable(pid, &name, dropped_val);
                                 } else {
                                     doc.graph.remove_node(nref);
                                 }
                             },
                             SVal::FnPtr(dref) => {
                                 let func: SFunc = dref.data(&doc.graph).unwrap().get_value().unwrap();
-                                if !doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr().as_ref()) {
-                                    doc.add_variable(&name, dropped_val);
+                                if !doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr(pid).as_ref()) {
+                                    doc.add_variable(pid, &name, dropped_val);
                                 } else {
                                     func.remove(&mut doc.graph, None);
                                 }
@@ -255,7 +244,7 @@ impl Statements {
 
                     if !dropped_var {
                         if let Some(field) = SField::field(&doc.graph, &name, '.', None) {
-                            if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr().as_ref()) {
+                            if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr(pid).as_ref()) {
                                 field.remove(&mut doc.graph, None);
                                 match &field.value {
                                     SVal::Object(nref) => {
@@ -275,11 +264,11 @@ impl Statements {
                                 }
                             }
                         } else if let Some(func) = SFunc::func(&doc.graph, &name, '.', None) {
-                            if doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr().as_ref()) {
+                            if doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr(pid).as_ref()) {
                                 func.remove(&mut doc.graph, None);
                             }
                         } else if let Some(node) = doc.graph.node_ref(&name.replace(".", "/"), None) {
-                            if doc.perms.can_write_scope(&doc.graph, &node, doc.self_ptr().as_ref()) {
+                            if doc.perms.can_write_scope(&doc.graph, &node, doc.self_ptr(pid).as_ref()) {
                                 doc.graph.remove_node(&node);
                             }
                         } else {
@@ -287,28 +276,17 @@ impl Statements {
                             let mut context_ptr = None;
                             let mut context_path = name.clone();
                             if name == "self" || name == "super" {
-                                context_ptr = doc.self_ptr();
+                                context_ptr = doc.self_ptr(pid);
                                 context_path = String::default();
                             } else if name.starts_with("self") || name.starts_with("super") {
-                                context_ptr = doc.self_ptr();
+                                context_ptr = doc.self_ptr(pid);
                             } else {
                                 let mut path = name.split(".").collect::<Vec<&str>>();
                                 if path.len() > 0 {
                                     let var = path.remove(0);
-                                    if let Some(symbol) = doc.get_symbol(var) {
+                                    if let Some(symbol) = doc.get_symbol(pid, var) {
                                         let var = symbol.var();
                                         match var {
-                                            SVal::Ref(rf) => {
-                                                let refval = rf.read().unwrap();
-                                                let val = refval.deref();
-                                                match val {
-                                                    SVal::Object(nref) => {
-                                                        context_ptr = Some(nref.clone());
-                                                        context_path = path.join(".");
-                                                    },
-                                                    _ => {}
-                                                }
-                                            },
                                             SVal::Object(nref) => {
                                                 context_ptr = Some(nref);
                                                 context_path = path.join(".");
@@ -323,7 +301,7 @@ impl Statements {
                                 if context_path.len() < 1 {
                                     // We are deleting the context itself!
                                     // Have to delete the object field on parent if any and the context object
-                                    if doc.perms.can_write_scope(&doc.graph, &context, doc.self_ptr().as_ref()) {
+                                    if doc.perms.can_write_scope(&doc.graph, &context, doc.self_ptr(pid).as_ref()) {
                                         let mut object_name = String::default();
                                         if let Some(context_node) = context.node(&doc.graph) {
                                             object_name = context_node.name.clone();
@@ -336,7 +314,7 @@ impl Statements {
                                         doc.graph.remove_node(&context);
                                     }
                                 } else if let Some(field) = SField::field(&doc.graph, &context_path, '.', Some(&context)) {
-                                    if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr().as_ref()) {
+                                    if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr(pid).as_ref()) {
                                         field.remove(&mut doc.graph, None);
                                         match &field.value {
                                             SVal::Object(nref) => {
@@ -356,7 +334,7 @@ impl Statements {
                                         }
                                     }
                                 } else if let Some(func) = SFunc::func(&doc.graph, &context_path, '.', Some(&context)) {
-                                    if doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr().as_ref()) {
+                                    if doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr(pid).as_ref()) {
                                         func.remove(&mut doc.graph, None);
                                     }
                                 }
@@ -365,22 +343,10 @@ impl Statements {
                     }
                 },
                 Statement::Move(name, dest) => {
-                    let mut destination = doc.self_ptr().expect("Failed to find a self pointer on the stack for move");
+                    let mut destination = doc.self_ptr(pid).expect("Failed to find a self pointer on the stack for move");
                     if dest.len() > 0 {
-                        let dest_val = Expr::Variable(dest.clone()).exec(doc)?;
+                        let dest_val = Expr::Variable(dest.clone()).exec(pid, doc)?;
                         match dest_val {
-                            SVal::Ref(rf) => {
-                                let refval = rf.read().unwrap();
-                                let val = refval.deref();
-                                match val {
-                                    SVal::Object(node) => {
-                                        destination = node.clone();
-                                    },
-                                    _ => {
-                                        return Err(anyhow!("Cannot move into anything but an object (from ref)"));
-                                    }
-                                }
-                            },
                             SVal::Object(node) => {
                                 destination = node;
                             },
@@ -402,7 +368,7 @@ impl Statements {
                     }
 
                     if let Some(mut field) = SField::field(&doc.graph, &name, '.', None) {
-                        if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr().as_ref()) {
+                        if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr(pid).as_ref()) {
                             // Move the field
                             field.remove(&mut doc.graph, None);
                             field.attach(&destination, &mut doc.graph);
@@ -433,12 +399,12 @@ impl Statements {
                             }
                         }
                     } else if let Some(mut func) = SFunc::func(&doc.graph, &name, '.', None) {
-                        if doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr().as_ref()) {
+                        if doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr(pid).as_ref()) {
                             func.remove(&mut doc.graph, None);
                             func.attach(&destination, &mut doc.graph);
                         }
                     } else if let Some(node) = doc.graph.node_ref(&name.replace(".", "/"), None) {
-                        if doc.perms.can_write_scope(&doc.graph, &node, doc.self_ptr().as_ref()) {
+                        if doc.perms.can_write_scope(&doc.graph, &node, doc.self_ptr(pid).as_ref()) {
                             let id_path: HashSet<String> = HashSet::from_iter(node.id_path(&doc.graph).into_iter());
                             if !id_path.contains(&destination.id) && !destination.is_child_of(&doc.graph, &node) {
                                 doc.graph.move_node(&node, &destination);
@@ -449,27 +415,16 @@ impl Statements {
                         let mut context_ptr = None;
                         let mut context_path = name.clone();
                         if name == "self" || name == "super" {
-                            context_ptr = doc.self_ptr();
+                            context_ptr = doc.self_ptr(pid);
                             context_path = String::default();
                         } else if name.starts_with("self") || name.starts_with("super") {
-                            context_ptr = doc.self_ptr();
+                            context_ptr = doc.self_ptr(pid);
                         } else {
                             let mut path = name.split(".").collect::<Vec<&str>>();
                             if path.len() > 0 {
                                 let var = path.remove(0);
-                                if let Some(symbol) = doc.get_symbol(var) {
+                                if let Some(symbol) = doc.get_symbol(pid, var) {
                                     match symbol.var() {
-                                        SVal::Ref(rf) => {
-                                            let refval = rf.read().unwrap();
-                                            let val = refval.deref();
-                                            match val {
-                                                SVal::Object(nref) => {
-                                                    context_ptr = Some(nref.clone());
-                                                    context_path = path.join(".");
-                                                },
-                                                _ => {}
-                                            }
-                                        },
                                         SVal::Object(nref) => {
                                             context_ptr = Some(nref);
                                             context_path = path.join(".");
@@ -484,7 +439,7 @@ impl Statements {
                             if context_path.len() < 1 {
                                 // We are moving the context itself!
                                 // Have to move the object field on parent if any and the context object
-                                if doc.perms.can_write_scope(&doc.graph, &context, doc.self_ptr().as_ref()) {
+                                if doc.perms.can_write_scope(&doc.graph, &context, doc.self_ptr(pid).as_ref()) {
                                     let mut object_name = String::default();
                                     if let Some(context_node) = context.node(&doc.graph) {
                                         object_name = context_node.name.clone();
@@ -502,7 +457,7 @@ impl Statements {
                                     }
                                 }
                             } else if let Some(mut field) = SField::field(&doc.graph, &context_path, '.', Some(&context)) {
-                                if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr().as_ref()) {
+                                if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr(pid).as_ref()) {
                                     field.remove(&mut doc.graph, None);
                                     field.attach(&destination, &mut doc.graph);
 
@@ -531,7 +486,7 @@ impl Statements {
                                     }
                                 }
                             } else if let Some(mut func) = SFunc::func(&doc.graph, &context_path, '.', Some(&context)) {
-                                if doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr().as_ref()) {
+                                if doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr(pid).as_ref()) {
                                     func.remove(&mut doc.graph, None);
                                     func.attach(&destination, &mut doc.graph);
                                 }
@@ -540,28 +495,18 @@ impl Statements {
                     }
                 },
                 Statement::Rename(name, new_name) => {
-                    let name_res = new_name.exec(doc)?;
+                    let name_res = new_name.exec(pid, doc)?;
                     let new_name_val;
                     match name_res {
                         SVal::String(v) => {
                             new_name_val = v;
-                        },
-                        SVal::Ref(rf) => {
-                            let refval = rf.read().unwrap();
-                            let val = refval.deref();
-                            match val {
-                                SVal::String(v) => {
-                                    new_name_val = v.clone();
-                                },
-                                _ => return Err(anyhow!("Cannot rename to a non-string value"))
-                            }
                         },
                         _ => return Err(anyhow!("Cannot rename to a non-string value"))
                     }
 
                     if name.contains('.') && !name.ends_with('.') && !name.starts_with('.') {
                         if let Some(mut field) = SField::field(&doc.graph, &name, '.', None) {
-                            if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr().as_ref()) {
+                            if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr(pid).as_ref()) {
                                 match &field.value {
                                     SVal::Object(node) => {
                                         doc.graph.rename_node(node, &new_name_val);
@@ -573,12 +518,12 @@ impl Statements {
                                 field.set(&mut doc.graph);
                             }
                         } else if let Some(mut func) = SFunc::func(&doc.graph, &name, '.', None) {
-                            if doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr().as_ref()) {
+                            if doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr(pid).as_ref()) {
                                 func.name = new_name_val.clone();
                                 func.set(&mut doc.graph);
                             }
                         } else if let Some(node) = doc.graph.node_ref(&name.replace(".", "/"), None) {
-                            if doc.perms.can_write_scope(&doc.graph, &node, doc.self_ptr().as_ref()) {
+                            if doc.perms.can_write_scope(&doc.graph, &node, doc.self_ptr(pid).as_ref()) {
                                 doc.graph.rename_node(&node, &new_name_val);
                             }
                         } else {
@@ -586,27 +531,16 @@ impl Statements {
                             let mut context_ptr = None;
                             let mut context_path = name.clone();
                             if name == "self" || name == "super" {
-                                context_ptr = doc.self_ptr();
+                                context_ptr = doc.self_ptr(pid);
                                 context_path = String::default();
                             } else if name.starts_with("self") || name.starts_with("super") {
-                                context_ptr = doc.self_ptr();
+                                context_ptr = doc.self_ptr(pid);
                             } else {
                                 let mut path = name.split(".").collect::<Vec<&str>>();
                                 if path.len() > 0 {
                                     let var = path.remove(0);
-                                    if let Some(symbol) = doc.get_symbol(var) {
+                                    if let Some(symbol) = doc.get_symbol(pid, var) {
                                         match symbol.var() {
-                                            SVal::Ref(rf) => {
-                                                let refval = rf.read().unwrap();
-                                                let val = refval.deref();
-                                                match val {
-                                                    SVal::Object(nref) => {
-                                                        context_ptr = Some(nref.clone());
-                                                        context_path = path.join(".");
-                                                    },
-                                                    _ => {}
-                                                }
-                                            },
                                             SVal::Object(nref) => {
                                                 context_ptr = Some(nref);
                                                 context_path = path.join(".");
@@ -621,7 +555,7 @@ impl Statements {
                                 if context_path.len() < 1 {
                                     // We are renaming the context itself!
                                     // Have to rename the object field on parent if any
-                                    if doc.perms.can_write_scope(&doc.graph, &context, doc.self_ptr().as_ref()) {
+                                    if doc.perms.can_write_scope(&doc.graph, &context, doc.self_ptr(pid).as_ref()) {
                                         let mut object_name = String::default();
                                         if let Some(context_node) = context.node(&doc.graph) {
                                             object_name = context_node.name.clone();
@@ -641,7 +575,7 @@ impl Statements {
                                         }
                                     }
                                 } else if let Some(mut field) = SField::field(&doc.graph, &context_path, '.', Some(&context)) {
-                                    if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr().as_ref()) {
+                                    if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr(pid).as_ref()) {
                                         match &field.value {
                                             SVal::Object(node) => {
                                                 doc.graph.rename_node(node, &new_name_val);
@@ -653,7 +587,7 @@ impl Statements {
                                         field.set(&mut doc.graph);
                                     }
                                 } else if let Some(mut func) = SFunc::func(&doc.graph, &context_path, '.', Some(&context)) {
-                                    if doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr().as_ref()) {
+                                    if doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr(pid).as_ref()) {
                                         func.name = new_name_val.clone();
                                         func.set(&mut doc.graph);
                                     }
@@ -663,22 +597,22 @@ impl Statements {
                     }
                 },
                 Statement::If { if_expr, elif_exprs, else_expr } => {
-                    let if_res = if_expr.0.exec(doc)?;
+                    let if_res = if_expr.0.exec(pid, doc)?;
                     if if_res.truthy() {
-                        doc.table.new_scope();
-                        let res = if_expr.1.exec(doc)?;
-                        doc.table.end_scope();
+                        doc.new_scope(pid);
+                        let res = if_expr.1.exec(pid, doc)?;
+                        doc.end_scope(pid);
                         
                         match res {
                             StatementsRes::Break => {
                                 // If bubble, need to propogate break upwards, out of if block
-                                if doc.bubble_control_flow > 0 {
+                                if doc.bubble_control_flow(pid) {
                                     return Ok(res);
                                 }
                             },
                             StatementsRes::Continue => {
                                 // If bubble, need to propogate continue upwards, out of if block
-                                if doc.bubble_control_flow > 0 {
+                                if doc.bubble_control_flow(pid) {
                                     return Ok(res);
                                 }
                             },
@@ -694,22 +628,22 @@ impl Statements {
                         // If statement was not able to execute, so drop into elif exprs
                         let mut matched = false;
                         for if_expr in elif_exprs {
-                            let if_res = if_expr.0.exec(doc)?;
+                            let if_res = if_expr.0.exec(pid, doc)?;
                             if if_res.truthy() {
-                                doc.table.new_scope();
-                                let res = if_expr.1.exec(doc)?;
-                                doc.table.end_scope();
+                                doc.new_scope(pid);
+                                let res = if_expr.1.exec(pid, doc)?;
+                                doc.end_scope(pid);
                                 
                                 match res {
                                     StatementsRes::Break => {
                                         // If bubble, need to propogate break upwards, out of if block
-                                        if doc.bubble_control_flow > 0 {
+                                        if doc.bubble_control_flow(pid) {
                                             return Ok(res);
                                         }
                                     },
                                     StatementsRes::Continue => {
                                         // If bubble, need to propogate continue upwards, out of if block
-                                        if doc.bubble_control_flow > 0 {
+                                        if doc.bubble_control_flow(pid) {
                                             return Ok(res);
                                         }
                                     },
@@ -728,20 +662,20 @@ impl Statements {
                         if !matched {
                             // Didn't find an else if statement match, so look for an else statement
                             if let Some(else_statements) = else_expr {
-                                doc.table.new_scope();
-                                let res = else_statements.exec(doc)?;
-                                doc.table.end_scope();
+                                doc.new_scope(pid);
+                                let res = else_statements.exec(pid, doc)?;
+                                doc.end_scope(pid);
                                 
                                 match res {
                                     StatementsRes::Break => {
                                         // If bubble, need to propogate break upwards, out of if block
-                                        if doc.bubble_control_flow > 0 {
+                                        if doc.bubble_control_flow(pid) {
                                             return Ok(res);
                                         }
                                     },
                                     StatementsRes::Continue => {
                                         // If bubble, need to propogate continue upwards, out of if block
-                                        if doc.bubble_control_flow > 0 {
+                                        if doc.bubble_control_flow(pid) {
                                             return Ok(res);
                                         }
                                     },
@@ -759,8 +693,8 @@ impl Statements {
                 },
                 Statement::Return(expr) => {
                     // Push result of expr onto the stack
-                    let val = expr.exec(doc)?;
-                    doc.push(val);
+                    let val = expr.exec(pid, doc)?;
+                    doc.push(pid, val);
                     return Ok(StatementsRes::Return(true));
                 },
                 Statement::EmptyReturn => {
@@ -768,17 +702,17 @@ impl Statements {
                     return Ok(StatementsRes::Return(false));
                 },
                 Statement::While(expr, statements) => {
-                    while expr.exec(doc)?.truthy() {
-                        doc.table.new_scope();
-                        doc.bubble_control_flow += 1;
+                    while expr.exec(pid, doc)?.truthy() {
+                        doc.new_scope(pid);
+                        doc.inc_bubble_control(pid);
                         let res;
-                        let sres = statements.exec(doc);
-                        doc.bubble_control_flow -= 1;
+                        let sres = statements.exec(pid, doc);
+                        doc.dinc_bubble_control(pid);
                         match sres {
                             Ok(sres) => res = sres,
                             Err(_) => return sres,
                         }
-                        doc.table.end_scope();
+                        doc.end_scope(pid);
 
                         match res {
                             StatementsRes::Break => {
@@ -807,26 +741,26 @@ impl Statements {
                     return Ok(StatementsRes::Continue);
                 },
                 Statement::Expr(expr) => {
-                    expr.exec(doc)?;
+                    expr.exec(pid, doc)?;
                 },
                 Statement::Block(statements, finally) => {
-                    doc.table.new_scope();
-                    let res = statements.exec(doc)?;
+                    doc.new_scope(pid);
+                    let res = statements.exec(pid, doc)?;
                     if finally.statements.len() > 0 {
-                        finally.exec(doc)?; // We don't care about a result here
+                        finally.exec(pid, doc)?; // We don't care about a result here
                     }
-                    doc.table.end_scope();
+                    doc.end_scope(pid);
 
                     match res {
                         StatementsRes::Break => {
                             // Break should propogate too if bubbling
-                            if doc.bubble_control_flow > 0 {
+                            if doc.bubble_control_flow(pid) {
                                 return Ok(res);
                             }
                         },
                         StatementsRes::Continue => {
                             // Continue needs to continue propogating upwards if bubbling
-                            if doc.bubble_control_flow > 0 {
+                            if doc.bubble_control_flow(pid) {
                                 return Ok(res);
                             }
                         },

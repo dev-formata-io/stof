@@ -17,6 +17,9 @@
 pub mod doc;
 pub use doc::*;
 
+pub mod processes;
+pub use processes::*;
+
 pub mod graph;
 pub use graph::*;
 

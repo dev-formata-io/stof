@@ -77,6 +77,12 @@ impl CustomType {
         SFunc::funcs(graph, &SNodeRef::new(&self.locid))
     }
 
+    /// Typepath for this type.
+    pub fn typepath(&self, graph: &SGraph) -> String {
+        let typepath = SNodeRef::new(&self.decid).path(&graph).replace('/', ".");
+        format!("{}.{}", typepath, self.name)
+    }
+
     /// Insert this custom type into the graph.
     pub fn insert(&mut self, graph: &mut SGraph, location: &str) {
         let nref = graph.ensure_nodes(location, '/', true, None);
@@ -95,6 +101,15 @@ impl CustomType {
             typename_field.set(graph);
         } else {
             SField::new_string(graph, "typename", &self.name, &nref);
+        }
+
+        // Insert typepath into the graph, which includes the declaration path
+        let typepath = SNodeRef::new(&self.decid).path(&graph).replace('/', ".");
+        if let Some(mut typepath_field) = SField::field(graph, "typepath", '.', Some(&nref)) {
+            typepath_field.value = SVal::String(format!("{}.{}", typepath, self.name));
+            typepath_field.set(graph);
+        } else {
+            SField::new_string(graph, "typepath", &format!("{}.{}", typepath, self.name), &nref);
         }
     }
 }

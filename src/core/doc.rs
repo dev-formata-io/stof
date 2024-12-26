@@ -14,13 +14,13 @@
 // limitations under the License.
 //
 
-use std::{collections::HashSet, fs, sync::{Arc, RwLock}, time::SystemTime};
+use std::{collections::HashSet, fs, sync::Arc, time::SystemTime};
 use anyhow::{anyhow, Result};
 use bytes::Bytes;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use crate::{bytes::BYTES, text::TEXT, SField, SFunc, SVal, BSTOF, STOF};
-use super::{runtime::{DocPermissions, Library, Symbol, SymbolTable}, ArrayLibrary, CustomTypes, Format, FunctionLibrary, IntoDataRef, NumberLibrary, ObjectLibrary, SFormats, SGraph, SLibraries, SNodeRef, StdLibrary, StringLibrary, TupleLibrary};
+use super::{runtime::{DocPermissions, Library, Symbol, SymbolTable}, ArrayLibrary, CustomTypes, Format, FunctionLibrary, IntoDataRef, IntoNodeRef, NumberLibrary, ObjectLibrary, SFormats, SGraph, SLibraries, SNodeRef, SProcesses, StdLibrary, StringLibrary, TupleLibrary};
 
 #[cfg(feature = "js")]
 use crate::js::StofLibFunc;
@@ -65,16 +65,7 @@ pub struct SDoc {
     pub libraries: SLibraries,
     
     #[serde(skip)]
-    pub(crate) self_stack: Vec<SNodeRef>,
-
-    #[serde(skip)]
-    pub(crate) stack: Vec<SVal>,
-
-    #[serde(skip)]
-    pub(crate) table: SymbolTable,
-
-    #[serde(skip)]
-    pub(crate) bubble_control_flow: u8,
+    pub(crate) processes: SProcesses,
 
     #[cfg(feature = "js")]
     #[serde(skip)]
@@ -93,13 +84,10 @@ impl SDoc {
         let mut doc = Self {
             graph,
             types: Default::default(),
-            stack: Default::default(),
-            table: Default::default(),
-            self_stack: Default::default(),
             libraries: Default::default(),
             formats: Default::default(),
             perms: Default::default(),
-            bubble_control_flow: 0,
+            processes: SProcesses::new(),
 
             #[cfg(feature = "js")]
             libfuncs: Default::default(),
@@ -112,27 +100,27 @@ impl SDoc {
     /// New document from a string import format.
     pub fn src(src: &str, format: &str) -> Result<Self> {
         let mut doc = Self::default();
-        doc.string_import(format, src, "")?;
+        doc.string_import("main", format, src, "")?;
         Ok(doc)
     }
 
     /// New document from a file import.
     pub fn file(path: &str, format: &str) -> Result<Self> {
         let mut doc = Self::default();
-        doc.file_import(format, path, format, "")?;
+        doc.file_import("main", format, path, format, "")?;
         Ok(doc)
     }
 
     /// New document from bytes.
     pub fn bytes(mut bytes: Bytes, format: &str) -> Result<Self> {
         let mut doc = Self::default();
-        doc.header_import(format, format, &mut bytes, "")?;
+        doc.header_import("main", format, format, &mut bytes, "")?;
         Ok(doc)
     }
 
     /// Export this document to a text file at "path" using "format".
     pub fn text_file_out(&self, path: &str, format: &str) -> Result<()> {
-        if let Ok(out) = self.export_min_string(format, None) {
+        if let Ok(out) = self.export_min_string("main", format, None) {
             fs::write(path, out)?;
             return Ok(());
         }
@@ -141,7 +129,7 @@ impl SDoc {
 
     /// Export this document to a binary file at "path" using "format".
     pub fn bin_file_out(&self, path: &str, format: &str) -> Result<()> {
-        if let Ok(out) = self.export_bytes(format, None) {
+        if let Ok(out) = self.export_bytes("main", format, None) {
             fs::write(path, out)?;
             return Ok(());
         }
@@ -203,36 +191,36 @@ impl SDoc {
     }
 
     /// Header import (content type with bytes).
-    pub fn header_import(&mut self, format: &str, content_type: &str, bytes: &mut Bytes, as_name: &str) -> Result<()> {
-        self.formats.clone().header_import(format, self, content_type, bytes, as_name)
+    pub fn header_import(&mut self, pid: &str, format: &str, content_type: &str, bytes: &mut Bytes, as_name: &str) -> Result<()> {
+        self.formats.clone().header_import(format, pid, self, content_type, bytes, as_name)
     }
 
     /// String import.
-    pub fn string_import(&mut self, format: &str, src: &str, as_name: &str) -> Result<()> {
-        self.formats.clone().string_import(format, self, src, as_name)
+    pub fn string_import(&mut self, pid: &str, format: &str, src: &str, as_name: &str) -> Result<()> {
+        self.formats.clone().string_import(format, pid, self, src, as_name)
     }
 
     /// File import.
     /// Stof Syntax: 'import <format> "<path>.<extension>" as <as_name>;'
     /// If <format> isn't supplied, "format" will be "extension".
     /// If <as_name> isn't supplied, the data should be imported into the current doc scope (or main root).
-    pub fn file_import(&mut self, format: &str, full_path: &str, extension: &str, as_name: &str) -> Result<()> {
-        self.formats.clone().file_import(format, self, full_path, extension, as_name)
+    pub fn file_import(&mut self, pid: &str, format: &str, full_path: &str, extension: &str, as_name: &str) -> Result<()> {
+        self.formats.clone().file_import(format, pid, self, full_path, extension, as_name)
     }
 
     /// Export document string.
-    pub fn export_string(&self, format: &str, node: Option<&SNodeRef>) -> Result<String> {
-        self.formats.export_string(format, self, node)
+    pub fn export_string(&self, pid: &str, format: &str, node: Option<&SNodeRef>) -> Result<String> {
+        self.formats.export_string(format, pid, self, node)
     }
 
     /// Export document min string.
-    pub fn export_min_string(&self, format: &str, node: Option<&SNodeRef>) -> Result<String> {
-        self.formats.export_min_string(format, self, node)
+    pub fn export_min_string(&self, pid: &str, format: &str, node: Option<&SNodeRef>) -> Result<String> {
+        self.formats.export_min_string(format, pid, self, node)
     }
 
     /// Export document bytes.
-    pub fn export_bytes(&self, format: &str, node: Option<&SNodeRef>) -> Result<Bytes> {
-        self.formats.export_bytes(format, self, node)
+    pub fn export_bytes(&self, pid: &str, format: &str, node: Option<&SNodeRef>) -> Result<Bytes> {
+        self.formats.export_bytes(format, pid, self, node)
     }
 
 
@@ -242,22 +230,22 @@ impl SDoc {
 
     /// Load the Stof standard library.
     fn load_std_lib(&mut self) {
-        self.load_lib(Arc::new(RwLock::new(StdLibrary::default())));
-        self.load_lib(Arc::new(RwLock::new(ObjectLibrary::default())));
-        self.load_lib(Arc::new(RwLock::new(ArrayLibrary::default())));
-        self.load_lib(Arc::new(RwLock::new(FunctionLibrary::default())));
-        self.load_lib(Arc::new(RwLock::new(NumberLibrary::default())));
-        self.load_lib(Arc::new(RwLock::new(StringLibrary::default())));
-        self.load_lib(Arc::new(RwLock::new(TupleLibrary::default())));
+        self.load_lib(Arc::new(StdLibrary::default()));
+        self.load_lib(Arc::new(ObjectLibrary::default()));
+        self.load_lib(Arc::new(ArrayLibrary::default()));
+        self.load_lib(Arc::new(FunctionLibrary::default()));
+        self.load_lib(Arc::new(NumberLibrary::default()));
+        self.load_lib(Arc::new(StringLibrary::default()));
+        self.load_lib(Arc::new(TupleLibrary::default()));
     }
     
     /// Load a library into this document.
-    pub fn load_lib(&mut self, library: Arc<RwLock<dyn Library>>) {
+    pub fn load_lib(&mut self, library: Arc<dyn Library>) {
         self.libraries.insert(library);
     }
 
     /// Get a library in this doc.
-    pub fn library(&mut self, lib: &str) -> Option<Arc<RwLock<dyn Library>>> {
+    pub fn library(&mut self, lib: &str) -> Option<Arc<dyn Library>> {
         if let Some(library) = self.libraries.get(lib) {
             return Some(library.clone());
         }
@@ -285,7 +273,7 @@ impl SDoc {
             if let Some(params) = func.attributes.get("get") {
                 parameters.push(params.clone());
             }
-            if let Ok(res) = func.call(self, parameters, true) {
+            if let Ok(res) = func.call("main", self, parameters, true) {
                 return Some(res);
             }
         }
@@ -322,9 +310,9 @@ impl SDoc {
             if let Some(attr_val) = func.attributes.get("main") {
                 let result;
                 if attr_val.is_empty() {
-                    result = func.call(self, vec![], true);
+                    result = func.call("main", self, vec![], true);
                 } else {
-                    result = func.call(self, vec![attr_val.clone()], true);
+                    result = func.call("main", self, vec![attr_val.clone()], true);
                 }
                 if let Ok(res) = result {
                     results.push((func, res));
@@ -343,7 +331,7 @@ impl SDoc {
     /// Call a function in this document with a path.
     pub fn call_func(&mut self, path: &str, start: Option<&SNodeRef>, params: Vec<SVal>) -> Result<SVal> {
         if let Some(func) = self.func(path, start) {
-            return func.call(self, params, true);
+            return func.call("main", self, params, true);
         }
         Err(anyhow!("Did not find a function at path '{}' to call", path))
     }
@@ -351,7 +339,7 @@ impl SDoc {
     /// Call a function on this document.
     /// Function does not have to be contained within this document.
     pub fn call(&mut self, func: &SFunc, params: Vec<SVal>) -> Result<SVal> {
-        func.call(self, params, true)
+        func.call("main", self, params, true)
     }
 
     /// Test some Stof in a file.
@@ -436,7 +424,7 @@ impl SDoc {
         for func in functions {
             if let Some(res_test_val) = func.attributes.get("test") {
                 let silent = func.attributes.contains_key("silent");
-                let mut result = func.call(self, vec![], true);
+                let mut result = func.call("main", self, vec![], true);
 
                 let func_nodes = func.data_ref().nodes(&self.graph);
                 let func_path;
@@ -482,7 +470,7 @@ impl SDoc {
 
                                     let profile_start = SystemTime::now();
                                     for _ in 0..iterations {
-                                        let _ = func.call(self, vec![], true);
+                                        let _ = func.call("main", self, vec![], true);
                                     }
                                     let total_duration = profile_start.elapsed().unwrap();
                                     let total_ns = total_duration.as_nanos();
@@ -541,75 +529,148 @@ impl SDoc {
      *****************************************************************************/
 
     /// Self pointer.
-    pub(crate) fn self_ptr(&self) -> Option<SNodeRef> {
-        if let Some(last) = self.self_stack.last() {
-            if last.exists(&self.graph) {
-                return Some(last.clone());
-            }
+    pub(crate) fn self_ptr(&self, pid: &str) -> Option<SNodeRef> {
+        if let Some(process) = self.processes.get(pid) {
+            return process.self_ptr();
         }
         None
+    }
+
+    /// Push a node ref to the self stack of a process.
+    pub(crate) fn push_self(&mut self, pid: &str, node: impl IntoNodeRef) {
+        if let Some(process) = self.processes.get_mut(pid) {
+            process.self_stack.push(node.node_ref());
+        }
+    }
+
+    /// Pop a node ref from the self stack of a process.
+    pub(crate) fn pop_self(&mut self, pid: &str) -> Option<SNodeRef> {
+        if let Some(process) = self.processes.get_mut(pid) {
+            process.self_stack.pop()
+        } else {
+            None
+        }
     }
 
     /// New table.
     /// Returns the current table, replacing it with a new one.
     /// This happens for function calls.
-    pub(crate) fn new_table(&mut self) -> SymbolTable {
-        let current = self.table.clone();
-        self.table = SymbolTable::default();
-        return current;
+    pub(crate) fn new_table(&mut self, pid: &str) -> SymbolTable {
+        if let Some(processes) = self.processes.get_mut(pid) {
+            return processes.new_table();
+        }
+        SymbolTable::default()
+    }
+
+    /// Push a new scope to the symbol table.
+    pub(crate) fn new_scope(&mut self, pid: &str) {
+        if let Some(process) = self.processes.get_mut(pid) {
+            process.table.new_scope();
+        }
+    }
+
+    /// Has a variable with this name in the current scope of the symbol table?
+    pub(crate) fn has_var_with_name_in_current(&mut self, pid: &str, name: &str) -> bool {
+        if let Some(process) = self.processes.get_mut(pid) {
+            process.table.has_in_current(name)
+        } else {
+            false
+        }
+    }
+
+    /// End a scope in the table.
+    pub(crate) fn end_scope(&mut self, pid: &str) {
+        if let Some(process) = self.processes.get_mut(pid) {
+            process.table.end_scope();
+        }
     }
 
     /// Set table.
-    pub(crate) fn set_table(&mut self, table: SymbolTable) {
-        self.table = table;
+    pub(crate) fn set_table(&mut self, pid: &str, table: SymbolTable) {
+        if let Some(process) = self.processes.get_mut(pid) {
+            process.set_table(table);
+        }
     }
 
     /// Add a variable to the current scope.
-    pub(crate) fn add_variable<T>(&mut self, name: &str, value: T) where T: Into<SVal> {
-        let symbol = Symbol::Variable(value.into());
-        self.table.insert(name, symbol);
+    pub(crate) fn add_variable<T>(&mut self, pid: &str, name: &str, value: T) where T: Into<SVal> {
+        if let Some(process) = self.processes.get_mut(pid) {
+            process.add_variable(name, value);
+        }
     }
 
     /// Set a variable.
     /// Will not add the variable if not already present.
     /// Sets current scope or above variables!
-    pub(crate) fn set_variable<T>(&mut self, name: &str, value: T) -> bool where T: Into<SVal> {
-        self.table.set_variable(name, &value.into(), &mut self.graph)
+    pub(crate) fn set_variable<T>(&mut self, pid: &str, name: &str, value: T) -> bool where T: Into<SVal> {
+        if let Some(process) = self.processes.get_mut(pid) {
+            process.set_variable(name, value)
+        } else {
+            false
+        }
     }
 
     /// Drop a symbol from the current scope.
-    pub(crate) fn drop(&mut self, name: &str) -> Option<Symbol> {
-        self.table.remove(name)
+    pub(crate) fn drop(&mut self, pid: &str, name: &str) -> Option<Symbol> {
+        if let Some(processes) = self.processes.get_mut(pid) {
+            processes.drop(name)
+        } else {
+            None
+        }
     }
 
     /// Get a symbol from the current scope or above.
-    pub(crate) fn get_symbol(&mut self, name: &str) -> Option<&Symbol> {
-        self.table.get(name)
-    }
-
-    /// Has a symbol from the current scope or above.
-    pub(crate) fn has_symbol(&mut self, name: &str) -> bool {
-        self.table.get(name).is_some()
+    pub(crate) fn get_symbol(&mut self, pid: &str, name: &str) -> Option<&Symbol> {
+        if let Some(process) = self.processes.get_mut(pid) {
+            process.get_symbol(name)
+        } else {
+            None
+        }
     }
 
     /// Push a value onto the stack.
-    pub(crate) fn push<T>(&mut self, value: T) where T: Into<SVal> {
-        let val: SVal = value.into();
-        if !val.is_void() { // Prevent void from being pushed to the stack!
-            self.stack.push(val);
+    pub(crate) fn push<T>(&mut self, pid: &str, value: T) where T: Into<SVal> {
+        if let Some(process) = self.processes.get_mut(pid) {
+            process.push(value);
         }
     }
 
     /// Pop a value from the stack.
-    pub(crate) fn pop(&mut self) -> Option<SVal> {
-        self.stack.pop()
+    pub(crate) fn pop(&mut self, pid: &str) -> Option<SVal> {
+        if let Some(process) = self.processes.get_mut(pid) {
+            process.pop()
+        } else {
+            None
+        }
     }
 
     /// Clean for scripting.
-    pub(crate) fn clean(&mut self) {
-        self.stack.clear();
-        self.table = Default::default();
-        self.self_stack.clear();
-        self.bubble_control_flow = 0;
+    pub(crate) fn clean(&mut self, pid: &str) {
+        if let Some(processes) = self.processes.get_mut(pid) {
+            processes.clean();
+        }
+    }
+
+    /// Bubble control flow?
+    pub(crate) fn bubble_control_flow(&self, pid: &str) -> bool {
+        if let Some(process) = self.processes.get(pid) {
+            process.bubble_control_flow > 0
+        } else {
+            false
+        }
+    }
+
+    /// Increment bubble control flow.
+    pub(crate) fn inc_bubble_control(&mut self, pid: &str) {
+        if let Some(process) = self.processes.get_mut(pid) {
+            process.bubble_control_flow += 1;
+        }
+    }
+
+    /// Deincrement bubble control flow.
+    pub(crate) fn dinc_bubble_control(&mut self, pid: &str) {
+        if let Some(process) = self.processes.get_mut(pid) {
+            process.bubble_control_flow -= 1;
+        }
     }
 }

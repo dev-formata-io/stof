@@ -30,9 +30,9 @@ impl Library for StringLibrary {
     }
     
     /// Call into the String library.
-    fn call(&mut self, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
         if parameters.len() > 0 {
-            let this = &parameters[0].cast(SType::String, doc)?;
+            let this = &parameters[0].cast(SType::String, pid, doc)?;
             match this {
                 SVal::String(val) => {
                     match name {
@@ -41,7 +41,7 @@ impl Library for StringLibrary {
                         },
                         "at" => {
                             if parameters.len() == 2 {
-                                let second = &parameters[1].cast(SType::Number(SNumType::I64), doc)?;
+                                let second = &parameters[1].cast(SType::Number(SNumType::I64), pid, doc)?;
                                 match second {
                                     SVal::Number(nval) => {
                                         let index = nval.int();
@@ -72,7 +72,7 @@ impl Library for StringLibrary {
                         },
                         "startsWith" => {
                             if parameters.len() == 2 {
-                                let second = &parameters[1].cast(SType::String, doc)?;
+                                let second = &parameters[1].cast(SType::String, pid, doc)?;
                                 match second {
                                     SVal::String(second) => {
                                         return Ok(SVal::Bool(val.starts_with(second)));
@@ -84,7 +84,7 @@ impl Library for StringLibrary {
                         },
                         "endsWith" => {
                             if parameters.len() == 2 {
-                                let second = &parameters[1].cast(SType::String, doc)?;
+                                let second = &parameters[1].cast(SType::String, pid, doc)?;
                                 match second {
                                     SVal::String(second) => {
                                         return Ok(SVal::Bool(val.ends_with(second)));
@@ -96,7 +96,7 @@ impl Library for StringLibrary {
                         },
                         "push" => {
                             if parameters.len() == 2 {
-                                let second = &parameters[1].cast(SType::String, doc)?;
+                                let second = &parameters[1].cast(SType::String, pid, doc)?;
                                 match second {
                                     SVal::String(second) => {
                                         return Ok(SVal::String(format!("{}{}", val, second)));
@@ -108,10 +108,10 @@ impl Library for StringLibrary {
                         },
                         "concat" => {
                             if parameters.len() == 3 {
-                                let second = &parameters[1].cast(SType::String, doc)?;
+                                let second = &parameters[1].cast(SType::String, pid, doc)?;
                                 match second {
                                     SVal::String(second) => {
-                                        let third = &parameters[2].cast(SType::String, doc)?;
+                                        let third = &parameters[2].cast(SType::String, pid, doc)?;
                                         match third {
                                             SVal::String(third) => {
                                                 return Ok(SVal::String(format!("{}{}{}", val, second, third)));
@@ -126,7 +126,7 @@ impl Library for StringLibrary {
                         },
                         "contains" => {
                             if parameters.len() == 2 {
-                                let second = &parameters[1].cast(SType::String, doc)?;
+                                let second = &parameters[1].cast(SType::String, pid, doc)?;
                                 match second {
                                     SVal::String(second) => {
                                         return Ok(SVal::Bool(val.contains(second)));
@@ -138,7 +138,7 @@ impl Library for StringLibrary {
                         },
                         "indexOf" => {
                             if parameters.len() == 2 {
-                                let second = &parameters[1].cast(SType::String, doc)?;
+                                let second = &parameters[1].cast(SType::String, pid, doc)?;
                                 match second {
                                     SVal::String(second) => {
                                         if let Some(index) = val.find(second) {
@@ -153,10 +153,10 @@ impl Library for StringLibrary {
                         },
                         "replace" => {
                             if parameters.len() == 3 {
-                                let second = &parameters[1].cast(SType::String, doc)?;
+                                let second = &parameters[1].cast(SType::String, pid, doc)?;
                                 match second {
                                     SVal::String(second) => {
-                                        let third = &parameters[2].cast(SType::String, doc)?;
+                                        let third = &parameters[2].cast(SType::String, pid, doc)?;
                                         match third {
                                             SVal::String(third) => {
                                                 return Ok(SVal::String(val.replace(second, third)));
@@ -171,7 +171,7 @@ impl Library for StringLibrary {
                         },
                         "split" => {
                             if parameters.len() == 2 {
-                                let second = &parameters[1].cast(SType::String, doc)?;
+                                let second = &parameters[1].cast(SType::String, pid, doc)?;
                                 match second {
                                     SVal::String(second) => {
                                         let vals = val.split(second).collect::<Vec<&str>>();
@@ -188,7 +188,7 @@ impl Library for StringLibrary {
                         },
                         "substring" => {
                             if parameters.len() == 2 {
-                                let second = &parameters[1].cast(SType::Number(SNumType::I64), doc)?;
+                                let second = &parameters[1].cast(SType::Number(SNumType::I64), pid, doc)?;
                                 match second {
                                     SVal::Number(start) => {
                                         if let Some(slice) = val.get(start.int() as usize..) {
@@ -198,10 +198,10 @@ impl Library for StringLibrary {
                                     _ => {}
                                 }
                             } else if parameters.len() == 3 {
-                                let second = &parameters[1].cast(SType::Number(SNumType::I64), doc)?;
+                                let second = &parameters[1].cast(SType::Number(SNumType::I64), pid, doc)?;
                                 match second {
                                     SVal::Number(start) => {
-                                        let third = &parameters[2].cast(SType::Number(SNumType::I64), doc)?;
+                                        let third = &parameters[2].cast(SType::Number(SNumType::I64), pid, doc)?;
                                         match third {
                                             SVal::Number(end) => {
                                                 if let Some(slice) = val.get(start.int() as usize..end.int() as usize) {
@@ -237,7 +237,7 @@ impl Library for StringLibrary {
                 _ => {}
             }
         }
-        if let Ok(val) = Self::object_call(doc, name, parameters) {
+        if let Ok(val) = Self::object_call(pid, doc, name, parameters) {
             return Ok(val);
         }
         Err(anyhow!("Failed to find a String library method"))

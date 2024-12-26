@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::{collections::HashSet, ops::DerefMut};
+use std::collections::HashSet;
 use anyhow::{anyhow, Result};
 use crate::{Data, IntoDataRef, Library, SDoc, SField, SFunc, SType, SVal};
 
@@ -22,28 +22,8 @@ use crate::{Data, IntoDataRef, Library, SDoc, SField, SFunc, SType, SVal};
 /// Object trait for calls.
 pub trait Object {
     /// Call into the Object library.
-    fn object_call(doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn object_call(pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
         if parameters.len() < 1 { return Err(anyhow!("Must provide an object parameter")); }
-
-        // Make sure the object lib works for all refs
-        match &parameters[0] {
-            SVal::Ref(rf) => {
-                let mut val = rf.write().unwrap();
-                let v = val.deref_mut();
-                match v {
-                    SVal::Object(nref) => {
-                        let mut params = vec![SVal::Object(nref.clone())];
-                        for i in 1..parameters.len() {
-                            params.push(parameters[i].clone());
-                        }
-                        return Self::object_call(doc, name, &mut params);
-                    },
-                    _ => {}
-                }
-            },
-            _ => {}
-        }
-
         match name {
             "toString" => Self::to_string(doc, parameters),
             "len" => {
@@ -84,7 +64,7 @@ pub trait Object {
                                 },
                                 _ => {}
                             }
-                            let second = &parameters[1].cast(SType::String, doc)?;
+                            let second = &parameters[1].cast(SType::String, pid, doc)?;
                             match second {
                                 SVal::String(index) => {
                                     if let Some(field) = SField::field(&doc.graph, &index, '.', Some(nref)) {
@@ -105,7 +85,7 @@ pub trait Object {
                         SVal::Object(nref) => {
                             let mut array = Vec::new();
                             for i in 1..parameters.len() {
-                                let second = &parameters[i].cast(SType::String, doc)?;
+                                let second = &parameters[i].cast(SType::String, pid, doc)?;
                                 match second {
                                     SVal::String(index) => {
                                         if let Some(field) = SField::field(&doc.graph, &index, '.', Some(nref)) {
@@ -131,11 +111,11 @@ pub trait Object {
                         SVal::Object(nref) => {
                             let field_path = parameters[1].to_string();
                             if let Some(mut field) = SField::field(&doc.graph, &field_path, '.', Some(&nref)) {
-                                Self::object_call(doc, "remove", &mut vec![SVal::Object(nref.clone()), SVal::String(field.name.clone())])?;
+                                Self::object_call(pid, doc, "remove", &mut vec![SVal::Object(nref.clone()), SVal::String(field.name.clone())])?;
                                 field.attach(&nref, &mut doc.graph);
                                 return Ok(SVal::Bool(true));
                             } else if let Some(mut field) = SField::field(&doc.graph, &field_path, '.', None) {
-                                Self::object_call(doc, "remove", &mut vec![SVal::Object(nref.clone()), SVal::String(field.name.clone())])?;
+                                Self::object_call(pid, doc, "remove", &mut vec![SVal::Object(nref.clone()), SVal::String(field.name.clone())])?;
                                 field.attach(&nref, &mut doc.graph);
                                 return Ok(SVal::Bool(true));
                             } else if let Some(mut func) = SFunc::func(&doc.graph, &field_path, '.', Some(&nref)) {
@@ -156,7 +136,7 @@ pub trait Object {
                                 SVal::Object(context) => {
                                     let field_path = parameters[2].to_string();
                                     if let Some(mut field) = SField::field(&doc.graph, &field_path, '.', Some(&context)) {
-                                        Self::object_call(doc, "remove", &mut vec![SVal::Object(destination.clone()), SVal::String(field.name.clone())])?;
+                                        Self::object_call(pid, doc, "remove", &mut vec![SVal::Object(destination.clone()), SVal::String(field.name.clone())])?;
                                         field.attach(&destination, &mut doc.graph);
                                         return Ok(SVal::Bool(true));
                                     } else if let Some(mut func) = SFunc::func(&doc.graph, &field_path, '.', Some(&context)) {
@@ -250,7 +230,7 @@ pub trait Object {
                 if parameters.len() == 3 {
                     match &parameters[0] {
                         SVal::Object(nref) => {
-                            let name = parameters[1].cast(SType::String, doc)?;
+                            let name = parameters[1].cast(SType::String, pid, doc)?;
                             match name {
                                 SVal::String(val) => {
                                     // Check for an existing field at this location
@@ -291,7 +271,7 @@ pub trait Object {
                         SVal::Object(nref) => {
                             let mut field_names = HashSet::new();
                             for i in 1..parameters.len() {
-                                let value = parameters[i].cast(SType::String, doc)?;
+                                let value = parameters[i].cast(SType::String, pid, doc)?;
                                 match value {
                                     SVal::String(val) => field_names.insert(val),
                                     _ => false
@@ -392,6 +372,30 @@ pub trait Object {
                 }
                 Err(anyhow!("Object.instanceOf(obj, type) requires one object parameter and one typename string"))
             },
+            "upcast" => {
+                if parameters.len() == 1 {
+                    match &parameters[0] {
+                        SVal::Object(nref) => {
+                            if let Some(mut prototype_field) = SField::field(&doc.graph, "__prototype__", '.', Some(nref)) {
+                                if let Some(prototype) = doc.graph.node_from(&prototype_field.to_string(), None) {
+                                    if let Some(parent_ref) = &prototype.parent {
+                                        if let Some(parent) = parent_ref.node(&doc.graph) {
+                                            if parent.name != "__stof__" && parent.name != "prototypes" {
+                                                prototype_field.value = SVal::String(parent_ref.path(&doc.graph));
+                                                prototype_field.set(&mut doc.graph);
+                                                return Ok(SVal::Bool(true));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            return Ok(SVal::Bool(false));
+                        },
+                        _ => {}
+                    }
+                }
+                Err(anyhow!("Object.upcast(obj) requires one object parameter with a prototype"))
+            },
             _ => Err(anyhow!("No Object implementation"))
         }
     }
@@ -412,7 +416,7 @@ impl Library for ObjectLibrary {
     fn scope(&self) -> String {
         "Object".into()
     }
-    fn call(&mut self, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
-        Self::object_call(doc, name, parameters)
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+        Self::object_call(pid, doc, name, parameters)
     }
 }

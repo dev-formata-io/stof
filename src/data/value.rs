@@ -15,10 +15,10 @@
 //
 
 use core::str;
-use std::{hash::Hash, sync::{Arc, RwLock}};
+use std::hash::Hash;
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
-use crate::{SDataRef, SDoc, SGraph, SNodeRef};
+use crate::{Data, SDataRef, SDoc, SGraph, SNodeRef};
 use super::{SField, SNumType, SType, SUnits};
 
 #[cfg(feature = "json")]
@@ -178,7 +178,6 @@ pub enum SVal {
     Array(Vec<SVal>),
     Tuple(Vec<SVal>),
     Blob(Vec<u8>),
-    Ref(Arc<RwLock<SVal>>),
 }
 impl From<&SVal> for SVal {
     fn from(value: &SVal) -> Self {
@@ -193,73 +192,62 @@ impl<T> From<T> for SVal where T: IntoSVal {
 impl PartialEq for SVal {
     fn eq(&self, other: &Self) -> bool {
         match self {
-            Self::Ref(rf) => rf.read().unwrap().eq(other),
             Self::Void => {
                 match other {
-                    Self::Ref(rf) => self.eq(&rf.read().unwrap()),
                     Self::Void => true,
                     _ => false,
                 }
             },
             Self::Null => {
                 match other {
-                    Self::Ref(rf) => self.eq(&rf.read().unwrap()),
                     Self::Null => true,
                     _ => false,
                 }
             },
             Self::Bool(val) => {
                 match other {
-                    Self::Ref(rf) => self.eq(&rf.read().unwrap()),
                     Self::Bool(oval) => *val == *oval,
                     _ => false
                 }
             },
             Self::Object(nref) => {
                 match other {
-                    Self::Ref(rf) => self.eq(&rf.read().unwrap()),
                     Self::Object(oref) => nref.id == oref.id,
                     _ => false,
                 }
             },
             Self::Blob(vals) => {
                 match other {
-                    Self::Ref(rf) => self.eq(&rf.read().unwrap()),
                     Self::Blob(ovals) => vals == ovals,
                     _ => false,
                 }
             },
             Self::FnPtr(dref) => {
                 match other {
-                    Self::Ref(rf) => self.eq(&rf.read().unwrap()),
                     Self::FnPtr(odref) => odref.id == dref.id,
                     _ => false,
                 }
             },
             Self::Number(val) => {
                 match other {
-                    Self::Ref(rf) => self.eq(&rf.read().unwrap()),
                     Self::Number(oval) => val.eq(oval),
                     _ => false,
                 }
             },
             Self::String(val) => {
                 match other {
-                    Self::Ref(rf) => self.eq(&rf.read().unwrap()),
                     Self::String(oval) => oval == val,
                     _ => false,
                 }
             },
             Self::Array(vals) => {
                 match other {
-                    Self::Ref(rf) => self.eq(&rf.read().unwrap()),
                     Self::Array(ovals) => vals == ovals,
                     _ => false,
                 }
             },
             Self::Tuple(vals) => {
                 match other {
-                    Self::Ref(rf) => self.eq(&rf.read().unwrap()),
                     Self::Tuple(ovals) => vals == ovals,
                     _ => false,
                 }
@@ -271,8 +259,8 @@ impl Eq for SVal {}
 impl SVal {
     /// Schema equals another value?
     /// True if the values have the same type.
-    pub fn schema_eq(&self, other: &Self) -> bool {
-        self.stype() == other.stype()
+    pub fn schema_eq(&self, other: &Self, graph: &SGraph) -> bool {
+        self.stype(graph) == other.stype(graph)
     }
 
     /// Is void?
@@ -285,7 +273,11 @@ impl SVal {
 
     /// Is empty?
     pub fn is_empty(&self) -> bool {
-        self.stype().is_empty()
+        match self {
+            Self::Null |
+            Self::Void => true,
+            _ => false,
+        }
     }
 
     /// Is null?
@@ -328,14 +320,6 @@ impl SVal {
         }
     }
 
-    /// Is a ref?
-    pub fn is_ref(&self) -> bool {
-        match self {
-            Self::Ref(_) => true,
-            _ => false,
-        }
-    }
-
     /// Create a tuple.
     pub fn tuple<T>(vals: Vec<T>) -> Self where T: IntoSVal {
         let mut new: Vec<Self> = Vec::new();
@@ -344,9 +328,8 @@ impl SVal {
     }
 
     /// Type for this value.
-    pub fn stype(&self) -> SType {
+    pub fn stype(&self, graph: &SGraph) -> SType {
         match self {
-            Self::Ref(rf) => rf.read().unwrap().stype(),
             Self::Void => SType::Void,
             Self::Bool(_) => SType::Bool,
             Self::Number(val) => SType::Number(val.stype()),
@@ -355,11 +338,21 @@ impl SVal {
             Self::Null => SType::Null,
             Self::Tuple(vals) => {
                 let mut types: Vec<SType> = Vec::new();
-                for val in vals { types.push(val.stype()); }
+                for val in vals { types.push(val.stype(graph)); }
                 SType::Tuple(types)
             },
             Self::FnPtr(_) => SType::FnPtr,
-            Self::Object(_) => SType::Object,
+            Self::Object(nref) => {
+                if let Some(prototype) = SField::field(graph, "__prototype__", '.', Some(nref)) {
+                    if let Some(node_ref) = graph.node_ref(&prototype.to_string(), None) {
+                        // Use the full typepath here, so that we arrive at the correct type when casting, etc...
+                        if let Some(typepath) = SField::field(graph, "typepath", '.', Some(&node_ref)) {
+                            return SType::Object(typepath.to_string());
+                        }
+                    }
+                }
+                SType::Object("obj".to_string())
+            },
             Self::Blob(_) => SType::Blob,
         }
     }
@@ -375,7 +368,6 @@ impl SVal {
             Self::FnPtr(dref) => { format!("fn({:?})", dref) },
             Self::Null => { "null".to_string() },
             Self::Void => { "void".to_string() },
-            Self::Ref(_) => { "ref".to_string() },
             Self::Tuple(tup) => { format!("tup({:?})", tup) },
             Self::Blob(blob) => { format!("blob({}bytes)", blob.len()) },
         }
@@ -384,7 +376,6 @@ impl SVal {
     /// Truthy value for this val.
     pub fn truthy(&self) -> bool {
         match self {
-            Self::Ref(rf) => rf.read().unwrap().truthy(),
             Self::Array(_) => true,
             Self::Bool(val) => *val,
             Self::FnPtr(_) => true,
@@ -401,7 +392,6 @@ impl SVal {
     /// Typestack.
     pub fn type_stack(&self, graph: &SGraph) -> Vec<String> {
         match self {
-            Self::Ref(rf) => rf.read().unwrap().type_stack(graph),
             Self::Object(nref) => {
                 let mut type_stack = Vec::new();
                 if let Some(prototype) = SField::field(graph, "__prototype__", '.', Some(nref)) {
@@ -438,34 +428,68 @@ impl SVal {
         false
     }
 
-    /// Typename.
-    pub fn type_name(&self, graph: &SGraph) -> String {
+    /// Typepath stack.
+    pub fn typepath_stack(&self, graph: &SGraph) -> Vec<String> {
         match self {
-            Self::Ref(rf) => rf.read().unwrap().type_name(graph),
             Self::Object(nref) => {
+                let mut type_stack = Vec::new();
                 if let Some(prototype) = SField::field(graph, "__prototype__", '.', Some(nref)) {
                     if let Some(node) = graph.node_ref(&prototype.string(), None) {
-                        if let Some(typename) = SField::field(graph, "typename", '.', Some(&node)) {
-                            return typename.string();
+                        let mut current = Some(node);
+                        while let Some(typename) = SField::field(graph, "typepath", '.', current.as_ref()) {
+                            type_stack.push(typename.to_string());
+
+                            if let Some(node) = current.unwrap().node(graph) {
+                                if let Some(parent_ref) = &node.parent {
+                                    current = Some(parent_ref.clone());
+                                } else {
+                                    break;
+                                }
+                            } else {
+                                break;
+                            }
                         }
                     }
                 }
-                "obj".into()
+                type_stack
             },
-            _ => {
-                let stype = self.stype();
-                stype.type_of()
+            _ => vec![]
+        }
+    }
+
+    /// Instance of a typepath?
+    pub fn instance_of_typepath(&self, graph: &SGraph, typepath: &str) -> bool {
+        for htype in self.typepath_stack(graph).iter().rev() {
+            if htype == typepath {
+                return true;
             }
         }
+        false
+    }
+
+    /// Typename.
+    pub fn type_name(&self, graph: &SGraph) -> String {
+        match self {
+            Self::Object(nref) => {
+                if let Some(prototype) = SField::field(graph, "__prototype__", '.', Some(nref)) {
+                    if let Some(node_ref) = graph.node_ref(&prototype.to_string(), None) {
+                        // Don't use the full typepath here of stype... use just the typename field
+                        if let Some(typename) = SField::field(graph, "typename", '.', Some(&node_ref)) {
+                            return typename.to_string();
+                        }
+                    }
+                }
+                return "obj".to_string();
+            },
+            _ => {}
+        }
+        let stype = self.stype(graph);
+        stype.type_of()
     }
 
     /// Union this value with another, manipulating this value as the result.
     pub fn union(&mut self, other: &Self) {
         match self {
-            SVal::Ref(rf) => {
-                let mut val = rf.write().unwrap();
-                val.union(other);
-            },
             SVal::Void |
             SVal::Null => {
                 *self = other.clone();
@@ -504,9 +528,8 @@ impl SVal {
     }
 
     /// Cast a value to another type of value.
-    pub fn cast(&self, target: SType, doc: &mut SDoc) -> Result<Self> {
+    pub fn cast(&self, target: SType, pid: &str, doc: &mut SDoc) -> Result<Self> {
         match self {
-            Self::Ref(rf) => rf.read().unwrap().cast(target, doc),
             Self::Blob(blob) => {
                 match target {
                     SType::Array => {
@@ -541,7 +564,7 @@ impl SVal {
                     },
                     SType::Tuple(types) => {
                         let tup = Self::Tuple(vals.clone());
-                        if tup.stype() == SType::Tuple(types.clone()) {
+                        if tup.stype(&doc.graph) == SType::Tuple(types.clone()) {
                             return Ok(tup);
                         }
                         // Try to convert every individual value
@@ -550,12 +573,12 @@ impl SVal {
                             for i in 0..types.len() {
                                 let ty = types[i].clone();
                                 let val = &vals[i];
-                                let val_type = val.stype();
+                                let val_type = val.stype(&doc.graph);
                                 
                                 if val_type == ty {
                                     new_vals.push(val.clone());
                                 } else {
-                                    new_vals.push(val.cast(ty, doc)?);
+                                    new_vals.push(val.cast(ty, pid, doc)?);
                                 }
                             }
                             return Ok(Self::Tuple(new_vals));
@@ -640,19 +663,19 @@ impl SVal {
                                 if let Ok(res) = val.replace('+', "").parse::<i64>() {
                                     return Ok(Self::Number(SNum::I64(res)));
                                 }
-                                Err(anyhow!("Value '{}' is not i64", val))
+                                Err(anyhow!("Value '{}' is not an int", val))
                             },
                             SNumType::F64 => {
                                 if let Ok(res) = val.replace('+', "").parse::<f64>() {
                                     return Ok(Self::Number(SNum::F64(res)));
                                 }
-                                Err(anyhow!("Value '{}' is not f64", val))
+                                Err(anyhow!("Value '{}' is not a float", val))
                             },
                             SNumType::Units(units) => {
                                 if let Ok(res) = val.replace('+', "").parse::<f64>() {
                                     return Ok(Self::Number(SNum::Units(res, units)));
                                 }
-                                Err(anyhow!("Value '{}' is not f64", val))
+                                Err(anyhow!("Value '{}' is not a float (to units)", val))
                             },
                         }
                     },
@@ -670,8 +693,8 @@ impl SVal {
                             for i in 0..types.len() {
                                 let val = &vals[i];
                                 let ty = types[i].clone();
-                                if val.stype() != ty {
-                                    new_tup.push(val.cast(ty, doc)?);
+                                if val.stype(&doc.graph) != ty {
+                                    new_tup.push(val.cast(ty, pid, doc)?);
                                 } else {
                                     new_tup.push(val.clone());
                                 }
@@ -687,9 +710,91 @@ impl SVal {
             Self::Void => {
                 Err(anyhow!("Cannot cast void to anything"))
             },
-            Self::Object(_) => {
+            Self::Object(nref) => {
                 match target {
-                    SType::Object => Ok(self.clone()),
+                    SType::Object(typepath) => {
+                        if typepath == "obj" || typepath == "root" { // Any object can cast to an obj, shouldn't hit "root" case though
+                            return Ok(self.clone());
+                        }
+
+                        let current_scope;
+                        if let Some(scope) = doc.self_ptr(pid) {
+                            current_scope = scope;
+                        } else if let Some(main) = doc.graph.main_root() {
+                            current_scope = main;
+                        } else {
+                            current_scope = doc.graph.insert_root("root");
+                        }
+
+                        let mut type_path: Vec<&str> = typepath.split('.').collect();
+                        let custom_type_name = type_path.pop().unwrap();
+
+                        // Find a scope to use other than our own?
+                        let mut type_scope = current_scope.clone();
+                        if type_path.len() > 0 {
+                            let path = type_path.join("/");
+                            if path.starts_with("self") || path.starts_with("super") {
+                                if let Some(nref) = doc.graph.node_ref(&path, Some(&type_scope)) {
+                                    type_scope = nref;
+                                } else {
+                                    return Err(anyhow!("Cannot find referenced type scope for casting an object to {}", typepath));
+                                }
+                            } else {
+                                if let Some(nref) = doc.graph.node_ref(&path, None) {
+                                    type_scope = nref;
+                                } else {
+                                    return Err(anyhow!("Cannot find referenced type scope for casting an object to {}", typepath));
+                                }
+                            }
+                        }
+
+                        // Try assigning the prototype of this object since its not a value type
+                        let mut success = false;
+                        let mut typefields = Vec::new();
+                        if let Some(custom_type) = doc.types.find(&doc.graph, custom_type_name, &type_scope) {
+                            if custom_type.is_private() && !current_scope.is_child_of(&doc.graph, &type_scope) {
+                                // Custom type is private and the current scope is not equal or a child of the type's scope
+                                return Err(anyhow!("Cannot cast expr to private object type: {}", typepath));
+                            }
+
+                            // Check the current type of the object, to see if we already are an instance of this custom type
+                            if self.instance_of_typepath(&doc.graph, &custom_type.typepath(&doc.graph)) {
+                                return Ok(self.clone());
+                            }
+
+                            // Have to move typefields out of the borrow...
+                            typefields = custom_type.fields.clone();
+
+                            let prototype_path = custom_type.path(&doc.graph);
+                            if let Some(mut prototype_field) = SField::field(&doc.graph, "__prototype__", '.', Some(nref)) {
+                                prototype_field.value = Self::String(prototype_path);
+                                prototype_field.set(&mut doc.graph);
+                            } else {
+                                SField::new_string(&mut doc.graph, "__prototype__", &prototype_path, nref);
+                            }
+                            success = true;
+                        }
+                        if success {
+                            // Check for fields on this object in the correct type, otherwise create with the defaults from the custom type
+                            for typefield in typefields {
+                                if let Some(mut field) = SField::field(&doc.graph, &typefield.name, '.', Some(nref)) {
+                                    let existing_type = field.value.stype(&doc.graph);
+                                    if existing_type != typefield.ptype {
+                                        field.value = field.value.cast(typefield.ptype, pid, doc)?;
+                                        field.set(&mut doc.graph);
+                                    }
+                                } else if let Some(default) = &typefield.default {
+                                    let default_value = default.exec(pid, doc)?;
+                                    let mut field = SField::new(&typefield.name, default_value);
+                                    field.attach(nref, &mut doc.graph);
+                                } else {
+                                    return Err(anyhow!("Could not find or create the field '{}' while casting object into '{}'", typefield.name, typepath));
+                                }
+                            }
+                            return Ok(self.clone());
+                        }
+                        Err(anyhow!("Cannot cast expr to object type: {}", typepath))
+                    },
                     _ => Err(anyhow!("Cannot cast Object into {:?}", target))
                 }
             },
@@ -699,7 +804,6 @@ impl SVal {
     /// Print this value.
     pub fn print(&self, doc: &mut SDoc) -> String {
         match self {
-            Self::Ref(rf) => rf.read().unwrap().print(doc),
             Self::Void => {
                 "void".to_string()
             },
@@ -752,9 +856,6 @@ impl SVal {
     /// Debug this value to console.
     pub fn debug(&self, doc: &mut SDoc) -> String {
         match self {
-            Self::Ref(rf) => {
-                format!("Ref({})", rf.read().unwrap().debug(doc))
-            },
             Self::Void => {
                 "void".to_string()
             },
@@ -800,19 +901,18 @@ impl SVal {
     }
 
     /// Equality.
-    pub fn equal(&self, other: &Self, _doc: &mut SDoc) -> Result<Self> {
+    pub fn equal(&self, other: &Self) -> Result<Self> {
         Ok((self == other).into())
     }
 
     /// Not equals.
-    pub fn neq(&self, other: &Self, _doc: &mut SDoc) -> Result<Self> {
+    pub fn neq(&self, other: &Self) -> Result<Self> {
         Ok((self != other).into())
     }
 
     /// Greater than other?
-    pub fn gt(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn gt(&self, other: &Self) -> Result<Self> {
         match self {
-            Self::Ref(rf) => rf.read().unwrap().gt(other, doc),
             Self::Array(_) => Ok(Self::Bool(false)),
             Self::Tuple(_) => Ok(Self::Bool(false)),
             Self::Bool(_) => Ok(Self::Bool(false)),
@@ -821,14 +921,12 @@ impl SVal {
             Self::Null => Ok(Self::Bool(false)),
             Self::Blob(blob) => {
                 match other {
-                    Self::Ref(rf) => self.gt(&rf.read().unwrap(), doc),
                     Self::Blob(other_blob) => Ok(Self::Bool(blob.len() > other_blob.len())),
                     _ => Ok(Self::Bool(false))
                 }
             },
             Self::Number(val) => {
                 match other {
-                    Self::Ref(rf) => self.gt(&rf.read().unwrap(), doc),
                     Self::Number(oval) => {
                         Ok(Self::Bool(val.gt(oval)))
                     },
@@ -837,7 +935,6 @@ impl SVal {
             },
             Self::String(val) => {
                 match other {
-                    Self::Ref(rf) => self.gt(&rf.read().unwrap(), doc),
                     Self::String(oval) => Ok(Self::Bool(val > oval)),
                     _ => Ok(Self::Bool(false)),
                 }
@@ -847,9 +944,8 @@ impl SVal {
     }
 
     /// Less than other?
-    pub fn lt(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn lt(&self, other: &Self) -> Result<Self> {
         match self {
-            Self::Ref(rf) => rf.read().unwrap().lt(other, doc),
             Self::Array(_) => Ok(Self::Bool(false)),
             Self::Tuple(_) => Ok(Self::Bool(false)),
             Self::Bool(_) => Ok(Self::Bool(false)),
@@ -858,14 +954,12 @@ impl SVal {
             Self::Null => Ok(Self::Bool(false)),
             Self::Blob(blob) => {
                 match other {
-                    Self::Ref(rf) => self.lt(&rf.read().unwrap(), doc),
                     Self::Blob(other_blob) => Ok(Self::Bool(blob.len() < other_blob.len())),
                     _ => Ok(Self::Bool(false))
                 }
             },
             Self::Number(val) => {
                 match other {
-                    Self::Ref(rf) => self.lt(&rf.read().unwrap(), doc),
                     Self::Number(oval) => {
                         Ok(Self::Bool(val.lt(oval)))
                     },
@@ -874,7 +968,6 @@ impl SVal {
             },
             Self::String(val) => {
                 match other {
-                    Self::Ref(rf) => self.lt(&rf.read().unwrap(), doc),
                     Self::String(oval) => Ok(Self::Bool(val < oval)),
                     _ => Ok(Self::Bool(false)),
                 }
@@ -884,8 +977,8 @@ impl SVal {
     }
 
     /// Greater than or equal?
-    pub fn gte(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
-        let mut res = self.gt(other, doc)?;
+    pub fn gte(&self, other: &Self) -> Result<Self> {
+        let mut res = self.gt(other)?;
         match res {
             Self::Bool(val) => {
                 if val {
@@ -894,7 +987,7 @@ impl SVal {
             },
             _ => {}
         }
-        res = self.equal(other, doc)?;
+        res = self.equal(other)?;
         match res {
             Self::Bool(_) => Ok(res),
             _ => Ok(Self::Bool(false))
@@ -902,8 +995,8 @@ impl SVal {
     }
 
     /// Less than or equal?
-    pub fn lte(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
-        let mut res = self.lt(other, doc)?;
+    pub fn lte(&self, other: &Self) -> Result<Self> {
+        let mut res = self.lt(other)?;
         match res {
             Self::Bool(val) => {
                 if val {
@@ -912,7 +1005,7 @@ impl SVal {
             },
             _ => {}
         }
-        res = self.equal(other, doc)?;
+        res = self.equal(other)?;
         match res {
             Self::Bool(_) => Ok(res),
             _ => Ok(Self::Bool(false))
@@ -920,11 +1013,10 @@ impl SVal {
     }
 
     /// Logical and.
-    pub fn and(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn and(&self, other: &Self) -> Result<Self> {
         match self {
-            Self::Ref(rf) => rf.read().unwrap().and(other, doc),
             // Object is truthy!
-            Self::Object(_) => Self::Bool(true).and(other, doc),
+            Self::Object(_) => Self::Bool(true).and(other),
             Self::Null |
             Self::Void => {
                 // null && any => false
@@ -934,7 +1026,6 @@ impl SVal {
             Self::Bool(aval) => {
                 match other {
                     Self::Object(_) => Ok(Self::Bool(*aval)),
-                    Self::Ref(rf) => self.and(&rf.read().unwrap(), doc),
                     Self::Null |
                     Self::Void => {
                         // any && null => false
@@ -964,7 +1055,6 @@ impl SVal {
             Self::String(aval) => {
                 match other {
                     Self::Object(_) => Ok(Self::Bool(aval.len() > 0)),
-                    Self::Ref(rf) => self.and(&rf.read().unwrap(), doc),
                     Self::Null |
                     Self::Void => {
                         // Any && null => false
@@ -994,7 +1084,6 @@ impl SVal {
             Self::Number(aval) => {
                 match other {
                     Self::Object(_) => Ok(Self::Bool(aval.bool())),
-                    Self::Ref(rf) => self.and(&rf.read().unwrap(), doc),
                     Self::Null |
                     Self::Void => {
                         // any && void => false
@@ -1034,10 +1123,9 @@ impl SVal {
     }
 
     /// Logical or.
-    pub fn or(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn or(&self, other: &Self) -> Result<Self> {
         match self {
             Self::Object(_) => Ok(Self::Bool(true)),
-            Self::Ref(rf) => rf.read().unwrap().or(other, doc),
             Self::Null |
             Self::Void => {
                 Ok(Self::Bool(!other.is_empty()))
@@ -1046,7 +1134,6 @@ impl SVal {
             Self::Bool(aval) => {
                 match other {
                     Self::Object(_) => Ok(Self::Bool(true)),
-                    Self::Ref(rf) => self.or(&rf.read().unwrap(), doc),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::Bool(*aval))
@@ -1075,7 +1162,6 @@ impl SVal {
             Self::String(aval) => {
                 match other {
                     Self::Object(_) => Ok(Self::Bool(true)),
-                    Self::Ref(rf) => self.or(&rf.read().unwrap(), doc),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::Bool(aval.len() > 0))
@@ -1104,7 +1190,6 @@ impl SVal {
             Self::Number(aval) => {
                 match other {
                     Self::Object(_) => Ok(Self::Bool(true)),
-                    Self::Ref(rf) => self.or(&rf.read().unwrap(), doc),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::Bool(aval.bool()))
@@ -1146,7 +1231,6 @@ impl SVal {
     pub fn add(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
         match self {
             Self::Object(_) => Err(anyhow!("Cannot add objects")),
-            Self::Ref(rf) => rf.read().unwrap().add(other, doc),
             Self:: Null |
             Self::Void => {
                 Ok(other.clone())
@@ -1165,7 +1249,6 @@ impl SVal {
             Self::Bool(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot add objects")),
-                    Self::Ref(rf) => self.add(&rf.read().unwrap(), doc),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1196,7 +1279,6 @@ impl SVal {
             Self::String(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot add objects")),
-                    Self::Ref(rf) => self.add(&rf.read().unwrap(), doc),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1228,7 +1310,6 @@ impl SVal {
             Self::Number(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot add objects")),
-                    Self::Ref(rf) => self.add(&rf.read().unwrap(), doc),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1263,11 +1344,6 @@ impl SVal {
             Self::Array(vals) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot add objects")),
-                    Self::Ref(rf) => {
-                        let mut new = vals.clone();
-                        new.push(Self::Ref(rf.clone()));
-                        Ok(Self::Array(new))
-                    },
                     Self::Null |
                     Self::Void => {
                         Ok(Self::Array(vals.clone()))
@@ -1305,7 +1381,8 @@ impl SVal {
                         Ok(Self::Array(new))
                     },
                     Self::Blob(_) => {
-                        let arr_blob = Self::Array(vals.clone()).cast(SType::Blob, doc)?;
+                        // PID here doesn't matter, because they only get used when casting with objects...
+                        let arr_blob = Self::Array(vals.clone()).cast(SType::Blob, "main", doc)?;
                         arr_blob.add(other, doc)
                     },
                 }
@@ -1320,10 +1397,9 @@ impl SVal {
     }
 
     /// Subtract.
-    pub fn sub(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn sub(&self, other: &Self) -> Result<Self> {
         match self {
             Self::Object(_) => Err(anyhow!("Cannot subtract objects")),
-            Self::Ref(rf) => rf.read().unwrap().sub(other, doc),
             Self::Null |
             Self::Void => {
                 Err(anyhow!("Cannot subtract anything from null or void"))
@@ -1334,7 +1410,6 @@ impl SVal {
             Self::Bool(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot subtract objects")),
-                    Self::Ref(rf) => self.sub(&rf.read().unwrap(), doc),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1365,7 +1440,6 @@ impl SVal {
             Self::String(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot subtract objects")),
-                    Self::Ref(rf) => self.sub(&rf.read().unwrap(), doc),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1396,7 +1470,6 @@ impl SVal {
             Self::Number(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot subtract objects")),
-                    Self::Ref(rf) => self.sub(&rf.read().unwrap(), doc),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1443,10 +1516,9 @@ impl SVal {
     }
 
     /// Multiply another value with this value.
-    pub fn mul(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn mul(&self, other: &Self) -> Result<Self> {
         match self {
             Self::Object(_) => Err(anyhow!("Cannot multiply objects")),
-            Self::Ref(rf) => rf.read().unwrap().mul(other, doc),
             Self::Null |
             Self::Void => {
                 Ok(other.clone())
@@ -1457,7 +1529,6 @@ impl SVal {
             Self::Bool(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot multiply objects")),
-                    Self::Ref(rf) => self.mul(&rf.read().unwrap(), doc),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1488,7 +1559,6 @@ impl SVal {
             Self::String(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot multiply objects")),
-                    Self::Ref(rf) => self.mul(&rf.read().unwrap(), doc),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1523,7 +1593,6 @@ impl SVal {
             Self::Number(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot multiply objects")),
-                    Self::Ref(rf) => self.mul(&rf.read().unwrap(), doc),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1568,10 +1637,9 @@ impl SVal {
     }
 
     /// Divide another value with this value.
-    pub fn div(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn div(&self, other: &Self) -> Result<Self> {
         match self {
             Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-            Self::Ref(rf) => rf.read().unwrap().div(other, doc),
             Self::Null |
             Self::Void => {
                 Ok(other.clone())
@@ -1582,7 +1650,6 @@ impl SVal {
             Self::Bool(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-                    Self::Ref(rf) => self.div(&rf.read().unwrap(), doc),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1613,7 +1680,6 @@ impl SVal {
             Self::String(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-                    Self::Ref(rf) => self.div(&rf.read().unwrap(), doc),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1649,7 +1715,6 @@ impl SVal {
             Self::Number(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-                    Self::Ref(rf) => self.div(&rf.read().unwrap(), doc),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1694,10 +1759,9 @@ impl SVal {
     }
 
     /// Modulus/remainder (mod) another value with this value.
-    pub fn rem(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn rem(&self, other: &Self) -> Result<Self> {
         match self {
             Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-            Self::Ref(rf) => rf.read().unwrap().rem(other, doc),
             Self::Null |
             Self::Void => {
                 Ok(other.clone())
@@ -1708,7 +1772,6 @@ impl SVal {
             Self::Bool(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-                    Self::Ref(rf) => self.rem(&rf.read().unwrap(), doc),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1739,7 +1802,6 @@ impl SVal {
             Self::String(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-                    Self::Ref(rf) => self.rem(&rf.read().unwrap(), doc),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
@@ -1775,7 +1837,6 @@ impl SVal {
             Self::Number(aval) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
-                    Self::Ref(rf) => self.rem(&rf.read().unwrap(), doc),
                     Self::Null |
                     Self::Void => {
                         Ok(self.clone())
