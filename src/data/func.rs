@@ -14,10 +14,9 @@
 // limitations under the License.
 //
 
-use std::{collections::{BTreeMap, HashMap}, ops::DerefMut, sync::Arc};
+use std::collections::{BTreeMap, HashMap};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
 use crate::{Data, IntoDataRef, SData, SDataRef, SDoc, SGraph, SNodeRef};
 use super::{lang::{Expr, Statements}, SType, SVal};
 
@@ -277,113 +276,6 @@ impl SFunc {
             // Try casting result to our return type if needed
             if res_type != self.rtype {
                 if let Ok(new_res) = res.cast(self.rtype.clone(), pid, doc) {
-                    res = new_res;
-                    res_type = self.rtype.clone();
-                }
-            }
-
-            if res_type == self.rtype {
-                return Ok(res);
-            }
-            return Err(anyhow!("Failed to validate return of function: {}. Expected: {:?}, received: {:?}: {:?}", &self.name, self.rtype, res, res.stype(&doc.graph)));
-        }
-        Err(anyhow!("Failed to validate return of function: {}. Expected: {:?}, received: {:?}", &self.name, self.rtype, res))
-    }
-
-    /// Call this function with the given doc.
-    /// Parameters get put onto the doc stack, and statements get executed.
-    pub async fn engine_call(&self, pid: &str, doc: Arc<Mutex<SDoc>>, mut parameters: Vec<SVal>, add_self: bool) -> Result<SVal> {
-        // Validate the number of parameters required to call this function
-        if self.params.len() != parameters.len() {
-            let mut index = parameters.len();
-            while index < self.params.len() {
-                let param = &self.params[index];
-                if let Some(default) = &param.default {
-                    let value = Box::pin(default.engine_exec(pid, &doc)).await?;
-                    parameters.push(value);
-                } else {
-                    break;
-                }
-                index += 1;
-            }
-        }
-        if self.params.len() != parameters.len() {
-            return Err(anyhow!("Gave incorrect parameters for function: {}", &self.name));
-        }
-
-        // Add self to doc self stack
-        if add_self {
-            let mut doc = doc.lock().await;
-            let mut nodes = Vec::new();
-            if let Some(data) = doc.graph.data_from_ref(&self.data_ref()) {
-                nodes = data.nodes.clone();
-            }
-            if let Some(nref) = nodes.last() {
-                doc.push_self(pid, nref.clone());
-            } else {
-                // Data isn't in the graph, so add main as root
-                if doc.graph.roots.len() < 1 {
-                    doc.graph.insert_root("root");
-                }
-                let main_ref = doc.graph.main_root().unwrap();
-                doc.push_self(pid, main_ref);
-            }
-        }
-
-        // Validate the types of parameters given as we push them to the doc stack
-        let mut added = Vec::new();
-        parameters.reverse();
-        {
-            let mut doc = doc.lock().await;
-            for i in 0..parameters.len() {
-                let mut arg_val = parameters.pop().unwrap();
-                let mut arg_type = arg_val.stype(&doc.graph);
-                let param = &self.params[i];
-
-                if arg_type != param.ptype {
-                    arg_val = arg_val.cast(param.ptype.clone(), pid, &mut doc)?;
-                    arg_type = param.ptype.clone(); // for null, etc..
-                }
-
-                if arg_type == param.ptype {
-                    let name = &param.name;
-                    added.push(name.clone());
-                    doc.add_variable(pid, name, arg_val);
-                } else {
-                    for name in added {
-                        doc.deref_mut().drop(pid, &name);
-                    }
-                    return Err(anyhow!("Failed to match parameter types for function: {}", &self.name));
-                }
-            }
-
-            doc.new_scope(pid);
-        }
-
-        // Execute all of the statements with this doc in a scope (block)
-        Box::pin(self.statements.engine_exec(pid, &doc)).await?;
-
-        // Safe to get doc for the rest of the func.
-        let mut doc = doc.lock().await;
-
-        doc.end_scope(pid);
-
-        // Pop the self stack!
-        if add_self {
-            doc.pop_self(pid);
-        }
-
-        // Validate the return/result of this function
-        let res = doc.pop(pid);
-        if self.rtype.is_void() && res.is_none() {
-            return Ok(SVal::Void);
-        } else if res.is_some() {
-            let mut res = res.unwrap();
-            let mut res_type = res.stype(&doc.graph);
-
-            // Try casting result to our return type if needed
-            if res_type != self.rtype {
-                if let Ok(new_res) = res.cast(self.rtype.clone(), pid, &mut doc) {
                     res = new_res;
                     res_type = self.rtype.clone();
                 }
