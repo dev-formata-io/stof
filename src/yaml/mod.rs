@@ -14,7 +14,6 @@
 // limitations under the License.
 //
 
-use std::fs;
 use anyhow::{anyhow, Result};
 use serde_json::Value;
 use crate::{json::JSON, Format, IntoNodeRef, SDoc, SGraph};
@@ -95,7 +94,7 @@ impl Format for YAML {
 
     /// File import.
     fn file_import(&self, pid: &str, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
-        let src = fs::read_to_string(full_path)?;
+        let src = doc.fs_read_string(pid, full_path)?;
         self.string_import(pid, doc, &src, as_name)
     }
 

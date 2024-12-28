@@ -15,7 +15,6 @@
 //
 
 use core::str;
-use std::fs;
 use anyhow::{anyhow, Result};
 use bytes::Bytes;
 use crate::{Data, Format, IntoNodeRef, SDoc, SField, SGraph, SVal};
@@ -104,8 +103,7 @@ impl Format for BYTES {
 
     /// File import.
     fn file_import(&self, pid: &str, doc: &mut crate::SDoc, format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
-        let src = fs::read(full_path)?;
-        let mut bytes = Bytes::from(src);
+        let mut bytes = doc.fs_read_blob(pid, full_path)?;
         self.header_import(pid, doc, format, &mut bytes, as_name)
     }
 

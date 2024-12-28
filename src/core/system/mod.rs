@@ -14,16 +14,6 @@
 // limitations under the License.
 //
 
-use crate::SDoc;
 
-
-#[test]
-fn hello_file_roundtrip() {
-    {
-        let mut doc = SDoc::file("src/stof/tests/hello.stof", "stof").unwrap();
-        assert!(doc.bin_file_out("src/stof/tests/hello.bstof", "bstof").is_ok());
-    }
-    let mut doc = SDoc::file("src/stof/tests/hello.bstof", "bstof").unwrap();
-    let res = doc.run(None).pop().unwrap().1;
-    assert_eq!(res, "hello".into());
-}
+pub mod filesystem;
+pub use filesystem::*;

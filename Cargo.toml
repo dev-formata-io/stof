@@ -13,12 +13,16 @@ crate-type = ["cdylib", "lib"]
 
 [features]
 default = ["json", "toml", "yaml", "xml", "urlencoded"]
+
+# Formats
 json = ["dep:serde_json"]
 toml = ["dep:toml"]
 yaml = ["json", "dep:serde_yaml"]
 xml = ["json", "dep:quick-xml", "dep:serde-xml-rs"]
 urlencoded = ["json", "dep:urlencoding"]
-js = ["json", "dep:js-sys", "dep:serde-wasm-bindgen", "dep:wasm-bindgen"]
+
+# WebAssembly Interface feature - no default file system lib, add "json" dependency, and "wasm-bindgen"
+wasm = ["json", "dep:js-sys", "dep:serde-wasm-bindgen", "dep:wasm-bindgen"]
 
 [dependencies]
 anyhow = "1.0.94"

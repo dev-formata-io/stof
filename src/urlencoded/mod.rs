@@ -14,7 +14,6 @@
 // limitations under the License.
 //
 
-use std::fs;
 use anyhow::Result;
 use crate::{Format, SGraph};
 
@@ -67,7 +66,7 @@ impl Format for URLENC {
 
     /// File import.
     fn file_import(&self, pid: &str, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
-        let src = fs::read_to_string(full_path)?;
+        let src = doc.fs_read_string(pid, full_path)?;
         self.string_import(pid, doc, &src, as_name)
     }
 

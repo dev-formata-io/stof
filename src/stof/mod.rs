@@ -22,7 +22,6 @@ use bytes::Bytes;
 pub mod env;
 pub use env::*;
 
-use std::fs;
 use anyhow::{anyhow, Result};
 use crate::{Format, SDoc, SGraph};
 
@@ -120,7 +119,7 @@ impl Format for BSTOF {
 
     /// File import.
     fn file_import(&self, pid: &str, doc: &mut crate::SDoc, format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
-        let mut bytes = Bytes::from(fs::read(full_path)?);
+        let mut bytes = doc.fs_read_blob(pid, full_path)?;
         self.header_import(pid, doc, format, &mut bytes, as_name)
     }
 
@@ -202,7 +201,7 @@ impl Format for STOF {
 
     /// File import.
     fn file_import(&self, pid: &str, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
-        let src = fs::read_to_string(full_path)?;
+        let src = doc.fs_read_string(pid, full_path)?;
         self.string_import(pid, doc, &src, as_name)
     }
 }

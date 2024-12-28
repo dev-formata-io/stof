@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::{collections::HashSet, fs, sync::Arc, time::SystemTime};
+use std::{collections::HashSet, sync::Arc, time::SystemTime};
 use anyhow::{anyhow, Result};
 use bytes::Bytes;
 use colored::Colorize;
@@ -22,9 +22,12 @@ use serde::{Deserialize, Serialize};
 use crate::{bytes::BYTES, text::TEXT, SField, SFunc, SVal, BSTOF, STOF};
 use super::{runtime::{DocPermissions, Library, Symbol, SymbolTable}, ArrayLibrary, CustomTypes, Format, FunctionLibrary, IntoDataRef, IntoNodeRef, NumberLibrary, ObjectLibrary, SFormats, SGraph, SLibraries, SNodeRef, SProcesses, StdLibrary, StringLibrary, TupleLibrary};
 
-#[cfg(feature = "js")]
+#[cfg(not(feature = "wasm"))]
+use super::FileSystemLibrary;
+
+#[cfg(feature = "wasm")]
 use crate::js::StofLibFunc;
-#[cfg(feature = "js")]
+#[cfg(feature = "wasm")]
 use std::collections::BTreeMap;
 
 #[cfg(feature = "json")]
@@ -67,7 +70,7 @@ pub struct SDoc {
     #[serde(skip)]
     pub(crate) processes: SProcesses,
 
-    #[cfg(feature = "js")]
+    #[cfg(feature = "wasm")]
     #[serde(skip)]
     pub libfuncs: Arc<RwLock<BTreeMap<String, BTreeMap<String, StofLibFunc>>>>,
 }
@@ -89,7 +92,7 @@ impl SDoc {
             perms: Default::default(),
             processes: SProcesses::new(),
 
-            #[cfg(feature = "js")]
+            #[cfg(feature = "wasm")]
             libfuncs: Default::default(),
         };
         doc.load_std_formats();
@@ -119,18 +122,18 @@ impl SDoc {
     }
 
     /// Export this document to a text file at "path" using "format".
-    pub fn text_file_out(&self, path: &str, format: &str) -> Result<()> {
+    pub fn text_file_out(&mut self, path: &str, format: &str) -> Result<()> {
         if let Ok(out) = self.export_min_string("main", format, None) {
-            fs::write(path, out)?;
+            self.fs_write_string("main", path, &out)?;
             return Ok(());
         }
         Err(anyhow!("Could not export to a text file"))
     }
 
     /// Export this document to a binary file at "path" using "format".
-    pub fn bin_file_out(&self, path: &str, format: &str) -> Result<()> {
+    pub fn bin_file_out(&mut self, path: &str, format: &str) -> Result<()> {
         if let Ok(out) = self.export_bytes("main", format, None) {
-            fs::write(path, out)?;
+            self.fs_write_blob("main", path, out.to_vec())?;
             return Ok(());
         }
         Err(anyhow!("Could not export to a binary file"))
@@ -230,6 +233,9 @@ impl SDoc {
 
     /// Load the Stof standard library.
     fn load_std_lib(&mut self) {
+        #[cfg(not(feature = "wasm"))]
+        self.load_lib(Arc::new(FileSystemLibrary::default()));
+
         self.load_lib(Arc::new(StdLibrary::default()));
         self.load_lib(Arc::new(ObjectLibrary::default()));
         self.load_lib(Arc::new(ArrayLibrary::default()));
@@ -245,7 +251,7 @@ impl SDoc {
     }
 
     /// Get a library in this doc.
-    pub fn library(&mut self, lib: &str) -> Option<Arc<dyn Library>> {
+    pub fn library(&self, lib: &str) -> Option<Arc<dyn Library>> {
         if let Some(library) = self.libraries.get(lib) {
             return Some(library.clone());
         }
@@ -255,6 +261,47 @@ impl SDoc {
     /// Available libraries
     pub fn available_libraries(&self) -> HashSet<String> {
         self.libraries.available()
+    }
+
+    /// Write a string to a file using the fs library.
+    pub fn fs_write_string(&mut self, pid: &str, path: &str, contents: &str) -> Result<()> {
+        if let Some(fs) = self.library("fs") {
+            fs.call(pid, self, "write", &mut vec![SVal::String(path.to_owned()), SVal::String(contents.to_owned())])?;
+            return Ok(());
+        }
+        Err(anyhow!("Was not able to use the 'fs' library to write a file"))
+    }
+
+    /// Write a blob to a file using the fs library.
+    pub fn fs_write_blob(&mut self, pid: &str, path: &str, contents: Vec<u8>) -> Result<()> {
+        if let Some(fs) = self.library("fs") {
+            fs.call(pid, self, "write_blob", &mut vec![SVal::String(path.to_owned()), SVal::Blob(contents)])?;
+            return Ok(());
+        }
+        Err(anyhow!("Was not able to use the 'fs' library to write a file"))
+    }
+
+    /// Read a file to a string using the fs library.
+    pub fn fs_read_string(&mut self, pid: &str, path: &str) -> Result<String> {
+        if let Some(fs) = self.library("fs") {
+            let res = fs.call(pid, self, "read", &mut vec![SVal::String(path.to_owned())])?;
+            return Ok(res.owned_to_string());
+        }
+        Err(anyhow!("Was not able to use the 'fs' library to read a file to a string"))
+    }
+
+    /// Read a file to a blob using the fs library.
+    pub fn fs_read_blob(&mut self, pid: &str, path: &str) -> Result<Bytes> {
+        if let Some(fs) = self.library("fs") {
+            let res = fs.call(pid, self, "read_to_blob", &mut vec![SVal::String(path.to_owned())])?;
+            match res {
+                SVal::Blob(blob) => {
+                    return Ok(Bytes::from(blob));
+                },
+                _ => {}
+            }
+        }
+        Err(anyhow!("Was not able to use the 'fs' library to read a file to bytes"))
     }
 
 

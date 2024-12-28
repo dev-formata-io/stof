@@ -15,8 +15,6 @@
 //
 
 pub mod import;
-use std::fs;
-
 use import::parse_object_value;
 
 pub mod export;
@@ -113,7 +111,7 @@ impl Format for TOML {
 
     /// File import.
     fn file_import(&self, pid: &str, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
-        let src = fs::read_to_string(full_path)?;
+        let src = doc.fs_read_string(pid, full_path)?;
         self.string_import(pid, doc, &src, as_name)
     }
 

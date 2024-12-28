@@ -373,6 +373,22 @@ impl SVal {
         }
     }
 
+    /// To string owned.
+    pub fn owned_to_string(self) -> String {
+        match self {
+            Self::String(val) => { val },
+            Self::Bool(val) => { val.to_string() },
+            Self::Number(val) => { val.to_string() },
+            Self::Array(vals) => { format!("{:?}", vals) },
+            Self::Object(nref) => { format!("{:?}", nref) },
+            Self::FnPtr(dref) => { format!("fn({:?})", dref) },
+            Self::Null => { "null".to_string() },
+            Self::Void => { "void".to_string() },
+            Self::Tuple(tup) => { format!("tup({:?})", tup) },
+            Self::Blob(blob) => { format!("blob({}bytes)", blob.len()) },
+        }
+    }
+
     /// Truthy value for this val.
     pub fn truthy(&self) -> bool {
         match self {

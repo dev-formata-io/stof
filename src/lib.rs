@@ -26,7 +26,7 @@ pub use stof::*;
 pub mod text;
 pub mod bytes;
 
-#[cfg(feature = "js")]
+#[cfg(feature = "wasm")]
 pub mod js;
 
 #[cfg(feature = "json")]
