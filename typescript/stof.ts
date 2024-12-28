@@ -38,14 +38,6 @@ export class STOF {
 
 
     /**
-     * Stringify a Stof Document.
-     */
-    static stringify(doc: StofDoc): string {
-        return doc.exportString('stof');
-    }
-
-
-    /**
      * Parse Stof string or JS Object into a Stof Document.
      */
     static parse(src: string | Record<string, unknown> | Uint8Array, doc?: StofDoc): StofDoc {

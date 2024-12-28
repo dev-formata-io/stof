@@ -14,30 +14,28 @@
 // limitations under the License.
 //
 
+import { StofDoc } from '../pkg/stof.js';
 import { STOF } from './stof.ts';
 await STOF.initialize();
 
-
-// Testing whether a library can mutate a document
-const doc = STOF.parse(`
-    body: {
-        message: 'hello, world'
-    }
-
-    #[main]
-    fn main(): str {
-        let res = IO.fetch('https://stof.dev', stringify(self.body, 'json'));
-        return res;
-    }
-`);
+const doc = new StofDoc('mydocument', '', 'json');
 doc.insertLibFunc('console', 'log', (...params: unknown[])=>console.log(...params));
-doc.insertLibFunc('IO', 'fetch', (url: string, body: string): string => {
-    return JSON.stringify({
-        url,
-        response: JSON.parse(body)
-    });
+doc.insertLibFunc('fs', 'read', (path: string): string => {
+    const decoder = new TextDecoder('utf-8');
+    const data = Deno.readFileSync(path);
+    return decoder.decode(data);
 });
 doc.createLibs();
 
+// Import a JSON file
+doc.fileImport('json', 'src/json/tests/example.json', 'json', 'Import');
+
+// Add an interface and call it
+doc.stringImport('stof', `
+    #[main]
+    fn main(): str {
+        return stringify(Import, 'toml');
+    }
+`, '');
 const res = doc.callFunc('main', []);
 console.log(res);

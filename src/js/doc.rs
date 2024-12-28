@@ -168,7 +168,7 @@ impl StofDoc {
     pub fn header_import(&mut self, format: &str, content_type: &str, bytes: JsValue, as_name: &str) -> Result<bool, String> {
         let array = Uint8Array::from(bytes);
         let mut bytes = Bytes::from(array.to_vec());
-        if let Ok(_) = self.doc.header_import(format, content_type, &mut bytes, as_name) {
+        if let Ok(_) = self.doc.header_import("main", format, content_type, &mut bytes, as_name) {
             return Ok(true);
         }
         Err(format!("Was not able to import bytes with the format '{}' and content type '{}'", format, content_type))
@@ -187,7 +187,23 @@ impl StofDoc {
     /// After this, `assertEq(Import.field, true)` and `assertEq(Import.another, false)`.
     #[wasm_bindgen(js_name = stringImport)]
     pub fn string_import(&mut self, format: &str, src: &str, as_name: &str) -> Result<bool, String> {
-        if let Ok(_) = self.doc.string_import(format, src, as_name) {
+        if let Ok(_) = self.doc.string_import("main", format, src, as_name) {
+            return Ok(true);
+        }
+        Err(format!("Was not able to import string src with the format '{}'", format))
+    }
+
+    /// File import.
+    /// Used for importing/parsing files into this document with the given format.
+    ///
+    /// By default, the "fs" (file system) library is not included, so you'll need to implement the following functions yourself:
+    /// - "fs.read" with one path (str) parameter `doc.insertLibFunc('fs', 'read', (path: string):string => {...}`
+    /// - "fs.read_blob" with one path (str) parameter `doc.insertLibFunc('fs', 'read_blob', (path: string):Uint8Array => {...}`
+    /// - "fs.write" with two parameters `doc.insertLibFunc('fs', 'write', (path: string, contents: string) => {...}`
+    /// - "fs.write_blob" with two parameters `doc.insertLibFunc('fs', 'write_blob', (path: string, contents: Uint8Array) => {...}`
+    #[wasm_bindgen(js_name = fileImport)]
+    pub fn file_import(&mut self, format: &str, path: &str, extension: &str, as_name: &str) -> Result<bool, String> {
+        if let Ok(_) = self.doc.file_import("main", format, path, extension, as_name) {
             return Ok(true);
         }
         Err(format!("Was not able to import string src with the format '{}'", format))
@@ -196,7 +212,7 @@ impl StofDoc {
     /// Export this document to a string using the format 'format'.
     #[wasm_bindgen(js_name = exportString)]
     pub fn export_string(&self, format: &str) -> Result<String, String> {
-        if let Ok(res) = self.doc.export_string(format, None) {
+        if let Ok(res) = self.doc.export_string("main", format, None) {
             return Ok(res);
         }
         Err(format!("Could not export this document as a string in the format '{}'", format))
@@ -205,7 +221,7 @@ impl StofDoc {
     /// Export a node to a string using the format 'format'.
     #[wasm_bindgen(js_name = exportStringFor)]
     pub fn export_string_for(&self, format: &str, node: &StofNode) -> Result<String, String> {
-        if let Ok(res) = self.doc.export_string(format, Some(&node.node_ref())) {
+        if let Ok(res) = self.doc.export_string("main", format, Some(&node.node_ref())) {
             return Ok(res);
         }
         Err(format!("Could not export this node as a string in the format '{}'", format))
@@ -214,7 +230,7 @@ impl StofDoc {
     /// Export this document to bytes using the format 'format'.
     #[wasm_bindgen(js_name = exportBytes)]
     pub fn export_bytes(&self, format: &str) -> Result<JsValue, String> {
-        if let Ok(bytes) = self.doc.export_bytes(format, None) {
+        if let Ok(bytes) = self.doc.export_bytes("main", format, None) {
             return Ok(JsValue::from(Uint8Array::from(bytes.as_ref())));
         }
         Err(format!("Could not export this document as bytes in the format '{}'", format))
@@ -225,7 +241,7 @@ impl StofDoc {
     /// how it gets exported!
     #[wasm_bindgen(js_name = exportBytesFor)]
     pub fn export_bytes_for(&self, format: &str, node: &StofNode) -> Result<JsValue, String> {
-        if let Ok(bytes) = self.doc.export_bytes(format, Some(&node.node_ref())) {
+        if let Ok(bytes) = self.doc.export_bytes("main", format, Some(&node.node_ref())) {
             return Ok(JsValue::from(Uint8Array::from(bytes.as_ref())));
         }
         Err(format!("Could not export this document as bytes in the format '{}'", format))

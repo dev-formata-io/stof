@@ -29,6 +29,8 @@ use super::FileSystemLibrary;
 use crate::js::StofLibFunc;
 #[cfg(feature = "wasm")]
 use std::collections::BTreeMap;
+#[cfg(feature = "wasm")]
+use std::sync::RwLock;
 
 #[cfg(feature = "json")]
 use crate::json::JSON;
@@ -293,7 +295,7 @@ impl SDoc {
     /// Read a file to a blob using the fs library.
     pub fn fs_read_blob(&mut self, pid: &str, path: &str) -> Result<Bytes> {
         if let Some(fs) = self.library("fs") {
-            let res = fs.call(pid, self, "read_to_blob", &mut vec![SVal::String(path.to_owned())])?;
+            let res = fs.call(pid, self, "read_blob", &mut vec![SVal::String(path.to_owned())])?;
             match res {
                 SVal::Blob(blob) => {
                     return Ok(Bytes::from(blob));

@@ -132,7 +132,7 @@ impl StofFunc {
     /// Call this function.
     pub fn call(&self, doc: &mut StofDoc, params: Vec<JsValue>) -> Result<JsValue, String> {
         let params = params.into_iter().map(|p| SVal::from((p, doc.doc()))).collect();
-        match self.func.call(doc.doc_mut(), params, true) {
+        match self.func.call("main", doc.doc_mut(), params, true) {
             Ok(result) => {
                 Ok(JsValue::from(result))
             },

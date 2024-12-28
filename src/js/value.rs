@@ -14,7 +14,6 @@
 // limitations under the License.
 //
 
-use std::ops::Deref;
 use js_sys::{Array, Uint8Array};
 use wasm_bindgen::JsValue;
 use crate::{SDataRef, SDoc, SNodeRef, SNum, SVal};
@@ -40,11 +39,6 @@ impl From<SVal> for JsValue {
             },
             SVal::FnPtr(dref) => Self::from_str(&dref.id), // Gets turned into an ID for a StofData!
             SVal::Object(nref) => Self::from_str(&nref.id), // Gets turned into an ID for a StofNode!
-            SVal::Ref(rf) => {
-                let val = rf.read().unwrap();
-                let val = val.deref();
-                Self::from(val.clone())
-            },
             SVal::Array(vals) => {
                 let array = Array::new();
                 for val in vals {

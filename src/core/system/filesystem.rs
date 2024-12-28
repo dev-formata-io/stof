@@ -54,8 +54,7 @@ impl Library for FileSystemLibrary {
                 }
                 Err(anyhow!("Could not write blob '{:?}' using the filesystem library", parameters))
             },
-            "read" |
-            "read_to_string" => {
+            "read" => {
                 if parameters.len() == 1 {
                     let path = parameters.pop().unwrap().owned_to_string();
                     let contents = fs::read_to_string(&path)?;
@@ -63,7 +62,7 @@ impl Library for FileSystemLibrary {
                 }
                 Err(anyhow!("Could not read '{:?}' to a string using the filesystem library", parameters))
             },
-            "read_to_blob" => {
+            "read_blob" => {
                 if parameters.len() == 1 {
                     let path = parameters.pop().unwrap().owned_to_string();
                     let blob = fs::read(&path)?;

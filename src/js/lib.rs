@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use anyhow::{anyhow, Result};
 use js_sys::Function;
 use wasm_bindgen::prelude::*;
@@ -38,7 +38,7 @@ impl Library for StofLib {
     fn scope(&self) -> String {
         self.scope.clone()
     }
-    fn call(&mut self, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&self, _pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
         let context = JsValue::NULL;
         let mut func = None;
         if let Some(lib) = doc.libfuncs.read().unwrap().get(&self.scope) {
@@ -90,6 +90,6 @@ impl StofLib {
 
     /// Load a library into a document.
     pub fn load(doc: &mut StofDoc, lib: Self) {
-        doc.doc_mut().load_lib(Arc::new(RwLock::new(lib)));
+        doc.doc_mut().load_lib(Arc::new(lib));
     }
 }
