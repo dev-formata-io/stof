@@ -14,9 +14,9 @@
 // limitations under the License.
 //
 
-import { StofDoc } from '../pkg/stof.js';
-import { STOF } from './stof.ts';
-await STOF.initialize();
+import { StofDoc } from '../deno_pkg/main.ts';
+//import { STOF } from './stof.ts';
+//await STOF.initialize();
 
 const doc = new StofDoc('mydocument', '', 'json');
 doc.insertLibFunc('console', 'log', (...params: unknown[])=>console.log(...params));

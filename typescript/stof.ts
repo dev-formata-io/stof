@@ -16,7 +16,7 @@
 
 // @ts-ignore wasm exists...
 //import stofWasm from '../pkg/stof_bg.wasm';
-import init, { StofData, StofDoc, StofNode } from '../pkg/stof.js';
+import { StofData, StofDoc, StofNode } from '../pkg/stof.js';
 
 
 /**
@@ -24,17 +24,17 @@ import init, { StofData, StofDoc, StofNode } from '../pkg/stof.js';
  */
 export class STOF {
     /** Initialized? */
-    private static initialized?: Promise<void>;
+    //private static initialized?: Promise<void>;
 
 
     /**
      * Initailize Stof.
      * Make sure to call this before using anything from Stof.
      */
-    static async initialize(): Promise<void> {
+    /*static async initialize(): Promise<void> {
         // @ts-ignore this exists
         return STOF.initialized ?? await (STOF.initialized = init());
-    }
+    }*/
 
 
     /**

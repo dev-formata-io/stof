@@ -1,0 +1,10 @@
+{
+    "name": "@formata/deno-stof",
+    "version": "0.1.0",
+    "exports": "./main.ts",
+    "license": "Apache-2.0",
+    "publish": {
+      "include": ["./**/*"],
+      "exclude": ["./examples/**/*", "./node_modules/**/*"]
+    }
+}
