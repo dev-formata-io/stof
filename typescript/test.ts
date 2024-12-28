@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-import { StofDoc } from '../deno_pkg/main.ts';
+import { StofDoc } from '../deno_pkg/stof.js';
 //import { STOF } from './stof.ts';
 //await STOF.initialize();
 

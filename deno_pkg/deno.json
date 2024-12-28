@@ -1,7 +1,7 @@
 {
     "name": "@formata/deno-stof",
     "version": "0.1.0",
-    "exports": "./main.ts",
+    "exports": "./stof.d.ts",
     "license": "Apache-2.0",
     "publish": {
       "include": ["./**/*"],
