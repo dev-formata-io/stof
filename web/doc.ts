@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 
+// @deno-types="./pkg/stof.d.ts"
 import init, { type StofData, StofDoc, type StofField, type StofFunc, type StofNode } from './pkg/stof.js';
 
 
