@@ -10,6 +10,6 @@
         "activityBar.foreground": "#000",
     },
     "rust-analyzer.showUnlinkedFileNotification": false,
-    "deno.enablePaths": ["typescript"],
+    "deno.enablePaths": ["web"],
     "deno.enable": false
 }

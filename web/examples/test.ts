@@ -14,28 +14,25 @@
 // limitations under the License.
 //
 
-import { StofDoc } from '../deno_pkg/stof.js';
-//import { STOF } from './stof.ts';
-//await STOF.initialize();
+import { Stof } from '../doc.ts';
+await Stof.initialize();
 
-const doc = new StofDoc('mydocument', '', 'json');
-doc.insertLibFunc('console', 'log', (...params: unknown[])=>console.log(...params));
-doc.insertLibFunc('fs', 'read', (path: string): string => {
-    const decoder = new TextDecoder('utf-8');
-    const data = Deno.readFileSync(path);
-    return decoder.decode(data);
-});
-doc.createLibs();
+const doc = Stof.doc();
+doc.insertLibrary('fs', [
+    ['read', (path: string): string => {
+        const decoder = new TextDecoder('utf-8');
+        const data = Deno.readFileSync(path);
+        return decoder.decode(data);
+    }]
+]);
 
-// Import a JSON file
-doc.fileImport('json', 'src/json/tests/example.json', 'json', 'Import');
-
-// Add an interface and call it
-doc.stringImport('stof', `
+doc.doc.fileImport('json', 'src/json/tests/example.json', 'json', 'Import');
+doc.importString('stof', `
     #[main]
     fn main(): str {
         return stringify(Import, 'toml');
     }
-`, '');
-const res = doc.callFunc('main', []);
+`);
+
+const res = doc.call('main', []);
 console.log(res);
