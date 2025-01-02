@@ -16,6 +16,8 @@ Stof is a dutch/german word for cloth, stuff, or fabric. It makes a good pun "ju
 ```sh
 cargo add stof
 ```
+### TypeScript (JSR)
+[Stof JSR](https://jsr.io/@formata/stof)
 
 We're adding languages and ways to use Stof all the time - please help if your interested.
 
