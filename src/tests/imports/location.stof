@@ -17,12 +17,18 @@
 import "src/tests/imports/import.json";
 import text "src/tests/imports/import.json";
 import "src/tests/imports/import.json" as self.JsonImport;
+import "src/tests/imports/import.json" as TestRootImports;
 
 #[test]
 fn basic_import() {
-    pln(self);
     assertEq(self.name, "JSON Import");
     assertEq(self.number, 42);
+}
+
+#[test]
+fn root_import() {
+    assertEq(TestRootImports.name, "JSON Import");
+    assertEq(TestRootImports.number, 42);
 }
 
 #[test]

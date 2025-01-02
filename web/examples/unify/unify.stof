@@ -19,12 +19,12 @@ import "web/examples/unify/toml.toml";
 
 fn averageUserAge(): float {
     let count = 0;
-    let age = 0;
+    let age = 0.0;
     for (user in self.users) {
         count += 1;
         age += user.age;
     }
-    return age / count;
+    return (age / count).round(2);
 }
 
 #[main]
