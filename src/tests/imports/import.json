@@ -1,0 +1,6 @@
+{
+    "name": "JSON Import",
+    "purpose": "Just be some data that can be checked",
+    "test": true,
+    "number": 42
+}

@@ -72,6 +72,12 @@ import 'src/tests/control/flow.stof' as Control.Flow;
 
 
 /**
+ * Import Tests.
+ */
+import 'src/tests/imports/location.stof' as Imports.Location;
+
+
+/**
  * Format Tests.
  */
 import 'src/tests/formats/json.stof' as Formats.JSON;

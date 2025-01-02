@@ -1,0 +1,20 @@
+version = "0.1.0"
+description = "This is a test TOML file for unification."
+
+[[users]]
+first = "Kelly"
+last = "Johnson"
+age = 41
+email = "kelly.johnson@example.com"
+
+[[users]]
+first = "Bob"
+last = "Jones"
+age = 73
+email = "bob.jones@example.com"
+
+[[users]]
+first = "Lisa"
+last = "Miller"
+age = 36
+email = "lisa.miller@example.com"

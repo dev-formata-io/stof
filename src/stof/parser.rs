@@ -123,6 +123,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                 let mut import_path = String::default();
                 let mut import_ext = String::default();
                 let mut as_name = "root".to_owned();
+                let mut set_as_name = false;
                 let mut format = String::default();
                 for pair in pair.into_inner() {
                     match pair.as_rule() {
@@ -153,6 +154,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                         },
                         Rule::ident => {
                             as_name = pair.as_str().to_owned();
+                            set_as_name = true;
                         },
                         rule => return Err(anyhow!("Unrecognized import rule: {:?}", rule))
                     }
@@ -163,6 +165,15 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
 
                 // Perform the file import
                 if import_path.len() > 0 {
+                    if !set_as_name {
+                        let scope = env.scope(doc);
+                        as_name = scope.path(&doc.graph).replace('/', ".");
+                    } else if as_name.starts_with("self") || as_name.starts_with("super") {
+                        let scope = env.scope(doc);
+                        let path = scope.path(&doc.graph).replace('/', ".");
+                        as_name = format!("{}.{}", path, as_name);
+                    }
+
                     let compiled_path = format!("{}{}{}{}", &format, &import_path, &import_ext, &as_name);
                     if !env.compiled_path(&compiled_path) { // Don't import the same thing more than once!
                         doc.file_import(&env.pid, &format, &import_path, &import_ext, &as_name)?;
