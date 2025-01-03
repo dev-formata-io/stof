@@ -37,3 +37,21 @@ fn add_decorator() {
     assertEq(res, 20);
     assertEq(self.calls, 2);
 }
+
+
+keeps_attrs: {
+    calls: 0
+
+    fn dec(func: fn): fn {
+        return () => {
+            self.calls += 1;
+            func.call();
+        };
+    }
+
+    #[decorator(self.dec)]
+    #[test]
+    fn test() {
+        assertEq(self.calls, 1);
+    }
+}

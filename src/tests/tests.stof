@@ -72,6 +72,12 @@ import 'src/tests/control/flow.stof' as Control.Flow;
 
 
 /**
+ * Language Tests.
+ */
+import 'src/tests/language/shorts.stof' as Language.ShortCircuits;
+
+
+/**
  * Import Tests.
  */
 import 'src/tests/imports/location.stof' as Imports.Location;

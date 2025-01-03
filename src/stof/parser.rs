@@ -186,8 +186,8 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                 let scope = env.scope(doc);
 
                 // Function decorators - before func gets attached to the graph
-                let mut dec_val = func.attributes.get("@");
-                if dec_val.is_none() { dec_val = func.attributes.get("decorator") }
+                let mut dec_val = func.attributes.remove("@");
+                if dec_val.is_none() { dec_val = func.attributes.remove("decorator") }
                 if let Some(dec_val) = dec_val {
                     let mut success = false;
                     match dec_val {
@@ -197,6 +197,8 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                     // Make func a random name and attach to the graph
                                     let funcparamname = decorator.params[0].name.clone();
                                     let funcname = func.name.clone();
+                                    let attributes = func.attributes;
+                                    func.attributes = BTreeMap::new();
                                     func.name = format!("decfn_{}", nanoid!(7));
                                     func.attach(&scope, &mut doc.graph);
 
@@ -206,6 +208,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                             SVal::FnPtr(res_ref) => {
                                                 if let Ok(mut res_func) = SData::data::<SFunc>(&doc.graph, res_ref) {
                                                     res_func.name = funcname;
+                                                    res_func.attributes = attributes;
                                                     
                                                     let old_statments = res_func.statements.clone();
                                                     res_func.statements = Statements::from(vec![Statement::Declare(funcparamname, Expr::Literal(SVal::FnPtr(func.data_ref())))]);

@@ -414,32 +414,22 @@ impl Expr {
                 Err(anyhow!("Function/Call does not exist: {}({:?})", name, params))
             },
             Expr::And(exprs) => {
-                let mut res = SVal::Void;
-                let mut first = true;
                 for expr in exprs {
                     let val = expr.exec(pid, doc)?;
-                    if first {
-                        res = val;
-                        first = false;
-                    } else {
-                        res = res.and(&val)?;
+                    if !val.truthy() {
+                        return Ok(SVal::Bool(false));
                     }
                 }
-                Ok(res)
+                Ok(SVal::Bool(true))
             },
             Expr::Or(exprs) => {
-                let mut res = SVal::Void;
-                let mut first = true;
                 for expr in exprs {
                     let val = expr.exec(pid, doc)?;
-                    if first {
-                        res = val;
-                        first = false;
-                    } else {
-                        res = res.or(&val)?;
+                    if val.truthy() {
+                        return Ok(SVal::Bool(true));
                     }
                 }
-                Ok(res)
+                Ok(SVal::Bool(false))
             },
             Expr::Add(exprs) => {
                 let mut res = SVal::Void;
