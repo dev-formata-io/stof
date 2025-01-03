@@ -27,6 +27,11 @@ fn add(a: float, b: float): float {
     return a + b;
 }
 
+#[decorator(self.dec)]
+fn add2(a: float, b: float): float {
+    return a + b;
+}
+
 #[test]
 fn add_decorator() {
     let res = self.add(3, 4);
@@ -36,6 +41,10 @@ fn add_decorator() {
     res = self.add(10, 10);
     assertEq(res, 20);
     assertEq(self.calls, 2);
+
+    res = self.add2(10, 10);
+    assertEq(res, 20);
+    assertEq(self.calls, 3);
 }
 
 

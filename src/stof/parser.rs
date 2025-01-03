@@ -208,13 +208,13 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                             SVal::FnPtr(res_ref) => {
                                                 if let Ok(mut res_func) = SData::data::<SFunc>(&doc.graph, res_ref) {
                                                     res_func.name = funcname;
+                                                    res_func.id = String::default(); // forces the function to be copied into the new location on "attach"
                                                     res_func.attributes = attributes;
                                                     
                                                     let old_statments = res_func.statements.clone();
                                                     res_func.statements = Statements::from(vec![Statement::Declare(funcparamname, Expr::Literal(SVal::FnPtr(func.data_ref())))]);
                                                     res_func.statements.absorb(old_statments);
 
-                                                    res_func.set(&mut doc.graph);
                                                     res_func.attach(&scope, &mut doc.graph); // Make sure it's in the current scope too
                                                     success = true;
                                                 }
