@@ -64,3 +64,32 @@ keeps_attrs: {
         assertEq(self.calls, 1);
     }
 }
+
+
+decorated_type_func: {
+    fn track(func: fn): fn {
+        return () => {
+            self.calls += 1;
+            func.call();
+        };
+    }
+
+    type CallTracker {
+        calls: int = 0;
+
+        #[decorator(self.track)]
+        fn call() {
+            // Don't do anything here
+        }
+    }
+
+    #[test]
+    fn test() {
+        let tracker = new CallTracker {
+            calls: 40
+        };
+        tracker.call();
+        tracker.call();
+        assertEq(tracker.calls, 42);
+    }
+}

@@ -353,7 +353,60 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                             params.push(SParam::new(&field_name, stype, default));
                         },
                         Rule::function => {
-                            functions.push(parse_function(doc, env, pair)?);
+                            let mut func = parse_function(doc, env, pair)?;
+                            let scope = env.scope(doc);
+
+                            // Function decorators - before func gets attached to the graph
+                            let mut dec_val = func.attributes.remove("@");
+                            if dec_val.is_none() { dec_val = func.attributes.remove("decorator") }
+                            if let Some(dec_val) = dec_val {
+                                let mut success = false;
+                                match dec_val {
+                                    SVal::FnPtr(dref) => {
+                                        if let Ok(decorator) = SData::data::<SFunc>(&doc.graph, dref) {
+                                            if decorator.params.len() == 1 && decorator.params[0].ptype == SType::FnPtr && decorator.rtype == SType::FnPtr {
+                                                // Make func a random name and attach to the graph
+                                                let funcparamname = decorator.params[0].name.clone();
+                                                let funcname = func.name.clone();
+                                                let attributes = func.attributes;
+                                                func.attributes = BTreeMap::new();
+                                                func.name = format!("decfn_{}", nanoid!(7));
+                                                func.attach(&scope, &mut doc.graph);
+
+                                                // Call the decorator function with the func as the parameter
+                                                if let Ok(res_val) = decorator.call(&env.pid, doc, vec![SVal::FnPtr(func.data_ref())], true) {
+                                                    match res_val {
+                                                        SVal::FnPtr(res_ref) => {
+                                                            if let Ok(mut res_func) = SData::data::<SFunc>(&doc.graph, res_ref) {
+                                                                res_func.name = funcname;
+                                                                res_func.id = String::default(); // forces the function to be copied into the new location on "attach"
+                                                                res_func.attributes = attributes;
+                                                                
+                                                                let old_statments = res_func.statements.clone();
+                                                                res_func.statements = Statements::from(vec![Statement::Declare(funcparamname, Expr::Literal(SVal::FnPtr(func.data_ref())))]);
+                                                                res_func.statements.absorb(old_statments);
+
+                                                                //res_func.attach(&scope, &mut doc.graph); // Make sure it's in the current scope too
+                                                                functions.push(res_func);
+                                                                success = true;
+                                                            }
+                                                        },
+                                                        _ => {}
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    _ => {
+                                        success = false;
+                                    }
+                                }
+                                if !success {
+                                    return Err(anyhow!("Cannot decorate a function with any value other than another function"));
+                                }
+                            } else {
+                                functions.push(func);
+                            }
                         },
                         _ => {}
                     }
