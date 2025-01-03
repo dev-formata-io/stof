@@ -18,7 +18,7 @@ use std::collections::{BTreeMap, HashMap};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use crate::{Data, IntoDataRef, SData, SDataRef, SDoc, SGraph, SNodeRef};
-use super::{lang::{Expr, Statements}, SType, SVal};
+use super::{lang::{Expr, Statements, StatementsRes}, SType, SVal};
 
 
 /// Stof function kind.
@@ -257,7 +257,7 @@ impl SFunc {
 
         // Execute all of the statements with this doc in a scope (block)
         doc.new_scope(pid);
-        self.statements.exec(pid, doc)?;
+        let statements_res = self.statements.exec(pid, doc)?;
         doc.end_scope(pid);
 
         // Pop the self stack!
@@ -266,7 +266,13 @@ impl SFunc {
         }
 
         // Validate the return/result of this function
-        let res = doc.pop(pid);
+        let mut res = None;
+        match statements_res {
+            StatementsRes::Return(on_stack) => {
+                if on_stack { res = doc.pop(pid); }
+            },
+            _ => {}
+        }
         if self.rtype.is_void() && res.is_none() {
             return Ok(SVal::Void);
         } else if res.is_some() {
