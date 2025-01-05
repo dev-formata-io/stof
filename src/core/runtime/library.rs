@@ -118,7 +118,10 @@ impl Library for StdLibrary {
                             let res = doc.export_bytes(pid, &format, Some(nref))?;
                             return Ok(SVal::Blob(res.to_vec()));
                         },
-                        _ => {}
+                        _ => {
+                            let blob = parameters[0].cast(SType::Blob, pid, doc)?;
+                            return Ok(blob);
+                        }
                     }
                 }
                 Ok(SVal::Null)
@@ -143,7 +146,10 @@ impl Library for StdLibrary {
                             }
                             return Ok(SVal::String(res));
                         },
-                        _ => {}
+                        _ => {
+                            let str = parameters[0].cast(SType::String, pid, doc)?;
+                            return Ok(str);
+                        }
                     }
                 }
                 Ok(SVal::Null)
@@ -159,6 +165,13 @@ impl Library for StdLibrary {
             "formats" => {
                 let formats: Vec<SVal> = doc.available_formats().into_iter().map(|fmt| SVal::String(fmt)).collect();
                 Ok(SVal::Array(formats))
+            },
+            "formatContentType" => {
+                if parameters.len() > 0 {
+                    let format = parameters[0].to_string();
+                    return Ok(SVal::String(doc.format_content_type(&format).unwrap_or("text/plain".to_string())));
+                }
+                Err(anyhow!("Must provide a format to get a content type for"))
             },
             "hasLib" |
             "hasLibrary" => {
