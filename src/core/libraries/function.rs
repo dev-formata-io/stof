@@ -64,6 +64,19 @@ impl Library for FunctionLibrary {
                         _ => return Err(anyhow!("Must provide a function pointer value when using the Function library"))
                     }
                 },
+                "hasAttribute" => {
+                    if parameters.len() == 2 {
+                        let name = parameters[1].to_string();
+                        match &parameters[0] {
+                            SVal::FnPtr(dref) => {
+                                let func: SFunc = dref.data(&doc.graph).unwrap().get_value().unwrap();
+                                return Ok(SVal::Bool(func.attributes.contains_key(&name)));
+                            },
+                            _ => return Err(anyhow!("Must provide a function pointer value when using the Function library"))
+                        }
+                    }
+                    return Err(anyhow!("Function.hasAttribute(func, attribute) requires two parameters - a function and the attribute name (str)"));
+                },
                 "attributes" => {
                     match &parameters[0] {
                         SVal::FnPtr(dref) => {

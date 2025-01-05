@@ -70,4 +70,12 @@ attributes: {
         attrs.sort();
         return attrs;
     }
+
+    #[test]
+    fn has_attribute() {
+        let func = self.attrs;
+        assert(func.hasAttribute('dude'));
+        assertNot(func.hasAttribute('dne'));
+        assert(func.hasAttribute("ordering"));
+    }
 }
