@@ -53,3 +53,49 @@ field: {
         return self.arrow.call();
     }
 }
+
+#[test]
+fn vars() {
+    let symbol = 42;
+    let func = (): int => {
+        // This is not a closure, but takes advantage of the std libraries access to the current symbol table...
+        return symbol;
+    };
+    {
+        let symbol = 11;
+        assertEq(func.call(), 11);
+    }
+}
+
+#[test([('leftover', 'should stay')])]
+fn array_retain(): vec {
+    let array = [('hello', 'dude'), ('hello', 'world'), ('leftover', 'should stay')];
+
+    let key = 'hello';
+    array.retain((val: (str, str)): bool => val[0] != key); // tests symbol table access from array lib
+    return array;
+}
+
+test_outer: {
+    fn use_outer(): int {
+        return outer;
+    }
+
+    #[test]
+    fn no_outer() {
+        assertNull(self.use_outer());
+    }
+
+    #[test]
+    fn no_declared_outer() {
+        let outer = 42;
+        assertNull(self.use_outer());
+    }
+
+    #[test]
+    fn yes_outer() {
+        let outer = 42;
+        let func = self.use_outer;
+        assertEq(func.call(), 42);
+    }
+}
