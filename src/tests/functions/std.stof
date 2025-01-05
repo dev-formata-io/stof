@@ -55,3 +55,19 @@ fn function_call() {
     let func = self.test_function;
     assertEq(func.call(1, 2, 2), 1);
 }
+
+attributes: {
+    #[ordering(2)]
+    #[hello]
+    #[dude]
+    fn attrs() {
+
+    }
+
+    #[test([('dude', null), ('hello', null), ('ordering', 2)])]
+    fn get_attrs(): vec {
+        let attrs = Function.attributes(self.attrs);
+        attrs.sort();
+        return attrs;
+    }
+}

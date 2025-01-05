@@ -374,7 +374,9 @@ impl Expr {
                     // For the standard libraries, allow them to access the current symbol table...
                     // This includes Function.call, allowing arrow functions to capture outer scope when called
                     //let current_symbol_table = doc.new_table(pid);
+                    doc.new_scope(pid);
                     let res = lib.call(pid, doc, name, &mut func_params)?;
+                    doc.end_scope(pid);
                     //doc.set_table(pid, current_symbol_table);
 
                     // Update the symbol with the mutated parameter if it's the right type

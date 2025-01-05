@@ -64,6 +64,19 @@ impl Library for FunctionLibrary {
                         _ => return Err(anyhow!("Must provide a function pointer value when using the Function library"))
                     }
                 },
+                "attributes" => {
+                    match &parameters[0] {
+                        SVal::FnPtr(dref) => {
+                            let func: SFunc = dref.data(&doc.graph).unwrap().get_value().unwrap();
+                            let mut attrs = Vec::new();
+                            for (key, value) in &func.attributes {
+                                attrs.push(SVal::Tuple(vec![SVal::String(key.clone()), value.clone()]));
+                            }
+                            return Ok(SVal::Array(attrs));
+                        },
+                        _ => return Err(anyhow!("Must provide a function pointer value when using the Function library"))
+                    }
+                },
                 "object" => {
                     match &parameters[0] {
                         SVal::FnPtr(dref) => {

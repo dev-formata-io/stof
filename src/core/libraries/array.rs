@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 
+use std::cmp::Ordering;
 use anyhow::{anyhow, Result};
 use crate::{Library, SData, SDoc, SFunc, SNum, SType, SVal};
 use super::object::Object;
@@ -422,6 +423,67 @@ impl Library for ArrayLibrary {
                         }
                     }
                     return Err(anyhow!("Array.retain(array, fn) requires an array and function parameters"))
+                },
+                "sort" => {
+                    if parameters.len() == 1 {
+                        match &mut parameters[0] {
+                            SVal::Array(vals) => {
+                                vals.sort_by(|a, b| {
+                                    let lt = a.lt(b);
+                                    if lt.is_err() {
+                                        return Ordering::Equal;
+                                    }
+                                    if lt.unwrap().truthy() {
+                                        return Ordering::Less;
+                                    }
+
+                                    let gt = a.gt(b);
+                                    if gt.is_err() {
+                                        return Ordering::Equal;
+                                    }
+                                    if gt.unwrap().truthy() {
+                                        return Ordering::Greater;
+                                    }
+                                    Ordering::Equal
+                                });
+                                return Ok(SVal::Void);
+                            },
+                            _ => {}
+                        }
+                    } else if parameters.len() == 2 {
+                        match &parameters[1] {
+                            SVal::FnPtr(dref) => {
+                                if let Ok(func) = SData::data::<SFunc>(&doc.graph, dref) {
+                                    match &mut parameters[0] {
+                                        SVal::Array(vals) => {
+                                            vals.sort_by(|a, b| {
+                                                let res = func.call(pid, doc, vec![a.clone(), b.clone()], true).unwrap_or(SVal::Number(SNum::I64(0)));
+                                                match res {
+                                                    SVal::Number(num) => {
+                                                        let int = num.int();
+                                                        if int < 0 {
+                                                            Ordering::Less
+                                                        } else if int > 0 {
+                                                            Ordering::Greater
+                                                        } else {
+                                                            Ordering::Equal
+                                                        }
+                                                    },
+                                                    _ => {
+                                                        Ordering::Equal
+                                                    }
+                                                }
+                                            });
+                                            return Ok(SVal::Void);
+                                        },
+                                        _ => {}
+                                    }
+                                }
+                            },
+                            _ => return Err(anyhow!("Array.sort(array, fn) requires a function parameter"))
+                        }
+                    }
+                    return Err(anyhow!("Array.sort requires an array and an optional function parameter"));
                 },
                 _ => {}
             }
