@@ -19,7 +19,7 @@ use crate::SUnits;
 
 
 /// Stof Value Types.
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub enum SType {
     #[default]
     Void,
@@ -32,6 +32,42 @@ pub enum SType {
     Array,
     Tuple(Vec<SType>),
     Blob,
+    Unknown,
+}
+impl PartialEq for SType {
+    fn eq(&self, other: &Self) -> bool {
+        if other.is_unknown() {
+            return true; // unknown always matches...
+        }
+        match self {
+            Self::Void => other.is_void(),
+            Self::Null => other.is_null(),
+            Self::Bool => other.is_bool(),
+            Self::Number(ntype) => {
+                match other {
+                    Self::Number(otype) => ntype == otype,
+                    _ => false,
+                }
+            },
+            Self::String => other.is_string(),
+            Self::Object(ntype) => {
+                match other {
+                    Self::Object(otype) => ntype == otype,
+                    _ => false,
+                }
+            },
+            Self::FnPtr => other.is_function_pointer(),
+            Self::Array => other.is_array(),
+            Self::Tuple(vals) => {
+                match other {
+                    Self::Tuple(ovals) => vals == ovals,
+                    _ => false,
+                }
+            },
+            Self::Blob => other.is_blob(),
+            Self::Unknown => true,
+        }
+    }
 }
 impl SType {
     /// Is collection?
@@ -39,6 +75,14 @@ impl SType {
         match self {
             SType::Array |
             SType::Tuple(_) => true,
+            _ => false
+        }
+    }
+
+    /// Is unknown?
+    pub fn is_unknown(&self) -> bool {
+        match self {
+            SType::Unknown => true,
             _ => false
         }
     }
@@ -150,34 +194,9 @@ impl SType {
         }
     }
 
-    /// Null type.
-    pub fn null() -> Self {
-        Self::Null
-    }
-
-    /// Void type.
-    pub fn void() -> Self {
-        Self::Void
-    }
-
-    /// Array type.
-    pub fn array() -> Self {
-        Self::Array
-    }
-
     /// Tuple type.
     pub fn tuple(types: Vec<SType>) -> Self {
         Self::Tuple(types)
-    }
-
-    /// Boolean.
-    pub fn bool() -> Self {
-        Self::Bool
-    }
-
-    /// String.
-    pub fn string() -> Self {
-        Self::String
     }
 
     /// I64.
@@ -198,6 +217,7 @@ impl SType {
     /// Typeof.
     pub fn type_of(&self) -> String {
         match self {
+            Self::Unknown => "unknown".into(),
             Self::Array => "vec".into(),
             Self::Bool => "bool".into(),
             Self::Blob => "blob".into(),
@@ -249,6 +269,7 @@ impl From<&str> for SType {
                     "vec" => Self::Array,
                     "obj" => Self::Object("obj".to_string()),
                     "fn" => Self::FnPtr,
+                    "unknown" => Self::Unknown,
                     _ => {
                         let units = SUnits::from(val);
                         if units.has_units() && !units.is_undefined() {
@@ -273,6 +294,7 @@ impl From<&str> for SType {
             "vec" => Self::Array,
             "obj" => Self::Object("obj".to_string()),
             "fn" => Self::FnPtr,
+            "unknown" => Self::Unknown,
             _ => {
                 let units = SUnits::from(value);
                 if units.has_units() && !units.is_undefined() {

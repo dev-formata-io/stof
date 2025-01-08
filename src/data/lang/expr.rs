@@ -260,6 +260,7 @@ impl Expr {
                 if !variable_value.is_empty() {
                     let stype = variable_value.stype(&doc.graph);
                     library_name = match stype {
+                        SType::Unknown |
                         SType::Null |
                         SType::Void => String::default(),
                         SType::Array => "Array".to_owned(),
