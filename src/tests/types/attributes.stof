@@ -31,7 +31,22 @@ type TypeWithAttributes {
     }
 }
 
+#[attribute]
 TypeWithAttributes object: {}
+
+#[attr]
+subobj: {
+    #[attr]
+    #[another]
+    sub: {}
+}
+
+#[test]
+fn object_field_attributes() {
+    assertEq(self.attributes('object').len(), 1);
+    assertEq(self.attributes('subobj').len(), 1);
+    assertEq(self.subobj.attributes('sub').len(), 2);
+}
 
 #[test]
 fn private_field_attribute() {

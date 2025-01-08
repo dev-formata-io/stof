@@ -557,6 +557,27 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
                 let mut field = SField::new(&last, field_value);
                 field.attributes = attributes.clone();
                 env.insert_field(doc, &env.scope(&doc), &mut field);
+            } else if field_name.len() > 0 && object_declaration && attributes.len() > 0 {
+                // Check for a field for this object and make sure the attributes exist on it!
+                match field_value {
+                    SVal::Object(nref) => {
+                        let mut parent = None;
+                        let mut node_name = String::default();
+                        if let Some(node) = nref.node(&doc.graph) {
+                            parent = node.parent.clone();
+                            node_name = node.name.clone();
+                        }
+                        if let Some(parent) = parent {
+                            if let Some(mut field) = SField::field(&doc.graph, &node_name, '.', Some(&parent)) {
+                                for (key, value) in attributes {
+                                    field.attributes.insert(key.clone(), value.clone());
+                                }
+                                field.set(&mut doc.graph);
+                            }
+                        }
+                    },
+                    _ => {}
+                }
             }
         },
         rule => return Err(anyhow!("Unrecognized inline json import rule: {:?}", rule))
