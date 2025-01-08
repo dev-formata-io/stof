@@ -17,7 +17,8 @@
 use std::collections::{BTreeMap, HashSet};
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{Data, SField, SFunc, SGraph, SParam, SVal, SNodeRef};
+use crate::{Data, SField, SFunc, SGraph, SNodeRef, SType, SVal};
+use super::Expr;
 
 
 /// Custom type declaration information.
@@ -32,7 +33,7 @@ pub struct CustomType {
     pub decid: String,
 
     pub name: String,
-    pub fields: Vec<SParam>,
+    pub fields: Vec<CustomTypeField>,
     pub attributes: BTreeMap<String, SVal>,
 
     #[serde(skip)]
@@ -40,7 +41,7 @@ pub struct CustomType {
 }
 impl CustomType {
     /// New Type.
-    pub fn new(decid: &str, name: &str, fields: Vec<SParam>, functions: Vec<SFunc>) -> Self {
+    pub fn new(decid: &str, name: &str, fields: Vec<CustomTypeField>, functions: Vec<SFunc>) -> Self {
         Self {
             name: name.to_owned(),
             fields,
@@ -110,6 +111,27 @@ impl CustomType {
             typepath_field.set(graph);
         } else {
             SField::new_string(graph, "typepath", &format!("{}.{}", typepath, self.name), &nref);
+        }
+    }
+}
+
+
+/// Custom type field.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CustomTypeField {
+    pub name: String,
+    pub ptype: SType,
+    pub default: Option<Expr>,
+    pub attributes: BTreeMap<String, SVal>,
+}
+impl CustomTypeField {
+    /// New parameter.
+    pub fn new(name: &str, ptype: SType, default: Option<Expr>, attrs: BTreeMap<String, SVal>) -> Self {
+        Self {
+            name: name.into(),
+            ptype,
+            default,
+            attributes: attrs,
         }
     }
 }

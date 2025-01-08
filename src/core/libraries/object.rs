@@ -172,6 +172,37 @@ pub trait Object {
                 }
                 Err(anyhow!("Object.fields(obj) requires one object parameter"))
             },
+            "attributes" => {
+                // Get field or function attributes at an index
+                if parameters.len() == 2 {
+                    // Just one value returned - looks for fields, then functions
+                    match &parameters[0] {
+                        SVal::Object(nref) => {
+                            match &parameters[1] {
+                                SVal::String(index) => {
+                                    if let Some(field) = SField::field(&doc.graph, &index, '.', Some(nref)) {
+                                        let mut attrs = Vec::new();
+                                        for (key, value) in &field.attributes {
+                                            attrs.push(SVal::Tuple(vec![SVal::String(key.clone()), value.clone()]));
+                                        }
+                                        return Ok(SVal::Array(attrs));
+                                    } else if let Some(func) = SFunc::func(&doc.graph, &index, '.', Some(nref)) {
+                                        let mut attrs = Vec::new();
+                                        for (key, value) in &func.attributes {
+                                            attrs.push(SVal::Tuple(vec![SVal::String(key.clone()), value.clone()]));
+                                        }
+                                        return Ok(SVal::Array(attrs));
+                                    }
+                                    return Ok(SVal::Null); // Not found
+                                },
+                                _ => {}
+                            }
+                        },
+                        _ => {}
+                    }
+                }
+                Err(anyhow!("Object.attributes(obj, path) requires one object parameter and one string path parameter"))
+            },
             "funcs" |
             "functions" => {
                 // Return an array of tuples with field name and value

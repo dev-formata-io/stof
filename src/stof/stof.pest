@@ -57,7 +57,7 @@ import_format =  { ident }
 // Object type declaration
 stof_type_attribute = { "#" ~ "[" ~ ident ~ ("(" ~ expr ~ ")")? ~ "]" }
 stof_type_declaration = { stof_type_attribute* ~ "type" ~ ident ~ ("extends" ~ ident)? ~ "{" ~ (stof_type_field | function | NEWLINE | block_comment | line_comment)* ~ "}" }
-stof_type_field       = { ident ~ ":" ~ atype ~ ("=" ~ expr)? ~ (";" | ",")? }
+stof_type_field       = { field_attribute* ~ ident ~ ":" ~ atype ~ ("=" ~ expr)? ~ (";" | ",")? }
 
 // Field attribute
 field_attribute = { "#" ~ "[" ~ ident ~ ("(" ~ expr ~ ")")? ~ "]" }

@@ -1,0 +1,62 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+#[type_attribute]
+type TypeWithAttributes {
+    #[private]
+    private_field: int = 42;
+
+    #[someotherattr]
+    field: bool = true;
+
+    #[multiple(3423)]
+    #[anything(true)]
+    many: str = 'yup'
+
+    fn get_field(): int {
+        return self.private_field;
+    }
+}
+
+TypeWithAttributes object: {}
+
+#[test]
+fn private_field_attribute() {
+    assertNull(self.object.private_field);
+    assertEq(42, self.object.get_field());
+}
+
+#[test([('someotherattr', null)])]
+fn has_attr(): vec {
+    return self.object.attributes('field');
+}
+
+#[test]
+fn multiple() {
+    let attrs = self.object.attributes('many');
+    assert(attrs.has(('anything', true)));
+    assert(attrs.has(('multiple', 3423)));
+}
+
+#[test]
+fn constructed() {
+    let object = new TypeWithAttributes {};
+    
+    assertNull(object.private_field);
+    assertEq(42, object.get_field());
+
+    assertEq(object.attributes('many').len(), 2);
+}

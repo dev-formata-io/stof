@@ -794,14 +794,25 @@ impl SVal {
                             // Check for fields on this object in the correct type, otherwise create with the defaults from the custom type
                             for typefield in typefields {
                                 if let Some(mut field) = SField::field(&doc.graph, &typefield.name, '.', Some(nref)) {
+                                    let mut set = false;
                                     let existing_type = field.value.stype(&doc.graph);
                                     if existing_type != typefield.ptype {
                                         field.value = field.value.cast(typefield.ptype, pid, doc)?;
+                                        set = true;
+                                    }
+                                    for (name, value) in typefield.attributes {
+                                        if !field.attributes.contains_key(&name) {
+                                            set = true;
+                                            field.attributes.insert(name, value);
+                                        }
+                                    }
+                                    if set {
                                         field.set(&mut doc.graph);
                                     }
                                 } else if let Some(default) = &typefield.default {
                                     let default_value = default.exec(pid, doc)?;
                                     let mut field = SField::new(&typefield.name, default_value);
+                                    field.attributes = typefield.attributes;
                                     field.attach(nref, &mut doc.graph);
                                 } else {
                                     return Err(anyhow!("Could not find or create the field '{}' while casting object into '{}'", typefield.name, typepath));

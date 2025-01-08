@@ -108,8 +108,7 @@ errors: {
     #[test]
     #[errors]
     fn no_defaults() {
-        let inst = new {}; // putting type here is a compile error
-        inst = inst as NoDefaults; // Does not have an x or y
+        let inst = new NoDefaults {}; // does not have an x or y defined, so error
     }
 
     #[test]
@@ -126,11 +125,10 @@ errors: {
     #[test]
     #[errors]
     fn wrong_types() {
-        let inst = new {
+        let inst = new NoDefaults {
             x: 'hi'
             y: 5
-        };
-        inst = inst as NoDefaults; // Error with the wrong type
+        }; // Errors because of wrong types!
     }
 }
 

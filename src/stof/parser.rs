@@ -20,7 +20,7 @@ use lazy_static::lazy_static;
 use nanoid::nanoid;
 use pest_derive::Parser;
 use pest::{iterators::{Pair, Pairs}, pratt_parser::PrattParser, Parser};
-use crate::{lang::{CustomType, Expr, Statement, Statements}, Data, IntoDataRef, SData, SDoc, SField, SFunc, SNum, SNumType, SParam, SType, SUnits, SVal};
+use crate::{lang::{CustomType, CustomTypeField, Expr, Statement, Statements}, Data, IntoDataRef, SData, SDoc, SField, SFunc, SNum, SNumType, SParam, SType, SUnits, SVal};
 use super::StofEnv;
 
 
@@ -336,6 +336,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                             let mut field_name = String::default();
                             let mut stype = SType::Void;
                             let mut default = None;
+                            let mut attributes = BTreeMap::new();
                             for pair in pair.into_inner() {
                                 match pair.as_rule() {
                                     Rule::ident => {
@@ -347,10 +348,37 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                     Rule::expr => {
                                         default = Some(parse_expression(doc, env, pair)?);
                                     },
+                                    Rule::field_attribute => {
+                                        let mut key = String::default();
+                                        let mut value = SVal::Null;
+                                        for pair in pair.into_inner() {
+                                            match pair.as_rule() {
+                                                Rule::ident => {
+                                                    key = pair.as_str().to_string();
+                                                },
+                                                Rule::expr => {
+                                                    let value_expr = parse_expression(doc, env, pair)?;
+                                                    let result = value_expr.exec(&env.pid, doc);
+                                                    match result {
+                                                        Ok(sval) => {
+                                                            value = sval;
+                                                        },
+                                                        Err(message) => {
+                                                            return Err(anyhow!("Unable to execute attribute expression {}", message));
+                                                        }
+                                                    }
+                                                },
+                                                _ => {
+                                                    return Err(anyhow!("Unrecognized rule for function attribute"));
+                                                }
+                                            }
+                                        }
+                                        attributes.insert(key, value);
+                                    },
                                     _ => {}
                                 }
                             }
-                            params.push(SParam::new(&field_name, stype, default));
+                            params.push(CustomTypeField::new(&field_name, stype, default, attributes));
                         },
                         Rule::function => {
                             let mut func = parse_function(doc, env, pair)?;
@@ -1679,47 +1707,12 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
             res = Expr::Literal(SVal::FnPtr(function.data_ref()));
         },
         Rule::stof_type_constructor => {
-            let mut type_name = String::from("<anonymous>");
-            let mut prototype_location = String::default();
-            let mut prototype_fields = Vec::new();
+            let mut cast_object_type = None;
             let mut block_statements = Vec::new();
             for pair in pair.into_inner() {
                 match pair.as_rule() {
                     Rule::ident => {
-                        let mut type_path: Vec<&str> = pair.as_str().split('.').collect();
-                        let custom_type_name = type_path.pop().unwrap();
-
-                        // Find a scope to use other than our own?
-                        let scope = env.scope(doc);
-                        let mut type_scope = scope.clone();
-                        if type_path.len() > 0 {
-                            let path = type_path.join("/");
-                            if path.starts_with("self") || path.starts_with("super") {
-                                if let Some(nref) = doc.graph.node_ref(&path, Some(&type_scope)) {
-                                    type_scope = nref;
-                                } else {
-                                    return Err(anyhow!("Cannot find referenced type scope for constructing an object"));
-                                }
-                            } else {
-                                if let Some(nref) = doc.graph.node_ref(&path, None) {
-                                    type_scope = nref;
-                                } else {
-                                    return Err(anyhow!("Cannot find referenced type scope for constructing an object"));
-                                }
-                            }
-                        }
-
-                        if let Some(custom_type) = doc.types.find(&doc.graph, custom_type_name, &type_scope) {
-                            if custom_type.is_private() && !scope.is_child_of(&doc.graph, &type_scope) {
-                                // Custom type is private and the current scope is not equal or a child of the type's scope
-                                return Err(anyhow!("Cannot cast object expr to private type: {}", pair.as_str()));
-                            }
-                            type_name = custom_type.name.clone();
-                            prototype_location = custom_type.path(&doc.graph);
-                            prototype_fields = custom_type.fields.clone();
-                        } else {
-                            return Err(anyhow!("Attempting to construct a type that has not been defined: {}", pair.as_str()));
-                        }
+                        cast_object_type = Some(SType::Object(pair.as_str().to_owned()));
                     },
                     Rule::stof_type_field_create => {
                         let mut field_name = String::default();
@@ -1740,49 +1733,18 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                                 _ => {}
                             }
                         }
-                        if type_name == "<anonymous>" {
-                            // No prototype for this object, so just assign the field
-                            block_statements.push(Statement::Assign(field_name.into(), expr));
-                        } else {
-                            let mut found = false;
-                            for i in 0..prototype_fields.len() {
-                                if prototype_fields[i].name == field_name {
-                                    found = true;
-                                    let param = prototype_fields.remove(i);
-                                    // Cast the expression to the correct (defined) type
-                                    let assign_expr = Expr::Cast(param.ptype, Box::new(expr));
-                                    block_statements.push(Statement::Assign(field_name.clone().into(), assign_expr));
-                                    break; // We found the field
-                                }
-                            }
-                            if !found {
-                                return Err(anyhow!("Attempting to set a field '{}' that does not exist on the type: {}", field_name, type_name));
-                            }
-                        }
+                        block_statements.push(Statement::Assign(field_name.into(), expr));
                     },
                     _ => {}
                 }
             }
 
-            // Any prototype fields left must have defaults defined, or err
-            if prototype_fields.len() > 0 {
-                for param in prototype_fields {
-                    if let Some(default) = param.default {
-                        let assign_expr = Expr::Cast(param.ptype, Box::new(default));
-                        block_statements.push(Statement::Assign(param.name, assign_expr));
-                    } else {
-                        return Err(anyhow!("Unconstructed field '{}' on type '{}' does not have a default value given", &param.name, &type_name));
-                    }
-                }
-            }
-
-            // Add the prototype field to the anonymous object for function lookups
-            if prototype_location.len() > 0 {
-                block_statements.push(Statement::Assign("__prototype__".into(), Expr::Literal(SVal::String(prototype_location))));
-            }
-
             // New object expression - creates the object at runtime under self
-            res = Expr::NewObject(Statements::from(block_statements));
+            if let Some(cast) = cast_object_type {
+                res = Expr::Cast(cast, Box::new(Expr::NewObject(Statements::from(block_statements))));
+            } else {
+                res = Expr::NewObject(Statements::from(block_statements));
+            }
         },
         _ => {
             return Err(anyhow!("Unrecognized rule for expression: {}", pair.as_span().as_str()));
