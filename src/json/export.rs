@@ -29,18 +29,7 @@ pub(crate) fn json_value_from_node(graph: &SGraph, node_ref: &SNodeRef) -> Value
             }
         }
         if do_export {
-            match field.value {
-                SVal::Void => map.insert(field.name, Value::Null),
-                SVal::Null => map.insert(field.name, Value::Null),
-                SVal::String(val) => map.insert(field.name, Value::String(val)),
-                SVal::Bool(val) => map.insert(field.name, Value::Bool(val)),
-                SVal::Number(val) => map.insert(field.name, Value::Number(Number::from(val))),
-                SVal::Blob(blob) => map.insert(field.name, Value::from_iter(blob.into_iter())),
-                SVal::FnPtr(ptr) => map.insert(field.name, Value::String(format!("fn({})", ptr.id))),
-                SVal::Array(vals) => map.insert(field.name, value_from_array(graph, vals)),
-                SVal::Tuple(vals) => map.insert(field.name, value_from_array(graph, vals)),
-                SVal::Object(nref) => map.insert(field.name, json_value_from_node(graph, &nref)),
-            };
+            map.insert(field.name, json_value(graph, field.value));
         }
     }
     Value::Object(map)
@@ -51,20 +40,35 @@ pub(crate) fn json_value_from_node(graph: &SGraph, node_ref: &SNodeRef) -> Value
 fn value_from_array(graph: &SGraph, vals: Vec<SVal>) -> Value {
     let mut results: Vec<Value> = Vec::new();
     for val in vals {
-        match val {
-            SVal::Void => results.push(Value::Null),
-            SVal::Null => results.push(Value::Null),
-            SVal::String(val) => results.push(Value::String(val)),
-            SVal::Bool(val) => results.push(Value::Bool(val)),
-            SVal::Number(val) => results.push(Value::Number(Number::from(val))),
-            SVal::Blob(blob) => results.push(Value::from_iter(blob.into_iter())),
-            SVal::FnPtr(ptr) => results.push(Value::String(format!("fn({})", ptr.id))),
-            SVal::Object(nref) => results.push(json_value_from_node(graph, &nref)),
-            SVal::Array(vals) => results.push(value_from_array(graph, vals)),
-            SVal::Tuple(vals) => results.push(value_from_array(graph, vals)),
-        };
+        results.push(json_value(graph, val));
     }
     Value::Array(results)
+}
+
+
+/// Get a JSON value from a Stof Value.
+fn json_value(graph: &SGraph, val: SVal) -> Value {
+    match val {
+        SVal::Void => Value::Null,
+        SVal::Null => Value::Null,
+        SVal::String(val) => Value::String(val),
+        SVal::Bool(val) => Value::Bool(val),
+        SVal::Number(val) => Value::Number(Number::from(val)),
+        SVal::Blob(blob) => Value::from_iter(blob.into_iter()),
+        SVal::FnPtr(ptr) => Value::String(format!("fn({})", ptr.id)),
+        SVal::Object(nref) => json_value_from_node(graph, &nref),
+        SVal::Array(vals) => value_from_array(graph, vals),
+        SVal::Tuple(vals) => value_from_array(graph, vals),
+        SVal::Map(stof_map) => {
+            let mut json_map = Map::new();
+            for (k, v) in stof_map {
+                let key = k.to_string();
+                let value = json_value(graph, v);
+                json_map.insert(key, value);
+            }
+            Value::Object(json_map)
+        },
+    }
 }
 
 

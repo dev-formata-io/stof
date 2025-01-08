@@ -15,7 +15,7 @@
 //
 
 use core::str;
-use std::hash::Hash;
+use std::{cmp::Ordering, collections::BTreeMap, hash::Hash};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use crate::{Data, SDataRef, SDoc, SGraph, SNodeRef};
@@ -175,9 +175,46 @@ pub enum SVal {
     String(String),
     Object(SNodeRef),
     FnPtr(SDataRef),
-    Array(Vec<SVal>),
-    Tuple(Vec<SVal>),
+    Array(Vec<Self>),
+    Tuple(Vec<Self>),
     Blob(Vec<u8>),
+    Map(BTreeMap<Self, Self>),
+}
+impl PartialOrd for SVal {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for SVal {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self {
+            Self::Void |
+            Self::Null => Ordering::Equal,
+            Self::Bool(val) => {
+                match other {
+                    Self::Bool(oval) => {
+                        val.cmp(oval)
+                    },
+                    _ => Ordering::Equal,
+                }
+            },
+            Self::Number(num) => {
+                match other {
+                    Self::Number(onum) => {
+                        num.float().total_cmp(&onum.float())
+                    },
+                    _ => Ordering::Equal,
+                }
+            },
+            Self::String(val) => {
+                match other {
+                    Self::String(oval) => val.cmp(oval),
+                    _ => Ordering::Equal,
+                }
+            },
+            _ => Ordering::Equal,
+        }
+    }
 }
 impl From<&SVal> for SVal {
     fn from(value: &SVal) -> Self {
@@ -252,6 +289,25 @@ impl PartialEq for SVal {
                     _ => false,
                 }
             },
+            Self::Map(map) => {
+                match other {
+                    Self::Map(omap) => {
+                        if map.len() == omap.len() {
+                            for (k, v) in map {
+                                if let Some(ov) = omap.get(k) {
+                                    if v != ov {
+                                        return false;
+                                    }
+                                } else {
+                                    return false;
+                                }
+                            }
+                        }
+                        false
+                    },
+                    _ => false,
+                }
+            }
         }
     }
 }
@@ -320,6 +376,14 @@ impl SVal {
         }
     }
 
+    /// Is map?
+    pub fn is_map(&self) -> bool {
+        match self {
+            Self::Map(_) => true,
+            _ => false,
+        }
+    }
+
     /// Create a tuple.
     pub fn tuple<T>(vals: Vec<T>) -> Self where T: IntoSVal {
         let mut new: Vec<Self> = Vec::new();
@@ -335,6 +399,7 @@ impl SVal {
             Self::Number(val) => SType::Number(val.stype()),
             Self::String(_) => SType::String,
             Self::Array(_) => SType::Array,
+            Self::Map(_) => SType::Map,
             Self::Null => SType::Null,
             Self::Tuple(vals) => {
                 let mut types: Vec<SType> = Vec::new();
@@ -364,6 +429,7 @@ impl SVal {
             Self::Bool(val) => { val.to_string() },
             Self::Number(val) => { val.to_string() },
             Self::Array(vals) => { format!("{:?}", vals) },
+            Self::Map(map) => { format!("{:?}", map) },
             Self::Object(nref) => { format!("{:?}", nref) },
             Self::FnPtr(dref) => { format!("fn({:?})", dref) },
             Self::Null => { "null".to_string() },
@@ -380,6 +446,7 @@ impl SVal {
             Self::Bool(val) => { val.to_string() },
             Self::Number(val) => { val.to_string() },
             Self::Array(vals) => { format!("{:?}", vals) },
+            Self::Map(map) => { format!("{:?}", map) },
             Self::Object(nref) => { format!("{:?}", nref) },
             Self::FnPtr(dref) => { format!("fn({:?})", dref) },
             Self::Null => { "null".to_string() },
@@ -393,6 +460,7 @@ impl SVal {
     pub fn truthy(&self) -> bool {
         match self {
             Self::Array(_) => true,
+            Self::Map(_) => true,
             Self::Bool(val) => *val,
             Self::FnPtr(_) => true,
             Self::Object(_) => true,
@@ -537,6 +605,22 @@ impl SVal {
                     },
                     _ => {
                         vals.push(other.clone());
+                    }
+                }
+            },
+            SVal::Map(map) => {
+                match other {
+                    SVal::Map(omap) => {
+                        for (k, v) in omap {
+                            if let Some(existing_val) = map.get_mut(k) {
+                                existing_val.union(v);
+                            } else {
+                                map.insert(k.clone(), v.clone());
+                            }
+                        }
+                    },
+                    _ => {
+                        *self = SVal::Array(vec![self.clone(), other.clone()]);
                     }
                 }
             }
@@ -723,6 +807,15 @@ impl SVal {
                 }
                 Err(anyhow!("Cannot cast tuple to anything"))
             },
+            Self::Map(map) => {
+                match target {
+                    SType::Map => {
+                        return Ok(SVal::Map(map.clone()));
+                    },
+                    _ => {}
+                }
+                Err(anyhow!("Cannot cast a map to anything"))
+            },
             Self::Void => {
                 Err(anyhow!("Cannot cast void to anything"))
             },
@@ -846,6 +939,9 @@ impl SVal {
             Self::Null => {
                 "null".to_string()
             },
+            Self::Map(map) => {
+                format!("{:?}", map)
+            },
             Self::Array(vals) => {
                 let mut arr = Vec::new();
                 for val in vals {
@@ -888,6 +984,9 @@ impl SVal {
             },
             Self::Null => {
                 "null".to_string()
+            },
+            Self::Map(map) => {
+                format!("{:?}", map)
             },
             Self::Bool(val) => {
                 format!("{:?}", val)
@@ -967,6 +1066,12 @@ impl SVal {
                 }
             },
             Self::Object(_) => Ok(Self::Bool(false)),
+            Self::Map(map) => {
+                match other {
+                    Self::Map(omap) => Ok(Self::Bool(map.len() > omap.len())),
+                    _ => Ok(Self::Bool(false)),
+                }
+            }
         }
     }
 
@@ -1000,6 +1105,12 @@ impl SVal {
                 }
             },
             Self::Object(_) => Ok(Self::Bool(false)),
+            Self::Map(map) => {
+                match other {
+                    Self::Map(omap) => Ok(Self::Bool(map.len() < omap.len())),
+                    _ => Ok(Self::Bool(false)),
+                }
+            }
         }
     }
 
@@ -1040,20 +1151,18 @@ impl SVal {
     }
 
     /// Add.
-    pub fn add(&self, other: &Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn add(self, other: Self, doc: &mut SDoc) -> Result<Self> {
         match self {
             Self::Object(_) => Err(anyhow!("Cannot add objects")),
             Self:: Null |
             Self::Void => {
-                Ok(other.clone())
+                Ok(other)
             },
-            Self::Blob(blob) => {
+            Self::Blob(mut blob) => {
                 match other {
-                    Self::Blob(other_blob) => {
-                        let mut res = blob.clone();
-                        let mut other = other_blob.clone();
-                        res.append(&mut other);
-                        Ok(Self::Blob(res))
+                    Self::Blob(mut other_blob) => {
+                        blob.append(&mut other_blob);
+                        Ok(Self::Blob(blob))
                     },
                     _ => Err(anyhow!("Cannot add something other than a binary blob to a blob"))
                 }
@@ -1063,10 +1172,10 @@ impl SVal {
                     Self::Object(_) => Err(anyhow!("Cannot add objects")),
                     Self::Null |
                     Self::Void => {
-                        Ok(self.clone())
+                        Ok(Self::Bool(aval))
                     },
                     Self::Bool(bval) => {
-                        Ok(Self::Bool(*aval && *bval))
+                        Ok(Self::Bool(aval && bval))
                     },
                     Self::Number(bval) => {
                         Ok(Self::String(format!("{}{}", aval, bval.print())))
@@ -1086,6 +1195,9 @@ impl SVal {
                     Self::Blob(_) => {
                         Err(anyhow!("Cannot 'bool + blob'"))
                     },
+                    Self::Map(_) => {
+                        Err(anyhow!("Cannot 'bool + map'"))
+                    }
                 }
             },
             Self::String(aval) => {
@@ -1093,7 +1205,7 @@ impl SVal {
                     Self::Object(_) => Err(anyhow!("Cannot add objects")),
                     Self::Null |
                     Self::Void => {
-                        Ok(self.clone())
+                        Ok(Self::String(aval))
                     },
                     Self::String(bval) => {
                         Ok(Self::String(format!("{}{}", aval, bval)))
@@ -1117,6 +1229,9 @@ impl SVal {
                         // TODO - cast string to blob?
                         Err(anyhow!("Cannot 'string + blob'"))
                     },
+                    Self::Map(_) => {
+                        Err(anyhow!("Cannot 'string + map'"))
+                    }
                 }
             },
             Self::Number(aval) => {
@@ -1124,10 +1239,10 @@ impl SVal {
                     Self::Object(_) => Err(anyhow!("Cannot add objects")),
                     Self::Null |
                     Self::Void => {
-                        Ok(self.clone())
+                        Ok(Self::Number(aval))
                     },
                     Self::Number(bval) => {
-                        Ok(Self::Number(aval.add(bval)))
+                        Ok(Self::Number(aval.add(&bval)))
                     },
                     Self::String(bval) => {
                         if let Ok(bval) = bval.parse::<f64>() {
@@ -1151,52 +1266,50 @@ impl SVal {
                     Self::Blob(_) => {
                         Err(anyhow!("Cannot 'number + blob'"))
                     },
+                    Self::Map(_) => {
+                        Err(anyhow!("Cannot 'number + map'"))
+                    }
                 }
             },
-            Self::Array(vals) => {
+            Self::Array(mut vals) => {
                 match other {
                     Self::Object(_) => Err(anyhow!("Cannot add objects")),
                     Self::Null |
                     Self::Void => {
-                        Ok(Self::Array(vals.clone()))
+                        Ok(Self::Array(vals))
                     },
                     Self::Bool(val) => {
-                        let mut new = vals.clone();
-                        new.push(Self::Bool(*val));
-                        Ok(Self::Array(new))
+                        vals.push(Self::Bool(val));
+                        Ok(Self::Array(vals))
                     },
                     Self::Number(val) => {
-                        let mut new = vals.clone();
-                        new.push(Self::Number(val.clone()));
-                        Ok(Self::Array(new))
+                        vals.push(Self::Number(val));
+                        Ok(Self::Array(vals))
                     },
                     Self::String(val) => {
-                        let mut new = vals.clone();
-                        new.push(Self::String(val.clone()));
-                        Ok(Self::Array(new))
+                        vals.push(Self::String(val));
+                        Ok(Self::Array(vals))
                     },
-                    Self::Array(bvals) => {
-                        let mut other = bvals.clone();
-                        let mut new = vals.clone();
-                        new.append(&mut other);
-                        Ok(Self::Array(new))
+                    Self::Array(mut bvals) => {
+                        vals.append(&mut bvals);
+                        Ok(Self::Array(vals))
                     },
-                    Self::Tuple(bvals) => {
-                        let mut other = bvals.clone();
-                        let mut new = vals.clone();
-                        new.append(&mut other);
-                        Ok(Self::Array(new))
+                    Self::Tuple(mut bvals) => {
+                        vals.append(&mut bvals);
+                        Ok(Self::Array(vals))
                     },
                     Self::FnPtr(dref) => {
-                        let mut new = vals.clone();
-                        new.push(Self::FnPtr(dref.clone()));
-                        Ok(Self::Array(new))
+                        vals.push(Self::FnPtr(dref));
+                        Ok(Self::Array(vals))
                     },
                     Self::Blob(_) => {
                         // PID here doesn't matter, because they only get used when casting with objects...
-                        let arr_blob = Self::Array(vals.clone()).cast(SType::Blob, "main", doc)?;
+                        let arr_blob = Self::Array(vals).cast(SType::Blob, "main", doc)?;
                         arr_blob.add(other, doc)
                     },
+                    Self::Map(_) => {
+                        Err(anyhow!("Cannot 'bool + map'"))
+                    }
                 }
             },
             Self::Tuple(_) => {
@@ -1204,12 +1317,28 @@ impl SVal {
             },
             Self::FnPtr(_) => {
                 Err(anyhow!("Cannot add anything to a function"))
+            },
+            Self::Map(mut map) => {
+                match other {
+                    Self::Tuple(mut tup) => {
+                        if tup.len() == 2 {
+                            let value = tup.pop().unwrap();
+                            let key = tup.pop().unwrap();
+                            map.insert(key, value);
+                            return Ok(SVal::Map(map));
+                        }
+                        Err(anyhow!("Tuple must have two values to add into a map"))
+                    },
+                    _ => {
+                        Err(anyhow!("Cannot add anything other than a tuple to a map"))
+                    }
+                }
             }
         }
     }
 
     /// Subtract.
-    pub fn sub(&self, other: &Self) -> Result<Self> {
+    pub fn sub(self, other: Self) -> Result<Self> {
         match self {
             Self::Object(_) => Err(anyhow!("Cannot subtract objects")),
             Self::Null |
@@ -1224,10 +1353,10 @@ impl SVal {
                     Self::Object(_) => Err(anyhow!("Cannot subtract objects")),
                     Self::Null |
                     Self::Void => {
-                        Ok(self.clone())
+                        Ok(Self::Bool(aval))
                     },
                     Self::Bool(bval) => {
-                        Ok(Self::Bool(*aval ^ *bval))
+                        Ok(Self::Bool(aval ^ bval))
                     },
                     Self::Number(_) => {
                         Err(anyhow!("Cannot subtract a number from a bool"))
@@ -1247,6 +1376,9 @@ impl SVal {
                     Self::Blob(_) => {
                         Err(anyhow!("Cannot subtract a blob"))
                     },
+                    Self::Map(_) => {
+                        Err(anyhow!("Cannot subtract a map from a bool"))
+                    }
                 }
             },
             Self::String(aval) => {
@@ -1254,10 +1386,10 @@ impl SVal {
                     Self::Object(_) => Err(anyhow!("Cannot subtract objects")),
                     Self::Null |
                     Self::Void => {
-                        Ok(self.clone())
+                        Ok(Self::String(aval))
                     },
                     Self::String(bval) => {
-                        Ok(Self::String(aval.replace(bval, "")))
+                        Ok(Self::String(aval.replace(&bval, "")))
                     },
                     Self::Number(bval) => {
                         Ok(Self::String(aval.replace(&bval.print(), "")))
@@ -1277,6 +1409,9 @@ impl SVal {
                     Self::Blob(_) => {
                         Err(anyhow!("Cannot subtract a blob"))
                     },
+                    Self::Map(_) => {
+                        Err(anyhow!("Cannot subtract a map from a string"))
+                    }
                 }
             },
             Self::Number(aval) => {
@@ -1284,10 +1419,10 @@ impl SVal {
                     Self::Object(_) => Err(anyhow!("Cannot subtract objects")),
                     Self::Null |
                     Self::Void => {
-                        Ok(self.clone())
+                        Ok(Self::Number(aval))
                     },
                     Self::Number(bval) => {
-                        Ok(Self::Number(aval.sub(bval)))
+                        Ok(Self::Number(aval.sub(&bval)))
                     },
                     Self::String(bval) => {
                         if let Ok(bval) = bval.parse::<f64>() {
@@ -1298,7 +1433,7 @@ impl SVal {
                     },
                     Self::Bool(bval) => {
                         let mut num = 0;
-                        if *bval { num = 1; }
+                        if bval { num = 1; }
                         Ok(Self::Number(aval.sub(&SNum::I64(num))))
                     },
                     Self::Array(_) => {
@@ -1313,6 +1448,9 @@ impl SVal {
                     Self::Blob(_) => {
                         Err(anyhow!("Cannot subtract a blob"))
                     },
+                    Self::Map(_) => {
+                        Err(anyhow!("Cannot subtract a map from a number"))
+                    }
                 }
             },
             Self::Array(_) => {
@@ -1323,17 +1461,21 @@ impl SVal {
             },
             Self::FnPtr(_) => {
                 Err(anyhow!("Cannot subtract anything from a fn pointer"))
+            },
+            Self::Map(mut map) => {
+                map.remove(&other);
+                Ok(Self::Map(map))
             }
         }
     }
 
     /// Multiply another value with this value.
-    pub fn mul(&self, other: &Self) -> Result<Self> {
+    pub fn mul(self, other: Self) -> Result<Self> {
         match self {
             Self::Object(_) => Err(anyhow!("Cannot multiply objects")),
             Self::Null |
             Self::Void => {
-                Ok(other.clone())
+                Ok(other)
             },
             Self::Blob(_) => {
                 Err(anyhow!("Cannot multiply a blob"))
@@ -1343,10 +1485,10 @@ impl SVal {
                     Self::Object(_) => Err(anyhow!("Cannot multiply objects")),
                     Self::Null |
                     Self::Void => {
-                        Ok(self.clone())
+                        Ok(Self::Bool(aval))
                     },
                     Self::Bool(bval) => {
-                        Ok(Self::Bool(*aval || *bval))
+                        Ok(Self::Bool(aval || bval))
                     },
                     Self::Number(_) => {
                         Err(anyhow!("Cannot multiply a bool and a number"))
@@ -1366,6 +1508,9 @@ impl SVal {
                     Self::Blob(_) => {
                         Err(anyhow!("Cannot multiply a blob"))
                     },
+                    Self::Map(_) => {
+                        Err(anyhow!("Cannot multiply a map and a bool"))
+                    }
                 }
             },
             Self::String(aval) => {
@@ -1373,7 +1518,7 @@ impl SVal {
                     Self::Object(_) => Err(anyhow!("Cannot multiply objects")),
                     Self::Null |
                     Self::Void => {
-                        Ok(self.clone())
+                        Ok(Self::String(aval))
                     },
                     Self::String(bval) => {
                         Ok(Self::String(format!("{}{}", aval, bval)))
@@ -1381,7 +1526,7 @@ impl SVal {
                     Self::Number(bval) => {
                         let mut other = String::default();
                         for _ in 0..bval.int() {
-                            other.push_str(&aval.clone());
+                            other.push_str(&aval);
                         }
                         Ok(Self::String(other))
                     },
@@ -1400,6 +1545,9 @@ impl SVal {
                     Self::Blob(_) => {
                         Err(anyhow!("Cannot multiply a blob"))
                     },
+                    Self::Map(_) => {
+                        Err(anyhow!("Cannot multiply a map and a string"))
+                    },
                 }
             },
             Self::Number(aval) => {
@@ -1407,10 +1555,10 @@ impl SVal {
                     Self::Object(_) => Err(anyhow!("Cannot multiply objects")),
                     Self::Null |
                     Self::Void => {
-                        Ok(self.clone())
+                        Ok(Self::Number(aval))
                     },
                     Self::Number(bval) => {
-                        Ok(Self::Number(aval.mul(bval)))
+                        Ok(Self::Number(aval.mul(&bval)))
                     },
                     Self::String(bval) => {
                         if let Ok(bval) = bval.parse::<f64>() {
@@ -1434,6 +1582,9 @@ impl SVal {
                     Self::Blob(_) => {
                         Err(anyhow!("Cannot multiply a blob"))
                     },
+                    Self::Map(_) => {
+                        Err(anyhow!("Cannot multiply a map and a number"))
+                    },
                 }
             },
             Self::Array(_) => {
@@ -1444,17 +1595,20 @@ impl SVal {
             },
             Self::FnPtr(_) => {
                 Err(anyhow!("Cannot multiply a fn pointer with anything"))
+            },
+            Self::Map(_) => {
+                Err(anyhow!("Cannot multiply a map with anything"))
             }
         }
     }
 
     /// Divide another value with this value.
-    pub fn div(&self, other: &Self) -> Result<Self> {
+    pub fn div(self, other: Self) -> Result<Self> {
         match self {
             Self::Object(_) => Err(anyhow!("Cannot divide objects")),
             Self::Null |
             Self::Void => {
-                Ok(other.clone())
+                Ok(other)
             },
             Self::Blob(_) => {
                 Err(anyhow!("Cannot divide a blob"))
@@ -1464,10 +1618,10 @@ impl SVal {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
                     Self::Null |
                     Self::Void => {
-                        Ok(self.clone())
+                        Ok(Self::Bool(aval))
                     },
                     Self::Bool(bval) => {
-                        Ok(Self::Bool(*aval && *bval))
+                        Ok(Self::Bool(aval && bval))
                     },
                     Self::Number(_) => {
                         Err(anyhow!("Cannot divide a bool and a number"))
@@ -1487,6 +1641,9 @@ impl SVal {
                     Self::Blob(_) => {
                         Err(anyhow!("Cannot divide a blob"))
                     },
+                    Self::Map(_) => {
+                        Err(anyhow!("Cannot divide a map and a bool"))
+                    },
                 }
             },
             Self::String(aval) => {
@@ -1494,10 +1651,10 @@ impl SVal {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
                     Self::Null |
                     Self::Void => {
-                        Ok(self.clone())
+                        Ok(Self::String(aval))
                     },
                     Self::String(bval) => {
-                        let vec = aval.split(bval).collect::<Vec<&str>>();
+                        let vec = aval.split(&bval).collect::<Vec<&str>>();
                         let mut new: Vec<Self> = Vec::new();
                         for v in vec {
                             new.push(v.into());
@@ -1522,6 +1679,9 @@ impl SVal {
                     Self::Blob(_) => {
                         Err(anyhow!("Cannot divide a blob"))
                     },
+                    Self::Map(_) => {
+                        Err(anyhow!("Cannot divide a map and a string"))
+                    },
                 }
             },
             Self::Number(aval) => {
@@ -1529,10 +1689,10 @@ impl SVal {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
                     Self::Null |
                     Self::Void => {
-                        Ok(self.clone())
+                        Ok(Self::Number(aval))
                     },
                     Self::Number(bval) => {
-                        Ok(Self::Number(aval.div(bval)))
+                        Ok(Self::Number(aval.div(&bval)))
                     },
                     Self::String(bval) => {
                         if let Ok(bval) = bval.parse::<f64>() {
@@ -1556,6 +1716,9 @@ impl SVal {
                     Self::Blob(_) => {
                         Err(anyhow!("Cannot divide a blob"))
                     },
+                    Self::Map(_) => {
+                        Err(anyhow!("Cannot divide a map and a number"))
+                    },
                 }
             },
             Self::Array(_) => {
@@ -1566,17 +1729,20 @@ impl SVal {
             },
             Self::FnPtr(_) => {
                 Err(anyhow!("Cannot divide a fn pointer with anything"))
-            }
+            },
+            Self::Map(_) => {
+                Err(anyhow!("Cannot divide a map with anything"))
+            },
         }
     }
 
     /// Modulus/remainder (mod) another value with this value.
-    pub fn rem(&self, other: &Self) -> Result<Self> {
+    pub fn rem(self, other: Self) -> Result<Self> {
         match self {
             Self::Object(_) => Err(anyhow!("Cannot divide objects")),
             Self::Null |
             Self::Void => {
-                Ok(other.clone())
+                Ok(other)
             },
             Self::Blob(_) => {
                 Err(anyhow!("Cannot divide a blob"))
@@ -1586,10 +1752,10 @@ impl SVal {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
                     Self::Null |
                     Self::Void => {
-                        Ok(self.clone())
+                        Ok(Self::Bool(aval))
                     },
                     Self::Bool(bval) => {
-                        Ok(Self::Bool(*aval && *bval))
+                        Ok(Self::Bool(aval && bval))
                     },
                     Self::Number(_) => {
                         Err(anyhow!("Cannot divide a bool and a number"))
@@ -1609,6 +1775,9 @@ impl SVal {
                     Self::Blob(_) => {
                         Err(anyhow!("Cannot divide a blob"))
                     },
+                    Self::Map(_) => {
+                        Err(anyhow!("Cannot divide a map and a bool"))
+                    },
                 }
             },
             Self::String(aval) => {
@@ -1616,10 +1785,10 @@ impl SVal {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
                     Self::Null |
                     Self::Void => {
-                        Ok(self.clone())
+                        Ok(Self::String(aval))
                     },
                     Self::String(bval) => {
-                        let vec = aval.split(bval).collect::<Vec<&str>>();
+                        let vec = aval.split(&bval).collect::<Vec<&str>>();
                         let mut new: Vec<Self> = Vec::new();
                         for v in vec {
                             new.push(v.into());
@@ -1644,6 +1813,9 @@ impl SVal {
                     Self::Blob(_) => {
                         Err(anyhow!("Cannot divide a blob"))
                     },
+                    Self::Map(_) => {
+                        Err(anyhow!("Cannot divide a map and a string"))
+                    },
                 }
             },
             Self::Number(aval) => {
@@ -1651,10 +1823,10 @@ impl SVal {
                     Self::Object(_) => Err(anyhow!("Cannot divide objects")),
                     Self::Null |
                     Self::Void => {
-                        Ok(self.clone())
+                        Ok(Self::Number(aval))
                     },
                     Self::Number(bval) => {
-                        Ok(Self::Number(aval.rem(bval)))
+                        Ok(Self::Number(aval.rem(&bval)))
                     },
                     Self::String(bval) => {
                         if let Ok(bval) = bval.parse::<f64>() {
@@ -1678,6 +1850,9 @@ impl SVal {
                     Self::Blob(_) => {
                         Err(anyhow!("Cannot divide a blob"))
                     },
+                    Self::Map(_) => {
+                        Err(anyhow!("Cannot divide a map and a number"))
+                    },
                 }
             },
             Self::Array(_) => {
@@ -1688,7 +1863,10 @@ impl SVal {
             },
             Self::FnPtr(_) => {
                 Err(anyhow!("Cannot divide a fn pointer with anything"))
-            }
+            },
+            Self::Map(_) => {
+                Err(anyhow!("Cannot divide a map with anything"))
+            },
         }
     }
 }

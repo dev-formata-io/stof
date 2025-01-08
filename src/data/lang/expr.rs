@@ -264,6 +264,7 @@ impl Expr {
                         SType::Null |
                         SType::Void => String::default(),
                         SType::Array => "Array".to_owned(),
+                        SType::Map => "Map".to_owned(),
                         SType::FnPtr => "Function".to_owned(),
                         SType::String => "String".to_owned(),
                         SType::Number(_) => "Number".to_owned(),
@@ -455,7 +456,7 @@ impl Expr {
                         res = val;
                         first = false;
                     } else {
-                        res = res.add(&val, doc)?;
+                        res = res.add(val, doc)?;
                     }
                 }
                 Ok(res)
@@ -469,7 +470,7 @@ impl Expr {
                         res = val;
                         first = false;
                     } else {
-                        res = res.sub(&val)?;
+                        res = res.sub(val)?;
                     }
                 }
                 Ok(res)
@@ -483,7 +484,7 @@ impl Expr {
                         res = val;
                         first = false;
                     } else {
-                        res = res.mul(&val)?;
+                        res = res.mul(val)?;
                     }
                 }
                 Ok(res)
@@ -497,7 +498,7 @@ impl Expr {
                         res = val;
                         first = false;
                     } else {
-                        res = res.div(&val)?;
+                        res = res.div(val)?;
                     }
                 }
                 Ok(res)
@@ -511,7 +512,7 @@ impl Expr {
                         res = val;
                         first = false;
                     } else {
-                        res = res.rem(&val)?;
+                        res = res.rem(val)?;
                     }
                 }
                 Ok(res)

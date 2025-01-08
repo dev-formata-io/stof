@@ -30,6 +30,7 @@ pub enum SType {
     Object(String),
     FnPtr,
     Array,
+    Map,
     Tuple(Vec<SType>),
     Blob,
     Unknown,
@@ -58,6 +59,7 @@ impl PartialEq for SType {
             },
             Self::FnPtr => other.is_function_pointer(),
             Self::Array => other.is_array(),
+            Self::Map => other.is_map(),
             Self::Tuple(vals) => {
                 match other {
                     Self::Tuple(ovals) => vals == ovals,
@@ -74,6 +76,7 @@ impl SType {
     pub fn is_collection(&self) -> bool {
         match self {
             SType::Array |
+            SType::Map |
             SType::Tuple(_) => true,
             _ => false
         }
@@ -170,6 +173,14 @@ impl SType {
         }
     }
 
+    /// Is a map?
+    pub fn is_map(&self) -> bool {
+        match self {
+            SType::Map => true,
+            _ => false,
+        }
+    }
+
     /// Is binary blob?
     pub fn is_blob(&self) -> bool {
         match self {
@@ -218,6 +229,7 @@ impl SType {
     pub fn type_of(&self) -> String {
         match self {
             Self::Unknown => "unknown".into(),
+            Self::Map => "map".into(),
             Self::Array => "vec".into(),
             Self::Bool => "bool".into(),
             Self::Blob => "blob".into(),
@@ -267,6 +279,7 @@ impl From<&str> for SType {
                     "null" => Self::Null,
                     "void" => Self::Void,
                     "vec" => Self::Array,
+                    "map" => Self::Map,
                     "obj" => Self::Object("obj".to_string()),
                     "fn" => Self::FnPtr,
                     "unknown" => Self::Unknown,
@@ -292,6 +305,7 @@ impl From<&str> for SType {
             "null" => Self::Null,
             "void" => Self::Void,
             "vec" => Self::Array,
+            "map" => Self::Map,
             "obj" => Self::Object("obj".to_string()),
             "fn" => Self::FnPtr,
             "unknown" => Self::Unknown,

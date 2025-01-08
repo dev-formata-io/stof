@@ -29,29 +29,7 @@ pub(crate) fn toml_value_from_node(graph: &SGraph, node_ref: &SNodeRef) -> Table
             }
         }
         if do_export {
-            match field.value {
-                SVal::String(val) => map.insert(field.name, Value::String(val)),
-                SVal::Bool(val) => map.insert(field.name, Value::Boolean(val)),
-                SVal::Number(val) => {
-                    match val {
-                        SNum::F64(v) => map.insert(field.name, Value::Float(v)),
-                        SNum::I64(v) => map.insert(field.name, Value::Integer(v)),
-                        SNum::Units(v, _) => map.insert(field.name, Value::Float(v)),
-                    }
-                },
-                SVal::Blob(blob) => {
-                    let mut array = Vec::new();
-                    for v in blob {
-                        array.push(Value::Integer(v as i64));
-                    }
-                    map.insert(field.name, Value::Array(array))
-                },
-                SVal::FnPtr(ptr) => map.insert(field.name, Value::String(format!("fn({})", ptr.id))),
-                SVal::Array(vals) => map.insert(field.name, value_from_array(graph, vals)),
-                SVal::Tuple(vals) => map.insert(field.name, value_from_array(graph, vals)),
-                SVal::Object(nref) => map.insert(field.name, Value::Table(toml_value_from_node(graph, &nref))),
-                _ => None
-            };
+            map.insert(field.name, toml_value(graph, field.value));
         }
     }
     map
@@ -62,29 +40,46 @@ pub(crate) fn toml_value_from_node(graph: &SGraph, node_ref: &SNodeRef) -> Table
 fn value_from_array(graph: &SGraph, vals: Vec<SVal>) -> Value {
     let mut results: Vec<Value> = Vec::new();
     for val in vals {
-        match val {
-            SVal::String(val) => results.push(Value::String(val)),
-            SVal::Bool(val) => results.push(Value::Boolean(val)),
-            SVal::Number(val) => {
-                match val {
-                    SNum::F64(v) => results.push(Value::Float(v)),
-                    SNum::I64(v) => results.push(Value::Integer(v)),
-                    SNum::Units(v, _) => results.push(Value::Float(v)),
-                }
-            },
-            SVal::Blob(blob) => {
-                let mut array = Vec::new();
-                for v in blob {
-                    array.push(Value::Integer(v as i64));
-                }
-                results.push(Value::Array(array))
-            },
-            SVal::FnPtr(ptr) => results.push(Value::String(format!("fn({})", ptr.id))),
-            SVal::Array(vals) => results.push(value_from_array(graph, vals)),
-            SVal::Tuple(vals) => results.push(value_from_array(graph, vals)),
-            SVal::Object(nref) => results.push(Value::Table(toml_value_from_node(graph, &nref))),
-            _ => {}
-        };
+        results.push(toml_value(graph, val));
     }
     Value::Array(results)
+}
+
+
+/// Get a toml value from a stof value.
+fn toml_value(graph: &SGraph, val: SVal) -> Value {
+    match val {
+        SVal::String(val) => Value::String(val),
+        SVal::Bool(val) => Value::Boolean(val),
+        SVal::Number(val) => {
+            match val {
+                SNum::F64(v) => Value::Float(v),
+                SNum::I64(v) => Value::Integer(v),
+                SNum::Units(v, _) => Value::Float(v),
+            }
+        },
+        SVal::Blob(blob) => {
+            let mut array = Vec::new();
+            for v in blob {
+                array.push(Value::Integer(v as i64));
+            }
+            Value::Array(array)
+        },
+        SVal::FnPtr(ptr) => Value::String(format!("fn({})", ptr.id)),
+        SVal::Array(vals) => value_from_array(graph, vals),
+        SVal::Tuple(vals) => value_from_array(graph, vals),
+        SVal::Object(nref) => Value::Table(toml_value_from_node(graph, &nref)),
+        SVal::Map(stof_map) => {
+            let mut table = Table::new();
+            for (k, v) in stof_map {
+                let key = k.to_string();
+                let value = toml_value(graph, v);
+                table.insert(key, value);
+            }
+            Value::Table(table)
+        },
+        _ => {
+            Value::String("unknown Stof value".to_string())
+        }
+    }
 }
