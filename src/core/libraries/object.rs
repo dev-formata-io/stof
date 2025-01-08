@@ -364,6 +364,18 @@ pub trait Object {
                 }
                 Err(anyhow!("Object.parent(obj) requires one object parameter"))
             },
+            "path" => {
+                if parameters.len() == 1 {
+                    match &parameters[0] {
+                        SVal::Object(nref) => {
+                            // return a dot separated path from the root to this object
+                            return Ok(SVal::String(nref.path(&doc.graph).replace('/', ".")));
+                        },
+                        _ => {}
+                    }
+                }
+                Err(anyhow!("Object.path(obj) requires one object parameter"))
+            },
             "children" => {
                 if parameters.len() == 1 {
                     match &parameters[0] {
