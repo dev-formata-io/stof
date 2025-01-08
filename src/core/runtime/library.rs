@@ -384,6 +384,53 @@ impl Library for StdLibrary {
                 doc.graph.dump(true);
                 Ok(SVal::Void)
             },*/
+
+            /*****************************************************************************
+             * STD Lib Constructors.
+             *****************************************************************************/
+            "vec" => {
+                let mut array = Vec::new();
+                if parameters.len() > 0 {
+                    for param in parameters.drain(..) {
+                        array.push(param);
+                    }
+                }
+                Ok(SVal::Array(array))
+            },
+            "map" => {
+                let mut map = BTreeMap::new();
+                if parameters.len() > 0 {
+                    for param in 0..parameters.len() {
+                        match &parameters[param] {
+                            SVal::Array(vals) => {
+                                for val in vals {
+                                    match val {
+                                        SVal::Tuple(tup) => {
+                                            if tup.len() == 2 {
+                                                map.insert(tup[0].clone(), tup[1].clone());
+                                            }
+                                        },
+                                        _ => {
+                                            return Err(anyhow!("Cannot initialize a Map with any value other than a tuple (key, value)"));
+                                        }
+                                    }
+                                }
+                            },
+                            SVal::Map(omap) => {
+                                for (k, v) in omap {
+                                    if let Some(existing_val) = map.get_mut(k) {
+                                        existing_val.union(v);
+                                    } else {
+                                        map.insert(k.clone(), v.clone());
+                                    }
+                                }
+                            },
+                            _ => {}
+                        }
+                    }
+                }
+                Ok(SVal::Map(map))
+            },
             _ => {
                 Err(anyhow!("Did not find a function named '{}' in the standard library", name))
             }

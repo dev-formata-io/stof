@@ -1,0 +1,104 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+#[test]
+fn empty_constructor() {
+    let map = map();
+    
+    map = map + ('first', 'wohoo');
+    map += ('second', 'IT WORKS');
+    map -= 'first';
+    
+    assertEq(map.toString(), '{String("second"): String("IT WORKS")}');
+}
+
+#[test]
+fn array_constructor() {
+    let map = map([('a', 'A'), ('b', 'B'), ('c', 'C')]);
+    pln(map);
+}
+
+#[test]
+#[errors]
+fn bad_array_val_constructor() {
+    let map = std.map(std.vec('bad'));
+}
+
+#[test]
+fn map_constructor() {
+    let a = map([('a', 'A')]);
+    let b = map([('b', 'B')]);
+    let c = map(a, b);
+    pln(c);
+}
+
+set_operations: {
+    #[test]
+    fn union() {
+        let a = map([('a', 'A')]);
+        let b = map([('b', 'B')]);
+        let c = a + b; // union operation
+        assertEq(c.toString(), '{String("a"): String("A"), String("b"): String("B")}');
+    }
+
+    #[test]
+    fn diff_map() {
+        let a = map([('a', 'A'), ('b', 'B')]);
+        let b = map([('b', 'B')]);
+        let c = a - b;
+        assertEq(c.toString(), '{String("a"): String("A")}');
+    }
+
+    #[test]
+    fn diff_vec() {
+        let a = map([('a', 'A'), ('b', 'B')]);
+        let b = ['b'];
+        let c = a - b;
+        assertEq(c.toString(), '{String("a"): String("A")}');
+    }
+
+    #[test]
+    fn intersect_map() {
+        let a = map([('a', 'A'), ('b', 'B'), ('c', 'C')]);
+        let b = map([('c', 'C'), ('d', 'D'), ('e', 'E')]);
+        let c = a * b;
+        assertEq(c.toString(), '{String("c"): String("C")}');
+    }
+
+    #[test]
+    fn intersect_vec() {
+        let a = map([('a', 'A'), ('b', 'B'), ('c', 'C')]);
+        let b = vec('c', 'd', 'e');
+        let c = a * b;
+        assertEq(c.toString(), '{String("c"): String("C")}');
+    }
+
+    #[test]
+    #[errors]
+    fn no_div() {
+        let a = map();
+        let b = map();
+        let c = a / b; // no op for div and maps
+    }
+
+    #[test]
+    fn symmetric_difference() {
+        let a = map([('a', 'A'), ('b', 'B'), ('c', 'C')]);
+        let b = map([('c', 'C'), ('d', 'D'), ('e', 'E')]);
+        let c = a % b;
+        assertEq(c.toString(), '{String("a"): String("A"), String("b"): String("B"), String("d"): String("D"), String("e"): String("E")}');
+    }
+}

@@ -17,6 +17,9 @@
 pub mod array;
 pub use array::*;
 
+pub mod map;
+pub use map::*;
+
 pub mod function;
 pub use function::*;
 

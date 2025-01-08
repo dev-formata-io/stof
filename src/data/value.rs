@@ -15,7 +15,7 @@
 //
 
 use core::str;
-use std::{cmp::Ordering, collections::BTreeMap, hash::Hash};
+use std::{cmp::Ordering, collections::{BTreeMap, HashSet}, hash::Hash};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use crate::{Data, SDataRef, SDoc, SGraph, SNodeRef};
@@ -1329,8 +1329,18 @@ impl SVal {
                         }
                         Err(anyhow!("Tuple must have two values to add into a map"))
                     },
+                    Self::Map(omap) => {
+                        for (k, v) in omap {
+                            if let Some(existing_val) = map.get_mut(&k) {
+                                existing_val.union(&v);
+                            } else {
+                                map.insert(k.clone(), v.clone());
+                            }
+                        }
+                        Ok(SVal::Map(map))
+                    },
                     _ => {
-                        Err(anyhow!("Cannot add anything other than a tuple to a map"))
+                        Err(anyhow!("Cannot add anything other than a tuple or a map to a map"))
                     }
                 }
             }
@@ -1463,7 +1473,21 @@ impl SVal {
                 Err(anyhow!("Cannot subtract anything from a fn pointer"))
             },
             Self::Map(mut map) => {
-                map.remove(&other);
+                match other {
+                    SVal::Array(ovals) => {
+                        for oval in ovals {
+                            map.remove(&oval);
+                        }
+                    },
+                    SVal::Map(omap) => {
+                        for key in omap.keys() {
+                            map.remove(key);
+                        }
+                    },
+                    _ => {
+                        map.remove(&other);
+                    }
+                }
                 Ok(Self::Map(map))
             }
         }
@@ -1596,8 +1620,40 @@ impl SVal {
             Self::FnPtr(_) => {
                 Err(anyhow!("Cannot multiply a fn pointer with anything"))
             },
-            Self::Map(_) => {
-                Err(anyhow!("Cannot multiply a map with anything"))
+            Self::Map(mut map) => {
+                match other {
+                    Self::Map(omap) => {
+                        // Perform in intersection with this other map
+                        // Keep only the keys that this other map has
+                        let mut to_remove = Vec::new();
+                        for (k, _v) in &map {
+                            if !omap.contains_key(k) {
+                                to_remove.push(k.clone());
+                            }
+                        }
+                        for key in to_remove {
+                            map.remove(&key);
+                        }
+                        return Ok(Self::Map(map));
+                    },
+                    Self::Array(vals) => {
+                        // Perform an intersection with this array
+                        // Keep only the keys that are in this array
+                        let hashset = vals.into_iter().collect::<HashSet<SVal>>();
+                        let mut to_remove = Vec::new();
+                        for (k, _v) in &map {
+                            if !hashset.contains(k) {
+                                to_remove.push(k.clone());
+                            }
+                        }
+                        for key in to_remove {
+                            map.remove(&key);
+                        }
+                        return Ok(Self::Map(map));
+                    },
+                    _ => {}
+                }
+                Err(anyhow!("Cannot multiply a map with anything other than a map or an array"))
             }
         }
     }
@@ -1864,9 +1920,33 @@ impl SVal {
             Self::FnPtr(_) => {
                 Err(anyhow!("Cannot divide a fn pointer with anything"))
             },
-            Self::Map(_) => {
-                Err(anyhow!("Cannot divide a map with anything"))
-            },
+            Self::Map(mut map) => {
+                match other {
+                    Self::Map(omap) => {
+                        // Perform symmetric diff with this other map
+                        // Keep only the keys that don't intersect
+                        let mut intersections = HashSet::new();
+                        let mut to_remove = Vec::new();
+                        for (k, _v) in &map {
+                            if omap.contains_key(k) {
+                                to_remove.push(k.clone());
+                                intersections.insert(k.clone());
+                            }
+                        }
+                        for key in to_remove {
+                            map.remove(&key);
+                        }
+                        for (k, v) in omap {
+                            if !intersections.contains(&k) {
+                                map.insert(k, v);
+                            }
+                        }
+                        return Ok(Self::Map(map));
+                    },
+                    _ => {}
+                }
+                Err(anyhow!("Cannot use a map symmetric difference with anything other than a map"))
+            }
         }
     }
 }
