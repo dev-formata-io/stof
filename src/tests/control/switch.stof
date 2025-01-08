@@ -1,0 +1,85 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+#[test]
+fn switch_statement() {
+    let val = null;
+    switch (42) {
+        case 0: val = 0;
+        case 10: {
+            val = 10;
+        }
+        case 32: {
+            val = 32;
+        };
+        case 42: {
+            val = 42;
+        },
+        default: {
+            val = 100;
+        }
+    }
+    assertEq(val, 42);
+}
+
+#[test]
+fn switch_on_strings() {
+    let seen = false;
+    switch ("hello") {
+        case "hi": {}
+        case "hello": seen = true;
+    }
+    assert(seen);
+}
+
+#[test]
+fn switch_default() {
+    let seen = false;
+    switch ("dne") {
+        case "hi": {}
+        case "dude": {}
+        default: {
+            seen = true;
+        }
+    }
+    assert(seen);
+}
+
+a: {}
+b: {}
+c: {}
+
+#[test]
+fn switch_objects() {
+    let seen = false;
+    switch (self.a) {
+        // these expressions get evaluated when they are parsed, so objects cannot be 'new' statements...
+        case self.a: seen = true;
+        case self.b: {}
+        case self.c: {}
+    }
+    assert(seen);
+}
+
+#[test]
+fn switch_tuples() {
+    let seen = false;
+    switch (('hello', true, 31, 'hi')) {
+        case ('hello', true, 31, 'hi'): seen = true;
+        default: seen = false;
+    }
+    assert(seen);
+}

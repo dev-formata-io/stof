@@ -165,7 +165,7 @@ impl IntoSVal for &[u8] {
 
 
 /// Stof Value.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, Hash)]
 pub enum SVal {
     Void,
     #[default]

@@ -70,6 +70,7 @@ import 'src/tests/types/attributes.stof' as Types.Attributes;
  * Control Flow Tests.
  */
 import 'src/tests/control/flow.stof' as Control.Flow;
+import 'src/tests/control/switch.stof' as Control.Switch;
 
 
 /**

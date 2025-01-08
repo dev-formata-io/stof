@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use anyhow::{anyhow, Result};
 use lazy_static::lazy_static;
 use nanoid::nanoid;
@@ -908,6 +908,53 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
             },
             Rule::continue_stat => {
                 statements.push(Statement::Continue);
+            },
+            Rule::switch_statement => {
+                let mut match_on = Expr::Literal(SVal::Void);
+                let mut match_map = HashMap::new();
+                let mut default = None;
+                for pair in pair.into_inner() {
+                    match pair.as_rule() {
+                        Rule::expr => {
+                            match_on = parse_expression(doc, env, pair)?;
+                        },
+                        Rule::switch_case => {
+                            let mut case = Expr::Literal(SVal::Void);
+                            let mut statements = Statements::default();
+                            for pair in pair.into_inner() {
+                                match pair.as_rule() {
+                                    Rule::expr => {
+                                        case = parse_expression(doc, env, pair)?;
+                                    },
+                                    Rule::single_block |
+                                    Rule::block => {
+                                        statements = parse_block(doc, env, pair)?;
+                                    },
+                                    _ => {}
+                                }
+                            }
+                            let case_val = case.exec(&env.pid, doc)?;
+                            match_map.insert(case_val, statements);
+                        },
+                        Rule::switch_default => {
+                            let mut statements = Statements::default();
+                            for pair in pair.into_inner() {
+                                match pair.as_rule() {
+                                    Rule::single_block |
+                                    Rule::block => {
+                                        statements = parse_block(doc, env, pair)?;
+                                    },
+                                    _ => {}
+                                }
+                            }
+                            default = Some(statements);
+                        },
+                        rule => {
+                            return Err(anyhow!("Unrecognized rule in switch statement: {:?}", rule));
+                        }
+                    }
+                }
+                statements.push(Statement::Switch(match_on, match_map, default));
             },
             Rule::if_statement => {
                 let mut set_first_expr = false;

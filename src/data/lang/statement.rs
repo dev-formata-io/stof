@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use crate::{Data, SDoc, SField, SVal, SFunc};
@@ -691,6 +691,62 @@ impl Statements {
                         }
                     }
                 },
+                Statement::Switch(expr, map, default) => {
+                    let val = expr.exec(pid, doc)?;
+                    if let Some(statements) = map.get(&val) {
+                        doc.new_scope(pid);
+                        let res = statements.exec(pid, doc)?;
+                        doc.end_scope(pid);
+                        
+                        match res {
+                            StatementsRes::Break => {
+                                // If bubble, need to propogate break upwards
+                                if doc.bubble_control_flow(pid) {
+                                    return Ok(res);
+                                }
+                            },
+                            StatementsRes::Continue => {
+                                // If bubble, need to propogate continue upwards
+                                if doc.bubble_control_flow(pid) {
+                                    return Ok(res);
+                                }
+                            },
+                            StatementsRes::Return(_) => {
+                                // Return statements always go all the way back up
+                                return Ok(res);
+                            },
+                            StatementsRes::None => {
+                                // Nothing to do here
+                            }
+                        }
+                    } else if let Some(default) = default {
+                        doc.new_scope(pid);
+                        let res = default.exec(pid, doc)?;
+                        doc.end_scope(pid);
+                        
+                        match res {
+                            StatementsRes::Break => {
+                                // If bubble, need to propogate break upwards
+                                if doc.bubble_control_flow(pid) {
+                                    return Ok(res);
+                                }
+                            },
+                            StatementsRes::Continue => {
+                                // If bubble, need to propogate continue upwards
+                                if doc.bubble_control_flow(pid) {
+                                    return Ok(res);
+                                }
+                            },
+                            StatementsRes::Return(_) => {
+                                // Return statements always go all the way back up
+                                return Ok(res);
+                            },
+                            StatementsRes::None => {
+                                // Nothing to do here
+                            }
+                        }
+                    }
+                },
                 Statement::Return(expr) => {
                     // Push result of expr onto the stack
                     let val = expr.exec(pid, doc)?;
@@ -818,6 +874,7 @@ pub enum Statement {
         elif_exprs: Vec<(Expr, Statements)>,
         else_expr: Option<Statements>
     },
+    Switch(Expr, HashMap<SVal, Statements>, Option<Statements>),
     While(Expr, Statements),
     Break,
     Continue,
