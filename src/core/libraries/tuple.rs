@@ -14,15 +14,47 @@
 // limitations under the License.
 //
 
+use std::ops::DerefMut;
 use anyhow::{anyhow, Result};
 use crate::{SDoc, Library, SNum, SVal};
-use super::Object;
 
 
 /// Tuple library.
 #[derive(Default, Debug)]
 pub struct TupleLibrary;
-impl Object for TupleLibrary {}
+impl TupleLibrary {
+    /// Call tuple operation.
+    pub fn operate(&self, _pid: &str, _doc: &mut SDoc, name: &str, tup: &mut Vec<SVal>, parameters: &mut Vec<SVal>) -> Result<SVal> {
+        match name {
+            // Get the length of this tuple.
+            "len" => {
+                Ok(SVal::Number(SNum::I64(tup.len() as i64)))
+            },
+            // Get a value from this tuple at a specific index.
+            "at" => {
+                if parameters.len() < 1 {
+                    return Err(anyhow!("Tuple.at(tup, index) requires an index parameter"));
+                }
+                let index = parameters.pop().unwrap().unbox();
+                match index {
+                    SVal::Number(index) => {
+                        let index = index.int() as usize;
+                        if let Some(val) = tup.get(index) {
+                            return Ok(val.clone());
+                        }
+                        Err(anyhow!("Tuple.at(tup, index) index out of bounds"))
+                    },
+                    _ => {
+                        Err(anyhow!("Tuple.at(tup, index) index must be a number value"))
+                    }
+                }
+            },
+            _ => {
+                Err(anyhow!("Did not find the requested Tuple library function '{}'", name))
+            }
+        }
+    }
+}
 impl Library for TupleLibrary {
     /// Scope.
     fn scope(&self) -> String {
@@ -32,49 +64,41 @@ impl Library for TupleLibrary {
     /// Call into the Tuple library.
     fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
         if parameters.len() > 0 {
-            if parameters[0].is_tuple() {
-                match name {
-                    "len" => {
-                        if parameters.len() == 1 {
-                            // Return the length of the tuple
-                            match &parameters[0] {
-                                SVal::Tuple(vals) => {
-                                    return Ok(SVal::Number(SNum::I64(vals.len() as i64)));
-                                },
-                                _ => {}
-                            }
+            match name {
+                "toString" => {
+                    return Ok(SVal::String(parameters[0].print(doc)));
+                },
+                _ => {}
+            }
+
+            let mut params;
+            if parameters.len() > 1 {
+                params = parameters.drain(1..).collect();
+            } else {
+                params = Vec::new();
+            }
+            match &mut parameters[0] {
+                SVal::Tuple(tup) => {
+                    return self.operate(pid, doc, name, tup, &mut params);
+                },
+                SVal::Boxed(val) => {
+                    let mut val = val.lock().unwrap();
+                    let val = val.deref_mut();
+                    match val {
+                        SVal::Tuple(tup) => {
+                            return self.operate(pid, doc, name, tup, &mut params);
+                        },
+                        _ => {
+                            return Err(anyhow!("Tuple library requires the first parameter to be a tuple"));
                         }
-                    },
-                    "at" => {
-                        if parameters.len() == 2 {
-                            let index;
-                            {
-                                let index_val = parameters[1].clone();
-                                match index_val {
-                                    SVal::Number(nval) => {
-                                        index = nval.int() as usize;
-                                    },
-                                    _ => return Err(anyhow!("Cannot call at with anything but a number index"))
-                                }
-                            }
-                            match &parameters[0] {
-                                SVal::Tuple(vals) => {
-                                    if let Some(val) = vals.get(index) {
-                                        return Ok(val.clone());
-                                    }
-                                    return Err(anyhow!("Index out of range"));
-                                },
-                                _ => return Err(anyhow!("Cannot index into anything but a tuple here"))
-                            }
-                        }
-                    },
-                    _ => {}
+                    }
+                },
+                _ => {
+                    return Err(anyhow!("Tuple library requires the first parameter to be a tuple"));
                 }
             }
+        } else {
+            return Err(anyhow!("Tuple library requires a tuple parameter to work with"));
         }
-        if let Ok(val) = Self::object_call(pid, doc, name, parameters) {
-            return Ok(val);
-        }
-        Err(anyhow!("Failed to find a Tuple library method."))
     }
 }

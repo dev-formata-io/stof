@@ -17,8 +17,8 @@
 
 #[test('hello')]
 fn iteration(): str {
-    let res = '';
-    for (char in 'hello') res = res.push(char);
+    let res = box('');
+    for (char in 'hello') res.push(char);
     return res;
 }
 

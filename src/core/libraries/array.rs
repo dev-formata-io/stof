@@ -23,9 +23,7 @@ use crate::{Library, SData, SDoc, SFunc, SNum, SVal};
 #[derive(Default, Debug)]
 pub struct ArrayLibrary;
 impl ArrayLibrary {
-    ///
     /// Call array operation with an array values.
-    ///
     pub fn operate(&self, pid: &str, doc: &mut SDoc, name: &str, array: &mut Vec<SVal>, parameters: &mut Vec<SVal>) -> Result<SVal> {
         match name {
             // Push all parameters onto the array.

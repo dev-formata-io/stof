@@ -14,15 +14,14 @@
 // limitations under the License.
 //
 
+use std::ops::DerefMut;
 use anyhow::{anyhow, Result};
-use crate::{SDoc, Library, SNum, SNumType, SType, SUnits, SVal};
-use super::Object;
+use crate::{SDoc, Library, SNum, SUnits, SVal};
 
 
 /// Number library.
 #[derive(Default, Debug)]
 pub struct NumberLibrary;
-impl Object for NumberLibrary {}
 impl Library for NumberLibrary {
     /// Scope.
     fn scope(&self) -> String {
@@ -32,113 +31,166 @@ impl Library for NumberLibrary {
     /// Call into the Number library.
     fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
         if parameters.len() > 0 {
-            match &parameters[0] {
-                SVal::Number(nval) => {
-                    if parameters.len() == 1 {
-                        match name {
-                            "len" => return Ok(SVal::Number(nval.int().into())),
-                            "units" => return Self::units(nval),
-                            "removeUnits" => return Self::remove_units(nval),
-                            "hasUnits" | "isUnits" => return Self::has_units(nval),
-                            "isAngle" => return Self::is_angle(nval),
-                            "isDegrees" => return Self::is_degrees(nval),
-                            "isPositiveDegrees" => return Self::is_pdegrees(nval),
-                            "isRadians" => return Self::is_radians(nval),
-                            "isPositiveRadians" => return Self::is_pradians(nval),
-                            "isTemperature" | "isTemp" => return Self::is_temp(nval),
-                            "isLength" => return Self::is_length(nval),
-                            "isTime" => return Self::is_time(nval),
-                            "isMass" => return Self::is_mass(nval),
-                            "sqrt" => return Self::sqrt(nval),
-                            "cbrt" => return Self::cbrt(nval),
-                            "abs" => return Self::abs(nval),
-                            "floor" => return Self::floor(nval),
-                            "ceil" => return Self::ceil(nval),
-                            "round" => return Self::round(nval),
-                            "trunc" => return Self::trunc(nval),
-                            "fract" => return Self::fract(nval),
-                            "signum" => return Self::signum(nval),
-                            "exp" => return Self::exp(nval),
-                            "exp2" => return Self::exp2(nval),
-                            "ln" => return Self::ln(nval),
-                            "sin" => return Self::sin(nval),
-                            "cos" => return Self::cos(nval),
-                            "tan" => return Self::tan(nval),
-                            "asin" => return Self::asin(nval),
-                            "acos" => return Self::acos(nval),
-                            "atan" => return Self::atan(nval),
-                            "sinh" => return Self::sinh(nval),
-                            "cosh" => return Self::cosh(nval),
-                            "tanh" => return Self::tanh(nval),
-                            "asinh" => return Self::asinh(nval),
-                            "acosh" => return Self::acosh(nval),
-                            "atanh" => return Self::atanh(nval),
-                            _ => {}
-                        }
-                    } else if parameters.len() == 2 {
-                        // Try once with the raw value, otherwise try casting to an f64
-                        match &parameters[1] {
-                            SVal::Number(secondval) => {
-                                match name {
-                                    "pow" => return Self::pow(nval, secondval),
-                                    "log" => return Self::log(nval, secondval),
-                                    "atan2" => return Self::atan2(nval, secondval),
-                                    "round" => return Self::round2(nval, secondval),
-                                    "at" => {
-                                        let first = nval.int();
-                                        let second = secondval.int();
-                                        if second < first {
-                                            return Ok(SVal::Number(second.into()));
-                                        }
-                                        return Ok(SVal::Number(first.into()));
-                                    },
-                                    _ => {}
-                                }
-                            },
-                            _ => {
-                                let second = &parameters[1].cast(SType::Number(SNumType::F64), pid, doc)?;
-                                match second {
-                                    SVal::Number(secondval) => {
-                                        match name {
-                                            "pow" => return Self::pow(nval, secondval),
-                                            "log" => return Self::log(nval, secondval),
-                                            "atan2" => return Self::atan2(nval, secondval),
-                                            "round" => return Self::round2(nval, secondval),
-                                            "at" => {
-                                                let first = nval.int();
-                                                let second = secondval.int();
-                                                if second < first {
-                                                    return Ok(SVal::Number(second.into()));
-                                                }
-                                                return Ok(SVal::Number(first.into()));
-                                            },
-                                            _ => {}
-                                        }
-                                    },
-                                    _ => {}
-                                }
-                            }
+            match name {
+                "toString" => {
+                    return Ok(SVal::String(parameters[0].print(doc)));
+                },
+                _ => {}
+            }
+
+            let mut params;
+            if parameters.len() > 1 {
+                params = parameters.drain(1..).collect();
+            } else {
+                params = Vec::new();
+            }
+            match &mut parameters[0] {
+                SVal::Number(num) => {
+                    return self.operate(pid, doc, name, num, &mut params);
+                },
+                SVal::Boxed(val) => {
+                    let mut val = val.lock().unwrap();
+                    let val = val.deref_mut();
+                    match val {
+                        SVal::Number(num) => {
+                            return self.operate(pid, doc, name, num, &mut params);
+                        },
+                        _ => {
+                            return Err(anyhow!("Number library requires the first parameter to be a number"));
                         }
                     }
                 },
                 _ => {
-                    // Not a number, so try casting to a number and calling again
-                    let this = &parameters[0].cast(SType::Number(SNumType::F64), pid, doc)?;
-                    let mut params = vec![this.clone()];
-                    for i in 1..parameters.len() {
-                        params.push(parameters[i].clone());
-                    }
-                    return self.call(pid, doc, name, &mut params);
+                    return Err(anyhow!("Number library requires the first parameter to be a number"));
                 }
             }
+        } else {
+            return Err(anyhow!("Number library requires a number parameter to work with"));
         }
-        if let Ok(val) = Self::object_call(pid, doc, name, parameters) {
-            return Ok(val);
-        }
-        Err(anyhow!("Failed to find a Number library method"))
     }
 }
 impl NumberLibrary {
+    /// Call number operation.
+    pub fn operate(&self, _pid: &str, _doc: &mut SDoc, name: &str, nval: &mut SNum, parameters: &mut Vec<SVal>) -> Result<SVal> {
+        match name {
+            "len" => return Ok(SVal::Number(nval.int().into())),
+            "units" => return Self::units(nval),
+            "removeUnits" => return Self::remove_units(nval),
+            "hasUnits" | "isUnits" => return Self::has_units(nval),
+            "isAngle" => return Self::is_angle(nval),
+            "isDegrees" => return Self::is_degrees(nval),
+            "isPositiveDegrees" => return Self::is_pdegrees(nval),
+            "isRadians" => return Self::is_radians(nval),
+            "isPositiveRadians" => return Self::is_pradians(nval),
+            "isTemperature" | "isTemp" => return Self::is_temp(nval),
+            "isLength" => return Self::is_length(nval),
+            "isTime" => return Self::is_time(nval),
+            "isMass" => return Self::is_mass(nval),
+            "sqrt" => return Self::sqrt(nval),
+            "cbrt" => return Self::cbrt(nval),
+            "abs" => return Self::abs(nval),
+            "floor" => return Self::floor(nval),
+            "ceil" => return Self::ceil(nval),
+            "trunc" => return Self::trunc(nval),
+            "fract" => return Self::fract(nval),
+            "signum" => return Self::signum(nval),
+            "exp" => return Self::exp(nval),
+            "exp2" => return Self::exp2(nval),
+            "ln" => return Self::ln(nval),
+            "sin" => return Self::sin(nval),
+            "cos" => return Self::cos(nval),
+            "tan" => return Self::tan(nval),
+            "asin" => return Self::asin(nval),
+            "acos" => return Self::acos(nval),
+            "atan" => return Self::atan(nval),
+            "sinh" => return Self::sinh(nval),
+            "cosh" => return Self::cosh(nval),
+            "tanh" => return Self::tanh(nval),
+            "asinh" => return Self::asinh(nval),
+            "acosh" => return Self::acosh(nval),
+            "atanh" => return Self::atanh(nval),
+            "pow" => {
+                if parameters.len() < 1 {
+                    return Err(anyhow!("Number.pow(num, num) requires 2 number parameters"));
+                }
+                let power = parameters.pop().unwrap().unbox();
+                match &power {
+                    SVal::Number(second) => {
+                        Self::pow(nval, second)
+                    },
+                    _ => {
+                        Err(anyhow!("Number.pow(num, num) must have a number as the second parameter"))
+                    }
+                }
+            },
+            "log" => {
+                if parameters.len() < 1 {
+                    return Err(anyhow!("Number.log(num, num) requires 2 number parameters"));
+                }
+                let base = parameters.pop().unwrap().unbox();
+                match &base {
+                    SVal::Number(second) => {
+                        Self::log(nval, second)
+                    },
+                    _ => {
+                        Err(anyhow!("Number.log(num, num) must have a number as the second parameter"))
+                    }
+                }
+            },
+            "atan2" => {
+                if parameters.len() < 1 {
+                    return Err(anyhow!("Number.atan2(num, num) requires 2 number parameters"));
+                }
+                let second = parameters.pop().unwrap().unbox();
+                match &second {
+                    SVal::Number(second) => {
+                        Self::atan2(nval, second)
+                    },
+                    _ => {
+                        Err(anyhow!("Number.atan2(num, num) must have a number as the second parameter"))
+                    }
+                }
+            },
+            "round" => {
+                if parameters.len() < 1 {
+                    return Self::round(nval);
+                }
+                let second = parameters.pop().unwrap().unbox();
+                match &second {
+                    SVal::Number(second) => {
+                        Self::round2(nval, second)
+                    },
+                    _ => {
+                        Err(anyhow!("Number.round(num, num) must have a number as the second parameter"))
+                    }
+                }
+            },
+            "at" => {
+                if parameters.len() < 1 {
+                    return Err(anyhow!("Number.at(num, num) requires 2 number parameters"));
+                }
+                let second = parameters.pop().unwrap().unbox();
+                match &second {
+                    SVal::Number(second) => {
+                        let first = nval.int();
+                        let second = second.int();
+                        if second < first {
+                            Ok(SVal::Number(second.into()))
+                        } else {
+                            Ok(SVal::Number(first.into()))
+                        }
+                    },
+                    _ => {
+                        Err(anyhow!("Number.at(num, num) must have a number as the second parameter"))
+                    }
+                }
+            },
+            _ => {
+                Err(anyhow!("Did not find the requested Number library function '{}'", name))
+            }
+        }
+    }
+
     /// Units.
     /// Returns the string version of the units on this number, or null if no units are defined.
     pub fn units(number: &SNum) -> Result<SVal> {

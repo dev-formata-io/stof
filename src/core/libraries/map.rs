@@ -14,30 +14,66 @@
 // limitations under the License.
 //
 
+use std::{collections::BTreeMap, ops::DerefMut};
 use anyhow::{anyhow, Result};
 use crate::{Library, SDoc, SVal};
-use super::Object;
 
 
 /// Map library.
 #[derive(Default, Debug)]
 pub struct MapLibrary;
-impl Object for MapLibrary {}
+impl MapLibrary {
+    /// Call map operation.
+    pub fn operate(&self, pid: &str, doc: &mut SDoc, name: &str, map: &mut BTreeMap<SVal, SVal>, parameters: &mut Vec<SVal>) -> Result<SVal> {
+        match name {
+            _ => {
+                Err(anyhow!("Did not find the requested Map library function '{}'", name))
+            }
+        }
+    }
+}
 impl Library for MapLibrary {
     fn scope(&self) -> String {
         "Map".to_string()
     }
 
     fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
-        match name {
-            
-            _ => {}
-        }
+        if parameters.len() > 0 {
+            match name {
+                "toString" => {
+                    return Ok(SVal::String(parameters[0].print(doc)));
+                },
+                _ => {}
+            }
 
-        // try object scope
-        if let Ok(val) = Self::object_call(pid, doc, name, parameters) {
-            return Ok(val);
+            let mut params;
+            if parameters.len() > 1 {
+                params = parameters.drain(1..).collect();
+            } else {
+                params = Vec::new();
+            }
+            match &mut parameters[0] {
+                SVal::Map(map) => {
+                    return self.operate(pid, doc, name, map, &mut params);
+                },
+                SVal::Boxed(val) => {
+                    let mut val = val.lock().unwrap();
+                    let val = val.deref_mut();
+                    match val {
+                        SVal::Map(map) => {
+                            return self.operate(pid, doc, name, map, &mut params);
+                        },
+                        _ => {
+                            return Err(anyhow!("Map library requires the first parameter to be a map"));
+                        }
+                    }
+                },
+                _ => {
+                    return Err(anyhow!("Map library requires the first parameter to be a map"));
+                }
+            }
+        } else {
+            return Err(anyhow!("Map library requires a 'map' parameter to work with"));
         }
-        Err(anyhow!("Did not find the requested '{}' function in the Map library", name))
     }
 }

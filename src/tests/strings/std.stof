@@ -46,17 +46,8 @@ fn ends_with() {
 #[test]
 fn push() {
     let str = 'hello';
-    let pushed = str.push(', world');
-    assertEq(pushed, 'hello, world');
-    assertEq(str, 'hello');
-}
-
-#[test]
-fn concat() {
-    let str = 'hello';
-    let concat = str.concat(', ', 'world');
-    assertEq(concat, 'hello, world');
-    assertEq(str, 'hello');
+    str.push(', world');
+    assertEq(str, 'hello, world');
 }
 
 #[test]

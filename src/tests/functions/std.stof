@@ -46,7 +46,7 @@ fn function_object() {
 
 #[test]
 fn function_objects() {
-    let func = self.test_function;
+    let func = box(self.test_function);
     assertEq(func.objects(), [self]);
 }
 

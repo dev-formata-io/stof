@@ -94,7 +94,7 @@ fn cbrt() {
 fn abs() {
     assertEq(-3.abs(), 3);
     assertEq(3.abs(), 3);
-    assertEq(Number.abs(-3434), 3434);
+    assertEq(Number.abs(box(-3434)), 3434);
 }
 
 #[test]
