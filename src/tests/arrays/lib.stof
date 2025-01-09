@@ -216,3 +216,52 @@ fn sort_by(): vec {
     }
     return res;
 }
+
+boxed_values: {
+    #[test]
+    fn boxed_array_value() {
+        let array = [1, box(42)];
+
+        // Mutate the value by reference
+        {
+            let val = array.at(1);
+            assertEq(val, 42);
+
+            val += 10;
+            assertEq(val, 52);
+        }
+        {
+            let val = array.at(1);
+            assertEq(val, 52);
+        }
+
+        // Unbox the value with helper
+        {
+            let val = unbox(array.at(1));
+            val += 10;
+            assertEq(val, 62);
+        }
+        {
+            let val = array.at(1);
+            assertEq(val, 52);
+        }
+
+        // Unbox the value with a cast
+        {
+            let val = array.at(1) as int; // unboxed via cast
+            val += 10;
+            assertEq(val, 62);
+        }
+        {
+            let val = array.at(1);
+            assertEq(val, 52);
+        }
+
+        // Push a boxed value by cast
+        array.push(11 as Box<float>);
+        let val = array.at(2);
+        val += 10;
+        assertEq(val, 21);
+        assertEq(array.at(2), 21);
+    }
+}

@@ -73,19 +73,16 @@ impl Symbol {
     pub fn set(&mut self, val: SVal) {
         match self {
             Symbol::Variable(var) => {
-                *var = val;
-
-                /*if var.is_ref() && !val.is_ref() {
-                    // Set the value for everyone since this is a ref!
+                if var.is_boxed() && !val.is_boxed() { // set for everyone!
                     match var {
-                        SVal::Ref(rf) => {
-                            *rf.write().unwrap() = val;
+                        SVal::Boxed(var) => {
+                            *var.lock().unwrap() = val;
                         },
                         _ => {}
                     }
-                } else {
+                } else { // if val is boxed, we are setting just this var
                     *var = val;
-                }*/
+                }
             }
         }
     }

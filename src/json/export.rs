@@ -49,6 +49,7 @@ fn value_from_array(graph: &SGraph, vals: Vec<SVal>) -> Value {
 /// Get a JSON value from a Stof Value.
 fn json_value(graph: &SGraph, val: SVal) -> Value {
     match val {
+        SVal::Boxed(val) => json_value(graph, val.lock().unwrap().clone()),
         SVal::Void => Value::Null,
         SVal::Null => Value::Null,
         SVal::String(val) => Value::String(val),

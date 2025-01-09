@@ -259,22 +259,7 @@ impl Expr {
                 let mut library_name = String::default();
                 if !variable_value.is_empty() {
                     let stype = variable_value.stype(&doc.graph);
-                    library_name = match stype {
-                        SType::Unknown |
-                        SType::Null |
-                        SType::Void => String::default(),
-                        SType::Array => "Array".to_owned(),
-                        SType::Map => "Map".to_owned(),
-                        SType::FnPtr => "Function".to_owned(),
-                        SType::String => "String".to_owned(),
-                        SType::Number(_) => "Number".to_owned(),
-                        SType::Bool => "Bool".to_owned(),
-                        SType::Tuple(_) => "Tuple".to_owned(),
-                        SType::Blob => "Blob".to_owned(),
-                        SType::Object(_typename) => {
-                            "Object".to_owned()
-                        },
-                    };
+                    library_name = stype.std_libname();
                 }
                 if let Some(lib) = doc.library(&library_name) {
                     let stype = variable_value.stype(&doc.graph);

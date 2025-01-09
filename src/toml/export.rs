@@ -49,6 +49,7 @@ fn value_from_array(graph: &SGraph, vals: Vec<SVal>) -> Value {
 /// Get a toml value from a stof value.
 fn toml_value(graph: &SGraph, val: SVal) -> Value {
     match val {
+        SVal::Boxed(val) => toml_value(graph, val.lock().unwrap().clone()),
         SVal::String(val) => Value::String(val),
         SVal::Bool(val) => Value::Boolean(val),
         SVal::Number(val) => {

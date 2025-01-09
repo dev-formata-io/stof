@@ -1,0 +1,63 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+add_one: {
+    fn add_one(val: Box<int>) {
+        val += 1;
+    }
+
+    #[test]
+    fn add_one_reference() {
+        let val: Box<int> = 0;
+        self.add_one(val);
+        assertEq(val, 1);
+        assertEq(typeof val, 'Box<int>');
+    }
+
+    #[test]
+    fn add_one_failed() {
+        let val = 0;
+        // val is cast to a Box<int> by the function receiving it
+        // This is by design as we don't want side effects on val...
+        // Debate me if you feel otherwise - open to changes
+        self.add_one(val);
+        assertEq(val, 0);
+        assertEq(typeof val, 'int');
+    }
+}
+
+field_types: {
+    field: 44 as Box<int>
+
+    #[test]
+    fn no_boxed_fields() {
+        assertEq(typeof self.field, 'int');
+        self.field = self.field as Box<int>;
+        assertEq(typeof self.field, 'int');
+        assertEq(self.field, 44);
+    }
+
+    type CustomType {
+        field: Box<int> = 42 as Box<int>
+    }
+    CustomType object: {}
+
+    #[test]
+    fn no_boxed_object_fields() {
+        assertEq(typeof self.object.field, 'int');
+        assertEq(self.object.field, 42);
+    }
+}

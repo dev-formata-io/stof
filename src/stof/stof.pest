@@ -44,8 +44,9 @@ null    = { "null" }
 literal = { bool | null | string | number | ident }
 
 // Types
-tuple         = { "(" ~ atype ~ ("," ~ atype)+ ~ ")" }
-atype         = { tuple | ident }
+tuple = { "(" ~ atype ~ ("," ~ atype)+ ~ ")" }
+boxed = { "Box" ~ "<" ~ atype ~ ">" }
+atype = { boxed | tuple | ident }
 
 // Document statements
 doc_statement = _{ line_comment | block_comment | NEWLINE | stof_type_declaration | import | function | field | typed_field | ref_field | json_fields }

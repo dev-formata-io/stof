@@ -70,7 +70,7 @@ impl Statements {
                 },
                 Statement::Assign(name, rhs) => {
                     // Eval rhs, which is the value of the variable!
-                    let val = rhs.exec(pid, doc)?;
+                    let mut val = rhs.exec(pid, doc)?;
                     if val.is_void() {
                         return Err(anyhow!("Cannot assign void"));
                     }
@@ -80,6 +80,9 @@ impl Statements {
                     if doc.set_variable(pid, &name, val.clone()) {
                         set_var = true;
                     }
+
+                    // Unbox the val if needed! No fields hold boxed values...
+                    val = val.unbox();
 
                     if !set_var && name.contains('.') && !name.ends_with('.') && !name.starts_with('.') {
                         // Try assigning via an absolute path to a field first

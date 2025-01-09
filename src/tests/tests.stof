@@ -84,6 +84,7 @@ import 'src/tests/control/switch.stof' as Control.Switch;
  * Language Tests.
  */
 import 'src/tests/language/shorts.stof' as Language.ShortCircuits;
+import 'src/tests/language/boxed.stof' as Language.Boxed;
 
 
 /**

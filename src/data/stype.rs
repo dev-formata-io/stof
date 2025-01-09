@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 
+use std::ops::Deref;
 use serde::{Deserialize, Serialize};
 use crate::SUnits;
 
@@ -34,6 +35,7 @@ pub enum SType {
     Tuple(Vec<SType>),
     Blob,
     Unknown,
+    Boxed(Box<Self>),
 }
 impl PartialEq for SType {
     fn eq(&self, other: &Self) -> bool {
@@ -41,6 +43,14 @@ impl PartialEq for SType {
             return true; // unknown always matches...
         }
         match self {
+            Self::Boxed(val) => {
+                match other {
+                    Self::Boxed(oval) => {
+                        val.deref().eq(oval.deref())
+                    },
+                    _ => false,
+                }
+            },
             Self::Void => other.is_void(),
             Self::Null => other.is_null(),
             Self::Bool => other.is_bool(),
@@ -79,6 +89,14 @@ impl SType {
             SType::Map |
             SType::Tuple(_) => true,
             _ => false
+        }
+    }
+
+    /// Is boxed?
+    pub fn is_boxed(&self) -> bool {
+        match self {
+            SType::Boxed(_) => true,
+            _ => false,
         }
     }
 
@@ -225,9 +243,35 @@ impl SType {
         Self::Number(SNumType::Units(units))
     }
 
+    /// Std Library Name.
+    pub fn std_libname(&self) -> String {
+        match self {
+            SType::Unknown |
+            SType::Null |
+            SType::Void => String::default(),
+            SType::Array => "Array".to_owned(),
+            SType::Map => "Map".to_owned(),
+            SType::FnPtr => "Function".to_owned(),
+            SType::String => "String".to_owned(),
+            SType::Number(_) => "Number".to_owned(),
+            SType::Bool => "Bool".to_owned(),
+            SType::Tuple(_) => "Tuple".to_owned(),
+            SType::Blob => "Blob".to_owned(),
+            SType::Object(_typename) => {
+                "Object".to_owned()
+            },
+            SType::Boxed(btype) => {
+                btype.std_libname()
+            },
+        }
+    }
+
     /// Typeof.
     pub fn type_of(&self) -> String {
         match self {
+            Self::Boxed(boxed) => {
+                format!("Box<{}>", boxed.type_of())
+            },
             Self::Unknown => "unknown".into(),
             Self::Map => "map".into(),
             Self::Array => "vec".into(),
@@ -270,31 +314,14 @@ impl From<&str> for SType {
                 v = v.replace("\n", "");
                 v = v.replace("\t", "");
                 let val = v.as_str();
-                let tt = match val {
-                    "int" => Self::i64(),
-                    "float" => Self::f64(),
-                    "str" => Self::String,
-                    "blob" => Self::Blob,
-                    "bool" => Self::Bool,
-                    "null" => Self::Null,
-                    "void" => Self::Void,
-                    "vec" => Self::Array,
-                    "map" => Self::Map,
-                    "obj" => Self::Object("obj".to_string()),
-                    "fn" => Self::FnPtr,
-                    "unknown" => Self::Unknown,
-                    _ => {
-                        let units = SUnits::from(val);
-                        if units.has_units() && !units.is_undefined() {
-                            Self::Number(SNumType::Units(units))
-                        } else {
-                            Self::Object(val.to_string())
-                        }
-                    }
-                };
+                let tt = SType::from(val);
                 types.push(tt);
             }
             return Self::tuple(types);
+        }
+        if value.starts_with("Box<") && value.ends_with(">") {
+            let val = value.trim_start_matches("Box<").trim_end_matches(">").trim();
+            return Self::Boxed(Box::new(SType::from(val)));
         }
         match value {
             "int" => Self::Number(SNumType::I64),

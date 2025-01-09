@@ -15,7 +15,7 @@
 //
 
 use core::str;
-use std::{cmp::Ordering, collections::{BTreeMap, HashSet}, hash::Hash};
+use std::{cmp::Ordering, collections::{BTreeMap, HashSet}, hash::{Hash, Hasher}, ops::{Deref, DerefMut}, sync::{Arc, Mutex}};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use crate::{Data, SDataRef, SDoc, SGraph, SNodeRef};
@@ -164,6 +164,32 @@ impl IntoSVal for &[u8] {
 }
 
 
+/// Reference value mutex (hashable).
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SMutex<T: ?Sized>(Mutex<T>);
+impl<T: ?Sized + Hash> Hash for SMutex<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.lock().unwrap().hash(state);
+    }
+}
+impl<T: ?Sized> Deref for SMutex<T> {
+    type Target = Mutex<T>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl<T: ?Sized> DerefMut for SMutex<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+impl SMutex<SVal> {
+    pub fn new(val: SVal) -> Self {
+        Self(Mutex::new(val))
+    }
+}
+
+
 /// Stof Value.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Hash)]
 pub enum SVal {
@@ -179,6 +205,7 @@ pub enum SVal {
     Tuple(Vec<Self>),
     Blob(Vec<u8>),
     Map(BTreeMap<Self, Self>),
+    Boxed(Arc<SMutex<Self>>),
 }
 impl PartialOrd for SVal {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -195,6 +222,9 @@ impl Ord for SVal {
                     Self::Bool(oval) => {
                         val.cmp(oval)
                     },
+                    Self::Boxed(oval) => {
+                        self.cmp(oval.lock().unwrap().deref())
+                    },
                     _ => Ordering::Equal,
                 }
             },
@@ -203,14 +233,23 @@ impl Ord for SVal {
                     Self::Number(onum) => {
                         num.float().total_cmp(&onum.float())
                     },
+                    Self::Boxed(oval) => {
+                        self.cmp(oval.lock().unwrap().deref())
+                    },
                     _ => Ordering::Equal,
                 }
             },
             Self::String(val) => {
                 match other {
                     Self::String(oval) => val.cmp(oval),
+                    Self::Boxed(oval) => {
+                        self.cmp(oval.lock().unwrap().deref())
+                    },
                     _ => Ordering::Equal,
                 }
+            },
+            Self::Boxed(val) => {
+                val.lock().unwrap().cmp(other)
             },
             _ => Ordering::Equal,
         }
@@ -232,60 +271,90 @@ impl PartialEq for SVal {
             Self::Void => {
                 match other {
                     Self::Void => true,
+                    Self::Boxed(oval) => {
+                        self.eq(oval.lock().unwrap().deref())
+                    },
                     _ => false,
                 }
             },
             Self::Null => {
                 match other {
                     Self::Null => true,
+                    Self::Boxed(oval) => {
+                        self.eq(oval.lock().unwrap().deref())
+                    },
                     _ => false,
                 }
             },
             Self::Bool(val) => {
                 match other {
                     Self::Bool(oval) => *val == *oval,
+                    Self::Boxed(oval) => {
+                        self.eq(oval.lock().unwrap().deref())
+                    },
                     _ => false
                 }
             },
             Self::Object(nref) => {
                 match other {
                     Self::Object(oref) => nref.id == oref.id,
+                    Self::Boxed(oval) => {
+                        self.eq(oval.lock().unwrap().deref())
+                    },
                     _ => false,
                 }
             },
             Self::Blob(vals) => {
                 match other {
                     Self::Blob(ovals) => vals == ovals,
+                    Self::Boxed(oval) => {
+                        self.eq(oval.lock().unwrap().deref())
+                    },
                     _ => false,
                 }
             },
             Self::FnPtr(dref) => {
                 match other {
                     Self::FnPtr(odref) => odref.id == dref.id,
+                    Self::Boxed(oval) => {
+                        self.eq(oval.lock().unwrap().deref())
+                    },
                     _ => false,
                 }
             },
             Self::Number(val) => {
                 match other {
                     Self::Number(oval) => val.eq(oval),
+                    Self::Boxed(oval) => {
+                        self.eq(oval.lock().unwrap().deref())
+                    },
                     _ => false,
                 }
             },
             Self::String(val) => {
                 match other {
                     Self::String(oval) => oval == val,
+                    Self::Boxed(oval) => {
+                        self.eq(oval.lock().unwrap().deref())
+                    },
                     _ => false,
                 }
             },
             Self::Array(vals) => {
                 match other {
                     Self::Array(ovals) => vals == ovals,
+                    Self::Boxed(oval) => {
+                        self.eq(oval.lock().unwrap().deref())
+                    },
                     _ => false,
                 }
             },
             Self::Tuple(vals) => {
                 match other {
                     Self::Tuple(ovals) => vals == ovals,
+                    Self::Boxed(oval) => {
+                        self.eq(oval.lock().unwrap().deref())
+                    },
                     _ => false,
                 }
             },
@@ -305,9 +374,15 @@ impl PartialEq for SVal {
                         }
                         false
                     },
+                    Self::Boxed(oval) => {
+                        self.eq(oval.lock().unwrap().deref())
+                    },
                     _ => false,
                 }
-            }
+            },
+            Self::Boxed(val) => {
+                val.lock().unwrap().eq(other)
+            },
         }
     }
 }
@@ -319,10 +394,73 @@ impl SVal {
         self.stype(graph) == other.stype(graph)
     }
 
+    /// Is boxed?
+    pub fn is_boxed(&self) -> bool {
+        match self {
+            Self::Boxed(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Box this value.
+    pub fn to_box(self) -> Self {
+        if !self.is_boxed() {
+            Self::Boxed(Arc::new(SMutex(Mutex::new(self))))
+        } else {
+            self
+        }
+    }
+
+    /// Box this value by reference.
+    pub fn to_box_ref(&mut self) {
+        if !self.is_boxed() {
+            *self = Self::Boxed(Arc::new(SMutex(Mutex::new(self.clone()))));
+        }
+    }
+
+    /// Unbox this value if needed.
+    pub fn unbox(mut self) -> Self {
+        self.unbox_ref();
+        self
+    }
+
+    /// Unbox ref.
+    pub fn unbox_ref(&mut self) {
+        let mut assign = None;
+        match self {
+            Self::Boxed(val) => {
+                assign = Some(val.lock().unwrap().clone());
+            },
+            Self::Array(vals) => {
+                for val in vals {
+                    val.unbox_ref();
+                }
+            },
+            Self::Tuple(vals) => {
+                for val in vals {
+                    val.unbox_ref();
+                }
+            },
+            Self::Map(map) => {
+                for (_k, v) in map {
+                    v.unbox_ref(); // it's your own fault if you have boxed keys
+                }
+            },
+            _ => {}
+        }
+        if let Some(assign) = assign {
+            *self = assign;
+            self.unbox_ref();
+        }
+    }
+
     /// Is void?
     pub fn is_void(&self) -> bool {
         match self {
             Self::Void => true,
+            Self::Boxed(val) => {
+                val.lock().unwrap().is_void()
+            },
             _ => false,
         }
     }
@@ -332,6 +470,9 @@ impl SVal {
         match self {
             Self::Null |
             Self::Void => true,
+            Self::Boxed(val) => {
+                val.lock().unwrap().is_empty()
+            },
             _ => false,
         }
     }
@@ -340,6 +481,9 @@ impl SVal {
     pub fn is_null(&self) -> bool {
         match self {
             Self::Null => true,
+            Self::Boxed(val) => {
+                val.lock().unwrap().is_null()
+            },
             _ => false,
         }
     }
@@ -348,6 +492,9 @@ impl SVal {
     pub fn is_object(&self) -> bool {
         match self {
             Self::Object(_) => true,
+            Self::Boxed(val) => {
+                val.lock().unwrap().is_object()
+            },
             _ => false,
         }
     }
@@ -356,6 +503,9 @@ impl SVal {
     pub fn is_array(&self) -> bool {
         match self {
             Self::Array(_) => true,
+            Self::Boxed(val) => {
+                val.lock().unwrap().is_array()
+            },
             _ => false,
         }
     }
@@ -364,6 +514,9 @@ impl SVal {
     pub fn is_tuple(&self) -> bool {
         match self {
             Self::Tuple(_) => true,
+            Self::Boxed(val) => {
+                val.lock().unwrap().is_tuple()
+            },
             _ => false,
         }
     }
@@ -372,6 +525,9 @@ impl SVal {
     pub fn is_number(&self) -> bool {
         match self {
             Self::Number(_) => true,
+            Self::Boxed(val) => {
+                val.lock().unwrap().is_number()
+            },
             _ => false,
         }
     }
@@ -380,6 +536,9 @@ impl SVal {
     pub fn is_map(&self) -> bool {
         match self {
             Self::Map(_) => true,
+            Self::Boxed(val) => {
+                val.lock().unwrap().is_map()
+            },
             _ => false,
         }
     }
@@ -419,6 +578,10 @@ impl SVal {
                 SType::Object("obj".to_string())
             },
             Self::Blob(_) => SType::Blob,
+            Self::Boxed(val) => {
+                let boxed_type = val.lock().unwrap().stype(graph);
+                SType::Boxed(Box::new(boxed_type))
+            },
         }
     }
 
@@ -436,6 +599,9 @@ impl SVal {
             Self::Void => { "void".to_string() },
             Self::Tuple(tup) => { format!("tup({:?})", tup) },
             Self::Blob(blob) => { format!("blob({}bytes)", blob.len()) },
+            Self::Boxed(val) => {
+                val.lock().unwrap().to_string()
+            },
         }
     }
 
@@ -453,6 +619,9 @@ impl SVal {
             Self::Void => { "void".to_string() },
             Self::Tuple(tup) => { format!("tup({:?})", tup) },
             Self::Blob(blob) => { format!("blob({}bytes)", blob.len()) },
+            Self::Boxed(val) => {
+                val.lock().unwrap().to_string()
+            },
         }
     }
 
@@ -470,6 +639,9 @@ impl SVal {
             Self::Tuple(_) => true,
             Self::Void => false,
             Self::Blob(_) => true,
+            Self::Boxed(val) => {
+                val.lock().unwrap().truthy()
+            },
         }
     }
 
@@ -497,6 +669,9 @@ impl SVal {
                     }
                 }
                 type_stack
+            },
+            Self::Boxed(val) => {
+                val.lock().unwrap().type_stack(graph)
             },
             _ => vec![]
         }
@@ -537,6 +712,9 @@ impl SVal {
                 }
                 type_stack
             },
+            Self::Boxed(val) => {
+                val.lock().unwrap().typepath_stack(graph)
+            },
             _ => vec![]
         }
     }
@@ -565,6 +743,9 @@ impl SVal {
                 }
                 return "obj".to_string();
             },
+            Self::Boxed(val) => {
+                return val.lock().unwrap().type_name(graph);
+            },
             _ => {}
         }
         let stype = self.stype(graph);
@@ -573,6 +754,16 @@ impl SVal {
 
     /// Union this value with another, manipulating this value as the result.
     pub fn union(&mut self, other: &Self) {
+        if other.is_boxed() {
+            match other {
+                SVal::Boxed(oval) => {
+                    let lock = oval.lock().unwrap();
+                    let other = lock.deref();
+                    return self.union(other);
+                },
+                _ => {}
+            }
+        }
         match self {
             SVal::Void |
             SVal::Null => {
@@ -623,13 +814,28 @@ impl SVal {
                         *self = SVal::Array(vec![self.clone(), other.clone()]);
                     }
                 }
-            }
+            },
+            Self::Boxed(val) => {
+                val.lock().unwrap().union(other)
+            },
         }
     }
 
     /// Cast a value to another type of value.
     pub fn cast(&self, target: SType, pid: &str, doc: &mut SDoc) -> Result<Self> {
+        match &target {
+            SType::Boxed(target) => {
+                // Make the resulting value boxed
+                let value = self.cast(target.deref().clone(), pid, doc)?;
+                return Ok(Self::Boxed(Arc::new(SMutex(Mutex::new(value)))));
+            },
+            _ => {}
+        }
         match self {
+            Self::Boxed(val) => {
+                // Don't preserved the box, user needs to cast explicitly to a Boxed type to keep the box
+                val.lock().unwrap().cast(target, pid, doc)
+            },
             Self::Blob(blob) => {
                 match target {
                     SType::Array => {
@@ -890,7 +1096,7 @@ impl SVal {
                                     let mut set = false;
                                     let existing_type = field.value.stype(&doc.graph);
                                     if existing_type != typefield.ptype {
-                                        field.value = field.value.cast(typefield.ptype, pid, doc)?;
+                                        field.value = field.value.cast(typefield.ptype, pid, doc)?.unbox();
                                         set = true;
                                     }
                                     for (name, value) in typefield.attributes {
@@ -904,7 +1110,7 @@ impl SVal {
                                     }
                                 } else if let Some(default) = &typefield.default {
                                     let default_value = default.exec(pid, doc)?;
-                                    let mut field = SField::new(&typefield.name, default_value);
+                                    let mut field = SField::new(&typefield.name, default_value.unbox());
                                     field.attributes = typefield.attributes;
                                     field.attach(nref, &mut doc.graph);
                                 } else {
@@ -924,6 +1130,9 @@ impl SVal {
     /// Print this value.
     pub fn print(&self, doc: &mut SDoc) -> String {
         match self {
+            Self::Boxed(val) => {
+                val.lock().unwrap().print(doc)
+            },
             Self::Void => {
                 "void".to_string()
             },
@@ -979,6 +1188,9 @@ impl SVal {
     /// Debug this value to console.
     pub fn debug(&self, doc: &mut SDoc) -> String {
         match self {
+            Self::Boxed(val) => {
+                val.lock().unwrap().debug(doc)
+            },
             Self::Void => {
                 "void".to_string()
             },
@@ -1038,7 +1250,18 @@ impl SVal {
 
     /// Greater than other?
     pub fn gt(&self, other: &Self) -> Result<Self> {
+        if other.is_boxed() {
+            match other {
+                Self::Boxed(oval) => {
+                    return self.gt(oval.lock().unwrap().deref());
+                },
+                _ => {}
+            }
+        }
         match self {
+            Self::Boxed(val) => {
+                val.lock().unwrap().gt(other)
+            },
             Self::Array(_) => Ok(Self::Bool(false)),
             Self::Tuple(_) => Ok(Self::Bool(false)),
             Self::Bool(_) => Ok(Self::Bool(false)),
@@ -1077,7 +1300,16 @@ impl SVal {
 
     /// Less than other?
     pub fn lt(&self, other: &Self) -> Result<Self> {
+        if other.is_boxed() {
+            match other {
+                Self::Boxed(oval) => {
+                    return self.lt(oval.lock().unwrap().deref());
+                },
+                _ => {}
+            }
+        }
         match self {
+            Self::Boxed(val) => val.lock().unwrap().lt(other),
             Self::Array(_) => Ok(Self::Bool(false)),
             Self::Tuple(_) => Ok(Self::Bool(false)),
             Self::Bool(_) => Ok(Self::Bool(false)),
@@ -1152,7 +1384,23 @@ impl SVal {
 
     /// Add.
     pub fn add(self, other: Self, doc: &mut SDoc) -> Result<Self> {
+        if other.is_boxed() {
+            match other {
+                Self::Boxed(oval) => {
+                    return self.add(oval.lock().unwrap().clone(), doc);
+                },
+                _ => {}
+            }
+        }
         match self {
+            Self::Boxed(val) => {
+                {
+                    let mut lock = val.lock().unwrap();
+                    let val = lock.deref_mut();
+                    *val = val.clone().add(other, doc)?;
+                }
+                Ok(Self::Boxed(val))
+            },
             Self::Object(_) => Err(anyhow!("Cannot add objects")),
             Self:: Null |
             Self::Void => {
@@ -1197,7 +1445,8 @@ impl SVal {
                     },
                     Self::Map(_) => {
                         Err(anyhow!("Cannot 'bool + map'"))
-                    }
+                    },
+                    Self::Boxed(_) => unreachable!("Boxed other is already taken care of")
                 }
             },
             Self::String(aval) => {
@@ -1231,7 +1480,8 @@ impl SVal {
                     },
                     Self::Map(_) => {
                         Err(anyhow!("Cannot 'string + map'"))
-                    }
+                    },
+                    Self::Boxed(_) => unreachable!("Boxed other is already taken care of")
                 }
             },
             Self::Number(aval) => {
@@ -1268,7 +1518,8 @@ impl SVal {
                     },
                     Self::Map(_) => {
                         Err(anyhow!("Cannot 'number + map'"))
-                    }
+                    },
+                    Self::Boxed(_) => unreachable!("Boxed other is already taken care of")
                 }
             },
             Self::Array(mut vals) => {
@@ -1309,7 +1560,8 @@ impl SVal {
                     },
                     Self::Map(_) => {
                         Err(anyhow!("Cannot 'bool + map'"))
-                    }
+                    },
+                    Self::Boxed(_) => unreachable!("Boxed other is already taken care of")
                 }
             },
             Self::Tuple(_) => {
@@ -1349,7 +1601,23 @@ impl SVal {
 
     /// Subtract.
     pub fn sub(self, other: Self) -> Result<Self> {
+        if other.is_boxed() {
+            match other {
+                Self::Boxed(oval) => {
+                    return self.sub(oval.lock().unwrap().clone());
+                },
+                _ => {}
+            }
+        }
         match self {
+            Self::Boxed(val) => {
+                {
+                    let mut lock = val.lock().unwrap();
+                    let val = lock.deref_mut();
+                    *val = val.clone().sub(other)?;
+                }
+                Ok(Self::Boxed(val))
+            },
             Self::Object(_) => Err(anyhow!("Cannot subtract objects")),
             Self::Null |
             Self::Void => {
@@ -1388,7 +1656,8 @@ impl SVal {
                     },
                     Self::Map(_) => {
                         Err(anyhow!("Cannot subtract a map from a bool"))
-                    }
+                    },
+                    Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::String(aval) => {
@@ -1421,7 +1690,8 @@ impl SVal {
                     },
                     Self::Map(_) => {
                         Err(anyhow!("Cannot subtract a map from a string"))
-                    }
+                    },
+                    Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::Number(aval) => {
@@ -1460,7 +1730,8 @@ impl SVal {
                     },
                     Self::Map(_) => {
                         Err(anyhow!("Cannot subtract a map from a number"))
-                    }
+                    },
+                    Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::Array(_) => {
@@ -1495,7 +1766,23 @@ impl SVal {
 
     /// Multiply another value with this value.
     pub fn mul(self, other: Self) -> Result<Self> {
+        if other.is_boxed() {
+            match other {
+                Self::Boxed(oval) => {
+                    return self.mul(oval.lock().unwrap().clone());
+                },
+                _ => {}
+            }
+        }
         match self {
+            Self::Boxed(val) => {
+                {
+                    let mut lock = val.lock().unwrap();
+                    let val = lock.deref_mut();
+                    *val = val.clone().mul(other)?;
+                }
+                Ok(Self::Boxed(val))
+            },
             Self::Object(_) => Err(anyhow!("Cannot multiply objects")),
             Self::Null |
             Self::Void => {
@@ -1534,7 +1821,8 @@ impl SVal {
                     },
                     Self::Map(_) => {
                         Err(anyhow!("Cannot multiply a map and a bool"))
-                    }
+                    },
+                    Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::String(aval) => {
@@ -1572,6 +1860,7 @@ impl SVal {
                     Self::Map(_) => {
                         Err(anyhow!("Cannot multiply a map and a string"))
                     },
+                    Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::Number(aval) => {
@@ -1609,6 +1898,7 @@ impl SVal {
                     Self::Map(_) => {
                         Err(anyhow!("Cannot multiply a map and a number"))
                     },
+                    Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::Array(_) => {
@@ -1660,7 +1950,23 @@ impl SVal {
 
     /// Divide another value with this value.
     pub fn div(self, other: Self) -> Result<Self> {
+        if other.is_boxed() {
+            match other {
+                Self::Boxed(oval) => {
+                    return self.div(oval.lock().unwrap().clone());
+                },
+                _ => {}
+            }
+        }
         match self {
+            Self::Boxed(val) => {
+                {
+                    let mut lock = val.lock().unwrap();
+                    let val = lock.deref_mut();
+                    *val = val.clone().div(other)?;
+                }
+                Ok(Self::Boxed(val))
+            },
             Self::Object(_) => Err(anyhow!("Cannot divide objects")),
             Self::Null |
             Self::Void => {
@@ -1700,6 +2006,7 @@ impl SVal {
                     Self::Map(_) => {
                         Err(anyhow!("Cannot divide a map and a bool"))
                     },
+                    Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::String(aval) => {
@@ -1738,6 +2045,7 @@ impl SVal {
                     Self::Map(_) => {
                         Err(anyhow!("Cannot divide a map and a string"))
                     },
+                    Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::Number(aval) => {
@@ -1775,6 +2083,7 @@ impl SVal {
                     Self::Map(_) => {
                         Err(anyhow!("Cannot divide a map and a number"))
                     },
+                    Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::Array(_) => {
@@ -1794,7 +2103,23 @@ impl SVal {
 
     /// Modulus/remainder (mod) another value with this value.
     pub fn rem(self, other: Self) -> Result<Self> {
+        if other.is_boxed() {
+            match other {
+                Self::Boxed(oval) => {
+                    return self.rem(oval.lock().unwrap().clone());
+                },
+                _ => {}
+            }
+        }
         match self {
+            Self::Boxed(val) => {
+                {
+                    let mut lock = val.lock().unwrap();
+                    let val = lock.deref_mut();
+                    *val = val.clone().rem(other)?;
+                }
+                Ok(Self::Boxed(val))
+            },
             Self::Object(_) => Err(anyhow!("Cannot divide objects")),
             Self::Null |
             Self::Void => {
@@ -1834,6 +2159,7 @@ impl SVal {
                     Self::Map(_) => {
                         Err(anyhow!("Cannot divide a map and a bool"))
                     },
+                    Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::String(aval) => {
@@ -1872,6 +2198,7 @@ impl SVal {
                     Self::Map(_) => {
                         Err(anyhow!("Cannot divide a map and a string"))
                     },
+                    Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::Number(aval) => {
@@ -1909,6 +2236,7 @@ impl SVal {
                     Self::Map(_) => {
                         Err(anyhow!("Cannot divide a map and a number"))
                     },
+                    Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::Array(_) => {

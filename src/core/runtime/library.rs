@@ -386,6 +386,36 @@ impl Library for StdLibrary {
             },*/
 
             /*****************************************************************************
+             * Box and Unbox helper functions.
+             *****************************************************************************/
+            "box" => {
+                if parameters.len() > 0 {
+                    if parameters.len() == 1 {
+                        parameters[0].to_box_ref();
+                        return Ok(parameters[0].clone());
+                    }
+                    for param in parameters {
+                        param.to_box_ref();
+                    }
+                    return Ok(SVal::Void);
+                }
+                Err(anyhow!("std.box(..) requires at least one parameter"))
+            },
+            "unbox" => {
+                if parameters.len() > 0 {
+                    if parameters.len() == 1 {
+                        parameters[0].unbox_ref();
+                        return Ok(parameters[0].clone());
+                    }
+                    for param in parameters {
+                        param.unbox_ref();
+                    }
+                    return Ok(SVal::Void);
+                }
+                Err(anyhow!("std.unbox(..) requires at least one parameter"))
+            },
+
+            /*****************************************************************************
              * STD Lib Constructors.
              *****************************************************************************/
             "vec" => {

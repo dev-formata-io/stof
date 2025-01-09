@@ -554,7 +554,7 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
                 let list: Vec<&str> = field_name.split('.').collect();
                 let last = list.last().unwrap().to_string();
 
-                let mut field = SField::new(&last, field_value);
+                let mut field = SField::new(&last, field_value.unbox());
                 field.attributes = attributes.clone();
                 env.insert_field(doc, &env.scope(&doc), &mut field);
             } else if field_name.len() > 0 && object_declaration && attributes.len() > 0 {
