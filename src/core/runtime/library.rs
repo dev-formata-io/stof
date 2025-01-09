@@ -17,7 +17,7 @@
 use std::{collections::{BTreeMap, HashSet}, sync::Arc};
 use anyhow::{anyhow, Result};
 use bytes::Bytes;
-use crate::{SType, SVal, SDoc};
+use crate::{SDoc, SField, SType, SVal};
 
 
 /// Stof Libraries.
@@ -391,8 +391,7 @@ impl Library for StdLibrary {
             "box" => {
                 if parameters.len() > 0 {
                     if parameters.len() == 1 {
-                        parameters[0].to_box_ref();
-                        return Ok(parameters[0].clone());
+                        return Ok(parameters.pop().unwrap().to_box());
                     }
                     for param in parameters {
                         param.to_box_ref();
@@ -404,8 +403,7 @@ impl Library for StdLibrary {
             "unbox" => {
                 if parameters.len() > 0 {
                     if parameters.len() == 1 {
-                        parameters[0].unbox_ref();
-                        return Ok(parameters[0].clone());
+                        return Ok(parameters.pop().unwrap().unbox());
                     }
                     for param in parameters {
                         param.unbox_ref();
@@ -452,6 +450,24 @@ impl Library for StdLibrary {
                                         existing_val.union(v);
                                     } else {
                                         map.insert(k.clone(), v.clone());
+                                    }
+                                }
+                            },
+                            SVal::Object(nref) => {
+                                // this one is kinda cool...
+                                for field in SField::fields(&doc.graph, nref) {
+                                    let k = SVal::String(field.name);
+                                    let mut v = field.value;
+
+                                    // If this field is an object, go deeper!
+                                    if v.is_object() {
+                                        v = self.call(pid, doc, "map", &mut vec![v])?;
+                                    }
+
+                                    if let Some(existing_val) = map.get_mut(&k) {
+                                        existing_val.union(&v);
+                                    } else {
+                                        map.insert(k.clone(), v);
                                     }
                                 }
                             },

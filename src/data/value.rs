@@ -215,8 +215,11 @@ impl PartialOrd for SVal {
 impl Ord for SVal {
     fn cmp(&self, other: &Self) -> Ordering {
         match self {
+            Self::Boxed(val) => {
+                val.lock().unwrap().cmp(other)
+            },
             Self::Void |
-            Self::Null => Ordering::Equal,
+            Self::Null => Ordering::Less,
             Self::Bool(val) => {
                 match other {
                     Self::Bool(oval) => {
@@ -225,7 +228,9 @@ impl Ord for SVal {
                     Self::Boxed(oval) => {
                         self.cmp(oval.lock().unwrap().deref())
                     },
-                    _ => Ordering::Equal,
+                    Self::Void |
+                    Self::Null => Ordering::Greater,
+                    _ => Ordering::Less,
                 }
             },
             Self::Number(num) => {
@@ -236,7 +241,10 @@ impl Ord for SVal {
                     Self::Boxed(oval) => {
                         self.cmp(oval.lock().unwrap().deref())
                     },
-                    _ => Ordering::Equal,
+                    Self::Bool(_) |
+                    Self::Void |
+                    Self::Null => Ordering::Greater,
+                    _ => Ordering::Less,
                 }
             },
             Self::String(val) => {
@@ -245,13 +253,111 @@ impl Ord for SVal {
                     Self::Boxed(oval) => {
                         self.cmp(oval.lock().unwrap().deref())
                     },
-                    _ => Ordering::Equal,
+                    Self::Void |
+                    Self::Null |
+                    Self::Bool(_) |
+                    Self::Number(_) => Ordering::Greater,
+                    _ => Ordering::Less,
                 }
             },
-            Self::Boxed(val) => {
-                val.lock().unwrap().cmp(other)
+            Self::Object(nref) => {
+                match other {
+                    Self::Object(oref) => nref.id.cmp(&oref.id),
+                    Self::Boxed(oval) => {
+                        self.cmp(oval.lock().unwrap().deref())
+                    },
+                    Self::Void |
+                    Self::Null |
+                    Self::Bool(_) |
+                    Self::Number(_) |
+                    Self::String(_) => Ordering::Greater,
+                    _ => Ordering::Less,
+                }
             },
-            _ => Ordering::Equal,
+            Self::FnPtr(dref) => {
+                match other {
+                    Self::FnPtr(odref) => dref.id.cmp(&odref.id),
+                    Self::Boxed(oval) => {
+                        self.cmp(oval.lock().unwrap().deref())
+                    },
+                    Self::Void |
+                    Self::Null |
+                    Self::Bool(_) |
+                    Self::Number(_) |
+                    Self::String(_) |
+                    Self::Object(_) => Ordering::Greater,
+                    _ => Ordering::Less,
+                }
+            },
+            Self::Array(vals) => {
+                match other {
+                    Self::Array(ovals) => vals.cmp(&ovals),
+                    Self::Boxed(oval) => {
+                        self.cmp(oval.lock().unwrap().deref())
+                    },
+                    Self::Void |
+                    Self::Null |
+                    Self::Bool(_) |
+                    Self::Number(_) |
+                    Self::String(_) |
+                    Self::Object(_) |
+                    Self::FnPtr(_) => Ordering::Greater,
+                    _ => Ordering::Less,
+                }
+            },
+            Self::Tuple(vals) => {
+                match other {
+                    Self::Tuple(ovals) => vals.cmp(&ovals),
+                    Self::Boxed(oval) => {
+                        self.cmp(oval.lock().unwrap().deref())
+                    },
+                    Self::Void |
+                    Self::Null |
+                    Self::Bool(_) |
+                    Self::Number(_) |
+                    Self::String(_) |
+                    Self::Object(_) |
+                    Self::FnPtr(_) |
+                    Self::Array(_) => Ordering::Greater,
+                    _ => Ordering::Less,
+                }
+            },
+            Self::Blob(vals) => {
+                match other {
+                    Self::Blob(ovals) => vals.cmp(&ovals),
+                    Self::Boxed(oval) => {
+                        self.cmp(oval.lock().unwrap().deref())
+                    },
+                    Self::Void |
+                    Self::Null |
+                    Self::Bool(_) |
+                    Self::Number(_) |
+                    Self::String(_) |
+                    Self::Object(_) |
+                    Self::FnPtr(_) |
+                    Self::Array(_) |
+                    Self::Tuple(_) => Ordering::Greater,
+                    _ => Ordering::Less,
+                }
+            },
+            Self::Map(map) => {
+                match other {
+                    Self::Map(omap) => map.cmp(&omap),
+                    Self::Boxed(oval) => {
+                        self.cmp(oval.lock().unwrap().deref())
+                    },
+                    Self::Void |
+                    Self::Null |
+                    Self::Bool(_) |
+                    Self::Number(_) |
+                    Self::String(_) |
+                    Self::Object(_) |
+                    Self::FnPtr(_) |
+                    Self::Array(_) |
+                    Self::Tuple(_) |
+                    Self::Blob(_) => Ordering::Greater,
+                }
+            },
         }
     }
 }
@@ -2292,12 +2398,22 @@ impl Default for SNum {
         Self::I64(0)
     }
 }
+#[derive(Hash)]
+struct NumHash(u8, u64, u64);
 impl Hash for SNum {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
             Self::I64(val) => val.hash(state),
-            Self::F64(val) => ((*val * 1000000.) as i64).hash(state),
-            Self::Units(val, _units) => ((*val * 1000000.) as i64).hash(state),
+            Self::F64(val) => {
+                let mut sign = 1;
+                if val.signum() < 0. { sign = 2; }
+                NumHash(sign, val.trunc() as u64, (val.fract() * 1000000.) as u64).hash(state)
+            },
+            Self::Units(val, _units) => {
+                let mut sign = 1;
+                if val.signum() < 0. { sign = 2; }
+                NumHash(sign, val.trunc() as u64, (val.fract() * 1000000.) as u64).hash(state)
+            },
         }
     }
 }

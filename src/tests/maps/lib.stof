@@ -17,18 +17,16 @@
 #[test]
 fn empty_constructor() {
     let map = map();
-    
     map = map + ('first', 'wohoo');
     map += ('second', 'IT WORKS');
     map -= 'first';
-    
     assertEq(map.toString(), '{String("second"): String("IT WORKS")}');
 }
 
 #[test]
 fn array_constructor() {
-    let map = map([('a', 'A'), ('b', 'B'), ('c', 'C')]);
-    pln(map);
+    let map = box(map([('a', 'A'), ('b', 'B'), ('c', 'C')]));
+    assertEq(map.len(), 3);
 }
 
 #[test]
@@ -42,7 +40,173 @@ fn map_constructor() {
     let a = map([('a', 'A')]);
     let b = map([('b', 'B')]);
     let c = map(a, b);
-    pln(c);
+    assertEq(c.len(), 2);
+}
+
+lib: {
+    #[test]
+    fn append() {
+        let a = box(map([('a', 'A')]));
+        let b = map([('b', 'B')]);
+        b.append(a); // unboxed a will copy and a.len() will be 1 still, boxed passes by ref
+        assertEq(a.len(), 0);
+        assertEq(b.len(), 2);
+        assertEq(b.first(), ('a', 'A'));
+        assertEq(b.last(), ('b', 'B'));
+    }
+
+    #[test]
+    fn clear() {
+        let a = map([('a', 'A'), (10, 100)]);
+        a.clear();
+        assertEq(a.len(), 0);
+        assert(a.empty());
+    }
+
+    #[test]
+    fn contains() {
+        let a = map([('a', 'A'), (42, 'meaning of life')]);
+        assert(a.contains('a'));
+        assert(a.contains(42));
+        assertNot(a.contains('b'));
+    }
+
+    #[test]
+    fn first_last() {
+        let a = map([(10, 10), (9, 9), (8, 8), (7, 7)]);
+        assertEq(a.first(), (7, 7));
+        assertEq(a.last(), (10, 10));
+    }
+
+    #[test]
+    fn get() {
+        let a = map([(10, 22), (42, 'meaning of life'), ('hello', 'dude'), (('a', 'b'), ('A', 'B'))]);
+        assertEq(a.get(10), 22);
+        assertEq(a.get(42), 'meaning of life');
+        assertEq(a.get('hello'), 'dude');
+        assertEq(a.get('dne'), null);
+
+        assertEq(a.get(('a', 'b')), ('A', 'B'));
+        assertEq(a.get(('A', 'b')), null);
+        assertEq(a.get(('a', 'a')), null);
+    }
+
+    #[test]
+    fn insert() {
+        let a = box(map());
+        
+        a.insert('a', 'A');
+        a.insert(true, 'hello');
+        a.insert(1, 1);
+        a.insert(44.2, 54.1);
+        
+        assertEq(a.len(), 4);
+        assertEq(a.get('a'), 'A');
+        assertEq(a.get('b'), null);
+        
+        assertEq(a.get(true), 'hello');
+        assertEq(a.get(false), null);
+        
+        assertEq(a.get(1), 1);
+        assertEq(a.get(2), null);
+
+        assertEq(a.get(44.2), 54.1);
+        assertEq(a.get(44.1), null);
+    }
+
+    #[test]
+    fn empty_any() {
+        let a = map();
+        assert(a.empty());
+        assertNot(a.any());
+
+        a.insert(0, 'a');
+        assertNot(a.empty());
+        assert(a.any());
+    }
+
+    #[test]
+    fn keys_values() {
+        let a = map([(3, 6), (1, 4), (2, 5)]);
+        assertEq(a.keys(), [1, 2, 3]);
+        assertEq(a.values(), [4, 5, 6]);
+    }
+
+    #[test]
+    fn len() {
+        let a = map();
+        assertEq(a.len(), 0);
+        a.insert('a', 'A');
+        assertEq(a.len(), 1);
+    }
+
+    #[test]
+    fn at() {
+        // recommended that you use 'get' for getting elements, but 'at' works for non numerical keys
+        let a = map([(3, 6), (1, 4), (2, 5)]);
+        
+        assertEq(a[0], (1, 4));
+        assertEq(a.at(1), (2, 5));
+        assertEq(a[2], (3, 6));
+
+        let count = 0;
+        for (item in a) {
+            count += 1;
+            if (first) assertEq(item, (1, 4));
+            else if (last) assertEq(item, (3, 6));
+            else assertEq(item, (2, 5));
+        }
+        assertEq(count, 3);
+    }
+
+    #[test]
+    fn at_non_index() {
+        let a = map([(3, 6), (1, 4), ('hi', 5)]);
+        assertEq(a['hi'], ('hi', 5));
+    }
+
+    #[test]
+    fn pop_first() {
+        let a = map([(3, 6), (1, 4), (2, 5)]);
+        assertEq(a.popFirst(), (1, 4));
+        assertEq(a.len(), 2);
+        assertEq(a.first(), (2, 5));
+    }
+
+    #[test]
+    fn pop_last() {
+        let a = map([(3, 6), (1, 4), (2, 5)]);
+        assertEq(a.popLast(), (3, 6));
+        assertEq(a.len(), 2);
+        assertEq(a.last(), (2, 5));
+    }
+
+    #[test]
+    fn remove() {
+        let a = map([(3, 6), (1, 4), (2, 5), ('hi', 100)]);
+        
+        let val: int = a.remove('hi');
+        assertEq(val, 100);
+        
+        val = a.remove('hi');
+        assertNull(val);
+
+        val = a.remove(3);
+        assertEq(val, 6);
+
+        assertEq(a.len(), 2);
+        assertEq(a.first(), (1, 4));
+        assertEq(a.last(), (2, 5));
+    }
+
+    #[test]
+    fn retain() {
+        let a = map([(3, 6), (1, 4), (2, 5), ('hi', 100)]);
+        a.retain((key: unknown, value: unknown): bool => (typeof key) == 'str');
+        assertEq(a.len(), 1);
+        assertEq(a.first(), a.last());
+        assertEq(a.first(), ('hi', 100));
+    }
 }
 
 set_operations: {
@@ -100,5 +264,38 @@ set_operations: {
         let b = map([('c', 'C'), ('d', 'D'), ('e', 'E')]);
         let c = a % b;
         assertEq(c.toString(), '{String("a"): String("A"), String("b"): String("B"), String("d"): String("D"), String("e"): String("E")}');
+    }
+}
+
+object_construction: {
+    docobj: {
+        a: 'A',
+        b: 'B',
+        c: 'C',
+        d: 'D',
+
+        sub: {
+            a: 'A',
+            b: 'B',
+            c: 'C',
+        }
+    }
+
+    #[test]
+    fn docobj_map() {
+        let a = map(self.docobj);
+        assertEq(a.len(), 5);
+
+        assertEq(a.get('a'), self.docobj.a);
+        assertEq(a.get('b'), self.docobj.b);
+        assertEq(a.get('c'), self.docobj.c);
+        assertEq(a.get('d'), self.docobj.d);
+
+        let sub = a.get('sub');
+        assertEq(typeof sub, 'map');
+        assertEq(sub.len(), 3);
+        assertEq(sub.get('a'), self.docobj.sub.a);
+        assertEq(sub.get('b'), self.docobj.sub.b);
+        assertEq(sub.get('c'), self.docobj.sub.c);
     }
 }
