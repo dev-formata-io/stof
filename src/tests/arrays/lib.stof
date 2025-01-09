@@ -145,11 +145,18 @@ fn remove_first_occurence() {
 }
 
 #[test]
+fn remove_last_occurence() {
+    let array = ['hello', 'world', 4, 'world'];
+    assertEq(array.removeLast('world'), 'world');
+    assertEq(array, ['hello', 'world', 4]);
+}
+
+#[test]
 fn remove_all() {
     let array = [1, 1, 1, 1, 2, 1, 1, 1, 1];
-    assert(array.removeAll(1));
+    assertEq(array.removeAll(1).len(), 8);
     assertEq(array, [2]);
-    assertNot(array.removeAll(1));
+    assert(array.removeAll(1).empty());
 }
 
 #[test]
@@ -218,6 +225,14 @@ fn sort_by(): vec {
 }
 
 boxed_values: {
+    #[test([2, 3, 4, 4, 'hi', true, 33])]
+    fn boxed_array(): vec {
+        let array = box([1, 1, 2, 3, 4, 4]);
+        assertEq(array.removeAll(1), [1, 1]);
+        array.push('hi', true, 33);
+        return array;
+    }
+
     #[test]
     fn boxed_array_value() {
         let array = [1, box(42)];
