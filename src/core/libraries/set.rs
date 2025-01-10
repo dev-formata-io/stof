@@ -418,6 +418,14 @@ impl Library for SetLibrary {
                 "toString" => {
                     return Ok(SVal::String(parameters[0].print(doc)));
                 },
+                "or" => {
+                    for param in parameters.drain(..) {
+                        if !param.is_empty() {
+                            return Ok(param);
+                        }
+                    }
+                    return Ok(SVal::Null);
+                },
                 _ => {}
             }
 

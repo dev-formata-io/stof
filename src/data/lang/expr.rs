@@ -350,7 +350,7 @@ impl Expr {
                         _ => {}
                     }
 
-                    let mut func_params = vec![variable_value.clone()];
+                    let mut func_params = vec![variable_value];
                     for expr in params {
                         let val = expr.exec(pid, doc)?;
                         if !val.is_void() {
@@ -375,9 +375,11 @@ impl Expr {
                         let res = res.unwrap();
                         
                         // Update the symbol with the mutated parameter if it's the right type
-                        let new_symbol_val = func_params.first().unwrap().clone();
-                        if new_symbol_val.stype(&doc.graph) == stype {
-                            doc.set_variable(pid, &scope, new_symbol_val);
+                        if func_params.len() > 0 {
+                            let new_symbol_val = func_params.first().unwrap().clone();
+                            if new_symbol_val.stype(&doc.graph) == stype {
+                                doc.set_variable(pid, &scope, new_symbol_val);
+                            }
                         }
 
                         return Ok(res);

@@ -16,52 +16,29 @@
 
 use std::ops::DerefMut;
 use anyhow::{anyhow, Result};
-use crate::{SDoc, Library, SNum, SVal};
+use crate::{Library, SDoc, SVal};
 
 
-/// Tuple library.
+/// Bool library.
 #[derive(Default, Debug)]
-pub struct TupleLibrary;
-impl TupleLibrary {
-    /// Call tuple operation.
-    pub fn operate(&self, _pid: &str, _doc: &mut SDoc, name: &str, tup: &mut Vec<SVal>, parameters: &mut Vec<SVal>) -> Result<SVal> {
+pub struct BoolLibrary;
+impl BoolLibrary {
+    /// Call bool operation.
+    pub fn operate(&self, _pid: &str, _doc: &mut SDoc, name: &str, _bool: &mut bool, _parameters: &mut Vec<SVal>) -> Result<SVal> {
         match name {
-            // Get the length of this tuple.
-            "len" => {
-                Ok(SVal::Number(SNum::I64(tup.len() as i64)))
-            },
-            // Get a value from this tuple at a specific index.
-            "at" => {
-                if parameters.len() < 1 {
-                    return Err(anyhow!("Tuple.at(tup, index) requires an index parameter"));
-                }
-                let index = parameters.pop().unwrap().unbox();
-                match index {
-                    SVal::Number(index) => {
-                        let index = index.int() as usize;
-                        if let Some(val) = tup.get(index) {
-                            return Ok(val.clone());
-                        }
-                        Err(anyhow!("Tuple.at(tup, index) index out of bounds"))
-                    },
-                    _ => {
-                        Err(anyhow!("Tuple.at(tup, index) index must be a number value"))
-                    }
-                }
-            },
             _ => {
-                Err(anyhow!("Did not find the requested Tuple library function '{}'", name))
+                Err(anyhow!("Did not find the requested Bool library function '{}'", name))
             }
         }
     }
 }
-impl Library for TupleLibrary {
+impl Library for BoolLibrary {
     /// Scope.
     fn scope(&self) -> String {
-        "Tuple".to_string()
+        "Bool".to_string()
     }
-
-    /// Call into the Tuple library.
+    
+    /// Call into the Bool library.
     fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
         if parameters.len() > 0 {
             match name {
@@ -86,27 +63,27 @@ impl Library for TupleLibrary {
                 params = Vec::new();
             }
             match &mut parameters[0] {
-                SVal::Tuple(tup) => {
-                    return self.operate(pid, doc, name, tup, &mut params);
+                SVal::Bool(val) => {
+                    return self.operate(pid, doc, name, val, &mut params);
                 },
                 SVal::Boxed(val) => {
                     let mut val = val.lock().unwrap();
                     let val = val.deref_mut();
                     match val {
-                        SVal::Tuple(tup) => {
-                            return self.operate(pid, doc, name, tup, &mut params);
+                        SVal::Bool(val) => {
+                            return self.operate(pid, doc, name, val, &mut params);
                         },
                         _ => {
-                            return Err(anyhow!("Tuple library requires the first parameter to be a tuple"));
+                            return Err(anyhow!("Bool library requires the first parameter to be a bool"));
                         }
                     }
                 },
                 _ => {
-                    return Err(anyhow!("Tuple library requires the first parameter to be a tuple"));
+                    return Err(anyhow!("Bool library requires the first parameter to be a bool"));
                 }
             }
         } else {
-            return Err(anyhow!("Tuple library requires a tuple parameter to work with"));
+            return Err(anyhow!("Bool library requires a bool parameter to work with"));
         }
     }
 }

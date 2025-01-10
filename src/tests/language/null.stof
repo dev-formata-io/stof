@@ -40,3 +40,93 @@ fn null_or_many() {
     assertEq(x, null);
     assertEq(y, 10);
 }
+
+#[test]
+fn number_or() {
+    let x = null;
+    x = x.or(null, 42, 10);
+    x = x.or(4);
+    assertEq(x, 42);
+}
+
+#[test]
+fn bool_or() {
+    let x = null;
+    x = x.or(null, true, false);
+    x = x.or(true);
+    assert(x);
+}
+
+#[test]
+fn str_or() {
+    let x = null;
+    x = x.or(null, 'hi');
+    x = x.or('ho');
+    assertEq(x, 'hi');
+}
+
+#[test]
+fn array_or() {
+    let x = null;
+    x = x.or(null, [42, 10]);
+    x = x.or(['hi']);
+    assertEq(x, [42, 10]);
+}
+
+#[test]
+fn blob_or() {
+    let x = null;
+    x = x.or(null, [111, 10] as blob);
+    x = x.or([11] as blob);
+    assertEq(x, [111, 10] as blob);
+}
+
+#[test]
+fn fn_or() {
+    let x = null;
+    x = x.or(null, (): int => 42);
+    x = x.or(4);
+    assertEq(x.call(), 42);
+}
+
+#[test]
+fn map_or() {
+    let x = null;
+    x = x.or(null, map([(42, 10)]));
+    x = x.or(4);
+    assertEq(x, map([(42, 10)]));
+}
+
+#[test]
+fn obj_or() {
+    let x = null;
+    x = x.or(null, new { field: true });
+    x = x.or(4);
+    assertEq(x.field, true);
+}
+
+#[test]
+fn set_or() {
+    let x = null;
+    x = x.or(null, set(42, 10));
+    x = x.or(4);
+    assertEq(x, set(42, 10));
+}
+
+#[test]
+fn tuple_or() {
+    let x = null;
+    x = x.or(null, (42, 10));
+    x = x.or(4);
+    assertEq(x, (42, 10));
+}
+
+fn return_null(): unknown {
+    return null;
+}
+
+#[test]
+fn practical_or() {
+    let x = self.return_null().or(null, 0, 10, 10, 23);
+    assertEq(x, 0);
+}

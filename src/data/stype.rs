@@ -259,7 +259,7 @@ impl SType {
         match self {
             SType::Unknown |
             SType::Null |
-            SType::Void => String::default(),
+            SType::Void => "Empty".to_owned(),
             SType::Array => "Array".to_owned(),
             SType::Map => "Map".to_owned(),
             SType::Set => "Set".to_owned(),

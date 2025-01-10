@@ -388,10 +388,10 @@ impl Library for StdLibrary {
             /*****************************************************************************
              * Or helpers.
              *****************************************************************************/
-            // Return the first non-falsy value.
+            // Return the first non-empty value.
             "or" => {
                 for param in parameters.drain(..) {
-                    if param.truthy() {
+                    if !param.is_empty() {
                         return Ok(param);
                     }
                 }
@@ -405,13 +405,13 @@ impl Library for StdLibrary {
                 if parameters.len() > 0 {
                     return Ok(parameters.pop().unwrap().to_box());
                 }
-                Err(anyhow!("std.box(..) requires at least one parameter"))
+                Err(anyhow!("std.box(val): Box<unknown> requires one value to box"))
             },
             "unbox" => {
                 if parameters.len() > 0 {
                     return Ok(parameters.pop().unwrap().unbox());
                 }
-                Err(anyhow!("std.unbox(..) requires at least one parameter"))
+                Err(anyhow!("std.unbox(..): unknown requires one value to unbox"))
             },
 
             /*****************************************************************************
