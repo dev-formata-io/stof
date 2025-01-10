@@ -386,29 +386,30 @@ impl Library for StdLibrary {
             },*/
 
             /*****************************************************************************
+             * Or helpers.
+             *****************************************************************************/
+            // Return the first non-falsy value.
+            "or" => {
+                for param in parameters.drain(..) {
+                    if param.truthy() {
+                        return Ok(param);
+                    }
+                }
+                Ok(SVal::Null)
+            },
+
+            /*****************************************************************************
              * Box and Unbox helper functions.
              *****************************************************************************/
             "box" => {
                 if parameters.len() > 0 {
-                    if parameters.len() == 1 {
-                        return Ok(parameters.pop().unwrap().to_box());
-                    }
-                    for param in parameters {
-                        param.to_box_ref();
-                    }
-                    return Ok(SVal::Void);
+                    return Ok(parameters.pop().unwrap().to_box());
                 }
                 Err(anyhow!("std.box(..) requires at least one parameter"))
             },
             "unbox" => {
                 if parameters.len() > 0 {
-                    if parameters.len() == 1 {
-                        return Ok(parameters.pop().unwrap().unbox());
-                    }
-                    for param in parameters {
-                        param.unbox_ref();
-                    }
-                    return Ok(SVal::Void);
+                    return Ok(parameters.pop().unwrap().unbox());
                 }
                 Err(anyhow!("std.unbox(..) requires at least one parameter"))
             },
