@@ -84,6 +84,7 @@ import 'src/tests/types/unknown.stof' as Types.Unknown;
  */
 import 'src/tests/control/flow.stof' as Control.Flow;
 import 'src/tests/control/switch.stof' as Control.Switch;
+import 'src/tests/control/try.stof' as Control.Try;
 
 
 /**

@@ -750,6 +750,46 @@ impl Statements {
                         }
                     }
                 },
+                Statement::TryCatch(try_statements, catch_statements) => {
+                    doc.new_scope(pid);
+                    let err_res = try_statements.exec(pid, doc);
+                    doc.end_scope(pid);
+                    
+                    // If we saw an error, do catch statements
+                    let res;
+                    match err_res {
+                        Ok(ok) => {
+                            res = ok;
+                        },
+                        Err(_) => {
+                            doc.new_scope(pid);
+                            res = catch_statements.exec(pid, doc)?;
+                            doc.end_scope(pid);
+                        }
+                    }
+
+                    match res {
+                        StatementsRes::Break => {
+                            // Break should propogate too if bubbling
+                            if doc.bubble_control_flow(pid) {
+                                return Ok(res);
+                            }
+                        },
+                        StatementsRes::Continue => {
+                            // Continue needs to continue propogating upwards if bubbling
+                            if doc.bubble_control_flow(pid) {
+                                return Ok(res);
+                            }
+                        },
+                        StatementsRes::None => {
+                            // Do nothing here
+                        },
+                        StatementsRes::Return(_) => {
+                            // Propagate returns all the way back up
+                            return Ok(res);
+                        }
+                    }
+                },
                 Statement::Return(expr) => {
                     // Push result of expr onto the stack
                     let val = expr.exec(pid, doc)?;
@@ -878,6 +918,7 @@ pub enum Statement {
         else_expr: Option<Statements>
     },
     Switch(Expr, HashMap<SVal, Statements>, Option<Statements>),
+    TryCatch(Statements, Statements),
     While(Expr, Statements),
     Break,
     Continue,

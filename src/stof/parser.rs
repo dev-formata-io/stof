@@ -909,6 +909,31 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
             Rule::continue_stat => {
                 statements.push(Statement::Continue);
             },
+            Rule::try_statement => {
+                let mut try_statements = None;
+                let mut catch_statements = None;
+                for pair in pair.into_inner() {
+                    match pair.as_rule() {
+                        Rule::single_block |
+                        Rule::block => {
+                            let statements = parse_block(doc, env, pair)?;
+                            if try_statements.is_none() {
+                                try_statements = Some(statements);
+                            } else {
+                                catch_statements = Some(statements);
+                            }
+                        },
+                        rule => {
+                            return Err(anyhow!("Unrecognized rule in try-statement: {:?}", rule));
+                        }
+                    }
+                }
+                if let Some(try_statements) = try_statements {
+                    if let Some(catch_statements) = catch_statements {
+                        statements.push(Statement::TryCatch(try_statements, catch_statements));
+                    }
+                }
+            },
             Rule::switch_statement => {
                 let mut match_on = Expr::Literal(SVal::Void);
                 let mut match_map = HashMap::new();

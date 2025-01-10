@@ -86,13 +86,14 @@ func_param  =  { ident ~ ":" ~ atype ~ ("=" ~ expr)? }
 // A block of statements
 block             =  { "{" ~ (line_comment | block_comment | NEWLINE | block_statement)* ~ "}" }
 single_block      =  { block_statement }
-block_statement   = _{ return_statement | empty_return | switch_statement | if_statement | while_loop | for_loop | for_in_loop | break_stat | continue_stat | statement | empty_statement | block }
+block_statement   = _{ return_statement | empty_return | try_statement | switch_statement | if_statement | while_loop | for_loop | for_in_loop | break_stat | continue_stat | statement | empty_statement | block }
 if_statement      =  { "if" ~ "(" ~ expr ~ ")" ~ (block | single_block) ~ else_if_statement* ~ else_statement? }
 else_if_statement =  { "else if" ~ "(" ~ expr ~ ")" ~ (block | single_block) }
 else_statement    =  { "else" ~ (block | single_block) }
 switch_statement  =  { "switch" ~ "(" ~ expr ~ ")" ~ "{" ~ switch_case* ~ switch_default? ~ "}" }
 switch_case       =  { "case" ~ expr ~ ":" ~ (block | single_block) ~ ("," | ";")? }
 switch_default    =  { "default" ~ ":" ~ (block | single_block) ~ ("," | ";")? }
+try_statement     =  { "try" ~ (block | single_block) ~ "catch" ~ (block | single_block) }
 empty_return      =  { "return" ~ ";" }
 return_statement  =  { "return" ~ expr ~ ";" }
 while_loop        =  { "while" ~ "(" ~ expr ~ ")" ~ (block | single_block) }
