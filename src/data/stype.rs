@@ -32,6 +32,7 @@ pub enum SType {
     FnPtr,
     Array,
     Map,
+    Set,
     Tuple(Vec<SType>),
     Blob,
     Unknown,
@@ -70,6 +71,7 @@ impl PartialEq for SType {
             Self::FnPtr => other.is_function_pointer(),
             Self::Array => other.is_array(),
             Self::Map => other.is_map(),
+            Self::Set => other.is_set(),
             Self::Tuple(vals) => {
                 match other {
                     Self::Tuple(ovals) => vals == ovals,
@@ -87,6 +89,7 @@ impl SType {
         match self {
             SType::Array |
             SType::Map |
+            SType::Set |
             SType::Tuple(_) => true,
             _ => false
         }
@@ -191,6 +194,14 @@ impl SType {
         }
     }
 
+    /// Is a set?
+    pub fn is_set(&self) -> bool {
+        match self {
+            SType::Set => true,
+            _ => false,
+        }
+    }
+
     /// Is a map?
     pub fn is_map(&self) -> bool {
         match self {
@@ -251,6 +262,7 @@ impl SType {
             SType::Void => String::default(),
             SType::Array => "Array".to_owned(),
             SType::Map => "Map".to_owned(),
+            SType::Set => "Set".to_owned(),
             SType::FnPtr => "Function".to_owned(),
             SType::String => "String".to_owned(),
             SType::Number(_) => "Number".to_owned(),
@@ -274,6 +286,7 @@ impl SType {
             },
             Self::Unknown => "unknown".into(),
             Self::Map => "map".into(),
+            Self::Set => "set".into(),
             Self::Array => "vec".into(),
             Self::Bool => "bool".into(),
             Self::Blob => "blob".into(),
@@ -333,6 +346,7 @@ impl From<&str> for SType {
             "void" => Self::Void,
             "vec" => Self::Array,
             "map" => Self::Map,
+            "set" => Self::Set,
             "obj" => Self::Object("obj".to_string()),
             "fn" => Self::FnPtr,
             "unknown" => Self::Unknown,

@@ -20,6 +20,9 @@ pub use array::*;
 pub mod map;
 pub use map::*;
 
+pub mod set;
+pub use set::*;
+
 pub mod function;
 pub use function::*;
 

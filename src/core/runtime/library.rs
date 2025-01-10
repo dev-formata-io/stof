@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::{collections::{BTreeMap, HashSet}, sync::Arc};
+use std::{collections::{BTreeMap, BTreeSet, HashSet}, sync::Arc};
 use anyhow::{anyhow, Result};
 use bytes::Bytes;
 use crate::{SDoc, SField, SType, SVal};
@@ -420,10 +420,47 @@ impl Library for StdLibrary {
                 let mut array = Vec::new();
                 if parameters.len() > 0 {
                     for param in parameters.drain(..) {
-                        array.push(param);
+                        match param {
+                            SVal::Array(vals) => {
+                                for val in vals {
+                                    array.push(val);
+                                }
+                            },
+                            SVal::Set(oset) => {
+                                for val in oset {
+                                    array.push(val);
+                                }
+                            },
+                            _ => {
+                                array.push(param);
+                            }
+                        }
                     }
                 }
                 Ok(SVal::Array(array))
+            },
+            "set" => {
+                let mut set = BTreeSet::new();
+                if parameters.len() > 0 {
+                    for param in parameters.drain(..) {
+                        match param {
+                            SVal::Array(vals) => {
+                                for val in vals {
+                                    set.insert(val);
+                                }
+                            },
+                            SVal::Set(oset) => {
+                                for val in oset {
+                                    set.insert(val);
+                                }
+                            },
+                            _ => {
+                                set.insert(param);
+                            }
+                        }
+                    }
+                }
+                Ok(SVal::Set(set))
             },
             "map" => {
                 let mut map = BTreeMap::new();

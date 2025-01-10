@@ -53,6 +53,12 @@ import 'src/tests/maps/lib.stof' as Maps.StdLib;
 
 
 /**
+ * Set Tests.
+ */
+import 'src/tests/sets/lib.stof' as Sets.StdLib;
+
+
+/**
  * Object Tests.
  */
 import 'src/tests/objects/paths.stof' as Objects.Paths;

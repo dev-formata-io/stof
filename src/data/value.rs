@@ -15,7 +15,7 @@
 //
 
 use core::str;
-use std::{cmp::Ordering, collections::{BTreeMap, HashSet}, hash::{Hash, Hasher}, ops::{Deref, DerefMut}, sync::{Arc, Mutex}};
+use std::{cmp::Ordering, collections::{BTreeMap, BTreeSet, HashSet}, hash::{Hash, Hasher}, ops::{Deref, DerefMut}, sync::{Arc, Mutex}};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use crate::{Data, SDataRef, SDoc, SGraph, SNodeRef};
@@ -205,6 +205,7 @@ pub enum SVal {
     Tuple(Vec<Self>),
     Blob(Vec<u8>),
     Map(BTreeMap<Self, Self>),
+    Set(BTreeSet<Self>),
     Boxed(Arc<SMutex<Self>>),
 }
 impl PartialOrd for SVal {
@@ -340,6 +341,25 @@ impl Ord for SVal {
                     _ => Ordering::Less,
                 }
             },
+            Self::Set(set) => {
+                match other {
+                    Self::Set(oset) => set.cmp(&oset),
+                    Self::Boxed(oval) => {
+                        self.cmp(oval.lock().unwrap().deref())
+                    },
+                    Self::Void |
+                    Self::Null |
+                    Self::Bool(_) |
+                    Self::Number(_) |
+                    Self::String(_) |
+                    Self::Object(_) |
+                    Self::FnPtr(_) |
+                    Self::Array(_) |
+                    Self::Tuple(_) |
+                    Self::Blob(_) => Ordering::Greater,
+                    _ => Ordering::Less,
+                }
+            },
             Self::Map(map) => {
                 match other {
                     Self::Map(omap) => map.cmp(&omap),
@@ -355,6 +375,7 @@ impl Ord for SVal {
                     Self::FnPtr(_) |
                     Self::Array(_) |
                     Self::Tuple(_) |
+                    Self::Set(_) |
                     Self::Blob(_) => Ordering::Greater,
                 }
             },
@@ -464,6 +485,15 @@ impl PartialEq for SVal {
                     _ => false,
                 }
             },
+            Self::Set(set) => {
+                match other {
+                    Self::Set(oset) => set == oset,
+                    Self::Boxed(oval) => {
+                        self.eq(oval.lock().unwrap().deref())
+                    },
+                    _ => false,
+                }
+            },
             Self::Map(map) => {
                 match other {
                     Self::Map(omap) => {
@@ -477,6 +507,7 @@ impl PartialEq for SVal {
                                     return false;
                                 }
                             }
+                            return true;
                         }
                         false
                     },
@@ -649,6 +680,17 @@ impl SVal {
         }
     }
 
+    /// Is set?
+    pub fn is_set(&self) -> bool {
+        match self {
+            Self::Set(_) => true,
+            Self::Boxed(val) => {
+                val.lock().unwrap().is_set()
+            },
+            _ => false,
+        }
+    }
+
     /// Create a tuple.
     pub fn tuple<T>(vals: Vec<T>) -> Self where T: IntoSVal {
         let mut new: Vec<Self> = Vec::new();
@@ -665,6 +707,7 @@ impl SVal {
             Self::String(_) => SType::String,
             Self::Array(_) => SType::Array,
             Self::Map(_) => SType::Map,
+            Self::Set(_) => SType::Set,
             Self::Null => SType::Null,
             Self::Tuple(vals) => {
                 let mut types: Vec<SType> = Vec::new();
@@ -699,6 +742,7 @@ impl SVal {
             Self::Number(val) => { val.to_string() },
             Self::Array(vals) => { format!("{:?}", vals) },
             Self::Map(map) => { format!("{:?}", map) },
+            Self::Set(set) => { format!("{:?}", set) },
             Self::Object(nref) => { format!("{:?}", nref) },
             Self::FnPtr(dref) => { format!("fn({:?})", dref) },
             Self::Null => { "null".to_string() },
@@ -719,6 +763,7 @@ impl SVal {
             Self::Number(val) => { val.to_string() },
             Self::Array(vals) => { format!("{:?}", vals) },
             Self::Map(map) => { format!("{:?}", map) },
+            Self::Set(set) => { format!("{:?}", set) },
             Self::Object(nref) => { format!("{:?}", nref) },
             Self::FnPtr(dref) => { format!("fn({:?})", dref) },
             Self::Null => { "null".to_string() },
@@ -736,6 +781,7 @@ impl SVal {
         match self {
             Self::Array(_) => true,
             Self::Map(_) => true,
+            Self::Set(_) => true,
             Self::Bool(val) => *val,
             Self::FnPtr(_) => true,
             Self::Object(_) => true,
@@ -905,6 +951,16 @@ impl SVal {
                     }
                 }
             },
+            SVal::Set(set) => {
+                match other {
+                    SVal::Set(oset) => {
+                        *set = set.union(oset).cloned().collect();
+                    },
+                    _ => {
+                        set.insert(other.clone());
+                    }
+                }
+            },
             SVal::Map(map) => {
                 match other {
                     SVal::Map(omap) => {
@@ -939,7 +995,7 @@ impl SVal {
         }
         match self {
             Self::Boxed(val) => {
-                // Don't preserved the box, user needs to cast explicitly to a Boxed type to keep the box
+                // Don't preserve the box, user needs to cast explicitly to a Boxed type to keep the box
                 val.lock().unwrap().cast(target, pid, doc)
             },
             Self::Blob(blob) => {
@@ -956,6 +1012,13 @@ impl SVal {
             Self::Array(vals) => {
                 match target {
                     SType::Array => Ok(Self::Array(vals.clone())),
+                    SType::Set => {
+                        let mut set = BTreeSet::new();
+                        for val in vals {
+                            set.insert(val.clone());
+                        }
+                        return Ok(Self::Set(set));
+                    },
                     SType::Blob => {
                         let mut blob: Vec<u8> = Vec::new();
                         for val in vals {
@@ -1060,6 +1123,11 @@ impl SVal {
                     SType::Array => {
                         Ok(Self::Array(vec![Self::String(val.clone())]))
                     },
+                    SType::Set => {
+                        let mut set = BTreeSet::new();
+                        set.insert(Self::String(val.clone()));
+                        Ok(Self::Set(set))
+                    },
                     SType::Blob => {
                         Ok(Self::Blob(str::as_bytes(&val).to_vec()))
                     },
@@ -1099,6 +1167,10 @@ impl SVal {
                     SType::Array => {
                         return Ok(Self::Array(vals.clone()));
                     },
+                    SType::Set => {
+                        let set = vals.iter().cloned().collect();
+                        return Ok(Self::Set(set));
+                    },
                     SType::Tuple(types) => {
                         if types.len() == vals.len() {
                             let mut new_tup = Vec::new();
@@ -1119,14 +1191,31 @@ impl SVal {
                 }
                 Err(anyhow!("Cannot cast tuple to anything"))
             },
+            Self::Set(set) => {
+                match target {
+                    SType::Set => {
+                        return Ok(Self::Set(set.clone()));
+                    },
+                    SType::Array => {
+                        let vals = set.iter().cloned().collect();
+                        return Ok(Self::Array(vals));
+                    },
+                    _ => {}
+                }
+                Err(anyhow!("Cannot cast a set to type: {:?}", target))
+            },
             Self::Map(map) => {
                 match target {
                     SType::Map => {
                         return Ok(SVal::Map(map.clone()));
                     },
+                    SType::Set => {
+                        let set = map.keys().cloned().collect();
+                        return Ok(SVal::Set(set));
+                    },
                     _ => {}
                 }
-                Err(anyhow!("Cannot cast a map to anything"))
+                Err(anyhow!("Cannot cast a map to type: {:?}", target))
             },
             Self::Void => {
                 Err(anyhow!("Cannot cast void to anything"))
@@ -1257,6 +1346,9 @@ impl SVal {
             Self::Map(map) => {
                 format!("{:?}", map)
             },
+            Self::Set(set) => {
+                format!("{:?}", set)
+            },
             Self::Array(vals) => {
                 let mut arr = Vec::new();
                 for val in vals {
@@ -1305,6 +1397,9 @@ impl SVal {
             },
             Self::Map(map) => {
                 format!("{:?}", map)
+            },
+            Self::Set(set) => {
+                format!("{:?}", set)
             },
             Self::Bool(val) => {
                 format!("{:?}", val)
@@ -1400,7 +1495,13 @@ impl SVal {
                     Self::Map(omap) => Ok(Self::Bool(map.len() > omap.len())),
                     _ => Ok(Self::Bool(false)),
                 }
-            }
+            },
+            Self::Set(set) => {
+                match other {
+                    Self::Set(oset) => Ok(Self::Bool(set.len() > oset.len())),
+                    _ => Ok(Self::Bool(false)),
+                }
+            },
         }
     }
 
@@ -1448,7 +1549,13 @@ impl SVal {
                     Self::Map(omap) => Ok(Self::Bool(map.len() < omap.len())),
                     _ => Ok(Self::Bool(false)),
                 }
-            }
+            },
+            Self::Set(set) => {
+                match other {
+                    Self::Set(oset) => Ok(Self::Bool(set.len() < oset.len())),
+                    _ => Ok(Self::Bool(false)),
+                }
+            },
         }
     }
 
@@ -1552,6 +1659,9 @@ impl SVal {
                     Self::Map(_) => {
                         Err(anyhow!("Cannot 'bool + map'"))
                     },
+                    Self::Set(_) => {
+                        Err(anyhow!("Cannot 'bool + set'"))
+                    },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of")
                 }
             },
@@ -1586,6 +1696,9 @@ impl SVal {
                     },
                     Self::Map(_) => {
                         Err(anyhow!("Cannot 'string + map'"))
+                    },
+                    Self::Set(_) => {
+                        Err(anyhow!("Cannot 'string + set'"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of")
                 }
@@ -1624,6 +1737,9 @@ impl SVal {
                     },
                     Self::Map(_) => {
                         Err(anyhow!("Cannot 'number + map'"))
+                    },
+                    Self::Set(_) => {
+                        Err(anyhow!("Cannot 'number + set'"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of")
                 }
@@ -1664,6 +1780,10 @@ impl SVal {
                         let arr_blob = Self::Array(vals).cast(SType::Blob, "main", doc)?;
                         arr_blob.add(other, doc)
                     },
+                    Self::Set(set) => {
+                        vals.append(&mut set.into_iter().collect());
+                        Ok(Self::Array(vals))
+                    },
                     Self::Map(_) => {
                         Err(anyhow!("Cannot 'bool + map'"))
                     },
@@ -1701,7 +1821,23 @@ impl SVal {
                         Err(anyhow!("Cannot add anything other than a tuple or a map to a map"))
                     }
                 }
-            }
+            },
+            Self::Set(mut set) => {
+                match other {
+                    Self::Set(oset) => {
+                        for v in oset { set.insert(v); }
+                        Ok(Self::Set(set))
+                    },
+                    Self::Array(ovals) => {
+                        for v in ovals { set.insert(v); }
+                        Ok(Self::Set(set))
+                    },
+                    _ => {
+                        set.insert(other);
+                        Ok(Self::Set(set))
+                    }
+                }
+            },
         }
     }
 
@@ -1763,6 +1899,9 @@ impl SVal {
                     Self::Map(_) => {
                         Err(anyhow!("Cannot subtract a map from a bool"))
                     },
+                    Self::Set(_) => {
+                        Err(anyhow!("Cannot subtract a set from a bool"))
+                    },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
@@ -1796,6 +1935,9 @@ impl SVal {
                     },
                     Self::Map(_) => {
                         Err(anyhow!("Cannot subtract a map from a string"))
+                    },
+                    Self::Set(_) => {
+                        Err(anyhow!("Cannot subtract a set from a string"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
@@ -1837,6 +1979,9 @@ impl SVal {
                     Self::Map(_) => {
                         Err(anyhow!("Cannot subtract a map from a number"))
                     },
+                    Self::Set(_) => {
+                        Err(anyhow!("Cannot subtract a set from a number"))
+                    },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
@@ -1861,12 +2006,31 @@ impl SVal {
                             map.remove(key);
                         }
                     },
+                    SVal::Set(oset) => {
+                        for key in oset {
+                            map.remove(&key);
+                        }
+                    },
                     _ => {
                         map.remove(&other);
                     }
                 }
                 Ok(Self::Map(map))
-            }
+            },
+            Self::Set(mut set) => {
+                match other {
+                    SVal::Array(ovals) => {
+                        for v in &ovals { set.remove(v); }
+                    },
+                    SVal::Set(oset) => {
+                        for v in &oset { set.remove(v); }
+                    },
+                    _ => {
+                        set.remove(&other);
+                    }
+                }
+                Ok(Self::Set(set))
+            },
         }
     }
 
@@ -1928,6 +2092,9 @@ impl SVal {
                     Self::Map(_) => {
                         Err(anyhow!("Cannot multiply a map and a bool"))
                     },
+                    Self::Set(_) => {
+                        Err(anyhow!("Cannot multiply a set and a bool"))
+                    },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
@@ -1965,6 +2132,9 @@ impl SVal {
                     },
                     Self::Map(_) => {
                         Err(anyhow!("Cannot multiply a map and a string"))
+                    },
+                    Self::Set(_) => {
+                        Err(anyhow!("Cannot multiply a set and a string"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
@@ -2004,6 +2174,9 @@ impl SVal {
                     Self::Map(_) => {
                         Err(anyhow!("Cannot multiply a map and a number"))
                     },
+                    Self::Set(_) => {
+                        Err(anyhow!("Cannot multiply a set and a number"))
+                    },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
@@ -2015,6 +2188,21 @@ impl SVal {
             },
             Self::FnPtr(_) => {
                 Err(anyhow!("Cannot multiply a fn pointer with anything"))
+            },
+            Self::Set(set) => {
+                match other {
+                    Self::Set(oset) => {
+                        // Perform an intersection with this other set
+                        Ok(Self::Set(set.intersection(&oset).into_iter().cloned().collect()))
+                    },
+                    Self::Array(ovals) => {
+                        let oset = ovals.into_iter().collect::<BTreeSet<SVal>>();
+                        Ok(Self::Set(set.intersection(&oset).into_iter().cloned().collect()))
+                    },
+                    _ => {
+                        Err(anyhow!("Cannot intersect a set with anything other than another set or an array"))
+                    }
+                }
             },
             Self::Map(mut map) => {
                 match other {
@@ -2112,6 +2300,9 @@ impl SVal {
                     Self::Map(_) => {
                         Err(anyhow!("Cannot divide a map and a bool"))
                     },
+                    Self::Set(_) => {
+                        Err(anyhow!("Cannot divide a set and a bool"))
+                    },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
@@ -2151,6 +2342,9 @@ impl SVal {
                     Self::Map(_) => {
                         Err(anyhow!("Cannot divide a map and a string"))
                     },
+                    Self::Set(_) => {
+                        Err(anyhow!("Cannot divide a set and a string"))
+                    },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
@@ -2189,6 +2383,9 @@ impl SVal {
                     Self::Map(_) => {
                         Err(anyhow!("Cannot divide a map and a number"))
                     },
+                    Self::Set(_) => {
+                        Err(anyhow!("Cannot divide a set and a number"))
+                    },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
@@ -2203,6 +2400,9 @@ impl SVal {
             },
             Self::Map(_) => {
                 Err(anyhow!("Cannot divide a map with anything"))
+            },
+            Self::Set(_) => {
+                Err(anyhow!("Cannot divide a set with anything"))
             },
         }
     }
@@ -2265,6 +2465,9 @@ impl SVal {
                     Self::Map(_) => {
                         Err(anyhow!("Cannot divide a map and a bool"))
                     },
+                    Self::Set(_) => {
+                        Err(anyhow!("Cannot divide a set and a bool"))
+                    },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
@@ -2304,6 +2507,9 @@ impl SVal {
                     Self::Map(_) => {
                         Err(anyhow!("Cannot divide a map and a string"))
                     },
+                    Self::Set(_) => {
+                        Err(anyhow!("Cannot divide a set and a string"))
+                    },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
@@ -2342,6 +2548,9 @@ impl SVal {
                     Self::Map(_) => {
                         Err(anyhow!("Cannot divide a map and a number"))
                     },
+                    Self::Set(_) => {
+                        Err(anyhow!("Cannot divide a set and a number"))
+                    },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
@@ -2353,6 +2562,21 @@ impl SVal {
             },
             Self::FnPtr(_) => {
                 Err(anyhow!("Cannot divide a fn pointer with anything"))
+            },
+            Self::Set(set) => {
+                match other {
+                    Self::Set(oset) => {
+                        // Perform an symmetric difference with this other set
+                        Ok(Self::Set(set.symmetric_difference(&oset).into_iter().cloned().collect()))
+                    },
+                    Self::Array(ovals) => {
+                        let oset = ovals.into_iter().collect::<BTreeSet<SVal>>();
+                        Ok(Self::Set(set.symmetric_difference(&oset).into_iter().cloned().collect()))
+                    },
+                    _ => {
+                        Err(anyhow!("Cannot take symmetric difference of a set with anything other than another set or an array"))
+                    }
+                }
             },
             Self::Map(mut map) => {
                 match other {
