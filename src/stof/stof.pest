@@ -68,7 +68,7 @@ json_fields  = { "{" ~ doc_statement* ~ "}" }
 ref_field    = { "ref" ~ (string | ident) ~ ("," | ";")? }
 typed_field  = { field_attribute* ~ atype ~ field }
 field        = { field_attribute* ~ (string | ident) ~ ":" ~ value ~ ("," | ";")? }
-value        = { object_value | expr | array_value }
+value        = { (object_value | array_value | expr) ~ ("as" ~ atype)? }
 object_value = { "{" ~ doc_statement* ~ "}" }
 array_value  = {
     "[" ~ "]"

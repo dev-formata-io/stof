@@ -683,6 +683,11 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                     }
                 }
             },
+            Rule::atype => {
+                // Try casting the value to the type given here...
+                let target = SType::from(pair.as_str());
+                field_value = field_value.cast(target, &env.pid, doc)?;
+            },
             rule => return Err(anyhow!("Unrecognized inline json value rule: {:?}", rule))
         }
     }

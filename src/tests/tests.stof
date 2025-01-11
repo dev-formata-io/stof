@@ -44,6 +44,7 @@ import 'src/tests/functions/std.stof' as Functions.StdLib;
  */
 import 'src/tests/arrays/iteration.stof' as Arrays.Iteration;
 import 'src/tests/arrays/lib.stof' as Arrays.StdLib;
+import 'src/tests/arrays/fields.stof' as Arrays.Fields;
 
 
 /**
