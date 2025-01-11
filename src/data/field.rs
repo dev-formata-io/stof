@@ -167,10 +167,7 @@ impl SField {
 
     /// Is an object?
     pub fn is_object(&self) -> bool {
-        match &self.value {
-            SVal::Object(_) => { true }
-            _ => { false }
-        }
+        self.value.is_object()
     }
 
     /// Get object value from this field.

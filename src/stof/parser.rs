@@ -1070,47 +1070,6 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                     }
                 }
             },
-            Rule::move_stat => {
-                let mut ident = String::default();
-                let mut dest = String::default();
-                for pair in pair.into_inner() {
-                    match pair.as_rule() {
-                        Rule::ident => {
-                            if ident.is_empty() {
-                                ident = pair.as_str().to_owned();
-                            } else {
-                                dest = pair.as_str().to_owned();
-                            }
-                        },
-                        _ => {
-                            return Err(anyhow!("Unrecognized rule in move statement: \"{}\"", pair.as_span().as_str()));
-                        }
-                    }
-                }
-                if ident.len() > 0 {
-                    statements.push(Statement::Move(ident, dest));
-                }
-            },
-            Rule::rename => {
-                let mut ident = String::default();
-                let mut expr = Expr::Literal(SVal::Void);
-                for pair in pair.into_inner() {
-                    match pair.as_rule() {
-                        Rule::ident => {
-                            ident = pair.as_str().to_owned();
-                        },
-                        Rule::expr => {
-                            expr = parse_expression(doc, env, pair)?;
-                        },
-                        _ => {
-                            return Err(anyhow!("Unrecognized rule in move statement: \"{}\"", pair.as_span().as_str()));
-                        }
-                    }
-                }
-                if ident.len() > 0 {
-                    statements.push(Statement::Rename(ident, expr));
-                }
-            },
             Rule::assign |
             Rule::add_assign |
             Rule::sub_assign |

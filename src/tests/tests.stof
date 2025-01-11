@@ -62,6 +62,7 @@ import 'src/tests/sets/lib.stof' as Sets.StdLib;
  * Object Tests.
  */
 import 'src/tests/objects/paths.stof' as Objects.Paths;
+import 'src/tests/objects/lib.stof' as Objects.StdLib;
 
 
 /**
@@ -93,6 +94,7 @@ import 'src/tests/control/try.stof' as Control.Try;
 import 'src/tests/language/shorts.stof' as Language.ShortCircuits;
 import 'src/tests/language/boxed.stof' as Language.Boxed;
 import 'src/tests/language/null.stof' as Language.Null;
+import 'src/tests/language/drop.stof' as Language.Drop;
 
 
 /**

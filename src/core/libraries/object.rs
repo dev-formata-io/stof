@@ -14,9 +14,9 @@
 // limitations under the License.
 //
 
-use std::{collections::HashSet, ops::Deref};
+use std::{collections::{BTreeMap, HashSet}, ops::Deref};
 use anyhow::{anyhow, Result};
-use crate::{Data, IntoDataRef, Library, SDoc, SField, SFunc, SNodeRef, SVal};
+use crate::{Data, IntoDataRef, IntoNodeRef, Library, SDoc, SField, SFunc, SNodeRef, SVal};
 
 
 #[derive(Default, Debug)]
@@ -85,11 +85,11 @@ impl ObjectLibrary {
                 if parameters.len() == 1 {
                     let field_path = parameters[0].to_string();
                     if let Some(mut field) = SField::field(&doc.graph, &field_path, '.', Some(obj)) {
-                        self.operate(pid, doc, "remove", obj, &mut vec![SVal::String(field.name.clone())])?;
+                        self.operate(pid, doc, "removeField", obj, &mut vec![SVal::String(field.name.clone())])?;
                         field.attach(obj, &mut doc.graph);
                         return Ok(SVal::Bool(true));
                     } else if let Some(mut field) = SField::field(&doc.graph, &field_path, '.', None) {
-                        self.operate(pid, doc, "remove", obj, &mut vec![SVal::String(field.name.clone())])?;
+                        self.operate(pid, doc, "removeField", obj, &mut vec![SVal::String(field.name.clone())])?;
                         field.attach(obj, &mut doc.graph);
                         return Ok(SVal::Bool(true));
                     } else if let Some(mut func) = SFunc::func(&doc.graph, &field_path, '.', Some(obj)) {
@@ -105,7 +105,7 @@ impl ObjectLibrary {
                         SVal::Object(context) => {
                             let field_path = parameters[1].to_string();
                             if let Some(mut field) = SField::field(&doc.graph, &field_path, '.', Some(&context)) {
-                                self.operate(pid, doc, "remove", obj, &mut vec![SVal::String(field.name.clone())])?;
+                                self.operate(pid, doc, "removeField", obj, &mut vec![SVal::String(field.name.clone())])?;
                                 field.attach(obj, &mut doc.graph);
                                 return Ok(SVal::Bool(true));
                             } else if let Some(mut func) = SFunc::func(&doc.graph, &field_path, '.', Some(&context)) {
@@ -189,9 +189,12 @@ impl ObjectLibrary {
 
                     // Check for an existing field at this location
                     if let Some(mut field) = SField::field(&doc.graph, &name, '.', Some(obj)) {
-                        field.value = value.clone();
-                        field.set(&mut doc.graph);
-                        return Ok(value);
+                        if doc.perms.can_write_field(&doc.graph, &field, Some(obj)) {
+                            field.value = value.clone();
+                            field.set(&mut doc.graph);
+                            return Ok(SVal::Bool(true));
+                        }
+                        return Ok(SVal::Bool(false));
                     }
 
                     // val is a dot separated path!
@@ -207,36 +210,151 @@ impl ObjectLibrary {
                     // Create the field on fref
                     let mut field = SField::new(&name, value.clone());
                     field.attach(&fref, &mut doc.graph);
-                    return Ok(value);
+                    return Ok(SVal::Bool(true));
                 }
                 Err(anyhow!("Object.set(obj, name, value) requires a name and a value to set with"))
             },
-            "remove" => {
-                let mut field_names = HashSet::new();
-                for val in parameters.drain(..) {
-                    field_names.insert(val.to_string());
+            // Take a map and do rename/moves with all entries.
+            // Signature: Object.mapFields(obj, map: map): void
+            "mapFields" => {
+                if parameters.len() < 1 {
+                    return Err(anyhow!("Object.mapFields(obj, map) requires a map parameter with source and destinations"));
                 }
-
-                let fields = SField::fields(&doc.graph, obj);
-                let mut array = Vec::new();
-                for field in fields {
-                    if field_names.contains(&field.name) {
-                        // Remove field from the graph!
-                        field.remove(&mut doc.graph, Some(obj));
-                        // Remove object if object TODO: array objects (same with drop)
-                        match &field.value {
-                            SVal::Object(nref) => {
-                                doc.graph.remove_node(nref);
-                            },
-                            _ => {}
+                match &parameters[0] {
+                    SVal::Map(map) => {
+                        let mut mapped_values = BTreeMap::new();
+                        for (k, v) in map {
+                            let res = self.operate(pid, doc, "renameField", obj, &mut vec![k.clone(), v.clone()])?;
+                            if res.truthy() {
+                                mapped_values.insert(k.clone(), v.clone());
+                            }
                         }
-
-                        let value = field.value;
-                        let key = SVal::String(field.name);
-                        array.push(SVal::Tuple(vec![key, value]));
+                        Ok(SVal::Map(mapped_values))
+                    },
+                    _ => {
+                        Err(anyhow!("Object.mapFields(obj, map) requires a map parameter with source and destinations"))
                     }
                 }
-                Ok(SVal::Array(array))
+            },
+            // Rename/Move a field if this object has it and permissions allow.
+            // Signature: Object.renameField(obj, field_path: str, new_path: str): bool
+            "moveField" |
+            "renameField" => {
+                if parameters.len() < 2 {
+                    return Err(anyhow!("Object.renameField(obj, path: str, new_path: str) requires two path parameters"));
+                }
+                let dest = parameters.pop().unwrap().to_string();
+                let source = parameters.pop().unwrap().to_string();
+
+                if let Some(mut field) = SField::field(&doc.graph, &source, '.', Some(obj)) {
+                    if doc.perms.can_write_field(&doc.graph, &field, Some(obj)) {
+                        // union the destination field if one already exists...
+                        if let Some(mut existing) = SField::field(&doc.graph, &dest, '.', Some(obj)) {
+                            // remove this field from the graph (everywhere, I know... no way to be sure that field is on obj)
+                            field.remove(&mut doc.graph, None);
+                            field.id = String::default(); // force the graph to create a new ID for this field for deadpool purposes...
+
+                            existing.union(&field);
+                            existing.set(&mut doc.graph);
+                        } else {
+                            // Get the new field name from the destination path
+                            let mut dest_path = dest.split('.').collect::<Vec<&str>>();
+                            let new_field_name = dest_path.pop().unwrap();
+                            field.name = new_field_name.to_owned();
+
+                            // If there is a new destination node, do that
+                            if dest_path.len() > 0 {
+                                // remove this field from the graph (everywhere, I know... no way to be sure that field is on obj)
+                                field.remove(&mut doc.graph, None);
+                                field.id = String::default(); // force the graph to create a new ID for this field for deadpool purposes...
+
+                                let dest_node_path = dest_path.join(".");
+                                let dest_ref = doc.graph.ensure_nodes(&dest_node_path, '.', true, Some(obj.clone()));
+                                field.attach(&dest_ref, &mut doc.graph);
+
+                                // If field is an object, move the object to the destination also and rename
+                                match field.value {
+                                    SVal::Object(nref) => {
+                                        doc.graph.rename_node(&nref, new_field_name);
+
+                                        let id_path: HashSet<String> = HashSet::from_iter(nref.id_path(&doc.graph).into_iter());
+                                        if !id_path.contains(&dest_ref.id) && !dest_ref.is_child_of(&doc.graph, &nref) {
+                                            doc.graph.move_node(nref, dest_ref);
+                                        }
+                                    },
+                                    _ => {}
+                                }
+                            } else {
+                                // We've just renamed the field, so just set it
+                                field.set(&mut doc.graph);
+
+                                // If field is an object, rename
+                                match field.value {
+                                    SVal::Object(nref) => {
+                                        doc.graph.rename_node(&nref, new_field_name);
+                                    },
+                                    _ => {}
+                                }
+                            }
+                        }
+                        return Ok(SVal::Bool(true));
+                    }
+                }
+                Ok(SVal::Bool(false))
+            },
+            // Delete a field (path), starting at this object.
+            // Signature: Object.removeField(obj, path: str, remove_obj: bool): bool
+            "removeField" => {
+                if parameters.len() < 1 {
+                    return Err(anyhow!("Object.removeField(obj, path: str) requires a field path parameter"));
+                }
+                let mut remove_obj = false;
+                if parameters.len() > 1 {
+                    remove_obj = parameters.pop().unwrap().truthy();
+                }
+                let path = parameters.pop().unwrap().to_string();
+
+                if let Some(field) = SField::field(&doc.graph, &path, '.', Some(obj)) {
+                    if doc.perms.can_write_field(&doc.graph, &field, Some(obj)) {
+                        if path.contains('.') {
+                            field.remove(&mut doc.graph, None);
+                        } else {
+                            field.remove(&mut doc.graph, Some(obj));
+                        }
+                        
+                        if remove_obj && field.value.is_object() {
+                            match field.value.clone().unbox() {
+                                SVal::Object(nref) => {
+                                    doc.graph.remove_node(nref);
+                                },
+                                _ => {}
+                            }
+                        }
+
+                        return Ok(SVal::Bool(true));
+                    }
+                }
+                Ok(SVal::Bool(false))
+            },
+            // Delete a function (path), starting at this object.
+            // Signature: Object.removeFunc(obj, path: str): bool
+            "removeFunc" => {
+                if parameters.len() < 1 {
+                    return Err(anyhow!("Object.removeFunc(obj, path: str) requires a func path parameter"));
+                }
+                let path = parameters.pop().unwrap().to_string();
+
+                if let Some(func) = SFunc::func(&doc.graph, &path, '.', Some(obj)) {
+                    if doc.perms.can_write_func(&doc.graph, &func, Some(obj)) {
+                        if path.contains('.') {
+                            func.remove(&mut doc.graph, None);
+                        } else {
+                            func.remove(&mut doc.graph, Some(obj));
+                        }
+                        return Ok(SVal::Bool(true));
+                    }
+                }
+                Ok(SVal::Bool(false))
             },
             "name" => {
                 if let Some(node) = obj.node(&doc.graph) {
@@ -251,6 +369,22 @@ impl ObjectLibrary {
                     }
                 }
                 Ok(SVal::Null)
+            },
+            // Return this objects root object.
+            // Signature: Object.root(obj): obj
+            "root" => {
+                if let Some(root) = obj.root(&doc.graph) {
+                    return Ok(SVal::Object(root.node_ref()));
+                }
+                Ok(SVal::Null)
+            },
+            // Is this object a root object?
+            "isRoot" => {
+                if let Some(node) = obj.node(&doc.graph) {
+                    Ok(SVal::Bool(node.parent.is_none()))
+                } else {
+                    Ok(SVal::Bool(true)) // unreachable case
+                }
             },
             "path" => {
                 Ok(SVal::String(obj.path(&doc.graph).replace('/', ".")))
@@ -295,6 +429,65 @@ impl ObjectLibrary {
                     }
                 }
                 Ok(SVal::Bool(false))
+            },
+
+            /*****************************************************************************
+             * Copy object helpers.
+             *****************************************************************************/
+            // Make this object a shallow copy of the referenced object by attaching all of its fields.
+            // Signature: Object.shallowCopy(obj, to_copy: obj): void
+            "shallowCopy" => {
+                if parameters.len() < 1 {
+                    return Err(anyhow!("Object.shallowCopy(obj, to_copy: obj) requires an object parameter to copy"));
+                }
+                match &parameters[0] {
+                    SVal::Object(to_copy) => {
+                        let data;
+                        if let Some(copy_node) = to_copy.node(&doc.graph) {
+                            data = copy_node.data.clone();
+                        } else {
+                            return Err(anyhow!("Object.shallowCopy(obj, to_copy: obj) copy node does not exist"));
+                        }
+                        for data in data {
+                            doc.graph.put_data_ref(obj, data);
+                        }
+                        Ok(SVal::Void)
+                    },
+                    _ => {
+                        Err(anyhow!("Object.shallowCopy(obj, to_copy: obj) requires an object parameter to copy"))
+                    }
+                }
+            },
+            // Make this object a deep copy of the referenced object (fields only).
+            // Captures attributes, deep copies sub objects, etc.. as well.
+            // Signature: Object.deepCopyFields(obj, to_copy: obj): void
+            "deepCopyFields" => {
+                if parameters.len() < 1 {
+                    return Err(anyhow!("Object.deepCopyFields(obj, to_copy: obj) requires an object parameter to copy"));
+                }
+                match &parameters[0] {
+                    SVal::Object(to_copy) => {
+                        for mut field in SField::fields(&doc.graph, to_copy) {
+                            if field.is_object() {
+                                match field.value.unbox() {
+                                    SVal::Object(nref) => {
+                                        let deep_copy = SField::new_object(&mut doc.graph, &field.name, obj);
+                                        let to_copy = SVal::Object(nref);
+                                        self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                    },
+                                    _ => {}
+                                }
+                            } else {
+                                field.id = String::default(); // new data in the graph, already cloned
+                                field.attach(obj, &mut doc.graph);
+                            }
+                        }
+                        Ok(SVal::Void)
+                    },
+                    _ => {
+                        Err(anyhow!("Object.deepCopyFields(obj, to_copy: obj) requires an object parameter to copy"))
+                    }
+                }
             },
             _ => {
                 Err(anyhow!("Did not find the requested Object library function '{}'", name))

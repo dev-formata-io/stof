@@ -120,7 +120,7 @@ fn export_type() {
             assertEq(hello.len(), 4.12m);
             assertEq(point.len(), 412cm);
 
-            point.remove('x'); // drop would remove from everywhere, remove just removes from the object
+            point.removeField('x'); // drop would remove from everywhere, remove just removes from the object
             point.x = 1m;
             assertEq(hello.len(), 4.12m);
             assertEq(point.len(), 374cm);

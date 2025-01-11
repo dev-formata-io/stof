@@ -108,12 +108,10 @@ for_in_inner       = _{ ident ~ "in" ~ expr }
 for_in_typed_inner = _{ atype ~ ident ~ "in" ~ expr }
 
 // Statements
-statement  = _{ (declare | assign | move_stat | rename | drop | add_assign | sub_assign | mul_assign | div_assign | rem_assign | expr) ~ ";" }
+statement  = _{ (declare | assign | drop | add_assign | sub_assign | mul_assign | div_assign | rem_assign | expr) ~ ";" }
 declare    =  { "let" ~ ident ~ (":" ~ atype)? ~ "=" ~ expr }
 assign     =  { ident ~ "=" ~ expr }
 drop       =  { "drop" ~ ident ~ ("," ~ ident)* }
-move_stat  =  { "move" ~ ident ~ ("->" ~ ident)? }
-rename     =  { "rename" ~ ident ~ "->" ~ expr }
 add_assign =  { ident ~ "+=" ~ expr }
 sub_assign =  { ident ~ "-=" ~ expr }
 mul_assign =  { ident ~ "*=" ~ expr }

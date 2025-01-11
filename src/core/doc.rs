@@ -19,7 +19,7 @@ use anyhow::{anyhow, Result};
 use bytes::Bytes;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
-use crate::{bytes::BYTES, text::TEXT, SField, SFunc, SVal, BSTOF, STOF};
+use crate::{bytes::BYTES, text::TEXT, SData, SField, SFunc, SVal, BSTOF, STOF};
 use super::{runtime::{DocPermissions, Library, Symbol, SymbolTable}, ArrayLibrary, BlobLibrary, BoolLibrary, CustomTypes, EmptyLibrary, Format, FunctionLibrary, IntoDataRef, IntoNodeRef, MapLibrary, NumberLibrary, ObjectLibrary, SFormats, SGraph, SLibraries, SNodeRef, SProcesses, SetLibrary, StdLibrary, StringLibrary, TupleLibrary};
 
 #[cfg(not(feature = "wasm"))]
@@ -469,81 +469,84 @@ impl SDoc {
             functions = SFunc::all_funcs(&self.graph);
         }
         functions.retain(|f| f.attributes.contains_key("test"));
+        let fn_ids = functions.into_iter().map(|f| f.id).collect::<Vec<String>>();
 
-        let total = functions.len();
+        let total = fn_ids.len();
         println!("{} {} {}", "running".bold(), total, "Stof tests".bold());
         let mut failures = Vec::new();
         let mut profiles = Vec::new();
         let start = SystemTime::now();
-        for func in functions {
-            if let Some(res_test_val) = func.attributes.get("test") {
-                let silent = func.attributes.contains_key("silent");
-                let mut result = func.call("main", self, vec![], true);
+        for func_id in fn_ids {
+            if let Ok(func) = SData::data::<SFunc>(&self.graph, func_id) {
+                if let Some(res_test_val) = func.attributes.get("test") {
+                    let silent = func.attributes.contains_key("silent");
+                    let mut result = func.call("main", self, vec![], true);
 
-                let func_nodes = func.data_ref().nodes(&self.graph);
-                let func_path;
-                if func_nodes.len() > 0 {
-                    func_path = func_nodes.first().unwrap().path(&self.graph);
-                } else {
-                    func_path = String::from("<unknown>");
-                }
-
-                if let Some(error_val) = func.attributes.get("errors") {
-                    if result.is_err() {
-                        result = Ok(error_val.clone());
+                    let func_nodes = func.data_ref().nodes(&self.graph);
+                    let func_path;
+                    if func_nodes.len() > 0 {
+                        func_path = func_nodes.first().unwrap().path(&self.graph);
                     } else {
-                        result = Err(anyhow!("Expected function to throw an error"));
+                        func_path = String::from("<unknown>");
                     }
-                }
 
-                match result {
-                    Ok(res_val) => {
-                        let name = func.name.clone();
-                        if !res_test_val.is_empty() && &res_val != res_test_val {
+                    if let Some(error_val) = func.attributes.get("errors") {
+                        if result.is_err() {
+                            result = Ok(error_val.clone());
+                        } else {
+                            result = Err(anyhow!("Expected function to throw an error"));
+                        }
+                    }
+
+                    match result {
+                        Ok(res_val) => {
+                            let name = func.name.clone();
+                            if !res_test_val.is_empty() && &res_val != res_test_val {
+                                if !silent {
+                                    println!("{} {} {} ... {}", "test".purple(), func_path.italic().dimmed(), name.blue(), "failed".bold().red());
+                                }
+
+                                let err_str = format!("{:?} does not equal {:?}", res_val, res_test_val);
+                                failures.push((func, format!("\t{}: {} at {}: {}", "failed".bold().red(), name.blue(), func_path.italic().dimmed(), err_str.bold())));
+                            } else {
+                                if !silent {
+                                    println!("{} {} {} ... {}", "test".purple(), func_path.italic().dimmed(), name.blue(), "ok".bold().green());
+                                }
+                                
+                                // This is a successful running of the test! Now check if we should profile the function
+                                if let Some(profile_val) = func.attributes.get("profile") {
+                                    if profile_val.is_empty() || profile_val.truthy() {
+                                        let mut iterations = 100;
+                                        match profile_val {
+                                            SVal::Number(num) => {
+                                                iterations = num.int() as u128;
+                                            },
+                                            _ => {}
+                                        }
+
+                                        let profile_start = SystemTime::now();
+                                        for _ in 0..iterations {
+                                            let _ = func.call("main", self, vec![], true);
+                                        }
+                                        let total_duration = profile_start.elapsed().unwrap();
+                                        let total_ns = total_duration.as_nanos();
+                                        let each_ns = total_ns / iterations;
+                                        
+                                        let dur = (total_duration.as_secs_f32() * 100.0).round() / 100.0;
+                                        profiles.push(format!("\t{} {} ... {} iterations; {}s ({}ms); {}ns per call", func_path.italic().dimmed(), name.blue(), iterations, dur, total_duration.as_millis(), each_ns));
+                                    }
+                                }
+                            }
+                        },
+                        Err(err) => {
+                            let name = func.name.clone();
                             if !silent {
                                 println!("{} {} {} ... {}", "test".purple(), func_path.italic().dimmed(), name.blue(), "failed".bold().red());
                             }
 
-                            let err_str = format!("{:?} does not equal {:?}", res_val, res_test_val);
+                            let err_str = err.to_string();
                             failures.push((func, format!("\t{}: {} at {}: {}", "failed".bold().red(), name.blue(), func_path.italic().dimmed(), err_str.bold())));
-                        } else {
-                            if !silent {
-                                println!("{} {} {} ... {}", "test".purple(), func_path.italic().dimmed(), name.blue(), "ok".bold().green());
-                            }
-                            
-                            // This is a successful running of the test! Now check if we should profile the function
-                            if let Some(profile_val) = func.attributes.get("profile") {
-                                if profile_val.is_empty() || profile_val.truthy() {
-                                    let mut iterations = 100;
-                                    match profile_val {
-                                        SVal::Number(num) => {
-                                            iterations = num.int() as u128;
-                                        },
-                                        _ => {}
-                                    }
-
-                                    let profile_start = SystemTime::now();
-                                    for _ in 0..iterations {
-                                        let _ = func.call("main", self, vec![], true);
-                                    }
-                                    let total_duration = profile_start.elapsed().unwrap();
-                                    let total_ns = total_duration.as_nanos();
-                                    let each_ns = total_ns / iterations;
-                                    
-                                    let dur = (total_duration.as_secs_f32() * 100.0).round() / 100.0;
-                                    profiles.push(format!("\t{} {} ... {} iterations; {}s ({}ms); {}ns per call", func_path.italic().dimmed(), name.blue(), iterations, dur, total_duration.as_millis(), each_ns));
-                                }
-                            }
                         }
-                    },
-                    Err(err) => {
-                        let name = func.name.clone();
-                        if !silent {
-                            println!("{} {} {} ... {}", "test".purple(), func_path.italic().dimmed(), name.blue(), "failed".bold().red());
-                        }
-
-                        let err_str = err.to_string();
-                        failures.push((func, format!("\t{}: {} at {}: {}", "failed".bold().red(), name.blue(), func_path.italic().dimmed(), err_str.bold())));
                     }
                 }
             }
