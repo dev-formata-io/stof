@@ -83,3 +83,16 @@ fn switch_tuples() {
     }
     assert(seen);
 }
+
+#[test]
+fn switch_or() {
+    let seen = false;
+    switch ('hel') {
+        case 'h'    |
+        case 'he'   |
+        case 'hel'  |
+        case 'hell' |
+        case 'hello': seen = true;
+    }
+    assert(seen);
+}

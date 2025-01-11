@@ -949,12 +949,12 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                             match_on = parse_expression(doc, env, pair)?;
                         },
                         Rule::switch_case => {
-                            let mut case = Expr::Literal(SVal::Void);
+                            let mut cases = Vec::new();
                             let mut statements = Statements::default();
                             for pair in pair.into_inner() {
                                 match pair.as_rule() {
                                     Rule::expr => {
-                                        case = parse_expression(doc, env, pair)?;
+                                        cases.push(parse_expression(doc, env, pair)?);
                                     },
                                     Rule::single_block |
                                     Rule::block => {
@@ -963,8 +963,15 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                                     _ => {}
                                 }
                             }
-                            let case_val = case.exec(&env.pid, doc)?;
-                            match_map.insert(case_val, statements);
+                            if cases.len() == 1 {
+                                let case_val = cases.pop().unwrap().exec(&env.pid, doc)?;
+                                match_map.insert(case_val, statements);
+                            } else {
+                                for case in cases {
+                                    let case_val = case.exec(&env.pid, doc)?;
+                                    match_map.insert(case_val, statements.clone());
+                                }
+                            }
                         },
                         Rule::switch_default => {
                             let mut statements = Statements::default();
