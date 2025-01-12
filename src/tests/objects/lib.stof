@@ -325,3 +325,101 @@ map_fields: {
         assertNull(self.source.e);
     }
 }
+
+search: {
+    a: 'ASearch'
+    b: 'BSearch'
+    h: {
+        i: {
+            g: 'G'
+            j: {
+                k: {
+                    eq: 'EQUP'
+                }
+            }
+        }
+    }
+    space: {
+        a: 'ASpace'
+        sub: {
+            a: 'ASub'
+            b: 'BSub'
+            c: {
+                d: {
+                    e: {
+                        f: {
+                            g: 'GD'
+                            eq: 'EQDOWN'
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn searchUp() {
+        let val = self.space.searchUp('a');
+        assertEq(val[0], 'ASpace');
+        assertEq(val[1], 0);
+
+        val = self.space.searchUp('b');
+        assertEq(val[0], 'BSearch');
+        assertEq(val[1], 1);
+
+        val = self.space.searchUp('search_dne');
+        assertNull(val);
+
+        val = self.space.searchUp('g');
+        assertEq(val[0], 'G');
+        assertEq(val[1], 3);
+
+        val = self.space.searchUp('g', false);
+        assertNull(val);
+    }
+
+    #[test]
+    fn searchDown() {
+        let val = self.space.searchDown('a');
+        assertEq(val[0], 'ASpace');
+        assertEq(val[1], 0);
+
+        val = self.space.searchDown('b');
+        assertEq(val[0], 'BSub');
+        assertEq(val[1], 1);
+
+        val = self.space.searchDown('search_dne');
+        assertNull(val);
+
+        val = self.space.searchDown('g');
+        assertEq(val[0], 'GD');
+        assertEq(val[1], 5);
+    }
+
+    #[test]
+    fn search() {
+        let val = self.space.search('a');
+        assertEq(val[0], 'ASpace');
+        assertEq(val[1], 0);
+
+        val = self.space.search('b');
+        assertEq(val[0], 'BSub'); // down is prioritized
+        assertEq(val[1], 1);
+
+        val = self.space.search('g');
+        assertEq(val[0], 'G');
+        assertEq(val[1], 3);
+
+        val = self.space.search('g', false);
+        assertEq(val[0], 'GD');
+        assertEq(val[1], 5);
+
+        val = self.space.search('eq');
+        assertEq(val[0], 'EQDOWN'); // down is preferred
+        assertEq(val[1], 5);
+
+        val = self.space.searchUp('eq');
+        assertEq(val[0], 'EQUP');
+        assertEq(val[1], 5); // make sure testing the right thing above
+    }
+}

@@ -14,6 +14,18 @@
 // limitations under the License.
 //
 
+#[test]
+fn boxed_unknown() {
+    let box: Box<unknown> = 32;
+    assertEq(typeof box, 'Box<int>');
+}
+
+#[test]
+fn boxed_unknown_as() {
+    let box = 32 as Box<unknown>;
+    assertEq(typeof box, 'Box<int>');
+}
+
 add_one: {
     fn add_one(val: Box<int>) {
         val += 1;

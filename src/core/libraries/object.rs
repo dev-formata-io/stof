@@ -14,9 +14,9 @@
 // limitations under the License.
 //
 
-use std::{collections::{BTreeMap, HashSet}, ops::Deref};
+use std::{cmp::Ordering, collections::{BTreeMap, HashSet}, ops::Deref};
 use anyhow::{anyhow, Result};
-use crate::{Data, IntoDataRef, IntoNodeRef, Library, SDoc, SField, SFunc, SNodeRef, SVal};
+use crate::{Data, IntoDataRef, IntoNodeRef, Library, SDoc, SField, SFunc, SNodeRef, SNum, SVal};
 
 
 #[derive(Default, Debug)]
@@ -184,13 +184,13 @@ impl ObjectLibrary {
             },
             "set" => {
                 if parameters.len() == 2 {
-                    let value = parameters.pop().unwrap();
+                    let value = parameters.pop().unwrap().unbox();
                     let name = parameters.pop().unwrap().to_string();
 
                     // Check for an existing field at this location
                     if let Some(mut field) = SField::field(&doc.graph, &name, '.', Some(obj)) {
                         if doc.perms.can_write_field(&doc.graph, &field, Some(obj)) {
-                            field.value = value.clone();
+                            field.value = value;
                             field.set(&mut doc.graph);
                             return Ok(SVal::Bool(true));
                         }
@@ -208,7 +208,7 @@ impl ObjectLibrary {
                     }
 
                     // Create the field on fref
-                    let mut field = SField::new(&name, value.clone());
+                    let mut field = SField::new(&name, value);
                     field.attach(&fref, &mut doc.graph);
                     return Ok(SVal::Bool(true));
                 }
@@ -429,6 +429,189 @@ impl ObjectLibrary {
                     }
                 }
                 Ok(SVal::Bool(false))
+            },
+
+            /*****************************************************************************
+             * Search for fields.
+             *****************************************************************************/
+            // Searches both up and down, looking for the closest field with a given name.
+            // Returns null if not found, otherwise the value and distance from this object.
+            // Signature: Object.search(obj, field_name: str, search_parent_children: bool = true): null | (unknown, int)
+            "search" => {
+                if parameters.len() < 1 {
+                    return Err(anyhow!("Object.search(obj, field_name: str) requires a field name to search for"));
+                }
+                let up = self.operate(pid, doc, "searchUp", obj, parameters)?;
+                let down = self.operate(pid, doc, "searchDown", obj, &mut vec![parameters[0].clone()])?;
+                if !up.is_empty() && !down.is_empty() {
+                    match up {
+                        SVal::Tuple(up) => {
+                            match down {
+                                SVal::Tuple(down) => {
+                                    let down_lte_up = down.last().unwrap().lte(up.last().unwrap())?;
+                                    if down_lte_up.truthy() {
+                                        // down is closer (or equal) - return down
+                                        return Ok(SVal::Tuple(down));
+                                    } else {
+                                        // up is closer
+                                        return Ok(SVal::Tuple(up));
+                                    }
+                                },
+                                _ => {}
+                            }
+                        },
+                        _ => {}
+                    }
+                } else if !up.is_empty() {
+                    return Ok(up);
+                } else if !down.is_empty() {
+                    return Ok(down);
+                }
+                Ok(SVal::Null)
+            },
+
+            // Search upwards through our parents to find the closest field with a name.
+            // Returns null if not found, otherwise the value and distance from this object.
+            // Signature: Object.searchUp(obj, field_name: str, search_parent_children: bool = true): null | (unknown, int)
+            "searchUp" => {
+                if parameters.len() < 1 {
+                    return Err(anyhow!("Object.searchUp(obj, field_name: str) requires a field name to search for"));
+                }
+                let field_name = parameters[0].to_string();
+                if let Some(field) = SField::field(&doc.graph, &field_name, '.', Some(obj)) {
+                    if doc.perms.can_read_field(&doc.graph, &field, Some(obj)) {
+                        return Ok(SVal::Tuple(vec![field.value, SVal::Number(SNum::I64(0))]));
+                    }
+                } else {
+                    // Search up, through parent nodes
+                    let mut allow_parent_children = true;
+                    let mut child_finds = Vec::new();
+                    if parameters.len() > 1 {
+                        allow_parent_children = parameters[1].truthy();
+                    }
+
+                    let mut parent = None;
+                    let mut parent_field = None;
+                    if let Some(node) = obj.node(&doc.graph) {
+                        parent = node.parent.clone();
+                    }
+                    let mut parent_distance = 1;
+                    while parent.is_some() {
+                        if let Some(field) = SField::field(&doc.graph, &field_name, '.', parent.as_ref()) {
+                            parent_field = Some(field);
+                            break;
+                        }
+                        if allow_parent_children {
+                            let mut params = vec![parameters[0].clone(), SVal::Number(SNum::I64(parent_distance))];
+                            let val = self.operate(pid, doc, "searchDown", &parent.clone().unwrap(), &mut params)?;
+                            if !val.is_empty() {
+                                child_finds.push(val);
+                            }
+                        }
+                        
+                        if let Some(node) = parent.unwrap().node(&doc.graph) {
+                            parent = node.parent.clone();
+                        } else {
+                            parent = None;
+                        }
+                        parent_distance += 1;
+                    }
+
+                    // sort child finds by distance if any
+                    if child_finds.len() > 0 {
+                        child_finds.sort_by(|a, b| {
+                            match a {
+                                SVal::Tuple(a) => {
+                                    match b {
+                                        SVal::Tuple(b) => {
+                                            let a_lt = a.last().unwrap().lt(b.last().unwrap()).unwrap();
+                                            if a_lt.truthy() {
+                                                return Ordering::Less;
+                                            }
+                                            let a_gt = a.last().unwrap().gt(b.last().unwrap()).unwrap();
+                                            if a_gt.truthy() {
+                                                return Ordering::Greater;
+                                            }
+                                        },
+                                        _ => {}
+                                    }
+                                },
+                                _ => {}
+                            }
+                            Ordering::Equal
+                        });
+                    }
+
+                    if let Some(field) = parent_field { // will be the first in-line value found if any
+                        if child_finds.len() > 0 {
+                            // compare the closest child find to this parent find, preferring the parent find when equal
+                            let first_child = child_finds.remove(0);
+                            let mut return_child = false;
+                            match &first_child {
+                                SVal::Tuple(tup) => {
+                                    match &tup.last().unwrap() {
+                                        SVal::Number(num) => {
+                                            let dist = num.int();
+                                            if dist < parent_distance {
+                                                return_child = true;
+                                            }
+                                        },
+                                        _ => {}
+                                    }
+                                },
+                                _ => {}
+                            }
+                            if return_child {
+                                return Ok(first_child);
+                            }
+                        }
+                        if doc.perms.can_read_field(&doc.graph, &field, Some(obj)) {
+                            return Ok(SVal::Tuple(vec![field.value, SVal::Number(SNum::I64(parent_distance))]));
+                        }
+                    } else if child_finds.len() > 0 {
+                        return Ok(child_finds.remove(0));
+                    }
+                }
+                Ok(SVal::Null)
+            },
+
+            // Search downwards through our children to find the closest field with a name.
+            // Returns null if not found, otherwise the value and distance from this object.
+            // Signature: Object.searchDown(obj, field_name: str): null | (unknown, int)
+            "searchDown" => {
+                if parameters.len() < 1 {
+                    return Err(anyhow!("Object.searchDown(obj, field_name: str) requires a field name to search for"));
+                }
+                let mut current_distance = 0;
+                if parameters.len() > 1 {
+                    match &parameters[1] {
+                        SVal::Number(num) => {
+                            current_distance = num.int();
+                        },
+                        _ => {}
+                    }
+                }
+                let field_name = parameters[0].to_string();
+                if let Some(field) = SField::field(&doc.graph, &field_name, '.', Some(obj)) {
+                    if doc.perms.can_read_field(&doc.graph, &field, Some(obj)) {
+                        return Ok(SVal::Tuple(vec![field.value, SVal::Number(SNum::I64(current_distance))]));
+                    }
+                } else {
+                    let children;
+                    if let Some(node) = obj.node(&doc.graph) {
+                        children = node.children.clone();
+                    } else {
+                        return Ok(SVal::Null); // no children to consider
+                    }
+                    let mut params = vec![parameters[0].clone(), SVal::Number(SNum::I64(current_distance + 1))];
+                    for child in children {
+                        let val = self.operate(pid, doc, "searchDown", &child, &mut params)?;
+                        if !val.is_empty() {
+                            return Ok(val);
+                        }
+                    }
+                }
+                Ok(SVal::Null)
             },
 
             /*****************************************************************************

@@ -988,8 +988,14 @@ impl SVal {
         match &target {
             SType::Boxed(target) => {
                 // Make the resulting value boxed
-                let value = self.cast(target.deref().clone(), pid, doc)?;
-                return Ok(Self::Boxed(Arc::new(SMutex(Mutex::new(value)))));
+                let target_type = target.deref().clone();
+                let self_type = self.stype(&doc.graph);
+                if target_type != self_type {
+                    let value = self.cast(target.deref().clone(), pid, doc)?;
+                    return Ok(Self::Boxed(Arc::new(SMutex(Mutex::new(value)))));
+                } else {
+                    return Ok(Self::Boxed(Arc::new(SMutex(Mutex::new(self.clone())))));
+                }
             },
             _ => {}
         }
