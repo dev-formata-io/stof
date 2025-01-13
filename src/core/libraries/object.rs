@@ -507,6 +507,7 @@ impl ObjectLibrary {
                         }
                     }
                 }
+                obj_ignore_set.insert(obj.id.clone()); // already searched in this object
 
                 // Search up, through parent nodes
                 let mut allow_parent_children = true;
@@ -528,12 +529,14 @@ impl ObjectLibrary {
                                 parent_field = Some(field);
                                 break;
                             }
+                            obj_ignore_set.insert(parent.id.clone()); // just searched this parent
                         }
                     }
                     if allow_parent_children {
                         let mut params = vec![parameters[0].clone(), SVal::Number(SNum::I64(parent_distance))];
                         if obj_ignore_set.len() > 0 {
-                            params.push(parameters[2].clone());
+                            let vals = obj_ignore_set.iter().map(|id| SVal::Object(SNodeRef::new(id))).collect();
+                            params.push(SVal::Array(vals));
                         }
                         let val = self.operate(pid, doc, "searchDown", &parent.clone().unwrap(), &mut params)?;
                         if !val.is_empty() {
