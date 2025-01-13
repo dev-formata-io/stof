@@ -363,6 +363,10 @@ search: {
         assertEq(val[0], 'ASpace');
         assertEq(val[1], 0);
 
+        val = self.space.searchUp('a', true, [self.space]);
+        assertEq(val[0], 'ASearch');
+        assertEq(val[1], 1);
+
         val = self.space.searchUp('b');
         assertEq(val[0], 'BSearch');
         assertEq(val[1], 1);
@@ -384,6 +388,10 @@ search: {
         assertEq(val[0], 'ASpace');
         assertEq(val[1], 0);
 
+        val = self.space.searchDown('a', 0, [self.space]);
+        assertEq(val[0], 'ASub');
+        assertEq(val[1], 1);
+
         val = self.space.searchDown('b');
         assertEq(val[0], 'BSub');
         assertEq(val[1], 1);
@@ -401,6 +409,10 @@ search: {
         let val = self.space.search('a');
         assertEq(val[0], 'ASpace');
         assertEq(val[1], 0);
+
+        val = self.space.search('a', true, [self.space]);
+        assertEq(val[0], 'ASub');
+        assertEq(val[1], 1);
 
         val = self.space.search('b');
         assertEq(val[0], 'BSub'); // down is prioritized
