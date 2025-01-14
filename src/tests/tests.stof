@@ -18,109 +18,109 @@
 /**
  * Number Tests.
  */
-import 'src/tests/numbers/ops.stof' as Numbers.Operations;
-import 'src/tests/numbers/units.stof' as Numbers.Units;
-import 'src/tests/numbers/std.stof' as Numbers.StdLib;
-import 'src/tests/numbers/iteration.stof' as Numbers.Iteration;
+import './numbers/ops.stof' as Numbers.Operations;
+import './numbers/units.stof' as Numbers.Units;
+import './numbers/std.stof' as Numbers.StdLib;
+import './numbers/iteration.stof' as Numbers.Iteration;
 
 
 /**
  * String Tests.
  */
-import 'src/tests/strings/std.stof' as Strings.StdLib;
-import 'src/tests/strings/iteration.stof' as Strings.Iteration;
+import './strings/std.stof' as Strings.StdLib;
+import './strings/iteration.stof' as Strings.Iteration;
 
 
 /**
  * Function Tests.
  */
-import 'src/tests/functions/decorators.stof' as Functions.Decorators;
-import 'src/tests/functions/arrows.stof' as Functions.Arrows;
-import 'src/tests/functions/std.stof' as Functions.StdLib;
+import './functions/decorators.stof' as Functions.Decorators;
+import './functions/arrows.stof' as Functions.Arrows;
+import './functions/std.stof' as Functions.StdLib;
 
 
 /**
  * Array Tests.
  */
-import 'src/tests/arrays/iteration.stof' as Arrays.Iteration;
-import 'src/tests/arrays/lib.stof' as Arrays.StdLib;
-import 'src/tests/arrays/fields.stof' as Arrays.Fields;
+import './arrays/iteration.stof' as Arrays.Iteration;
+import './arrays/lib.stof' as Arrays.StdLib;
+import './arrays/fields.stof' as Arrays.Fields;
 
 
 /**
  * Map Tests.
  */
-import 'src/tests/maps/lib.stof' as Maps.StdLib;
+import './maps/lib.stof' as Maps.StdLib;
 
 
 /**
  * Set Tests.
  */
-import 'src/tests/sets/lib.stof' as Sets.StdLib;
+import './sets/lib.stof' as Sets.StdLib;
 
 
 /**
  * Object Tests.
  */
-import 'src/tests/objects/paths.stof' as Objects.Paths;
-import 'src/tests/objects/lib.stof' as Objects.StdLib;
+import './objects/paths.stof' as Objects.Paths;
+import './objects/lib.stof' as Objects.StdLib;
 
 
 /**
  * Field Tests.
  */
-import 'src/tests/fields/attributes.stof' as Fields.Attributes;
+import './fields/attributes.stof' as Fields.Attributes;
 
 
 /**
  * Dec Types Tests.
  */
-import 'src/tests/types/geometry.stof' as Types.Geometry;
-import 'src/tests/types/casting.stof' as Types.Casting;
-import 'src/tests/types/attributes.stof' as Types.Attributes;
-import 'src/tests/types/unknown.stof' as Types.Unknown;
+import './types/geometry.stof' as Types.Geometry;
+import './types/casting.stof' as Types.Casting;
+import './types/attributes.stof' as Types.Attributes;
+import './types/unknown.stof' as Types.Unknown;
 
 
 /**
  * Control Flow Tests.
  */
-import 'src/tests/control/flow.stof' as Control.Flow;
-import 'src/tests/control/switch.stof' as Control.Switch;
-import 'src/tests/control/try.stof' as Control.Try;
+import './control/flow.stof' as Control.Flow;
+import './control/switch.stof' as Control.Switch;
+import './control/try.stof' as Control.Try;
 
 
 /**
  * Language Tests.
  */
-import 'src/tests/language/shorts.stof' as Language.ShortCircuits;
-import 'src/tests/language/boxed.stof' as Language.Boxed;
-import 'src/tests/language/null.stof' as Language.Null;
-import 'src/tests/language/drop.stof' as Language.Drop;
+import './language/shorts.stof' as Language.ShortCircuits;
+import './language/boxed.stof' as Language.Boxed;
+import './language/null.stof' as Language.Null;
+import './language/drop.stof' as Language.Drop;
 
 
 /**
  * Import Tests.
  */
-import 'src/tests/imports/location.stof' as Imports.Location;
+import './imports/location.stof' as Imports.Location;
 
 
 /**
  * Format Tests.
  */
-import 'src/tests/formats/json.stof' as Formats.JSON;
-import 'src/tests/formats/toml.stof' as Formats.TOML;
-import 'src/tests/formats/yaml.stof' as Formats.YAML;
-import 'src/tests/formats/xml.stof' as Formats.XML;
-import 'src/tests/formats/text.stof' as Formats.TEXT;
-import 'src/tests/formats/bytes.stof' as Formats.BYTES;
-import 'src/tests/formats/url.stof' as Formats.URL;
+import './formats/json.stof' as Formats.JSON;
+import './formats/toml.stof' as Formats.TOML;
+import './formats/yaml.stof' as Formats.YAML;
+import './formats/xml.stof' as Formats.XML;
+import './formats/text.stof' as Formats.TEXT;
+import './formats/bytes.stof' as Formats.BYTES;
+import './formats/url.stof' as Formats.URL;
 
 
 /**
  * Practical Tests.
  */
-import 'src/tests/practical/merge.stof' as Practical.Merge;
-import 'src/tests/practical/docs.stof' as Practical.Docs;
+import './practical/merge.stof' as Practical.Merge;
+import './practical/docs.stof' as Practical.Docs;
 
 
 /**

@@ -17,10 +17,7 @@
 
 // Import the JSON file using the JSON format
 // The explicit format is optional here, since the file extension is 'json'
-import 'src/json/tests/example.json' as self.example;
-
-// Imports with the same signature as a previous import (in the current location) will be ignored...
-import 'src/json/tests/example.json' as self.example;
+import '../../json/tests/example.json' as self.example;
 
 // Import the JSON file using the STOF format
 // STOF is reverse compatable with JSON - valid JSON is always valid STOF

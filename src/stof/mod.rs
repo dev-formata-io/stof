@@ -202,6 +202,34 @@ impl Format for STOF {
     /// File import.
     fn file_import(&self, pid: &str, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
         let src = doc.fs_read_string(pid, full_path)?;
-        self.string_import(pid, doc, &src, as_name)
+
+        if doc.graph.roots.len() < 1 {
+            doc.graph.insert_root("root");
+        }
+        let mut location = doc.graph.main_root().unwrap();
+        if as_name.len() > 0 && as_name != "root" {
+            if as_name.starts_with("self") || as_name.starts_with("super") {
+                location = doc.graph.ensure_nodes(as_name, '.', true, doc.self_ptr(pid));
+            } else {
+                location = doc.graph.ensure_nodes(as_name, '.', true, None);
+            }
+        }
+
+
+        let process = doc.processes.get(pid).cloned();
+        let mut env = StofEnv::new_at_node(pid, doc, &location).unwrap();
+        
+        let mut relative_path = full_path.trim().split('/').collect::<Vec<&str>>();
+        relative_path.pop(); // pop the file name
+        env.relative_import_path = relative_path.join("/");
+        
+        STOF::parse(pid, doc, &src, Some(&mut env))?;
+
+        // Undo the clean that happens...
+        if let Some(process) = process {
+            doc.processes.processes.insert(pid.to_owned(), process);
+        }
+
+        Ok(())
     }
 }

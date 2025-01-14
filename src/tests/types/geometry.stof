@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-import 'src/tests/types/geometry_import.stof' as self.Geometry;
+import './geometry_import.stof' as self.Geometry;
 
 
 fields: {

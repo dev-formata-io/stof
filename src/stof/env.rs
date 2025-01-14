@@ -28,6 +28,9 @@ pub struct StofEnv {
     /// Process ID in which we are compiling.
     pub pid: String,
 
+    /// Relative import path. Gets added to the import path when starting with '.'
+    pub relative_import_path: String,
+
     /// Paths that have been parsed already.
     pub compiled_paths: HashSet<String>,
 
@@ -58,6 +61,7 @@ impl StofEnv {
             assign_type_stack: vec![Default::default()],
             init_funcs: Default::default(),
             node_field_collisions: Default::default(),
+            relative_import_path: String::default(),
         }
     }
 
@@ -72,6 +76,7 @@ impl StofEnv {
                 assign_type_stack: vec![Default::default()],
                 compiled_paths: Default::default(),
                 node_field_collisions: Default::default(),
+                relative_import_path: String::default(),
             });
         }
         None
