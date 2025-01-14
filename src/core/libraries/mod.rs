@@ -38,9 +38,6 @@ pub use string::*;
 pub mod tuple;
 pub use tuple::*;
 
-pub mod empty;
-pub use empty::*;
-
 pub mod bool;
 pub use bool::*;
 
