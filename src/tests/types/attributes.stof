@@ -54,16 +54,16 @@ fn private_field_attribute() {
     assertEq(42, self.object.get_field());
 }
 
-#[test([('someotherattr', null)])]
-fn has_attr(): vec {
+#[test(map([('someotherattr', null)]))]
+fn has_attr(): map {
     return self.object.attributes('field');
 }
 
 #[test]
 fn multiple() {
     let attrs = self.object.attributes('many');
-    assert(attrs.has(('anything', true)));
-    assert(attrs.has(('multiple', 3423)));
+    assertEq(attrs.get('anything'), true);
+    assertEq(attrs.get('multiple'), 3423);
 }
 
 #[test]

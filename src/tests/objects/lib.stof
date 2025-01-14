@@ -58,19 +58,13 @@ fn create_references() {
 fn get_fields() {
     let fields = self.test.fields();
     assertEq(fields.len(), 3);
-    
-    fields.sort((a: (str, unknown), b: (str, unknown)): int => {
-        if (a[0] < b[0]) return -1;
-        if (a[0] > b[0]) return 1;
-        return 0;
-    });
     assertEq(fields.first(), ('a', 'A'));
 }
 
 #[test]
 fn get_attributes() {
     let attrs = self.test.attributes('c');
-    assertEq(attrs, [('something', null)]);
+    assertEq(attrs, map([('something', null)]));
 }
 
 #[test]

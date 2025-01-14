@@ -17,7 +17,7 @@
 use std::collections::{BTreeMap, HashSet};
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{Data, SField, SFunc, SGraph, SNodeRef, SType, SVal};
+use crate::{Data, SField, SFunc, SGraph, SNodeRef, SPrototype, SType, SVal};
 use super::Expr;
 
 
@@ -54,10 +54,9 @@ impl CustomType {
         return self.attributes.contains_key("private");
     }
 
-    /// Location path in the graph for functions.
-    /// Also the scope for calling functions on this type.
-    pub fn path(&self, graph: &SGraph) -> String {
-        SNodeRef::new(&self.locid).path(graph)
+    /// Create a new prototype for this custom type.
+    pub fn prototype(&self) -> SPrototype {
+        SPrototype::new(&self.locid)
     }
 
     /// Field names.

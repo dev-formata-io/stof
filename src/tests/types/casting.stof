@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-
+#[base]
 type Base {
     fn isBase(): bool {
         return true;
@@ -96,6 +96,15 @@ upcast: {
         assertNot(object.instanceOf('Extends'));
 
         assertNot(object.upcast()); // Nowhere to upcast to...
+
+        assert(object.instanceOf('Base'));
+        assert(object.prototype() != null);
+
+        let base_attributes = object.prototypeAttributes();
+        assertEq(base_attributes, map([('base', null)]));
+
+        assert(object.removePrototype());
+        assertNot(object.instanceOf('Base'));
     }
 }
 

@@ -26,6 +26,9 @@ pub use units::*;
 pub mod field;
 pub use field::*;
 
+pub mod prototype;
+pub use prototype::*;
+
 pub mod func;
 pub use func::*;
 

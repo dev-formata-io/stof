@@ -19,7 +19,7 @@ use std::{cmp::Ordering, collections::{BTreeMap, BTreeSet, HashSet}, hash::{Hash
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use crate::{Data, SDataRef, SDoc, SGraph, SNodeRef};
-use super::{SField, SNumType, SType, SUnits};
+use super::{SField, SNumType, SPrototype, SType, SUnits};
 
 #[cfg(feature = "json")]
 use crate::json::JSON;
@@ -716,12 +716,10 @@ impl SVal {
             },
             Self::FnPtr(_) => SType::FnPtr,
             Self::Object(nref) => {
-                if let Some(prototype) = SField::field(graph, "__prototype__", '.', Some(nref)) {
-                    if let Some(node_ref) = graph.node_ref(&prototype.to_string(), None) {
-                        // Use the full typepath here, so that we arrive at the correct type when casting, etc...
-                        if let Some(typepath) = SField::field(graph, "typepath", '.', Some(&node_ref)) {
-                            return SType::Object(typepath.to_string());
-                        }
+                if let Some(prototype) = SPrototype::get(graph, nref) {
+                    // Use the full typepath here, so taht we arrive at the correct type when casting, etc...
+                    if let Some(typepath) = prototype.typepath(graph) {
+                        return SType::Object(typepath);
                     }
                 }
                 SType::Object("obj".to_string())
@@ -801,26 +799,10 @@ impl SVal {
     pub fn type_stack(&self, graph: &SGraph) -> Vec<String> {
         match self {
             Self::Object(nref) => {
-                let mut type_stack = Vec::new();
-                if let Some(prototype) = SField::field(graph, "__prototype__", '.', Some(nref)) {
-                    if let Some(node) = graph.node_ref(&prototype.string(), None) {
-                        let mut current = Some(node);
-                        while let Some(typename) = SField::field(graph, "typename", '.', current.as_ref()) {
-                            type_stack.push(typename.to_string());
-
-                            if let Some(node) = current.unwrap().node(graph) {
-                                if let Some(parent_ref) = &node.parent {
-                                    current = Some(parent_ref.clone());
-                                } else {
-                                    break;
-                                }
-                            } else {
-                                break;
-                            }
-                        }
-                    }
+                if let Some(prototype) = SPrototype::get(graph, nref) {
+                    return prototype.type_stack(graph);
                 }
-                type_stack
+                Vec::default()
             },
             Self::Boxed(val) => {
                 val.lock().unwrap().type_stack(graph)
@@ -843,26 +825,10 @@ impl SVal {
     pub fn typepath_stack(&self, graph: &SGraph) -> Vec<String> {
         match self {
             Self::Object(nref) => {
-                let mut type_stack = Vec::new();
-                if let Some(prototype) = SField::field(graph, "__prototype__", '.', Some(nref)) {
-                    if let Some(node) = graph.node_ref(&prototype.string(), None) {
-                        let mut current = Some(node);
-                        while let Some(typename) = SField::field(graph, "typepath", '.', current.as_ref()) {
-                            type_stack.push(typename.to_string());
-
-                            if let Some(node) = current.unwrap().node(graph) {
-                                if let Some(parent_ref) = &node.parent {
-                                    current = Some(parent_ref.clone());
-                                } else {
-                                    break;
-                                }
-                            } else {
-                                break;
-                            }
-                        }
-                    }
+                if let Some(prototype) = SPrototype::get(graph, nref) {
+                    return prototype.typepath_stack(graph);
                 }
-                type_stack
+                Vec::default()
             },
             Self::Boxed(val) => {
                 val.lock().unwrap().typepath_stack(graph)
@@ -885,12 +851,9 @@ impl SVal {
     pub fn type_name(&self, graph: &SGraph) -> String {
         match self {
             Self::Object(nref) => {
-                if let Some(prototype) = SField::field(graph, "__prototype__", '.', Some(nref)) {
-                    if let Some(node_ref) = graph.node_ref(&prototype.to_string(), None) {
-                        // Don't use the full typepath here of stype... use just the typename field
-                        if let Some(typename) = SField::field(graph, "typename", '.', Some(&node_ref)) {
-                            return typename.to_string();
-                        }
+                if let Some(prototype) = SPrototype::get(graph, nref) {
+                    if let Some(name) = prototype.typename(graph) {
+                        return name;
                     }
                 }
                 return "obj".to_string();
@@ -1281,12 +1244,12 @@ impl SVal {
                             // Have to move typefields out of the borrow...
                             typefields = custom_type.fields.clone();
 
-                            let prototype_path = custom_type.path(&doc.graph);
-                            if let Some(mut prototype_field) = SField::field(&doc.graph, "__prototype__", '.', Some(nref)) {
-                                prototype_field.value = Self::String(prototype_path);
-                                prototype_field.set(&mut doc.graph);
+                            if let Some(mut prototype) = SPrototype::get(&doc.graph, nref) {
+                                prototype.prototype = custom_type.locid.clone();
+                                prototype.set(&mut doc.graph);
                             } else {
-                                SField::new_string(&mut doc.graph, "__prototype__", &prototype_path, nref);
+                                let mut prototype = custom_type.prototype();
+                                prototype.attach(nref, &mut doc.graph);
                             }
                             success = true;
                         }

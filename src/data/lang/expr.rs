@@ -17,7 +17,7 @@
 use anyhow::{anyhow, Result};
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{IntoDataRef, SDoc, SField, SFunc, SType, SVal};
+use crate::{IntoDataRef, IntoNodeRef, SDoc, SField, SFunc, SPrototype, SType, SVal};
 use super::{Statement, Statements, StatementsRes};
 
 
@@ -275,58 +275,25 @@ impl Expr {
                         }
 
                         // Look for a prototype on this object next
-                        if let Some(prototype_field) = SField::field(&doc.graph, "__prototype__", '.', Some(nref)) {
-                            if let Some(prototype) = doc.graph.node_ref(&prototype_field.to_string(), None) {
-                                // prototype is the exact type we are referencing... we need to check typestack here!
-                                let mut current = Some(prototype);
+                        if let Some(prototype) = SPrototype::get(&doc.graph, nref) {
+                            let prototype = prototype.node_ref();
+                            
+                            // prototype is the exact type we are referencing... we need to check typestack here!
+                            let mut current = Some(prototype);
 
-                                let mut func_name = name.clone();
-                                let mut type_scope_resolution: Vec<&str> = name.split("::").collect();
-                                if type_scope_resolution.len() == 2 {
-                                    func_name = type_scope_resolution.pop().unwrap().to_string();
+                            let mut func_name = name.clone();
+                            let mut type_scope_resolution: Vec<&str> = name.split("::").collect();
+                            if type_scope_resolution.len() == 2 {
+                                func_name = type_scope_resolution.pop().unwrap().to_string();
 
-                                    let scope_type = type_scope_resolution.pop().unwrap();
-                                    let mut found = false;
-                                    while let Some(typename_field) = SField::field(&doc.graph, "typename", '.', current.as_ref()) {
-                                        if typename_field.to_string() == scope_type {
-                                            found = true;
-                                            break;
-                                        }
-                                        if let Some(node) = current.clone().unwrap().node(&doc.graph) {
-                                            if let Some(parent_ref) = &node.parent {
-                                                current = Some(parent_ref.clone());
-                                            } else {
-                                                break;
-                                            }
-                                        } else {
-                                            break;
-                                        }
+                                let scope_type = type_scope_resolution.pop().unwrap();
+                                let mut found = false;
+                                while let Some(typename_field) = SField::field(&doc.graph, "typename", '.', current.as_ref()) {
+                                    if typename_field.to_string() == scope_type {
+                                        found = true;
+                                        break;
                                     }
-                                    if !found {
-                                        return Err(anyhow!("Cannot find the requested type scope in the extends stack of this object for the requested function call"));
-                                    }
-                                } else if type_scope_resolution.len() > 1 {
-                                    return Err(anyhow!("Cannot specify more than one type scope for a function call"));
-                                }
-
-                                while current.is_some() {
-                                    if let Some(func) = SFunc::func(&doc.graph, &func_name, '.', current.as_ref()) {
-                                        let mut func_params = Vec::new();
-                                        for expr in params {
-                                            let val = expr.exec(pid, doc)?;
-                                            if !val.is_void() {
-                                                func_params.push(val);
-                                            }
-                                        }
-                                        let current_symbol_table = doc.new_table(pid);
-                                        // Set self to the object still...
-                                        doc.push_self(pid, nref.clone());
-                                        let res = func.call(pid, doc, func_params, false)?;
-                                        doc.pop_self(pid);
-                                        doc.set_table(pid, current_symbol_table);
-                                        return Ok(res);
-                                    }
-                                    if let Some(node) = current.unwrap().node(&doc.graph) {
+                                    if let Some(node) = current.clone().unwrap().node(&doc.graph) {
                                         if let Some(parent_ref) = &node.parent {
                                             current = Some(parent_ref.clone());
                                         } else {
@@ -335,6 +302,39 @@ impl Expr {
                                     } else {
                                         break;
                                     }
+                                }
+                                if !found {
+                                    return Err(anyhow!("Cannot find the requested type scope in the extends stack of this object for the requested function call"));
+                                }
+                            } else if type_scope_resolution.len() > 1 {
+                                return Err(anyhow!("Cannot specify more than one type scope for a function call"));
+                            }
+
+                            while current.is_some() {
+                                if let Some(func) = SFunc::func(&doc.graph, &func_name, '.', current.as_ref()) {
+                                    let mut func_params = Vec::new();
+                                    for expr in params {
+                                        let val = expr.exec(pid, doc)?;
+                                        if !val.is_void() {
+                                            func_params.push(val);
+                                        }
+                                    }
+                                    let current_symbol_table = doc.new_table(pid);
+                                    // Set self to the object still...
+                                    doc.push_self(pid, nref.clone());
+                                    let res = func.call(pid, doc, func_params, false)?;
+                                    doc.pop_self(pid);
+                                    doc.set_table(pid, current_symbol_table);
+                                    return Ok(res);
+                                }
+                                if let Some(node) = current.unwrap().node(&doc.graph) {
+                                    if let Some(parent_ref) = &node.parent {
+                                        current = Some(parent_ref.clone());
+                                    } else {
+                                        break;
+                                    }
+                                } else {
+                                    break;
                                 }
                             }
                         }

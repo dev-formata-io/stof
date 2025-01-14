@@ -16,7 +16,7 @@
 
 use std::{cmp::Ordering, collections::{BTreeMap, HashSet}, ops::Deref};
 use anyhow::{anyhow, Result};
-use crate::{Data, IntoDataRef, IntoNodeRef, Library, SDoc, SField, SFunc, SNodeRef, SNum, SVal};
+use crate::{Data, IntoDataRef, IntoNodeRef, Library, SDoc, SField, SFunc, SNodeRef, SNum, SPrototype, SVal, FKIND};
 
 
 #[derive(Default, Debug)]
@@ -26,8 +26,10 @@ impl ObjectLibrary {
     pub fn operate(&self, pid: &str, doc: &mut SDoc, name: &str, obj: &SNodeRef, parameters: &mut Vec<SVal>) -> Result<SVal> {
         match name {
             "len" => {
-                let fields = SField::fields(&doc.graph, obj);
-                Ok(SVal::Number((fields.len() as i32).into()))
+                if let Some(node) = obj.node(&doc.graph) {
+                    return Ok(SVal::Number(SNum::I64(node.prefix_selection(FKIND).data.len() as i64)));
+                }
+                Ok(SVal::Number(SNum::I64(0)))
             },
             "at" => {
                 if parameters.len() == 1 {
@@ -121,13 +123,13 @@ impl ObjectLibrary {
             },
             "fields" => {
                 let fields = SField::fields(&doc.graph, obj);
-                let mut array = Vec::new();
+                let mut map = BTreeMap::new();
                 for field in fields {
                     let value = field.value;
                     let key = SVal::String(field.name);
-                    array.push(SVal::Tuple(vec![key, value]));
+                    map.insert(key, value);
                 }
-                Ok(SVal::Array(array))
+                Ok(SVal::Map(map))
             },
             "attributes" => {
                 if parameters.len() < 1 {
@@ -136,17 +138,17 @@ impl ObjectLibrary {
                 match &parameters[0] {
                     SVal::String(index) => {
                         if let Some(field) = SField::field(&doc.graph, &index, '.', Some(obj)) {
-                            let mut attrs = Vec::new();
+                            let mut attrs = BTreeMap::new();
                             for (key, value) in &field.attributes {
-                                attrs.push(SVal::Tuple(vec![SVal::String(key.clone()), value.clone()]));
+                                attrs.insert(SVal::String(key.clone()), value.clone());
                             }
-                            return Ok(SVal::Array(attrs));
+                            return Ok(SVal::Map(attrs));
                         } else if let Some(func) = SFunc::func(&doc.graph, &index, '.', Some(obj)) {
-                            let mut attrs = Vec::new();
+                            let mut attrs = BTreeMap::new();
                             for (key, value) in &func.attributes {
-                                attrs.push(SVal::Tuple(vec![SVal::String(key.clone()), value.clone()]));
+                                attrs.insert(SVal::String(key.clone()), value.clone());
                             }
-                            return Ok(SVal::Array(attrs));
+                            return Ok(SVal::Map(attrs));
                         }
                         return Ok(SVal::Null); // Not found
                     },
@@ -158,13 +160,13 @@ impl ObjectLibrary {
             "funcs" |
             "functions" => {
                 let funcs = SFunc::funcs(&doc.graph, obj);
-                let mut array = Vec::new();
+                let mut map = BTreeMap::new();
                 for func in funcs {
                     let value = SVal::FnPtr(func.id.into());
                     let key = SVal::String(func.name);
-                    array.push(SVal::Tuple(vec![key, value]));
+                    map.insert(key, value);
                 }
-                Ok(SVal::Array(array))
+                Ok(SVal::Map(map))
             },
             "keys" => {
                 let fields = SField::fields(&doc.graph, obj);
@@ -362,6 +364,9 @@ impl ObjectLibrary {
                 }
                 Err(anyhow!("Object.name(obj) could not find object"))
             },
+            "id" => {
+                Ok(SVal::String(obj.id.clone()))
+            },
             "parent" => {
                 if let Some(node) = obj.node(&doc.graph) {
                     if let Some(parent) = &node.parent {
@@ -370,6 +375,25 @@ impl ObjectLibrary {
                 }
                 Ok(SVal::Null)
             },
+            // Return this objects prototype object (if any)
+            "prototype" => {
+                if let Some(prototype) = SPrototype::get(&doc.graph, obj) {
+                    return Ok(SVal::Object(prototype.node_ref()));
+                }
+                Ok(SVal::Null)
+            },
+            // Get the attributes for the prototype of this object (if any)
+            "prototypeAttributes" => {
+                if let Some(prototype) = SPrototype::get(&doc.graph, obj) {
+                    let attributes = prototype.attributes(&doc);
+                    let mut map = BTreeMap::new();
+                    for (k, v) in attributes {
+                        map.insert(SVal::String(k), v);
+                    }
+                    return Ok(SVal::Map(map));
+                }
+                Ok(SVal::Null)
+            }
             // Return this objects root object.
             // Signature: Object.root(obj): obj
             "root" => {
@@ -415,18 +439,26 @@ impl ObjectLibrary {
                 Ok(SVal::Bool(iof))
             },
             "upcast" => {
-                if let Some(mut prototype_field) = SField::field(&doc.graph, "__prototype__", '.', Some(obj)) {
-                    if let Some(prototype) = doc.graph.node_from(&prototype_field.to_string(), None) {
-                        if let Some(parent_ref) = &prototype.parent {
+                if let Some(mut prototype) = SPrototype::get(&doc.graph, obj) {
+                    if let Some(node) = prototype.node_ref().node(&doc.graph) {
+                        if let Some(parent_ref) = &node.parent {
                             if let Some(parent) = parent_ref.node(&doc.graph) {
                                 if parent.name != "__stof__" && parent.name != "prototypes" {
-                                    prototype_field.value = SVal::String(parent_ref.path(&doc.graph));
-                                    prototype_field.set(&mut doc.graph);
+                                    prototype.prototype = parent.id.clone();
+                                    prototype.set(&mut doc.graph);
                                     return Ok(SVal::Bool(true));
                                 }
                             }
                         }
                     }
+                }
+                Ok(SVal::Bool(false))
+            },
+            // Remove the prototype for this object if any, returning whether one was removed or not.
+            "removePrototype" => {
+                if let Some(prototype) = SPrototype::get(&doc.graph, obj) {
+                    prototype.remove(&mut doc.graph, Some(obj));
+                    return Ok(SVal::Bool(true));
                 }
                 Ok(SVal::Bool(false))
             },

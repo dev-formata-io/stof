@@ -471,7 +471,7 @@ checksum = "1b6b67fb9a61334225b5b790716f609cd58395f895b3fe8b328786812a40bc3b"
 
 [[package]]
 name = "stof"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "anyhow",
  "bincode",
