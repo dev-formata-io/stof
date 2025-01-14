@@ -17,7 +17,7 @@
 use std::collections::BTreeMap;
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
-use crate::{lang::CustomType, IntoNodeRef, SGraph, SNodeRef};
+use crate::{lang::CustomType, IntoNodeRef, SFunc, SGraph, SNodeRef};
 
 
 /// Stof custom types declared in a document.
@@ -40,7 +40,7 @@ impl CustomTypes {
     }
 
     /// Declare a new type (not inserted into graph yet).
-    pub fn declare(&mut self, mut custom_type: CustomType, graph: &mut SGraph, extends: &str) -> Result<()> {
+    pub fn declare(&mut self, mut custom_type: CustomType, graph: &mut SGraph, extends: &str, functions: &mut Vec<SFunc>) -> Result<()> {
         // Insert path for this new custom type
         let mut insert_path = format!("__stof__/prototypes/{}", &custom_type.locid);
 
@@ -78,7 +78,7 @@ impl CustomTypes {
         }
 
         // Insert the custom type into the graph
-        custom_type.insert(graph, &insert_path);
+        custom_type.insert(graph, &insert_path, functions);
 
         // Insert into types by name
         if let Some(types) = self.types.get_mut(&custom_type.name) {

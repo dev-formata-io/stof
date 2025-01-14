@@ -35,17 +35,13 @@ pub struct CustomType {
     pub name: String,
     pub fields: Vec<CustomTypeField>,
     pub attributes: BTreeMap<String, SVal>,
-
-    #[serde(skip)]
-    pub functions: Vec<SFunc>,
 }
 impl CustomType {
     /// New Type.
-    pub fn new(decid: &str, name: &str, fields: Vec<CustomTypeField>, functions: Vec<SFunc>) -> Self {
+    pub fn new(decid: &str, name: &str, fields: Vec<CustomTypeField>) -> Self {
         Self {
             name: name.to_owned(),
             fields,
-            functions,
             locid: format!("ctl{}", nanoid!(10)),
             decid: decid.to_owned(),
             attributes: Default::default(),
@@ -85,14 +81,14 @@ impl CustomType {
     }
 
     /// Insert this custom type into the graph.
-    pub fn insert(&mut self, graph: &mut SGraph, location: &str) {
+    pub fn insert(&mut self, graph: &mut SGraph, location: &str, functions: &mut Vec<SFunc>) {
         let nref = graph.ensure_nodes(location, '/', true, None);
         
         // Set the location of this custom type so it is not lost
         self.locid = nref.id.clone();
 
         // Insert functions into the graph
-        for f in &mut self.functions {
+        for f in functions {
             f.attach(&nref, graph);
         }
 

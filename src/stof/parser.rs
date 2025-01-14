@@ -440,9 +440,9 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                     }
                 }
                 if ident.len() > 0 {
-                    let mut ctype = CustomType::new(&env.scope(doc).id, &ident, params, functions);
+                    let mut ctype = CustomType::new(&env.scope(doc).id, &ident, params);
                     ctype.attributes = attributes;
-                    doc.types.declare(ctype, &mut doc.graph, &extends)?;
+                    doc.types.declare(ctype, &mut doc.graph, &extends, &mut functions)?;
                 }
             },
             Rule::EOI => {
