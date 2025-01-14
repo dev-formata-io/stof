@@ -192,6 +192,32 @@ impl SNodeRef {
         false
     }
 
+    /// Is a child of 'parent', distance.
+    /// Returns distance if a child, -1 otherwise.
+    pub fn is_child_of_distance(&self, graph: &SGraph, parent: &SNodeRef) -> i32 {
+        if self.id == parent.id { return 0; }
+        
+        let mut node_parent = None;
+        if let Some(node) = self.node(graph) {
+            node_parent = node.parent.clone();
+        }
+
+        let mut dist = 0;
+        while node_parent.is_some() {
+            dist += 1;
+            if let Some(np) = &node_parent {
+                if np.id == parent.id {
+                    return dist;
+                } else if let Some(node) = np.node(graph) {
+                    node_parent = node.parent.clone();
+                } else {
+                    node_parent = None;
+                }
+            }
+        }
+        -1
+    }
+
     /// Path.
     pub fn path(&self, graph: &SGraph) -> String {
         let mut node = self.node(graph);

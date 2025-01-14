@@ -93,20 +93,24 @@ impl CustomTypes {
     /// Gets all types with the name, then returns the one closest to scope (has to be above or equal to scope).
     pub fn find(&self, graph: &SGraph, name: &str, scope: impl IntoNodeRef) -> Option<&CustomType> {
         if let Some(type_name_matches) = self.types.get(name) {
+            if type_name_matches.len() < 1  { return None; }
+            if type_name_matches.len() == 1 { return Some(&type_name_matches[0]); }
+
             let scope_ref = scope.node_ref();
             let mut best = None;
             let mut best_dist = i32::MAX;
             for ctype in type_name_matches {
                 let nref = SNodeRef::from(&ctype.decid);
-                if scope_ref.is_child_of(graph, &nref) {
-                    let dist = scope_ref.distance_to(graph, &nref);
-                    if dist > -1 { // if -1, they are in different roots
-                        if dist < best_dist {
-                            best_dist = dist;
-                            best = Some(ctype);
-                        }
+                let dist = scope_ref.is_child_of_distance(graph, &nref);
+                if dist > -1 { // if -1, scope_ref is not a child (or equal) of nref
+                    if dist < best_dist {
+                        best_dist = dist;
+                        best = Some(ctype);
                     }
                 }
+            }
+            if best.is_none() {
+                return type_name_matches.last(); // we know we have some types... so just return the last one declared
             }
             return best;
         }
