@@ -26,6 +26,34 @@ impl ArrayLibrary {
     /// Call array operation with an array values.
     pub fn operate(&self, pid: &str, doc: &mut SDoc, name: &str, array: &mut Vec<SVal>, parameters: &mut Vec<SVal>) -> Result<SVal> {
         match name {
+            // Append another array into this array, leaving the other empty.
+            "append" => {
+                if parameters.len() < 1 {
+                    return Err(anyhow!("Array.append(vec, other: vec) requires another array parameter to append"));
+                }
+                match &mut parameters[0] {
+                    SVal::Array(other) => {
+                        array.append(other);
+                        Ok(SVal::Void)
+                    },
+                    SVal::Boxed(val) => {
+                        let mut val = val.lock().unwrap();
+                        let val = val.deref_mut();
+                        match val {
+                            SVal::Array(other) => {
+                                array.append(other);
+                                Ok(SVal::Void)
+                            },
+                            _ => {
+                                Err(anyhow!("Array.append(vec, other: vec) requires an array parameter to append"))
+                            }
+                        }
+                    },
+                    _ => {
+                        Err(anyhow!("Array.append(vec, other: vec) requires an array parameter to append"))
+                    }
+                }
+            },
             // Push all parameters onto the array.
             "push" => {
                 for v in parameters.drain(..) { array.push(v); }
