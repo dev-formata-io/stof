@@ -186,11 +186,13 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                         import_path = format!("{}/{}", &env.relative_import_path, import_path.trim_start_matches("./"));
                     } else if import_path.starts_with("../") {
                         let mut relative_path = env.relative_import_path.split('/').collect::<Vec<&str>>();
-                        while import_path.starts_with("../") {
+                        while import_path.starts_with("../") && relative_path.len() > 0 {
                             relative_path.pop();
                             import_path = import_path.strip_prefix("../").unwrap().to_owned();
                         }
-                        import_path = format!("{}/{}", relative_path.join("/"), import_path);
+                        if relative_path.len() > 0 {
+                            import_path = format!("{}/{}", relative_path.join("/"), import_path);
+                        }
                     }
 
                     let compiled_path = format!("{}{}{}{}", &format, &import_path, &import_ext, &as_name);
