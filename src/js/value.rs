@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use js_sys::{Array, Uint8Array};
+use js_sys::{Array, Map, Set, Uint8Array};
 use wasm_bindgen::JsValue;
 use crate::{SDataRef, SDoc, SNodeRef, SNum, SVal};
 
@@ -54,6 +54,21 @@ impl From<SVal> for JsValue {
                 Self::from(array)
             },
             SVal::Void => Self::undefined(),
+            SVal::Set(set) => {
+                let jsset = Set::new(&JsValue::NULL);
+                for val in set {
+                    jsset.add(&Self::from(val));
+                }
+                Self::from(jsset)
+            },
+            SVal::Map(map) => {
+                let jsmap = Map::new();
+                for (k, v) in map {
+                    jsmap.set(&Self::from(k), &Self::from(v));
+                }
+                Self::from(jsmap)
+            },
+            SVal::Boxed(val) => Self::from(val.lock().unwrap().clone()),
         }
     }
 }

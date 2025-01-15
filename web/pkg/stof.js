@@ -167,10 +167,10 @@ function passStringToWasm0(arg, malloc, realloc) {
     return ptr;
 }
 
-function takeFromExternrefTable0(idx) {
-    const value = wasm.__wbindgen_export_2.get(idx);
-    wasm.__externref_table_dealloc(idx);
-    return value;
+function _assertClass(instance, klass) {
+    if (!(instance instanceof klass)) {
+        throw new Error(`expected instance of ${klass.name}`);
+    }
 }
 
 function getArrayJsValueFromWasm0(ptr, len) {
@@ -184,10 +184,10 @@ function getArrayJsValueFromWasm0(ptr, len) {
     return result;
 }
 
-function _assertClass(instance, klass) {
-    if (!(instance instanceof klass)) {
-        throw new Error(`expected instance of ${klass.name}`);
-    }
+function takeFromExternrefTable0(idx) {
+    const value = wasm.__wbindgen_export_2.get(idx);
+    wasm.__externref_table_dealloc(idx);
+    return value;
 }
 
 function passArrayJsValueToWasm0(array, malloc) {
@@ -1528,7 +1528,7 @@ export class StofFunc {
         const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         _assertClass(node, StofNode);
-        const ret = wasm.stoffunc_func(doc.__wbg_ptr, ptr0, len0, node.__wbg_ptr);
+        const ret = wasm.stofdoc_func(doc.__wbg_ptr, ptr0, len0, node.__wbg_ptr);
         return ret === 0 ? undefined : StofFunc.__wrap(ret);
     }
     /**
@@ -1644,7 +1644,7 @@ export class StofLib {
     constructor(scope) {
         const ptr0 = passStringToWasm0(scope, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.stofdata_new(ptr0, len0);
+        const ret = wasm.stoflib_new(ptr0, len0);
         this.__wbg_ptr = ret >>> 0;
         StofLibFinalization.register(this, this.__wbg_ptr, this);
         return this;
@@ -1713,7 +1713,7 @@ export class StofNode {
     constructor(id) {
         const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.stofdata_new(ptr0, len0);
+        const ret = wasm.stofnode_new(ptr0, len0);
         this.__wbg_ptr = ret >>> 0;
         StofNodeFinalization.register(this, this.__wbg_ptr, this);
         return this;
@@ -2120,6 +2120,10 @@ async function __wbg_load(module, imports) {
 function __wbg_get_imports() {
     const imports = {};
     imports.wbg = {};
+    imports.wbg.__wbg_add_0d9e99fb9c2d2cc5 = function(arg0, arg1) {
+        const ret = arg0.add(arg1);
+        return ret;
+    };
     imports.wbg.__wbg_buffer_61b7ce01341d7f88 = function(arg0) {
         const ret = arg0.buffer;
         return ret;
@@ -2223,6 +2227,10 @@ function __wbg_get_imports() {
     };
     imports.wbg.__wbg_msCrypto_0a36e2ec3a343d26 = function(arg0) {
         const ret = arg0.msCrypto;
+        return ret;
+    };
+    imports.wbg.__wbg_new_0f1bd659dcd47068 = function(arg0) {
+        const ret = new Set(arg0);
         return ret;
     };
     imports.wbg.__wbg_new_254fa9eac11932ae = function() {
