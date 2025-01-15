@@ -121,7 +121,6 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
         match pair.as_rule() {
             Rule::import => {
                 let mut import_path = String::default();
-                let mut import_ext = String::default();
                 let mut as_name = "root".to_owned();
                 let mut set_as_name = false;
                 let mut format = String::default();
@@ -144,9 +143,6 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                         import_path = pair.as_str().to_owned();
                                         import_path = import_path.trim_start_matches("\"").trim_end_matches("\"").to_string();
                                         import_path = import_path.trim_start_matches("'").trim_end_matches("'").to_string();
-                                        
-                                        let pth: Vec<&str> = import_path.split('.').collect();
-                                        import_ext = pth.last().unwrap().to_string();
                                     },
                                     _ => return Err(anyhow!("Unrecognized inner path rule"))
                                 }
@@ -159,9 +155,6 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                         rule => return Err(anyhow!("Unrecognized import rule: {:?}", rule))
                     }
                 }
-                if format.len() < 1 {
-                    format = import_ext.clone();
-                }
 
                 // Perform the file import
                 if import_path.len() > 0 {
@@ -172,6 +165,20 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                         let scope = env.scope(doc);
                         let path = scope.path(&doc.graph).replace('/', ".");
                         as_name = format!("{}.{}", path, as_name);
+                    }
+
+                    // Add 'stof' file format if not specified
+                    let mut import_ext = String::from("stof");
+                    let split_path = import_path.split('/').collect::<Vec<&str>>();
+                    let file_split = split_path.last().unwrap().split('.').collect::<Vec<&str>>();
+                    if file_split.len() == 1 {
+                        // did not specify a file extension, so add '.stof' as a default
+                        import_path.push_str(".stof");
+                    } else {
+                        import_ext = file_split.last().unwrap().to_string();
+                    }
+                    if format.len() < 1 {
+                        format = import_ext.clone();
                     }
 
                     // If relative path, add the envs relative path to the front

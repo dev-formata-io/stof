@@ -18,109 +18,109 @@
 /**
  * Number Tests.
  */
-import './numbers/ops.stof' as Numbers.Operations;
-import './numbers/units.stof' as Numbers.Units;
-import './numbers/std.stof' as Numbers.StdLib;
-import './numbers/iteration.stof' as Numbers.Iteration;
+import './numbers/ops' as Numbers.Operations;
+import './numbers/units' as Numbers.Units;
+import './numbers/std' as Numbers.StdLib;
+import './numbers/iteration' as Numbers.Iteration;
 
 
 /**
  * String Tests.
  */
-import './strings/std.stof' as Strings.StdLib;
-import './strings/iteration.stof' as Strings.Iteration;
+import './strings/std' as Strings.StdLib;
+import './strings/iteration' as Strings.Iteration;
 
 
 /**
  * Function Tests.
  */
-import './functions/decorators.stof' as Functions.Decorators;
-import './functions/arrows.stof' as Functions.Arrows;
-import './functions/std.stof' as Functions.StdLib;
+import './functions/decorators' as Functions.Decorators;
+import './functions/arrows' as Functions.Arrows;
+import './functions/std' as Functions.StdLib;
 
 
 /**
  * Array Tests.
  */
-import './arrays/iteration.stof' as Arrays.Iteration;
-import './arrays/lib.stof' as Arrays.StdLib;
-import './arrays/fields.stof' as Arrays.Fields;
+import './arrays/iteration' as Arrays.Iteration;
+import './arrays/lib' as Arrays.StdLib;
+import './arrays/fields' as Arrays.Fields;
 
 
 /**
  * Map Tests.
  */
-import './maps/lib.stof' as Maps.StdLib;
+import './maps/lib' as Maps.StdLib;
 
 
 /**
  * Set Tests.
  */
-import './sets/lib.stof' as Sets.StdLib;
+import './sets/lib' as Sets.StdLib;
 
 
 /**
  * Object Tests.
  */
-import './objects/paths.stof' as Objects.Paths;
-import './objects/lib.stof' as Objects.StdLib;
+import './objects/paths' as Objects.Paths;
+import './objects/lib' as Objects.StdLib;
 
 
 /**
  * Field Tests.
  */
-import './fields/attributes.stof' as Fields.Attributes;
+import './fields/attributes' as Fields.Attributes;
 
 
 /**
  * Dec Types Tests.
  */
-import './types/geometry.stof' as Types.Geometry;
-import './types/casting.stof' as Types.Casting;
-import './types/attributes.stof' as Types.Attributes;
-import './types/unknown.stof' as Types.Unknown;
+import './types/geometry' as Types.Geometry;
+import './types/casting' as Types.Casting;
+import './types/attributes' as Types.Attributes;
+import './types/unknown' as Types.Unknown;
 
 
 /**
  * Control Flow Tests.
  */
-import './control/flow.stof' as Control.Flow;
-import './control/switch.stof' as Control.Switch;
-import './control/try.stof' as Control.Try;
+import './control/flow' as Control.Flow;
+import './control/switch' as Control.Switch;
+import './control/try' as Control.Try;
 
 
 /**
  * Language Tests.
  */
-import './language/shorts.stof' as Language.ShortCircuits;
-import './language/boxed.stof' as Language.Boxed;
-import './language/null.stof' as Language.Null;
-import './language/drop.stof' as Language.Drop;
+import './language/shorts' as Language.ShortCircuits;
+import './language/boxed' as Language.Boxed;
+import './language/null' as Language.Null;
+import './language/drop' as Language.Drop;
 
 
 /**
  * Import Tests.
  */
-import './imports/location.stof' as Imports.Location;
+import './imports/location' as Imports.Location;
 
 
 /**
  * Format Tests.
  */
-import './formats/json.stof' as Formats.JSON;
-import './formats/toml.stof' as Formats.TOML;
-import './formats/yaml.stof' as Formats.YAML;
-import './formats/xml.stof' as Formats.XML;
-import './formats/text.stof' as Formats.TEXT;
-import './formats/bytes.stof' as Formats.BYTES;
-import './formats/url.stof' as Formats.URL;
+import './formats/json' as Formats.JSON;
+import './formats/toml' as Formats.TOML;
+import './formats/yaml' as Formats.YAML;
+import './formats/xml' as Formats.XML;
+import './formats/text' as Formats.TEXT;
+import './formats/bytes' as Formats.BYTES;
+import './formats/url' as Formats.URL;
 
 
 /**
  * Practical Tests.
  */
-import './practical/merge.stof' as Practical.Merge;
-import './practical/docs.stof' as Practical.Docs;
+import './practical/merge' as Practical.Merge;
+import './practical/docs' as Practical.Docs;
 
 
 /**
