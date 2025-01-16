@@ -68,6 +68,16 @@ export class Stof {
 
 
     /**
+     * Parse a string into a Stof document.
+     */
+    static async parse(format: string, text: string): Promise<Stof> {
+        const doc = await Stof.create();
+        doc.importString(format, text);
+        return doc;
+    }
+
+
+    /**
      * Name of this document.
      */
     get name(): string {

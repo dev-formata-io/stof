@@ -1,0 +1,24 @@
+{
+    "resourceType" : "Patient",
+    "id" : "example",
+    "active" : true,
+    "name" : [
+        {
+            "use" : "official",
+            "family" : "Chalmers",
+            "given" : ["Peter", "James"]
+        },
+        {
+            "use" : "usual",
+            "given" : ["Jim"]
+        },
+        {
+            "use" : "maiden",
+            "family" : "Windsor",
+            "given" : ["Peter", "James"],
+            "period" : {
+                "end" : "2002"
+            }
+        }
+    ]
+}
