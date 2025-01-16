@@ -24,6 +24,6 @@ fn hello_file_roundtrip() {
         assert!(doc.bin_file_out("src/stof/tests/hello.bstof", "bstof").is_ok());
     }
     let mut doc = SDoc::file("src/stof/tests/hello.bstof", "bstof").unwrap();
-    let res = doc.run(None).pop().unwrap().1;
+    let res = doc.call_func("main", None, vec![]).unwrap();
     assert_eq!(res, "hello".into());
 }

@@ -14,5 +14,42 @@
 // limitations under the License.
 //
 
+use crate::SDoc;
+
 mod bstof;
 mod export;
+
+
+#[test]
+fn stof_run_out() {
+    let stof = r#"
+        root Test: {
+            throws: {
+                #[main]
+                fn main() {
+                    throw('not implemented');
+                }
+            }
+            doesnt: {
+                #[main]
+                fn main() {
+                    try {
+                        throw('not implemented');
+                    } catch {
+                        pln('caught'); 
+                    }
+                }
+            }
+        }
+    "#;
+    let mut doc = SDoc::src(stof, "stof").unwrap();
+    let res = doc.run(None);
+    match res {
+        Ok(_) => {
+            println!("stof document ran successfully");
+        },
+        Err(error) => {
+            println!("{error}");
+        }
+    }
+}

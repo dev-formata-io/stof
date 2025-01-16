@@ -349,16 +349,50 @@ impl SDoc {
      * Function interface.
      *****************************************************************************/
 
+    /// Run some Stof in a file.
+    /// Will run all #[main] functions.
+    /// Set 'throw' to true if you want this function to panic if tests fail.
+    pub fn run_file(file: &str, throw: bool) {
+        let doc_res = Self::file(file, "stof");
+        let mut doc;
+        match doc_res {
+            Ok(dr) => doc = dr,
+            Err(err) => {
+                let message = format!("{}: {}", "parse error".red(), err.to_string());
+                if throw {
+                    panic!("{message}");
+                } else {
+                    println!("{message}");
+                    return;
+                }
+            },
+        }
+
+        let res = doc.run(None);
+        match res {
+            Ok(_) => {
+                // Don't do anything here
+            },
+            Err(err) => {
+                if throw {
+                    panic!("{err}");
+                } else {
+                    println!("{err}");
+                }
+            }
+        }
+    }
+
     /// Run the main functions on a node or within this document.
     /// Main functions are denoted with a #[main] attribute in the text format.
-    pub fn run(&mut self, context: Option<&SNodeRef>) -> Vec<(SFunc, SVal)> {
-        let mut results = Vec::new();
+    pub fn run(&mut self, context: Option<&SNodeRef>) -> Result<(), String> {
         let functions;
         if context.is_some() {
             functions = SFunc::recursive_funcs(&self.graph, context.unwrap());
         } else {
             functions = SFunc::all_funcs(&self.graph);
         }
+        let mut errors = Vec::new();
         for func in functions {
             if let Some(attr_val) = func.attributes.get("main") {
                 let result;
@@ -367,12 +401,33 @@ impl SDoc {
                 } else {
                     result = func.call("main", self, vec![attr_val.clone()], true);
                 }
-                if let Ok(res) = result {
-                    results.push((func, res));
+                match result {
+                    Ok(_) => {
+                        // Nada... keep going!
+                    },
+                    Err(error) => {
+                        let func_nodes = func.data_ref().nodes(&self.graph);
+                        let func_path;
+                        if func_nodes.len() > 0 {
+                            func_path = func_nodes.first().unwrap().path(&self.graph);
+                        } else {
+                            func_path = String::from("<unknown>");
+                        }
+
+                        errors.push(format!("{} {} ... {}", func_path.italic().dimmed(), func.name.blue(), error.to_string().purple()));
+                    },
                 }
             }
         }
-        results
+        if errors.len() > 0 {
+            let mut error = String::default();
+            for err in errors {
+                error.push_str(&format!("{} @ {}\n", "error".bold().red(), err));
+            }
+            Err(error)
+        } else {
+            Ok(())
+        }
     }
     
     /// Find a function in this document with a path.
