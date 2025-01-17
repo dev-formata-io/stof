@@ -49,6 +49,17 @@ add_one: {
         assertEq(val, 0);
         assertEq(typeof val, 'int');
     }
+
+    #[test]
+    fn unboxed() {
+        let val = box(5);
+        self.add_one(val);
+        assertEq(val, 6);
+
+        let other = unbox(val);
+        self.add_one(other);
+        assertEq(other, 6);
+    }
 }
 
 field_types: {

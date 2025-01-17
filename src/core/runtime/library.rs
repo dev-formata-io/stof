@@ -411,7 +411,7 @@ impl Library for StdLibrary {
                 if parameters.len() > 0 {
                     return Ok(parameters.pop().unwrap().unbox());
                 }
-                Err(anyhow!("std.unbox(..): unknown requires one value to unbox"))
+                Err(anyhow!("std.unbox(val): unknown requires one value to unbox"))
             },
 
             /*****************************************************************************
@@ -507,6 +507,11 @@ impl Library for StdLibrary {
                                     } else {
                                         map.insert(k.clone(), v);
                                     }
+                                }
+                            },
+                            SVal::Tuple(tup) => {
+                                if tup.len() == 2 {
+                                    map.insert(tup[0].clone(), tup[1].clone());
                                 }
                             },
                             _ => {}

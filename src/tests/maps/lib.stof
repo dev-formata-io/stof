@@ -201,7 +201,7 @@ lib: {
 
     #[test]
     fn retain() {
-        let a = map([(3, 6), (1, 4), (2, 5), ('hi', 100)]);
+        let a = map((3, 6), (1, 4), (2, 5), ('hi', 100));
         a.retain((key: unknown, value: unknown): bool => (typeof key) == 'str');
         assertEq(a.len(), 1);
         assertEq(a.first(), a.last());

@@ -563,10 +563,10 @@ impl SVal {
 
     /// Unbox ref.
     pub fn unbox_ref(&mut self) {
-        let mut assign = None;
         match self {
             Self::Boxed(val) => {
-                assign = Some(val.lock().unwrap().clone());
+                let tmp = val.lock().unwrap().clone();
+                *self = tmp.unbox();
             },
             Self::Array(vals) => {
                 for val in vals {
@@ -578,16 +578,19 @@ impl SVal {
                     val.unbox_ref();
                 }
             },
+            Self::Set(set) => {
+                let mut new_set = BTreeSet::new();
+                for val in set.iter() {
+                    new_set.insert(val.clone().unbox());
+                }
+                *self = SVal::Set(new_set);
+            },
             Self::Map(map) => {
                 for (_k, v) in map {
                     v.unbox_ref(); // it's your own fault if you have boxed keys
                 }
             },
             _ => {}
-        }
-        if let Some(assign) = assign {
-            *self = assign;
-            self.unbox_ref();
         }
     }
 
