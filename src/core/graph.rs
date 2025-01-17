@@ -254,7 +254,6 @@ impl SGraph {
         }
         let res = node.node_ref();
         node.invalidate_all();
-        node.build_trie();
         self.nodes.set(&node.id.clone(), node);
 
         if let Some(parent) = parent {
@@ -310,8 +309,8 @@ impl SGraph {
         let mut nodes_to_remove: Vec<SNodeRef> = vec![];
         let mut parent: Option<SNodeRef> = None;
         if let Some(node) = node_ref.node(self) {
-            data_to_remove = node.data.clone();
-            nodes_to_remove = node.children.clone();
+            data_to_remove = node.data.iter().cloned().collect();
+            nodes_to_remove = node.children.iter().cloned().collect();
             parent = node.parent.clone();
         }
         for dref in &data_to_remove {
@@ -464,14 +463,6 @@ impl SGraph {
         res
     }
 
-    /// Build all node tries.
-    /// Should be called on import, etc...
-    pub fn build_node_tries(&mut self) {
-        for (_, node) in &mut self.nodes.store {
-            node.build_trie();
-        }
-    }
-
     /// Absorb the data and children of "node" into "onto".
     pub fn absorb_external_node(&mut self, graph: &Self, node: &SNode, onto: &SNodeRef) {
         for dref in &node.data {
@@ -537,7 +528,7 @@ impl SGraph {
         if let Some(node) = node_ref.node_mut(self) {
             let res = data.data_ref();
             // Add data to this node - no check needed as it is new data
-            if node.put_data(&res, true) {
+            if node.put_data(&res) {
                 data.new_reference(node_ref.clone());
             }
             // Insert the data into this graph (overridding if ID already exists)
@@ -554,7 +545,7 @@ impl SGraph {
         if !data_ref.exists(self) { return false; }
         let mut added = false;
         if let Some(node) = node_ref.node_mut(self) {
-            if node.put_data(&data_ref, true) {
+            if node.put_data(&data_ref) {
                 added = true;
             }
         }
@@ -760,9 +751,9 @@ impl SGraph {
                 if nref.exists(other) {
                     if let Some(node) = nref.node(other) {
                         for dref in &node.data {
-                            data.push(dref, false);
+                            data.insert(dref);
                         }
-                        children.append(&mut node.children.clone());
+                        children.append(&mut node.children.iter().cloned().collect());
                     }
                     other_fields.append(&mut SField::fields(&other, nref));
                 } else {

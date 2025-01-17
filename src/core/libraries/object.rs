@@ -694,11 +694,36 @@ impl ObjectLibrary {
                 if obj_ignore_set.len() > 0 {
                     params.push(parameters[2].clone());
                 }
+                let mut child_finds = Vec::new();
                 for child in children {
                     let val = self.operate(pid, doc, "searchDown", &child, &mut params)?;
                     if !val.is_empty() {
-                        return Ok(val);
+                        child_finds.push(val);
                     }
+                }
+                if child_finds.len() > 0 {
+                    child_finds.sort_by(|a, b| {
+                        match a {
+                            SVal::Tuple(a) => {
+                                match b {
+                                    SVal::Tuple(b) => {
+                                        let a_lt = a.last().unwrap().lt(b.last().unwrap()).unwrap();
+                                        if a_lt.truthy() {
+                                            return Ordering::Less;
+                                        }
+                                        let a_gt = a.last().unwrap().gt(b.last().unwrap()).unwrap();
+                                        if a_gt.truthy() {
+                                            return Ordering::Greater;
+                                        }
+                                    },
+                                    _ => {}
+                                }
+                            },
+                            _ => {}
+                        }
+                        Ordering::Equal
+                    });
+                    return Ok(child_finds.remove(0));
                 }
                 Ok(SVal::Null)
             },

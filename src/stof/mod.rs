@@ -37,12 +37,10 @@ impl BSTOF {
     pub fn parse(bytes: &Bytes) -> Result<SDoc> {
         let mut decoder = snap::raw::Decoder::new();
         let vec = decoder.decompress_vec(&bytes)?;
-        if let Ok(mut doc) = bincode::deserialize::<SDoc>(vec.as_ref()) {
-            doc.graph.build_node_tries();
+        if let Ok(doc) = bincode::deserialize::<SDoc>(vec.as_ref()) {
             Ok(doc)
         } else {
-            if let Ok(mut graph) = bincode::deserialize::<SGraph>(vec.as_ref()) {
-                graph.build_node_tries();
+            if let Ok(graph) = bincode::deserialize::<SGraph>(vec.as_ref()) {
                 Ok(SDoc::new(graph))
             } else {
                 Err(anyhow!(""))

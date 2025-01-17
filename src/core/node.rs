@@ -14,12 +14,11 @@
 // limitations under the License.
 //
 
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use trie_rs::{Trie, TrieBuilder};
 use crate::{SField, SFunc, FKIND, FUNC_KIND};
-use super::{SDataRef, SDataSelection, SGraph, SNodeRef, SRef};
+use super::{IntoDataRef, IntoNodeRef, SDataRef, SDataSelection, SGraph, SNodeRef};
 
 
 /// Stof node.
@@ -28,14 +27,11 @@ pub struct SNode {
     pub id: String,
     pub name: String,
     pub parent: Option<SNodeRef>,
-    pub children: Vec<SNodeRef>,
-    pub data: Vec<SDataRef>,
+    pub children: BTreeSet<SNodeRef>,
+    pub data: BTreeSet<SDataRef>,
     
     #[serde(skip)]
-    pub dirty: HashSet<String>,
-
-    #[serde(skip)]
-    pub trie: Option<Trie<u8>>,
+    pub dirty: BTreeSet<String>,
 }
 impl SNode {
     /// Create a new SNode with an ID.
@@ -88,112 +84,46 @@ impl SNode {
 
     /// Has immediate child?
     /// If looking for general child of, use SNodeRef is_child_of.
-    pub fn has_child(&self, child: &impl SRef) -> bool {
-        let id = child.get();
-        for nref in &self.children {
-            if nref.id == id { return true; }
-        }
-        false
+    pub fn has_child(&self, child: &impl IntoNodeRef) -> bool {
+        let nref = child.node_ref();
+        self.children.contains(&nref)
     }
 
     /// Put a child node onto this node.
     /// Marks this node as invalid all.
-    pub(crate) fn put_child(&mut self, child: &impl SRef) {
-        let mut exists = false;
-        let id = child.get();
-        for chd in &self.children {
-            if chd.id == id { exists = true; }
-        }
-        if !exists {
-            self.children.push(SNodeRef::from(child.get()));
+    pub(crate) fn put_child(&mut self, child: &impl IntoNodeRef) {
+        let new_child = self.children.insert(child.node_ref());
+        if new_child {
             self.invalidate_all();
         }
     }
 
     /// Remove a child node.
-    pub(crate) fn remove_child(&mut self, child: &impl SRef) -> bool {
-        let id = child.get();
-        let mut ct = 0;
-        self.children.retain(|nref| -> bool {
-            let keep = nref.id != id;
-            if !keep { ct += 1; }
-            keep
-        });
-        if ct > 0 { self.invalidate_all(); }
-        ct > 0
+    pub(crate) fn remove_child(&mut self, child: &impl IntoNodeRef) -> bool {
+        let removed = self.children.remove(&child.node_ref());
+        if removed { self.invalidate_all(); }
+        removed
     }
 
     /// Has data?
-    pub fn has_data(&self, data: &impl SRef) -> bool {
-        let id = data.get();
-        if let Some(trie) = &self.trie {
-            return trie.exact_match(&id);
-        }
-        for dref in &self.data {
-            if dref.id == id { return true; }
-        }
-        false
+    pub fn has_data(&self, data: &impl IntoDataRef) -> bool {
+        self.data.contains(&data.data_ref())
     }
 
     /// Put data onto this node.
-    pub(crate) fn put_data(&mut self, data: &impl SRef, check: bool) -> bool {
-        if check && self.has_data(data) { return false; }
-        self.data.push(SDataRef::from(data.get()));
-        self.invalidate_all();
-        self.build_trie();
-        true
+    pub(crate) fn put_data(&mut self, data: &impl IntoDataRef) -> bool {
+        let new_data = self.data.insert(data.data_ref());
+        if new_data {
+            self.invalidate_all();
+        }
+        new_data
     }
 
     /// Remove data.
-    pub(crate) fn remove_data(&mut self, data: &impl SRef) -> bool {
-        let id = data.get();
-        let mut ct = 0;
-        self.data.retain(|dref| -> bool {
-            let keep = dref.id != id;
-            if !keep { ct += 1; }
-            keep
-        });
-        if ct > 0 {
-            self.invalidate_all();
-            self.build_trie();
-        }
-        ct > 0
-    }
-
-
-    /*****************************************************************************
-     * Trie.
-     *****************************************************************************/
-
-    /// Build trie.
-    /// Creates a trie out of all the data ids on this node.
-    pub fn build_trie(&mut self) {
-        let mut builder = TrieBuilder::new();
-        for dref in &self.data {
-            builder.push(&dref.id);
-        }
-        self.trie = Some(builder.build());
-    }
-    
-    /// Exact match?
-    pub fn exact_match(&self, id: &str) -> bool {
-        if let Some(trie) = &self.trie {
-            return trie.exact_match(id);
-        }
-        false
-    }
-
-    /// Return all data ID with the prefix.
-    pub fn prefix_matches(&self, prefix: &str) -> Vec<SDataRef> {
-        if let Some(trie) = &self.trie {
-            let results: Vec<String> = trie.predictive_search(prefix).collect();
-            let mut data = Vec::new();
-            for res in results {
-                data.push(SDataRef::from(res));
-            }
-            return data;
-        }
-        vec![]
+    pub(crate) fn remove_data(&mut self, data: &impl IntoDataRef) -> bool {
+        let removed = self.data.remove(&data.data_ref());
+        if removed { self.invalidate_all(); }
+        removed
     }
 
 
@@ -211,16 +141,21 @@ impl SNode {
         let mut selection = self.selection();
         for child_ref in &self.children {
             if let Some(child) = child_ref.node(graph) {
-                selection.merge(&child.recursive_selection(graph), false);
+                selection.merge(&child.recursive_selection(graph));
             }
         }
-        selection.build_trie();
         selection
     }
 
     /// Prefix selection.
     pub fn prefix_selection(&self, prefix: &str) -> SDataSelection {
-        SDataSelection::from(self.prefix_matches(prefix))
+        let mut selection = SDataSelection::default();
+        for dref in &self.data {
+            if dref.id.starts_with(prefix) {
+                selection.insert(&dref.id);
+            }
+        }
+        selection
     }
 
     /// Recursive prefix selection.
@@ -228,10 +163,9 @@ impl SNode {
         let mut selection = self.prefix_selection(prefix);
         for child_ref in &self.children {
             if let Some(child) = child_ref.node(graph) {
-                selection.merge(&child.recursive_prefix_selection(graph, prefix), false);
+                selection.merge(&child.recursive_prefix_selection(graph, prefix));
             }
         }
-        selection.build_trie();
         selection
     }
 

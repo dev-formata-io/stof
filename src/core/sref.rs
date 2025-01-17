@@ -45,7 +45,7 @@ pub trait IntoDataRef {
 
 
 /// SNode Ref.
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SNodeRef {
     pub id: String,
 }
@@ -523,7 +523,7 @@ impl SNodeRef {
 
 
 /// SData Ref.
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SDataRef {
     pub id: String,
 }
