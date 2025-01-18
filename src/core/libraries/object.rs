@@ -217,7 +217,7 @@ impl ObjectLibrary {
                 Err(anyhow!("Object.set(obj, name, value) requires a name and a value to set with"))
             },
             // Take a map and do rename/moves with all entries.
-            // Signature: Object.mapFields(obj, map: map): void
+            // Signature: Object.mapFields(obj, map: map): map
             "mapFields" => {
                 if parameters.len() < 1 {
                     return Err(anyhow!("Object.mapFields(obj, map) requires a map parameter with source and destinations"));
@@ -381,6 +381,26 @@ impl ObjectLibrary {
                     return Ok(SVal::Object(prototype.node_ref()));
                 }
                 Ok(SVal::Null)
+            },
+            // Set this objects prototype explicitly.
+            "setPrototype" => {
+                if parameters.len() < 1 {
+                    return Err(anyhow!("Object.setPrototype(obj, other: obj) requires an object parameter as this objects prototype."));
+                }
+                match &parameters[0] {
+                    SVal::Object(nref) => {
+                        if let Some(mut prototype) = SPrototype::get(&doc.graph, obj) {
+                            prototype.prototype = nref.id.clone();
+                            prototype.set(&mut doc.graph);
+                        } else {
+                            let mut prototype = SPrototype::new(nref);
+                            prototype.attach(obj, &mut doc.graph);
+                        }
+                        return Ok(SVal::Void);
+                    },
+                    _ => {}
+                }
+                Err(anyhow!("Object.setPrototype(obj, other: obj) requires an object parameter as this objects prototype."))
             },
             // Get the attributes for the prototype of this object (if any)
             "prototypeAttributes" => {

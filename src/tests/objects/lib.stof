@@ -131,6 +131,32 @@ fn get_children() {
     assert(self.children().len() > 0);
 }
 
+set_prototype: {
+    type CustomType {
+        fn hey(): str { return 'hey'; }
+    }
+    CustomType typed: {}
+
+    untyped: {
+        fn dude(): str { return 'dude'; }
+    }
+    other: {}
+
+    #[test]
+    fn get_set() {
+        self.untyped.setPrototype(self.typed.prototype());
+        assertEq(typename self.untyped, "CustomType");
+        assertEq(self.untyped.hey(), 'hey');
+
+        self.other.setPrototype(self.untyped);
+        assertEq(self.other.dude(), 'dude');
+        assertEq(typename self.other, 'obj'); // doesn't have a type name...
+
+        self.untyped.typename = 'Hacked';
+        assertEq(typename self.other, 'Hacked');
+    }
+}
+
 rename_move: {
     field: 'test'
     blah: 'blah'
