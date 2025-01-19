@@ -14,9 +14,9 @@
 // limitations under the License.
 //
 
-use std::ops::DerefMut;
+use std::ops::{Deref, DerefMut};
 use anyhow::{anyhow, Result};
-use crate::{Library, SDoc, SVal};
+use crate::{Library, SDoc, SNum, SVal};
 
 
 /// Blob library.
@@ -24,8 +24,40 @@ use crate::{Library, SDoc, SVal};
 pub struct BlobLibrary;
 impl BlobLibrary {
     /// Call blob operation.
-    pub fn operate(&self, _pid: &str, _doc: &mut SDoc, name: &str, _blob: &mut Vec<u8>, _parameters: &mut Vec<SVal>) -> Result<SVal> {
+    pub fn operate(&self, _pid: &str, _doc: &mut SDoc, name: &str, blob: &mut Vec<u8>, parameters: &mut Vec<SVal>) -> Result<SVal> {
         match name {
+            "len" |
+            "size" => {
+                Ok(SVal::Number(SNum::I64(blob.len() as i64)))
+            },
+            "at" => {
+                if parameters.len() < 1 {
+                    return Err(anyhow!("Blob.at(blob, index) requires an index parameter"));
+                }
+                match &parameters[0] {
+                    SVal::Number(num) => {
+                        let index = num.int() as usize;
+                        if index < blob.len() {
+                            return Ok(SVal::Number(SNum::I64(blob[index] as i64)));
+                        }
+                    },
+                    SVal::Boxed(val) => {
+                        let val = val.lock().unwrap();
+                        let val = val.deref();
+                        match val {
+                            SVal::Number(num) => {
+                                let index = num.int() as usize;
+                                if index < blob.len() {
+                                    return Ok(SVal::Number(SNum::I64(blob[index] as i64)));
+                                }
+                            },
+                            _ => {}
+                        }
+                    },
+                    _ => {}
+                }
+                Err(anyhow!("Blob.at(blob, index) requires an index parameter"))
+            },
             _ => {
                 Err(anyhow!("Did not find the requested Blob library function '{}'", name))
             }

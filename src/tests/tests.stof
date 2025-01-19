@@ -60,6 +60,12 @@ import './sets/lib' as Sets.StdLib;
 
 
 /**
+ * Blob Tests.
+ */
+import './blobs/lib' as Blobs.StdLib;
+
+
+/**
  * Object Tests.
  */
 import './objects/paths' as Objects.Paths;
