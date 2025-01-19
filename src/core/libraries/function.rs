@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::ops::Deref;
+use std::{collections::BTreeMap, ops::Deref};
 use anyhow::{anyhow, Result};
 use crate::{Library, SDataRef, SDoc, SFunc, SVal};
 
@@ -56,11 +56,11 @@ impl FunctionLibrary {
             // Attributes on this function.
             "attributes" => {
                 let func: SFunc = dref.data(&doc.graph).unwrap().get_value().unwrap();
-                let mut attrs = Vec::new();
+                let mut attrs = BTreeMap::new();
                 for (key, value) in &func.attributes {
-                    attrs.push(SVal::Tuple(vec![SVal::String(key.clone()), value.clone()]));
+                    attrs.insert(SVal::String(key.clone()), value.clone());
                 }
-                Ok(SVal::Array(attrs))
+                Ok(SVal::Map(attrs))
             },
             // One object that this function exists on.
             "object" => {

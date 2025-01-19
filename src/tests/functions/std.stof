@@ -64,11 +64,19 @@ attributes: {
 
     }
 
-    #[test([('dude', null), ('hello', null), ('ordering', 2)])]
+    #[test(['dude', 'hello', 'ordering'])]
     fn get_attrs(): vec {
         let attrs = Function.attributes(self.attrs);
-        attrs.sort();
-        return attrs;
+        assertEq(attrs.values(), [null, null, 2]);
+        return attrs.keys();
+    }
+
+    #[custom(2)]
+    #[test]
+    #[main22]
+    fn main() {
+        let attrs = self.main.attributes();
+        assertEq(attrs.keys(), ["custom", "main22", "test"]);
     }
 
     #[test]
