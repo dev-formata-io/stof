@@ -102,6 +102,7 @@ import './language/shorts' as Language.ShortCircuits;
 import './language/boxed' as Language.Boxed;
 import './language/null' as Language.Null;
 import './language/drop' as Language.Drop;
+import './language/ranges' as Language.Ranges;
 
 
 /**

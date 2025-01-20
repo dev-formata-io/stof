@@ -1440,7 +1440,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                                 Rule::decimal => {
                                     let val_str = pair.as_str().replace('+', "");
                                     let val = val_str.parse::<f64>().unwrap();
-                                    let val = val as usize;
+                                    let val = val as i32;
                                     if seen_first && seen_second {
                                         step = val;
                                     } else if seen_first {
@@ -1454,7 +1454,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                                 Rule::integer => {
                                     let val_str = pair.as_str().replace('+', "");
                                     let val = val_str.parse::<i64>().unwrap();
-                                    let val = val as usize;
+                                    let val = val as i32;
                                     if seen_first && seen_second {
                                         step = val;
                                     } else if seen_first {
@@ -1477,9 +1477,31 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                     _ => {}
                 }
             }
+            
             let mut vec: Vec<Expr> = Vec::new();
-            for x in (first..second).step_by(step) {
-                vec.push(Expr::Literal(SVal::Number((x as i64).into())));
+            let range;
+            let mut reverse = false;
+            if first < second {
+                range = first..second;
+            } else {
+                reverse = true;
+                second += 1;
+                first += 1;
+                range = second..first;
+            }
+            if step < 0 {
+                reverse = !reverse;
+                step *= -1;
+            }
+
+            if reverse {
+                for x in range.rev().step_by(step as usize) {
+                    vec.push(Expr::Literal(SVal::Number((x as i64).into())));
+                }
+            } else {
+                for x in range.step_by(step as usize) {
+                    vec.push(Expr::Literal(SVal::Number((x as i64).into())));
+                }
             }
             res = Expr::Array(vec);
         },
