@@ -1669,6 +1669,13 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                 match pair.as_rule() {
                     Rule::fmt_expr_i => {
                         let format = pair.as_str();
+                            /*.replace("\\n", "\n")
+                            .replace("\\t", "\t")
+                            .replace("\\r", "\r")
+                            .replace("\\\"", "\"")
+                            .replace("\\'", "\'")
+                            .replace("\\`", "`")
+                            .replace("\\\\", "\\");*/ // TODO - regex or different string replace strategy
                         let mut statements = Vec::new();
                         statements.push(Statement::Declare("tmp".into(), Expr::Literal(SVal::String(format.to_owned()))));
                         statements.push(Statement::Declare("res".into(), Expr::Literal(SVal::String(format.to_owned()))));
@@ -1729,15 +1736,20 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         res = Expr::Literal(SVal::Null);
                     },
                     Rule::string => {
-                        let val = pair.as_str()
-                            .trim_start_matches("\"")
-                            .trim_end_matches("\"")
-                            .trim_start_matches("'")
-                            .trim_end_matches("'")
+                        let mut val = pair.as_str();
+                        if val.starts_with("\"") {
+                            val = val.strip_prefix("\"").unwrap().strip_suffix("\"").unwrap();
+                        } else if val.starts_with("'") {
+                            val = val.strip_prefix("'").unwrap().strip_suffix("'").unwrap();
+                        }
+                        let replaced = val
                             .replace("\\n", "\n")
                             .replace("\\t", "\t")
+                            .replace("\\r", "\r")
+                            .replace("\\\"", "\"")
+                            .replace("\\'", "\'")
                             .replace("\\\\", "\\");
-                        res = Expr::Literal(SVal::String(val));
+                        res = Expr::Literal(SVal::String(replaced));
                     },
                     Rule::number => {
                         let mut number = SNum::I64(0);

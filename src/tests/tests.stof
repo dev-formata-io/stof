@@ -29,6 +29,7 @@ import './numbers/iteration' as Numbers.Iteration;
  */
 import './strings/std' as Strings.StdLib;
 import './strings/iteration' as Strings.Iteration;
+import './strings/escaped' as Strings.Escaped;
 
 
 /**

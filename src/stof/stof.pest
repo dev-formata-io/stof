@@ -31,8 +31,8 @@ number  = ${ (decimal | integer) ~ units? }
 // Identifiers and strings
 ident         = @{ (ASCII_ALPHA | "_" | "@" | "-") ~ (ASCII_ALPHANUMERIC | "_" | "@" | "-")* ~ (("." | "::" | ":" | "-") ~ (ASCII_ALPHA | "_" | "@" | "-") ~ (ASCII_ALPHANUMERIC | "_" | "@" | "-")*)* }
 string        = @{ double_quotes | single_quotes }
-double_quotes = @{ "\"" ~ ("\"\"" | (!"\"" ~ ANY))* ~ "\"" }
-single_quotes = @{ "'" ~ ("''" | (!"'" ~ ANY))* ~ "'" }
+double_quotes = @{ "\"" ~ ("\\" ~ ("\"" | "\\") | (!"\"" ~ ANY))* ~ "\"" }
+single_quotes = @{ "'" ~ ("\\" ~ ("'" | "\\") | (!"'" ~ ANY))* ~ "'" }
 
 // File path identifiers
 path       = ${ ("\"" ~ inner_path ~ "\"") | ("'" ~ inner_path ~ "'") }
@@ -142,7 +142,7 @@ arrow_function = { "(" ~ func_params? ~ ")" ~ (":" ~ atype)? ~ "=>" ~ (block | e
 
 // String format expression
 fmt_expr   =  { "`" ~ fmt_expr_i ~ "`" }
-fmt_expr_i =  { (fmt_inner | "``" | (!"`" ~ ANY))* }
+fmt_expr_i =  { (fmt_inner | "\\" ~ ("`" | "\\") | (!"`" ~ ANY))* }
 fmt_inner  =  { "${" ~ expr ~ "}" }
 
 // Type constructor
