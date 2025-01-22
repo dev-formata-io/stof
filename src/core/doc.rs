@@ -703,6 +703,20 @@ impl SDoc {
         }
     }
 
+    /// Push a function reference to the call stack.
+    pub(crate) fn push_call_stack(&mut self, pid: &str, dref: impl IntoDataRef) {
+        if let Some(process) = self.processes.get_mut(pid) {
+            process.push_call_stack(dref);
+        }
+    }
+
+    /// Pop a function reference from the call stack.
+    pub(crate) fn pop_call_stack(&mut self, pid: &str) {
+        if let Some(process) = self.processes.get_mut(pid) {
+            process.pop_call_stack();
+        }
+    }
+
     /// Add a variable to the current scope.
     pub(crate) fn add_variable<T>(&mut self, pid: &str, name: &str, value: T) where T: Into<SVal> {
         if let Some(process) = self.processes.get_mut(pid) {

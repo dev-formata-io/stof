@@ -1,0 +1,52 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+type CustomType {
+    fn typed_function() {
+        self.another_typed();
+    }
+
+    fn another_typed() {
+        trace('custom type another typed function');
+    }
+}
+type SubType extends CustomType {
+    fn typed_function() {
+        self.CustomType::typed_function();
+    }
+    fn another_typed() {
+        self.CustomType::another_typed();
+    }
+}
+
+#[test]
+fn trace_test() {
+    self.object.deeper();
+}
+
+SubType object: {
+    fn deeper() {
+        self.other();
+    }
+
+    fn other() {
+        self.typed_function();
+    }
+
+    fn another_typed() {
+        self.SubType::another_typed();
+    }
+}

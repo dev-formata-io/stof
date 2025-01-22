@@ -17,7 +17,7 @@
 use std::collections::BTreeMap;
 use nanoid::nanoid;
 use crate::SVal;
-use super::{SNodeRef, Symbol, SymbolTable};
+use super::{IntoDataRef, SDataRef, SNodeRef, Symbol, SymbolTable};
 
 
 /// Stof processes.
@@ -81,6 +81,7 @@ pub struct SProcess {
     pub self_stack: Vec<SNodeRef>,
     pub stack: Vec<SVal>,
     pub table: SymbolTable,
+    pub call_stack: Vec<SDataRef>,
     pub bubble_control_flow: u8,
 }
 impl SProcess {
@@ -91,6 +92,7 @@ impl SProcess {
             self_stack: Default::default(),
             stack: Default::default(),
             table: Default::default(),
+            call_stack: Default::default(),
             bubble_control_flow: 0,
         }
     }
@@ -115,6 +117,17 @@ impl SProcess {
     /// Set table.
     pub fn set_table(&mut self, table: SymbolTable) {
         self.table = table;
+    }
+
+    /// Push to call stack.
+    /// These are function references that get pushed to the stack.
+    pub fn push_call_stack(&mut self, dref: impl IntoDataRef) {
+        self.call_stack.push(dref.data_ref());
+    }
+
+    /// Pop call stack.
+    pub fn pop_call_stack(&mut self) {
+        self.call_stack.pop();
     }
 
     /// Add a variable to the current scope.

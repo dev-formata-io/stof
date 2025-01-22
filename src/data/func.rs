@@ -256,9 +256,11 @@ impl SFunc {
         }
 
         // Execute all of the statements with this doc in a scope (block)
+        doc.push_call_stack(pid, self.data_ref());
         doc.new_scope(pid);
-        let statements_res = self.statements.exec(pid, doc)?;
+        let statements_res = self.statements.exec(pid, doc);
         doc.end_scope(pid);
+        doc.pop_call_stack(pid);
 
         // Pop the self stack!
         if add_self {
@@ -268,10 +270,17 @@ impl SFunc {
         // Validate the return/result of this function
         let mut res = None;
         match statements_res {
-            StatementsRes::Return(on_stack) => {
-                if on_stack { res = doc.pop(pid); }
+            Ok(statements_res) => {
+                match statements_res {
+                    StatementsRes::Return(on_stack) => {
+                        if on_stack { res = doc.pop(pid); }
+                    },
+                    _ => {}
+                }
             },
-            _ => {}
+            Err(error) => {
+                return Err(error);
+            }
         }
         if self.rtype.is_void() && res.is_none() {
             return Ok(SVal::Void);

@@ -17,7 +17,8 @@
 use std::{collections::{BTreeMap, BTreeSet, HashSet}, sync::Arc};
 use anyhow::{anyhow, Result};
 use bytes::Bytes;
-use crate::{SDoc, SField, SType, SVal};
+use colored::Colorize;
+use crate::{SData, SDoc, SField, SFunc, SType, SVal};
 
 
 /// Stof Libraries.
@@ -384,6 +385,60 @@ impl Library for StdLibrary {
                 doc.graph.dump(true);
                 Ok(SVal::Void)
             },*/
+
+            /*****************************************************************************
+             * Tracing & Debugging.
+             *****************************************************************************/
+            // Return the current callstack functions.
+            "callstack" => {
+                let mut callstack = Vec::new();
+                if let Some(process) = doc.processes.get(pid) {
+                    for dref in &process.call_stack {
+                        callstack.push(SVal::FnPtr(dref.clone()));
+                    }
+                }
+                Ok(SVal::Array(callstack))
+            },
+            // Return a helpful string with the callstack printed out.
+            "trace" => {
+                let mut res = String::default();
+                if let Some(process) = doc.processes.get(pid) {
+                    for dref in &process.call_stack {
+                        if let Ok(func) = SData::data::<SFunc>(&doc.graph, dref) {
+                            let func_nodes = dref.nodes(&doc.graph);
+                            let func_path;
+                            if func_nodes.len() > 0 {
+                                func_path = func_nodes.first().unwrap().path(&doc.graph);
+                            } else {
+                                func_path = String::from("<unknown>");
+                            }
+
+                            res.push_str(&format!("{} {} {} {} ...\n", "trace".on_cyan(), func.name.blue(), "@".dimmed(), func_path.italic().bright_cyan()));
+                        }
+                    }
+                }
+
+                for i in 0..parameters.len() {
+                    let param = &parameters[i];
+                    let print = param.print(doc);
+                    
+                    match param.stype(&doc.graph) {
+                        SType::String => {
+                            // Don't do any gaps for strings!
+                            res.push_str(&format!("{}", print));
+                        },
+                        _ => {
+                            if i > 0 {
+                                res.push_str(&format!(", {}", print));
+                            } else {
+                                res.push_str(&format!("{}", print));
+                            }
+                        }
+                    }
+                }
+                println!("{}", res); // Print to console
+                Ok(SVal::Void)
+            },
 
             /*****************************************************************************
              * Or helpers.
