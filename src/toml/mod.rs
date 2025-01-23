@@ -21,50 +21,49 @@ pub mod export;
 use export::toml_value_from_node;
 use toml::{Table, Value};
 
-use crate::{Format, IntoNodeRef, SDoc, SGraph};
-use anyhow::{anyhow, Result};
+use crate::{lang::SError, Format, IntoNodeRef, SDoc, SGraph};
 
 
 /// Stof TOML interface.
 pub struct TOML;
 impl TOML {
     /// Parse a TOML string into a new document.
-    pub fn parse_new(toml: &str) -> Result<SDoc> {
+    pub fn parse_new(toml: &str) -> Result<SDoc, SError> {
         Ok(SDoc::new(Self::parse(toml)?))
     }
 
     /// Parse a TOML string into a Stof graph.
-    pub fn parse(toml: &str) -> Result<SGraph> {
+    pub fn parse(toml: &str) -> Result<SGraph, SError> {
         if let Ok(value) = toml.parse::<Table>() {
             let mut graph = SGraph::default();
             let root = graph.insert_root("root");
             parse_object_value(&mut graph, &root, Table::from(value));
             Ok(graph)
         } else {
-            Err(anyhow!("Stof TOML Error: Unable to parse TOML string into table"))
+            Err(SError::empty_fmt("toml", "unable to parse TOML string into a table"))
         }
     }
 
     /// Export a graph as a TOML string.
     /// Exports the main root of the graph only.
-    pub fn stringify(graph: &SGraph) -> Result<String> {
-        if let Some(main) = graph.main_root() {
-            let value = toml_value_from_node(graph, &main);
+    pub fn stringify(pid: &str, doc: &SDoc) -> Result<String, SError> {
+        if let Some(main) = doc.graph.main_root() {
+            let value = toml_value_from_node(&doc.graph, &main);
             if let Ok(toml) = toml::to_string(&Value::Table(value)) {
                 return Ok(toml);
             }
-            return Err(anyhow!("Stof TOML Error: Could not parse toml::Value into toml string"));
+            return Err(SError::fmt(pid, doc, "toml", "could not parse toml::Value into a toml string"));
         }
-        Err(anyhow!("Stof TOML Error: Did not find a main root to stringify"))
+        Err(SError::fmt(pid, doc, "toml", "did not find a main root to stringify"))
     }
 
     /// Export a node as a TOML string.
-    pub fn stringify_node(graph: &SGraph, node: impl IntoNodeRef) -> Result<String> {
-        let value = toml_value_from_node(graph, &node.node_ref());
+    pub fn stringify_node(pid: &str, doc: &SDoc, node: impl IntoNodeRef) -> Result<String, SError> {
+        let value = toml_value_from_node(&doc.graph, &node.node_ref());
         if let Ok(toml) = toml::to_string(&Value::Table(value)) {
             return Ok(toml);
         }
-        Err(anyhow!("Stof TOML Error: Could not parse toml::Value into toml string"))
+        Err(SError::fmt(pid, doc, "toml", "could not parse toml::Value into a toml string"))
     }
 }
 
@@ -80,13 +79,20 @@ impl Format for TOML {
     }
 
     /// Header import.
-    fn header_import(&self, pid: &str, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<()> {
-        let str = std::str::from_utf8(bytes.as_ref())?;
-        self.string_import(pid, doc, str, as_name)
+    fn header_import(&self, pid: &str, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<(), SError> {
+        let res = std::str::from_utf8(bytes.as_ref());
+        match res {
+            Ok(str) => {
+                self.string_import(pid, doc, str, as_name)
+            },
+            Err(error) => {
+                Err(SError::fmt(pid, &doc, "toml", &error.to_string()))
+            }
+        }
     }
 
     /// String import.
-    fn string_import(&self, pid: &str, doc: &mut crate::SDoc, src: &str, as_name: &str) -> Result<()> {
+    fn string_import(&self, pid: &str, doc: &mut crate::SDoc, src: &str, as_name: &str) -> Result<(), SError> {
         let mut graph = TOML::parse(src)?;
         if as_name.len() > 0 && as_name != "root" {
             let mut path = as_name.replace(".", "/");
@@ -110,17 +116,17 @@ impl Format for TOML {
     }
 
     /// File import.
-    fn file_import(&self, pid: &str, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
+    fn file_import(&self, pid: &str, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<(), SError> {
         let src = doc.fs_read_string(pid, full_path)?;
         self.string_import(pid, doc, &src, as_name)
     }
 
     /// Export string.
-    fn export_string(&self, _pid: &str, doc: &crate::SDoc, node: Option<&crate::SNodeRef>) -> Result<String> {
+    fn export_string(&self, pid: &str, doc: &crate::SDoc, node: Option<&crate::SNodeRef>) -> Result<String, SError> {
         if node.is_some() {
-            TOML::stringify_node(&doc.graph, node)
+            TOML::stringify_node(pid, &doc, node)
         } else {
-            TOML::stringify(&doc.graph)
+            TOML::stringify(pid, &doc)
         }
     }
 }

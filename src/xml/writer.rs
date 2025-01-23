@@ -14,21 +14,36 @@
 // limitations under the License.
 //
 
-use anyhow::Result;
-use crate::{json::JSON, SGraph, SNodeRef};
+use crate::{json::JSON, lang::SError, SDoc, SNodeRef};
 
 
 /// Write XML string from an AseGraph.
 /// Warning - looses original XML formatting if coming from XML.
-pub fn write_xml(graph: &SGraph) -> Result<String> {
-    let value = JSON::to_value(graph)?;
-    Ok(serde_xml_rs::to_string(&value)?)
+pub fn write_xml(pid: &str, doc: &SDoc) -> Result<String, SError> {
+    let value = JSON::to_value(pid, doc)?;
+    let res = serde_xml_rs::to_string(&value);
+    match res {
+        Ok(value) => {
+            Ok(value)
+        },
+        Err(error) => {
+            Err(SError::fmt(pid, doc, "xml", &format!("node write error: {}", error.to_string())))
+        }
+    }
 }
 
 
 /// Write XML string from an AseGraph and node.
 /// Warning - looses original XML formatting if coming from XML.
-pub fn node_write_xml(graph: &SGraph, node: &SNodeRef) -> Result<String> {
-    let value = JSON::to_node_value(graph, node);
-    Ok(serde_xml_rs::to_string(&value)?)
+pub fn node_write_xml(pid: &str, doc: &SDoc, node: &SNodeRef) -> Result<String, SError> {
+    let value = JSON::to_node_value(&doc.graph, node);
+    let res = serde_xml_rs::to_string(&value);
+    match res {
+        Ok(value) => {
+            Ok(value)
+        },
+        Err(error) => {
+            Err(SError::fmt(pid, doc, "xml", &format!("node write error: {}", error.to_string())))
+        }
+    }
 }

@@ -15,8 +15,7 @@
 //
 
 use std::{cmp::Ordering, ops::DerefMut};
-use anyhow::{anyhow, Result};
-use crate::{Library, SData, SDoc, SFunc, SNum, SVal};
+use crate::{lang::SError, Library, SData, SDoc, SFunc, SNum, SVal};
 
 
 /// Array library.
@@ -24,12 +23,12 @@ use crate::{Library, SData, SDoc, SFunc, SNum, SVal};
 pub struct ArrayLibrary;
 impl ArrayLibrary {
     /// Call array operation with an array values.
-    pub fn operate(&self, pid: &str, doc: &mut SDoc, name: &str, array: &mut Vec<SVal>, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    pub fn operate(&self, pid: &str, doc: &mut SDoc, name: &str, array: &mut Vec<SVal>, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         match name {
             // Append another array into this array, leaving the other empty.
             "append" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Array.append(vec, other: vec) requires another array parameter to append"));
+                    return Err(SError::array(pid, &doc, "append", "requires an array/vector argument to append"));
                 }
                 match &mut parameters[0] {
                     SVal::Array(other) => {
@@ -45,12 +44,12 @@ impl ArrayLibrary {
                                 Ok(SVal::Void)
                             },
                             _ => {
-                                Err(anyhow!("Array.append(vec, other: vec) requires an array parameter to append"))
+                                Err(SError::array(pid, &doc, "append", "requires an array/vector argument to append"))
                             }
                         }
                     },
                     _ => {
-                        Err(anyhow!("Array.append(vec, other: vec) requires an array parameter to append"))
+                        Err(SError::array(pid, &doc, "append", "requires an array/vector argument to append"))
                     }
                 }
             },
@@ -68,7 +67,7 @@ impl ArrayLibrary {
                             // Pop an element at a specific index
                             let index = num.int() as usize;
                             if index >= array.len() {
-                                return Err(anyhow!("attempting to pop from an Array with an index that is out of range"));
+                                return Err(SError::array(pid, &doc, "pop", "index out of bounds"));
                             }
                             return Ok(array.remove(index));
                         },
@@ -121,7 +120,7 @@ impl ArrayLibrary {
             // Get the value in the array at a specific index.
             "at" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Array.at(vec, index) requires at least 2 parameters"));
+                    return Err(SError::array(pid, &doc, "at", "requires an index argument"));
                 }
                 let mut results = Vec::new();
                 for index in parameters.drain(..) {
@@ -131,11 +130,11 @@ impl ArrayLibrary {
                             if let Some(val) = array.get(index) {
                                 results.push(val.clone());
                             } else {
-                                return Err(anyhow!("Array.at(vec, index) index out of bounds"));
+                                return Err(SError::array(pid, &doc, "at", "index out of bounds"));
                             }
                         },
                         _ => {
-                            return Err(anyhow!("Array.at(vec, index) cannot have indices that are not numbers"));
+                            return Err(SError::array(pid, &doc, "at", "non-numerical index is not supported"));
                         }
                     }
                 }
@@ -162,7 +161,7 @@ impl ArrayLibrary {
             // Join the elements of this array together with a separator.
             "join" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Array.join(vec, sep) requires a string separator"));
+                    return Err(SError::array(pid, &doc, "join", "requires a value to use in joining items (all converted to strings)"));
                 }
                 let separator = parameters[0].to_string();
                 let mut str_vals = Vec::new();
@@ -175,7 +174,7 @@ impl ArrayLibrary {
             "has" |
             "contains" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Array.has(vec, val) requires a value to search this array for"));
+                    return Err(SError::array(pid, &doc, "contains", "requires a value argument to search for"));
                 }
                 let search = parameters.pop().unwrap();
                 let mut found = false;
@@ -191,7 +190,7 @@ impl ArrayLibrary {
             // Takes one value parameter and returns -1 if not found or the index if found.
             "find" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Array.find(vec, val) requires a value to search for"));
+                    return Err(SError::array(pid, &doc, "find", "requires a value argument to search for"));
                 }
                 let search = parameters.pop().unwrap();
                 let mut index = SVal::Number(SNum::I64(-1));
@@ -207,7 +206,7 @@ impl ArrayLibrary {
             // If trying to remove by index, see "pop".
             "remove" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Array.remove(vec, val) requires a value to search for"))
+                    return Err(SError::array(pid, &doc, "remove", "requires a value argument to search for"));
                 }
                 let search = parameters.pop().unwrap();
                 let mut index = -1;
@@ -227,7 +226,7 @@ impl ArrayLibrary {
             // If trying to remove by index, see "pop".
             "removeLast" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Array.removeLast(vec, val) requires a value to search for"))
+                    return Err(SError::array(pid, &doc, "removeLast", "requires a value argument to search for"));
                 }
                 let search = parameters.pop().unwrap();
                 let mut index = -1;
@@ -246,7 +245,7 @@ impl ArrayLibrary {
             // Remove all matching values from this array (by value).
             "removeAll" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Array.removeAll(vec, val, ..) requires at least one value to search for"));
+                    return Err(SError::array(pid, &doc, "removeAll", "search value argument not found"));
                 }
                 let mut results = Vec::new();
                 for value in parameters.drain(..) {
@@ -269,14 +268,14 @@ impl ArrayLibrary {
             // Insert values into the array at a specific index.
             "insert" => {
                 if parameters.len() < 2 {
-                    return Err(anyhow!("Array.insert(vec, index, value, ..) requires an index and at least one value to insert"));
+                    return Err(SError::array(pid, &doc, "insert", "requires an index and at least one value to insert"));
                 }
                 let index = parameters.remove(0);
                 match index {
                     SVal::Number(num) => {
                         let mut index = num.int() as usize;
                         if index >= array.len() {
-                            return Err(anyhow!("Array.insert(vec, index, value, ..) out of bounds error"));
+                            return Err(SError::array(pid, &doc, "insert", "out of bounds"));
                         }
                         for val in parameters.drain(..) {
                             array.insert(index, val);
@@ -285,7 +284,7 @@ impl ArrayLibrary {
                         Ok(SVal::Void)
                     },
                     _ => {
-                        Err(anyhow!("Array.insert(vec, index, value, ..) must have a number as an index"))
+                        Err(SError::array(pid, &doc, "insert", "non-numerical index is not supported"))
                     }
                 }
             },
@@ -293,14 +292,14 @@ impl ArrayLibrary {
             "set" |
             "replace" => {
                 if parameters.len() < 2 {
-                    return Err(anyhow!("Array.set(vec, index, value, ..) requires an index and at least one value to insert"));
+                    return Err(SError::array(pid, &doc, "set", "requires an index and at least one value to insert"));
                 }
                 let index = parameters.remove(0);
                 match index {
                     SVal::Number(num) => {
                         let mut index = num.int() as usize;
                         if index >= array.len() {
-                            return Err(anyhow!("Array.set(vec, index, value, ..) out of bounds error"));
+                            return Err(SError::array(pid, &doc, "set", "out of bounds"));
                         }
                         array.remove(index);
                         for val in parameters.drain(..) {
@@ -310,14 +309,14 @@ impl ArrayLibrary {
                         Ok(SVal::Void)
                     },
                     _ => {
-                        Err(anyhow!("Array.set(vec, index, value, ..) must have a number as an index"))
+                        Err(SError::array(pid, &doc, "set", "non-numerical index not supported"))
                     }
                 }
             },
             // Iterate over this array, calling a function for each value.
             "iter" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Array.iter(vec, fn) requires a function to iterate with"));
+                    return Err(SError::array(pid, &doc, "iter", "function argument not found"));
                 }
                 match &parameters[0] {
                     SVal::FnPtr(dref) => {
@@ -331,13 +330,13 @@ impl ArrayLibrary {
                         }
                         Ok(SVal::Void)
                     },
-                    _ => return Err(anyhow!("Array.iter(array, fn) requires a function parameter"))
+                    _ => return Err(SError::array(pid, &doc, "iter", "function argument not found"))
                 }
             },
             // Retain values in this array, according to a function call.
             "retain" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Array.retain(vec, fn) requires a function to iterate with"));
+                    return Err(SError::array(pid, &doc, "retain", "requires a predicate function argument"));
                 }
                 match &parameters[0] {
                     SVal::FnPtr(dref) => {
@@ -349,7 +348,7 @@ impl ArrayLibrary {
                         }
                         Ok(SVal::Void)
                     },
-                    _ => return Err(anyhow!("Array.retain(array, fn) requires a function parameter"))
+                    _ => return Err(SError::array(pid, &doc, "retain", "predicate function not found"))
                 }
             },
             // Sort this array in-place.
@@ -399,12 +398,12 @@ impl ArrayLibrary {
                             }
                             Ok(SVal::Void)
                         },
-                        _ => return Err(anyhow!("Array.sort(array, fn) requires a function parameter"))
+                        _ => return Err(SError::array(pid, &doc, "sort", "function not found"))
                     }
                 }
             },
             _ => {
-                Err(anyhow!("Did not find the requested Array library function '{}'", name))
+                return Err(SError::array(pid, &doc, "NotFound", &format!("{} is not a function in the Array Library", name)));
             }
         }
     }
@@ -416,7 +415,7 @@ impl Library for ArrayLibrary {
     }
     
     /// Call into the Array library.
-    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         if parameters.len() > 0 {
             match name {
                 "toString" => {
@@ -451,16 +450,16 @@ impl Library for ArrayLibrary {
                             return self.operate(pid, doc, name, vals, &mut params);
                         },
                         _ => {
-                            return Err(anyhow!("Array library requires the first parameter to be a vec (Array)"));
+                            return Err(SError::array(pid, &doc, "InvalidArgument", "array (vec) argument not found"));
                         }
                     }
                 },
                 _ => {
-                    return Err(anyhow!("Array library requires the first parameter to be a vec (Array)"));
+                    return Err(SError::array(pid, &doc, "InvalidArgument", "array (vec) argument not found"));
                 }
             }
         } else {
-            return Err(anyhow!("Array library requires a 'vec' parameter to work on"));
+            return Err(SError::array(pid, &doc, "InvalidArgument", "array (vec) argument not found"));
         }
     }
 }

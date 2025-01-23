@@ -15,12 +15,11 @@
 //
 
 use std::collections::{BTreeMap, HashMap};
-use anyhow::{anyhow, Result};
 use lazy_static::lazy_static;
 use nanoid::nanoid;
 use pest_derive::Parser;
 use pest::{iterators::{Pair, Pairs}, pratt_parser::PrattParser, Parser};
-use crate::{lang::{CustomType, CustomTypeField, Expr, Statement, Statements}, Data, IntoDataRef, SData, SDoc, SField, SFunc, SNum, SNumType, SParam, SType, SUnits, SVal};
+use crate::{lang::{CustomType, CustomTypeField, Expr, SError, Statement, Statements}, Data, IntoDataRef, SData, SDoc, SField, SFunc, SNum, SNumType, SParam, SType, SUnits, SVal};
 use super::StofEnv;
 
 
@@ -98,8 +97,15 @@ enum MathOp {
 
 
 /// Parse internal.
-pub fn parse_internal(src: &str, doc: &mut SDoc, env: &mut StofEnv) -> Result<()> {
-    let pairs = StofParser::parse(Rule::document, src)?;
+pub fn parse_internal(src: &str, doc: &mut SDoc, env: &mut StofEnv) -> Result<(), SError> {
+    let res = StofParser::parse(Rule::document, src);
+    let pairs;
+    match res {
+        Ok(res) => pairs = res,
+        Err(error) => {
+            return Err(SError::parse(&env.pid, &doc, &error.to_string()));
+        }
+    }
     for pair in pairs {
         match pair.as_rule() {
             Rule::document => {
@@ -115,7 +121,7 @@ pub fn parse_internal(src: &str, doc: &mut SDoc, env: &mut StofEnv) -> Result<()
 
 
 /// Parse document statement.
-fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Result<()> {
+fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Result<(), SError> {
     for pair in pairs {
         let span = pair.as_span();
         match pair.as_rule() {
@@ -144,7 +150,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                         import_path = import_path.trim_start_matches("\"").trim_end_matches("\"").to_string();
                                         import_path = import_path.trim_start_matches("'").trim_end_matches("'").to_string();
                                     },
-                                    _ => return Err(anyhow!("Unrecognized inner path rule"))
+                                    _ => return Err(SError::parse(&env.pid, &doc, "unrecognized inner path rule"))
                                 }
                             }
                         },
@@ -152,7 +158,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                             as_name = pair.as_str().to_owned();
                             set_as_name = true;
                         },
-                        rule => return Err(anyhow!("Unrecognized import rule: {:?}", rule))
+                        _ => return Err(SError::parse(&env.pid, &doc, "unrecognized import rule"))
                     }
                 }
 
@@ -251,7 +257,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                         }
                     }
                     if !success {
-                        return Err(anyhow!("Cannot decorate a function with any value other than another function"));
+                        return Err(SError::parse(&env.pid, &doc, "cannot decorate a function with any value other than another function"));
                     }
                 } else {
                     func.attach(&scope, &mut doc.graph);
@@ -290,7 +296,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                         Rule::ident => {
                             field_path = pair.as_str().to_owned();
                         },
-                        rule => return Err(anyhow!("Unrecognized rule for field reference: {:?}", rule))
+                        _ => return Err(SError::parse(&env.pid, &doc, "unrecognized ref_field rule"))
                     }
                 }
                 if let Some(mut field) = SField::field(&doc.graph, &field_path, '.', Some(&env.scope(doc))) {
@@ -335,12 +341,12 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                                 value = sval;
                                             },
                                             Err(message) => {
-                                                return Err(anyhow!("Unable to execute attribute expression {}", message));
+                                                return Err(SError::parse(&env.pid, &doc, &format!("unable to execute attribute expression {}", message.message)));
                                             }
                                         }
                                     },
                                     _ => {
-                                        return Err(anyhow!("Unrecognized rule for function attribute"));
+                                        return Err(SError::parse(&env.pid, &doc, "unrecognized rule for type attribute"));
                                     }
                                 }
                             }
@@ -385,12 +391,12 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                                             value = sval;
                                                         },
                                                         Err(message) => {
-                                                            return Err(anyhow!("Unable to execute attribute expression {}", message));
+                                                            return Err(SError::parse(&env.pid, &doc, &format!("unable to execute attribute expression {}", message.message)));
                                                         }
                                                     }
                                                 },
                                                 _ => {
-                                                    return Err(anyhow!("Unrecognized rule for function attribute"));
+                                                    return Err(SError::parse(&env.pid, &doc, "unrecognized rule for field attribute"));
                                                 }
                                             }
                                         }
@@ -451,7 +457,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                     }
                                 }
                                 if !success {
-                                    return Err(anyhow!("Cannot decorate a function with any value other than another function"));
+                                    return Err(SError::parse(&env.pid, &doc, "cannot decorate a function with any value other than another function"));
                                 }
                             } else {
                                 functions.push(func);
@@ -470,7 +476,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                 // nada...
             },
             rule => {
-                return Err(anyhow!("Unrecognized document level rule for input: \"{}\", {:?}", span.as_str(), rule));
+                return Err(SError::parse(&env.pid, &doc, &format!("unrecognized document level rule for input: \"{}\", {:?}", span.as_str(), rule)));
             }
         }
     }
@@ -479,7 +485,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
 
 
 /// Parse a field.
-fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: &str, attributes: &mut BTreeMap<String, SVal>) -> Result<()> {
+fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: &str, attributes: &mut BTreeMap<String, SVal>) -> Result<(), SError> {
     match pair.as_rule() {
         Rule::typed_field => {
             let mut stype = String::default();
@@ -501,12 +507,12 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
                                             value = sval;
                                         },
                                         Err(message) => {
-                                            return Err(anyhow!("Unable to execute attribute expression {}", message));
+                                            return Err(SError::parse(&env.pid, &doc, &format!("unable to execute attribute expression: {}", message.message)));
                                         }
                                     }
                                 },
                                 _ => {
-                                    return Err(anyhow!("Unrecognized rule for function attribute"));
+                                    return Err(SError::parse(&env.pid, &doc, "unrecognized rule for field attribute"));
                                 }
                             }
                         }
@@ -544,12 +550,12 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
                                             value = sval;
                                         },
                                         Err(message) => {
-                                            return Err(anyhow!("Unable to execute attribute expression {}", message));
+                                            return Err(SError::parse(&env.pid, &doc, &format!("unable to execute attribute expression: {}", message.message)));
                                         }
                                     }
                                 },
                                 _ => {
-                                    return Err(anyhow!("Unrecognized rule for function attribute"));
+                                    return Err(SError::parse(&env.pid, &doc, "unrecognized rule for function attribute"));
                                 }
                             }
                         }
@@ -568,7 +574,7 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
                     Rule::value => {
                         (field_value, object_declaration) = parse_value(field_type, &field_name, doc, env, pair)?;
                     },
-                    rule => return Err(anyhow!("Unrecognized rule for field: {:?}", rule))
+                    _ => return Err(SError::parse(&env.pid, &doc, "unrecognized rule for field"))
                 }
             }
             if field_name.len() > 0 && !object_declaration { // parse_value takes care of object declarations!
@@ -601,14 +607,14 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
                 }
             }
         },
-        rule => return Err(anyhow!("Unrecognized inline json import rule: {:?}", rule))
+        _ => return Err(SError::parse(&env.pid, &doc, "unrecognized rule for parse field"))
     }
     Ok(())
 }
 
 
 /// Parse value.
-fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<(SVal, bool)> {
+fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<(SVal, bool), SError> {
     let mut field_value = SVal::Null;
     let mut object_declaration = false;
     for pair in pair.into_inner() {
@@ -666,7 +672,7 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                     if stype.is_object() && field_type != "obj" && field_type != "root" {
                         field_value = field_value.cast(stype, &env.pid, doc)?;
                     } else if !stype.is_object() {
-                        return Err(anyhow!("Cannot cast an object to a non-object type"));
+                        return Err(SError::parse(&env.pid, &doc, "cannot cast an object to a non-object type"));
                     }
                 }
 
@@ -694,22 +700,14 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                     expr = Expr::Cast(stype, Box::new(expr));
                 }
 
-                let result = expr.exec(&env.pid, doc);
-                match result {
-                    Ok(sval) => {
-                        field_value = sval;
-                    },
-                    Err(message) => {
-                        return Err(anyhow!("{}", message));
-                    }
-                }
+                field_value = expr.exec(&env.pid, doc)?;
             },
             Rule::atype => {
                 // Try casting the value to the type given here...
                 let target = SType::from(pair.as_str());
                 field_value = field_value.cast(target, &env.pid, doc)?;
             },
-            rule => return Err(anyhow!("Unrecognized inline json value rule: {:?}", rule))
+            _ => return Err(SError::parse(&env.pid, &doc, "unrecognized rule for parse value"))
         }
     }
     Ok((field_value, object_declaration))
@@ -717,7 +715,7 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
 
 
 /// Parse a function to declare in the current scope.
-fn parse_function(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<SFunc> {
+fn parse_function(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<SFunc, SError> {
     let mut name = String::from("arrow");
     let mut params = Vec::new();
     let mut rtype = SType::Void;
@@ -741,12 +739,12 @@ fn parse_function(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result
                                     value = sval;
                                 },
                                 Err(message) => {
-                                    return Err(anyhow!("Unable to execute attribute expression {}", message));
+                                    return Err(SError::parse(&env.pid, &doc, &format!("unable to execute attribute expression: {}", message.message)));
                                 }
                             }
                         },
                         _ => {
-                            return Err(anyhow!("Unrecognized rule for function attribute"));
+                            return Err(SError::parse(&env.pid, &doc, "unrecognized rule for function attribute"));
                         }
                     }
                 }
@@ -771,7 +769,7 @@ fn parse_function(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result
                             default = Some(parse_expression(doc, env, pair)?);
                         },
                         _ => {
-                            return Err(anyhow!("Unrecognized rule for function parameter"));
+                            return Err(SError::parse(&env.pid, &doc, "unrecognized rule for function parameter"));
                         }
                     }
                 }
@@ -788,7 +786,7 @@ fn parse_function(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result
             },
             Rule::EOI => {},
             _ => {
-                return Err(anyhow!("Unrecognized rule for function"));
+                return Err(SError::parse(&env.pid, &doc, "unrecognized rule for parse function"));
             }
         }
     }
@@ -800,7 +798,7 @@ fn parse_function(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result
 
 
 /// Parse a block of statements.
-fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<Statements> {
+fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<Statements, SError> {
     let mut statements = Vec::new();
     for pair in pair.into_inner() {
         match pair.as_rule() {
@@ -829,7 +827,7 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                         Rule::block => {
                             while_statements = parse_block(doc, env, pair)?;
                         },
-                        rule => return Err(anyhow!("Unrecognized rule in while loop: {:?}", rule))
+                        _ => return Err(SError::parse(&env.pid, &doc, "unrecognized rule for while loop"))
                     }
                 }
                 statements.push(Statement::While(expr, while_statements));
@@ -868,7 +866,7 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                         Rule::block => {
                             inner_statements.absorb(parse_block(doc, env, pair)?);
                         },
-                        rule => return Err(anyhow!("Unrecognized rule in for 'in' loop: {:?}", rule))
+                        _ => return Err(SError::parse(&env.pid, &doc, "unrecognized rule for for-in loop"))
                     }
                 }
                 let mut outer_statements = vec![
@@ -919,7 +917,7 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                         Rule::rem_assign => {
                             end_while_statement = parse_assignment(doc, env, pair)?;
                         },
-                        rule => return Err(anyhow!("Unrecognized rule in for loop: {:?}", rule))
+                        _ => return Err(SError::parse(&env.pid, &doc, "unrecognized rule for for-loop"))
                     }
                 }
                 // Put finally statements together
@@ -949,8 +947,8 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                                 catch_statements = Some(statements);
                             }
                         },
-                        rule => {
-                            return Err(anyhow!("Unrecognized rule in try-statement: {:?}", rule));
+                        _ => {
+                            return Err(SError::parse(&env.pid, &doc, "unrecognized rule for try-statement"));
                         }
                     }
                 }
@@ -1007,8 +1005,8 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                             }
                             default = Some(statements);
                         },
-                        rule => {
-                            return Err(anyhow!("Unrecognized rule in switch statement: {:?}", rule));
+                        _ => {
+                            return Err(SError::parse(&env.pid, &doc, "unrecognized rule for switch statement"));
                         }
                     }
                 }
@@ -1053,8 +1051,8 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                                     Rule::block => {
                                         elif_expr.1 = parse_block(doc, env, pair)?;
                                     },
-                                    rule => {
-                                        return Err(anyhow!("Unrecognized rule in else-if-statement: {:?}", rule));
+                                    _ => {
+                                        return Err(SError::parse(&env.pid, &doc, "unrecognized rule for else-if-statement"));
                                     }
                                 }
                             }
@@ -1070,14 +1068,14 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                                     Rule::block => {
                                         else_expr = Some(parse_block(doc, env, pair)?);
                                     },
-                                    rule => {
-                                        return Err(anyhow!("Unrecognized rule in else statement: {:?}", rule));
+                                    _ => {
+                                        return Err(SError::parse(&env.pid, &doc, "unrecognized rule for else statement"));
                                     }
                                 }
                             }
                         },
-                        rule => {
-                            return Err(anyhow!("Unrecognized rule in if-statement: {:?}", rule));
+                        _ => {
+                            return Err(SError::parse(&env.pid, &doc, "unrecognized rule for if-statement"));
                         }
                     }
                 }
@@ -1098,7 +1096,7 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                             statements.push(Statement::Drop(pair.as_str().into()));
                         },
                         _ => {
-                            return Err(anyhow!("Unrecognized rule in drop statement: \"{}\"", pair.as_span().as_str()));
+                            return Err(SError::parse(&env.pid, &doc, "unrecognized rule for drop statement"));
                         }
                     }
                 }
@@ -1119,7 +1117,7 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                 statements.push(Statement::Block(block_statements, Statements::default()));
             },
             _ => {
-                return Err(anyhow!("Unrecognized rule for parsing block of statements"))
+                return Err(SError::parse(&env.pid, &doc, "unrecognized rule for parse block"));
             }
         }
     }
@@ -1128,7 +1126,7 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
 
 
 /// Parse declare statement.
-fn parse_declare(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<Statement> {
+fn parse_declare(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<Statement, SError> {
     let mut ident = String::default();
     let mut expr = Expr::Literal("".into());
     let mut atype = SType::Void;
@@ -1144,7 +1142,7 @@ fn parse_declare(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<
                 expr = parse_expression(doc, env, pair)?;
             },
             _ => {
-                return Err(anyhow!("Unrecognized rule in declare statement (block): \"{}\"", pair.as_span().as_str()));
+                return Err(SError::parse(&env.pid, &doc, "unrecognized rule for declare statement (block)"));
             }
         }
     }
@@ -1156,12 +1154,12 @@ fn parse_declare(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<
         }
         return Ok(Statement::Declare(ident, expr));
     }
-    Err(anyhow!("Could not parse declare statement"))
+    Err(SError::parse(&env.pid, &doc, "could not parse declare statement"))
 }
 
 
 /// Parse assignment.
-fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<Statement> {
+fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<Statement, SError> {
     match pair.as_rule() {
         Rule::assign => {
             let mut ident = String::default();
@@ -1178,7 +1176,7 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                         }
                     },
                     _ => {
-                        return Err(anyhow!("Unrecognized rule in assign statement (block): \"{}\"", pair.as_span().as_str()));
+                        return Err(SError::parse(&env.pid, &doc, "unrecognized rule for assign statement (block)"));
                     }
                 }
             }
@@ -1199,7 +1197,7 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                         }
                     },
                     _ => {
-                        return Err(anyhow!("Unrecognized rule in assign statement (block): \"{}\"", pair.as_span().as_str()));
+                        return Err(SError::parse(&env.pid, &doc, "unrecognized rule for add assign"));
                     }
                 }
             }
@@ -1207,7 +1205,7 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                 let var_use = ident.clone();
                 return Ok(Statement::Assign(ident, Expr::Add(vec![Expr::Variable(var_use), expr])));
             }
-            Err(anyhow!("Not able to parse assignment"))
+            Err(SError::parse(&env.pid, &doc, "not able to parse assignment"))
         },
         Rule::sub_assign => {
             let mut ident = String::default();
@@ -1224,7 +1222,7 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                         }
                     },
                     _ => {
-                        return Err(anyhow!("Unrecognized rule in assign statement (block): \"{}\"", pair.as_span().as_str()));
+                        return Err(SError::parse(&env.pid, &doc, "unrecognized rule for sub assign"));
                     }
                 }
             }
@@ -1232,7 +1230,7 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                 let var_use = ident.clone();
                 return Ok(Statement::Assign(ident, Expr::Sub(vec![Expr::Variable(var_use), expr])));
             }
-            Err(anyhow!("Not able to parse assignment"))
+            Err(SError::parse(&env.pid, &doc, "not able to parse sub assign"))
         },
         Rule::mul_assign => {
             let mut ident = String::default();
@@ -1249,7 +1247,7 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                         }
                     },
                     _ => {
-                        return Err(anyhow!("Unrecognized rule in assign statement (block): \"{}\"", pair.as_span().as_str()));
+                        return Err(SError::parse(&env.pid, &doc, "unrecognized rule for mul assign"));
                     }
                 }
             }
@@ -1257,7 +1255,7 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                 let var_use = ident.clone();
                 return Ok(Statement::Assign(ident, Expr::Mul(vec![Expr::Variable(var_use), expr])));
             }
-            Err(anyhow!("Not able to parse assignment"))
+            Err(SError::parse(&env.pid, &doc, "not able to parse mul assign"))
         },
         Rule::div_assign => {
             let mut ident = String::default();
@@ -1274,7 +1272,7 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                         }
                     },
                     _ => {
-                        return Err(anyhow!("Unrecognized rule in assign statement (block): \"{}\"", pair.as_span().as_str()));
+                        return Err(SError::parse(&env.pid, &doc, "unrecognized rule for div assign"));
                     }
                 }
             }
@@ -1282,7 +1280,7 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                 let var_use = ident.clone();
                 return Ok(Statement::Assign(ident, Expr::Div(vec![Expr::Variable(var_use), expr])));
             }
-            Err(anyhow!("Not able to parse assignment"))
+            Err(SError::parse(&env.pid, &doc, "unable to parse div assign"))
         },
         Rule::rem_assign => {
             let mut ident = String::default();
@@ -1299,7 +1297,7 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                         }
                     },
                     _ => {
-                        return Err(anyhow!("Unrecognized rule in assign statement (block): \"{}\"", pair.as_span().as_str()));
+                        return Err(SError::parse(&env.pid, &doc, "unrecognized rule for rem assign"));
                     }
                 }
             }
@@ -1307,16 +1305,16 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                 let var_use = ident.clone();
                 return Ok(Statement::Assign(ident, Expr::Rem(vec![Expr::Variable(var_use), expr])));
             }
-            Err(anyhow!("Not able to parse assignment"))
+            Err(SError::parse(&env.pid, &doc, "unable to parse rem assign"))
         },
-        rule => Err(anyhow!("Unrecognized assignment rule: {:?}", rule))
+        _ => Err(SError::parse(&env.pid, &doc, "unrecognized rule for parse assignment"))
     }
 }
 
 
 /// Parse expressions (expr rule).
 /// SType is available for parsing if able.
-fn parse_expression(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<Expr> {
+fn parse_expression(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<Expr, SError> {
     let mut res: Expr = Expr::Literal(SVal::Null);
     for pair in pair.into_inner() {
         match pair.as_rule() {
@@ -1362,7 +1360,7 @@ fn parse_expression(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
 
 
 /// Parse expression pair.
-fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<Expr> {
+fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<Expr, SError> {
     let mut res: Expr = Expr::Literal(SVal::Null);
     match pair.as_rule() {
         Rule::type_of_expr => {
@@ -1405,8 +1403,8 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                     Rule::expr => {
                         vec.push(parse_expression(doc, env, pair)?);
                     },
-                    rule => {
-                        return Err(anyhow!("Unrecognized rule in tuple constructor: {:?}", rule));
+                    _ => {
+                        return Err(SError::parse(&env.pid, &doc, "unrecognized rule for tuple constructor"));
                     }
                 }
             }
@@ -1419,8 +1417,8 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                     Rule::expr => {
                         vec.push(parse_expression(doc, env, pair)?);
                     },
-                    rule => {
-                        return Err(anyhow!("Unrecognized rule in tuple constructor: {:?}", rule));
+                    _ => {
+                        return Err(SError::parse(&env.pid, &doc, "unrecognized rule for array constructor"));
                     }
                 }
             }
@@ -1469,7 +1467,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                                     // Do nothing with units here...
                                 },
                                 _ => {
-                                    return Err(anyhow!("Unrecognized rule for number literal"));
+                                    return Err(SError::parse(&env.pid, &doc, "unrecognized rule for number literal"));
                                 }
                             }
                         }
@@ -1515,7 +1513,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         if path.len() > 0 {
                             scope = path.join("/");
                         } else {
-                            return Err(anyhow!("Did not find a scope and name for index expr"));
+                            return Err(SError::parse(&env.pid, &doc, "did not find a scope and name for index expr"));
                         }
                     },
                     Rule::expr => {
@@ -1527,7 +1525,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
             if scope != String::default() {
                 res = Expr::Call { scope, name: "at".into(), params };
             } else {
-                return Err(anyhow!("Unable to parse index expression into 'at' call expr"));
+                return Err(SError::parse(&env.pid, &doc, "unable to parse index expression into 'at' call expr"));
             }
         },
         Rule::chain_index => {
@@ -1541,7 +1539,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         if path.len() > 0 {
                             scope = path.join("/");
                         } else {
-                            return Err(anyhow!("Did not find a scope and name for index expr"));
+                            return Err(SError::parse(&env.pid, &doc, "did not find a scope and name for index expr"));
                         }
                     },
                     Rule::chain_index_inner => {
@@ -1633,7 +1631,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                             scope = "std".into();
                             ident = path.pop().unwrap().into();
                         } else {
-                            return Err(anyhow!("Did not find a scope and name for call expr"));
+                            return Err(SError::parse(&env.pid, &doc, "did not find a scope and name for call expr"));
                         }
                     },
                     Rule::call_params => {
@@ -1644,7 +1642,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                                     params.push(expr);
                                 },
                                 _ => {
-                                    return Err(anyhow!("Cannot have a non-expression call parameter"));
+                                    return Err(SError::parse(&env.pid, &doc, "can not have a non-expression call parameter"));
                                 }
                             }
                         }
@@ -1657,7 +1655,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
             if ident != String::default() {
                 res = Expr::Call { scope, name: ident, params };
             } else {
-                return Err(anyhow!("Unable to parse call expression"));
+                return Err(SError::parse(&env.pid, &doc, "unable to parse call expression"));
             }
         },
         Rule::block => {
@@ -1772,7 +1770,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                                     }
                                 },
                                 _ => {
-                                    return Err(anyhow!("Unrecognized rule for number literal"));
+                                    return Err(SError::parse(&env.pid, &doc, "unrecognized rule for number literal"));
                                 }
                             }
                         }
@@ -1783,7 +1781,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         res = Expr::Variable(pair.as_str().into());
                     },
                     _ => {
-                        return Err(anyhow!("Unknown expression literal: {}", pair.as_span().as_str()));
+                        return Err(SError::parse(&env.pid, &doc, &format!("unknown expression literal: {}", pair.as_span().as_str())));
                     }
                 }
             }
@@ -1866,7 +1864,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
             }
         },
         _ => {
-            return Err(anyhow!("Unrecognized rule for expression: {}", pair.as_span().as_str()));
+            return Err(SError::parse(&env.pid, &doc, "unrecognized rule for parse expressiion pair"));
         }
     }
     Ok(res)

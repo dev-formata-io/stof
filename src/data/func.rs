@@ -15,10 +15,9 @@
 //
 
 use std::collections::{BTreeMap, HashMap};
-use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use crate::{Data, IntoDataRef, SData, SDataRef, SDoc, SGraph, SNodeRef};
-use super::{lang::{Expr, Statements, StatementsRes}, SType, SVal};
+use super::{lang::{Expr, SError, Statements, StatementsRes}, SType, SVal};
 
 
 /// Stof function kind.
@@ -188,7 +187,7 @@ impl SFunc {
 
     /// Call this function with the given doc.
     /// Parameters get put onto the doc stack, and statements get executed.
-    pub fn call(&self, pid: &str, doc: &mut SDoc, mut parameters: Vec<SVal>, add_self: bool) -> Result<SVal> {
+    pub fn call(&self, pid: &str, doc: &mut SDoc, mut parameters: Vec<SVal>, add_self: bool) -> Result<SVal, SError> {
         // Validate the number of parameters required to call this function
         if self.params.len() != parameters.len() {
             let mut index = parameters.len();
@@ -204,7 +203,10 @@ impl SFunc {
             }
         }
         if self.params.len() != parameters.len() {
-            return Err(anyhow!("Gave incorrect parameters for function: {}", &self.name));
+            doc.push_call_stack(pid, self.data_ref());
+            let error = SError::call(pid, &doc, &format!("received incorrect parameters for function call, expecting ({:?})", &self.params));
+            doc.pop_call_stack(pid);
+            return Err(error);
         }
 
         // Add self to doc self stack
@@ -251,7 +253,10 @@ impl SFunc {
                 for name in added {
                     doc.drop(pid, &name);
                 }
-                return Err(anyhow!("Failed to match parameter types for function: {}", &self.name));
+                doc.push_call_stack(pid, self.data_ref());
+                let error = SError::call(pid, &doc, &format!("arguments do not match expected parameter types and cannot be converted, expecting ({:?})", &self.params));
+                doc.pop_call_stack(pid);
+                return Err(error);
             }
         }
 
@@ -299,9 +304,10 @@ impl SFunc {
             if res_type == self.rtype {
                 return Ok(res);
             }
-            return Err(anyhow!("Failed to validate return of function: {}. Expected: {:?}, received: {:?}: {:?}", &self.name, self.rtype, res, res.stype(&doc.graph)));
+            let error = SError::call(pid, &doc, &format!("return type ({:?}) does not match the expected type ({:?})", res_type, self.rtype));
+            return Err(error);
         }
-        Err(anyhow!("Failed to validate return of function: {}. Expected: {:?}, received: {:?}", &self.name, self.rtype, res))
+        Err(SError::call(pid, &doc, &format!("return value ({:?}) does not match the expected type ({:?})", res, self.rtype)))
     }
 }
 

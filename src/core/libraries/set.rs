@@ -15,8 +15,7 @@
 //
 
 use std::{collections::BTreeSet, ops::{Deref, DerefMut}};
-use anyhow::{anyhow, Result};
-use crate::{Library, SData, SDoc, SFunc, SNum, SVal};
+use crate::{lang::SError, Library, SData, SDoc, SFunc, SNum, SVal};
 
 
 /// Set library.
@@ -24,13 +23,13 @@ use crate::{Library, SData, SDoc, SFunc, SNum, SVal};
 pub struct SetLibrary;
 impl SetLibrary {
     /// Call set operation.
-    pub fn operate(&self, pid: &str, doc: &mut SDoc, name: &str, set: &mut BTreeSet<SVal>, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    pub fn operate(&self, pid: &str, doc: &mut SDoc, name: &str, set: &mut BTreeSet<SVal>, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         match name {
             // Move all elements from another set onto this set, leaving other set empty.
             // Signature: Set.append(set, other: set): void
             "append" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Set.append(set, other: set) requires another set to move values from"));
+                    return Err(SError::set(pid, &doc, "append", "set to append not found"));
                 }
                 match &mut parameters[0] {
                     SVal::Set(other) => {
@@ -46,12 +45,12 @@ impl SetLibrary {
                                 Ok(SVal::Void)
                             },
                             _ => {
-                                Err(anyhow!("Set.append(set, other: set) requires a set parameter to move values from"))
+                                Err(SError::set(pid, &doc, "append", "set to append not found"))
                             }
                         }
                     },
                     _ => {
-                        Err(anyhow!("Set.append(set, other: set) requires a set parameter to move values from"))
+                        Err(SError::set(pid, &doc, "append", "set to append not found"))
                     }
                 }
             },
@@ -65,7 +64,7 @@ impl SetLibrary {
             // Signature: Set.contains(set, value: unknown): bool
             "contains" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Set.contains(set, value: unknown) requires a value parameter to look for"));
+                    return Err(SError::set(pid, &doc, "contains", "contains value argument not found"));
                 }
                 Ok(SVal::Bool(set.contains(&parameters[0])))
             },
@@ -89,7 +88,7 @@ impl SetLibrary {
             // Signature: Set.insert(set, value: unknown): bool
             "insert" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Set.insert(set, value: unknown) requires a value to insert with"));
+                    return Err(SError::set(pid, &doc, "insert", "value to insert not found"));
                 }
                 let value = parameters.pop().unwrap();
                 Ok(SVal::Bool(set.insert(value)))
@@ -98,7 +97,7 @@ impl SetLibrary {
             // Signature: Set.take(set, value: unknown): null | unknown
             "take" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Set.take(set, value: unknown) requires a value parameter to take from this set"))
+                    return Err(SError::set(pid, &doc, "take", "take value argument not found"));
                 }
                 if let Some(value) = set.take(&parameters[0]) {
                     Ok(value)
@@ -110,7 +109,7 @@ impl SetLibrary {
             // Signature: Set.split(set, value: unknown): set
             "split" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Set.split(set, value: unknown) requires a value to split this set with"));
+                    return Err(SError::set(pid, &doc, "split", "split value not found"));
                 }
                 Ok(SVal::Set(set.split_off(&parameters[0])))
             },
@@ -133,13 +132,13 @@ impl SetLibrary {
             // Signature: Set.at(set, index): unknown
             "at" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Set.at(set, index: unknown) requires an index parameter"));
+                    return Err(SError::set(pid, &doc, "at", "index argument not found"));
                 }
                 match &parameters[0] {
                     SVal::Number(index) => {
                         let index = index.int() as usize;
                         if index >= set.len() {
-                            return Err(anyhow!("Set.at(set, index: int) index out of bounds"));
+                            return Err(SError::set(pid, &doc, "at", "index out of bounds"));
                         }
                         if let Some(value) = set.iter().nth(index) {
                             Ok(value.clone())
@@ -178,7 +177,7 @@ impl SetLibrary {
             // Signature: Set.remove(set, value: unknown): bool
             "remove" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Set.remove(set, value: unknown) requires a value parameter to remove"))
+                    return Err(SError::set(pid, &doc, "remove", "value argument to remove not found"));
                 }
                 if set.remove(&parameters[0]) {
                     Ok(SVal::Bool(true))
@@ -190,7 +189,7 @@ impl SetLibrary {
             // Signature: Set.retain(set, pred: fn): void
             "retain" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Set.retain(set, predicate: fn) requires a function parameter"));
+                    return Err(SError::set(pid, &doc, "retain", "predicate not found"));
                 }
                 match &parameters[0] {
                     SVal::FnPtr(dref) => {
@@ -204,11 +203,11 @@ impl SetLibrary {
                             });
                             Ok(SVal::Void)
                         } else {
-                            Err(anyhow!("Set.retain(set, predicate: fn) function does not exist"))
+                            Err(SError::set(pid, &doc, "retain", "predicate function does not exist"))
                         }
                     },
                     _ => {
-                        Err(anyhow!("Set.retain(set, predicate: fn) requires a function parameter"))
+                        Err(SError::set(pid, &doc, "retain", "predicate not found"))
                     }
                 }
             },
@@ -216,7 +215,7 @@ impl SetLibrary {
             // Signature: Set.union(set, other: set): set
             "union" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Set.union(set, other: set) requires a set parameter to work with"));
+                    return Err(SError::set(pid, &doc, "union", "set argument not found"));
                 }
                 match &parameters[0] {
                     SVal::Set(other) => {
@@ -230,12 +229,12 @@ impl SetLibrary {
                                 Ok(SVal::Set(set.union(other).cloned().collect()))
                             },
                             _ => {
-                                Err(anyhow!("Set.union(set, other: set) requires a set parameter to work with"))
+                                Err(SError::set(pid, &doc, "union", "set argument not found"))
                             }
                         }
                     },
                     _ => {
-                        Err(anyhow!("Set.union(set, other: set) requires a set parameter to work with"))
+                        Err(SError::set(pid, &doc, "union", "set argument not found"))
                     }
                 }
             },
@@ -243,7 +242,7 @@ impl SetLibrary {
             // Signature: Set.difference(set, other: set): set
             "difference" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Set.difference(set, other: set) requires a set parameter to work with"));
+                    return Err(SError::set(pid, &doc, "difference", "set argument not found"));
                 }
                 match &parameters[0] {
                     SVal::Set(other) => {
@@ -257,12 +256,12 @@ impl SetLibrary {
                                 Ok(SVal::Set(set.difference(other).cloned().collect()))
                             },
                             _ => {
-                                Err(anyhow!("Set.difference(set, other: set) requires a set parameter to work with"))
+                                Err(SError::set(pid, &doc, "difference", "set argument not found"))
                             }
                         }
                     },
                     _ => {
-                        Err(anyhow!("Set.difference(set, other: set) requires a set parameter to work with"))
+                        Err(SError::set(pid, &doc, "difference", "set argument not found"))
                     }
                 }
             },
@@ -270,7 +269,7 @@ impl SetLibrary {
             // Signature: Set.intersection(set, other: set): set
             "intersection" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Set.intersection(set, other: set) requires a set parameter to work with"));
+                    return Err(SError::set(pid, &doc, "intersection", "set argument not found"));
                 }
                 match &parameters[0] {
                     SVal::Set(other) => {
@@ -284,12 +283,12 @@ impl SetLibrary {
                                 Ok(SVal::Set(set.intersection(other).cloned().collect()))
                             },
                             _ => {
-                                Err(anyhow!("Set.intersection(set, other: set) requires a set parameter to work with"))
+                                Err(SError::set(pid, &doc, "intersection", "set argument not found"))
                             }
                         }
                     },
                     _ => {
-                        Err(anyhow!("Set.intersection(set, other: set) requires a set parameter to work with"))
+                        Err(SError::set(pid, &doc, "intersection", "set argument not found"))
                     }
                 }
             },
@@ -297,7 +296,7 @@ impl SetLibrary {
             // Signature: Set.symmetricDifference(set, other: set): set
             "symmetricDifference" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Set.symmetricDifference(set, other: set) requires a set parameter to work with"));
+                    return Err(SError::set(pid, &doc, "symmetricDifference", "set argument not found"));
                 }
                 match &parameters[0] {
                     SVal::Set(other) => {
@@ -311,12 +310,12 @@ impl SetLibrary {
                                 Ok(SVal::Set(set.symmetric_difference(other).cloned().collect()))
                             },
                             _ => {
-                                Err(anyhow!("Set.symmetricDifference(set, other: set) requires a set parameter to work with"))
+                                Err(SError::set(pid, &doc, "symmetricDifference", "set argument not found"))
                             }
                         }
                     },
                     _ => {
-                        Err(anyhow!("Set.symmetricDifference(set, other: set) requires a set parameter to work with"))
+                        Err(SError::set(pid, &doc, "symmetricDifference", "set argument not found"))
                     }
                 }
             },
@@ -324,7 +323,7 @@ impl SetLibrary {
             // Signature: Set.disjoint(set, other: set): bool
             "disjoint" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Set.disjoint(set, other: set) requires a set parameter to work with"));
+                    return Err(SError::set(pid, &doc, "disjoint", "set argument not found"));
                 }
                 match &parameters[0] {
                     SVal::Set(other) => {
@@ -338,12 +337,12 @@ impl SetLibrary {
                                 Ok(SVal::Bool(set.is_disjoint(other)))
                             },
                             _ => {
-                                Err(anyhow!("Set.disjoint(set, other: set) requires a set parameter to work with"))
+                                Err(SError::set(pid, &doc, "disjoint", "set argument not found"))
                             }
                         }
                     },
                     _ => {
-                        Err(anyhow!("Set.disjoint(set, other: set) requires a set parameter to work with"))
+                        Err(SError::set(pid, &doc, "disjoint", "set argument not found"))
                     }
                 }
             },
@@ -351,7 +350,7 @@ impl SetLibrary {
             // Signature: Set.subset(set, other: set): bool
             "subset" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Set.subset(set, other: set) requires a set parameter to work with"));
+                    return Err(SError::set(pid, &doc, "subset", "set argument not found"));
                 }
                 match &parameters[0] {
                     SVal::Set(other) => {
@@ -365,12 +364,12 @@ impl SetLibrary {
                                 Ok(SVal::Bool(set.is_subset(other)))
                             },
                             _ => {
-                                Err(anyhow!("Set.subset(set, other: set) requires a set parameter to work with"))
+                                Err(SError::set(pid, &doc, "subset", "set argument not found"))
                             }
                         }
                     },
                     _ => {
-                        Err(anyhow!("Set.subset(set, other: set) requires a set parameter to work with"))
+                        Err(SError::set(pid, &doc, "subset", "set argument not found"))
                     }
                 }
             },
@@ -378,7 +377,7 @@ impl SetLibrary {
             // Signature: Set.superset(set, other: set): bool
             "superset" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Set.superset(set, other: set) requires a set parameter to work with"));
+                    return Err(SError::set(pid, &doc, "superset", "set argument not found"));
                 }
                 match &parameters[0] {
                     SVal::Set(other) => {
@@ -392,17 +391,17 @@ impl SetLibrary {
                                 Ok(SVal::Bool(set.is_superset(other)))
                             },
                             _ => {
-                                Err(anyhow!("Set.superset(set, other: set) requires a set parameter to work with"))
+                                Err(SError::set(pid, &doc, "superset", "set argument not found"))
                             }
                         }
                     },
                     _ => {
-                        Err(anyhow!("Set.superset(set, other: set) requires a set parameter to work with"))
+                        Err(SError::set(pid, &doc, "superset", "set argument not found"))
                     }
                 }
             },
             _ => {
-                Err(anyhow!("Did not find the requested Set library function '{}'", name))
+                Err(SError::set(pid, &doc, "NotFound", &format!("{} is not a function in the Set Library", name)))
             }
         }
     }
@@ -412,7 +411,7 @@ impl Library for SetLibrary {
         "Set".to_string()
     }
 
-    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         if parameters.len() > 0 {
             match name {
                 "toString" => {
@@ -447,16 +446,16 @@ impl Library for SetLibrary {
                             return self.operate(pid, doc, name, set, &mut params);
                         },
                         _ => {
-                            return Err(anyhow!("Set library requires the first parameter to be a set"));
+                            return Err(SError::set(pid, &doc, "InvalidArgument", "set argument not found"));
                         }
                     }
                 },
                 _ => {
-                    return Err(anyhow!("Set library requires the first parameter to be a set"));
+                    return Err(SError::set(pid, &doc, "InvalidArgument", "set argument not found"));
                 }
             }
         } else {
-            return Err(anyhow!("Set library requires a 'set' parameter to work with"));
+            return Err(SError::set(pid, &doc, "InvalidArgument", "set argument not found"));
         }
     }
 }

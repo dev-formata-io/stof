@@ -15,8 +15,7 @@
 //
 
 use std::ops::{Deref, DerefMut};
-use anyhow::{anyhow, Result};
-use crate::{Library, SDoc, SNum, SVal};
+use crate::{lang::SError, Library, SDoc, SNum, SVal};
 
 
 /// Blob library.
@@ -24,7 +23,7 @@ use crate::{Library, SDoc, SNum, SVal};
 pub struct BlobLibrary;
 impl BlobLibrary {
     /// Call blob operation.
-    pub fn operate(&self, _pid: &str, _doc: &mut SDoc, name: &str, blob: &mut Vec<u8>, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    pub fn operate(&self, pid: &str, doc: &mut SDoc, name: &str, blob: &mut Vec<u8>, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         match name {
             "len" |
             "size" => {
@@ -32,7 +31,7 @@ impl BlobLibrary {
             },
             "at" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Blob.at(blob, index) requires an index parameter"));
+                    return Err(SError::blob(pid, &doc, "at", "index argument not found"));
                 }
                 match &parameters[0] {
                     SVal::Number(num) => {
@@ -56,10 +55,10 @@ impl BlobLibrary {
                     },
                     _ => {}
                 }
-                Err(anyhow!("Blob.at(blob, index) requires an index parameter"))
+                Err(SError::blob(pid, &doc, "at", "index argument not found"))
             },
             _ => {
-                Err(anyhow!("Did not find the requested Blob library function '{}'", name))
+                Err(SError::blob(pid, &doc, "NotFound", &format!("{} is not a function in the Blob Library", name)))
             }
         }
     }
@@ -71,7 +70,7 @@ impl Library for BlobLibrary {
     }
     
     /// Call into the Blob library.
-    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         if parameters.len() > 0 {
             match name {
                 "toString" => {
@@ -106,16 +105,16 @@ impl Library for BlobLibrary {
                             return self.operate(pid, doc, name, val, &mut params);
                         },
                         _ => {
-                            return Err(anyhow!("Blob library requires the first parameter to be a blob"));
+                            return Err(SError::blob(pid, &doc, "InvalidArgument", "blob argument not found"));
                         }
                     }
                 },
                 _ => {
-                    return Err(anyhow!("Blob library requires the first parameter to be a blob"));
+                    return Err(SError::blob(pid, &doc, "InvalidArgument", "blob argument not found"));
                 }
             }
         } else {
-            return Err(anyhow!("Blob library requires a blob parameter to work with"));
+            return Err(SError::blob(pid, &doc, "InvalidArgument", "blob argument not found"));
         }
     }
 }

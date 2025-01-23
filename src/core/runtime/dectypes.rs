@@ -15,9 +15,8 @@
 //
 
 use std::collections::BTreeMap;
-use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
-use crate::{lang::CustomType, IntoNodeRef, SFunc, SGraph, SNodeRef};
+use crate::{lang::{CustomType, ErrorType, SError}, IntoNodeRef, SFunc, SGraph, SNodeRef};
 
 
 /// Stof custom types declared in a document.
@@ -40,7 +39,7 @@ impl CustomTypes {
     }
 
     /// Declare a new type (not inserted into graph yet).
-    pub fn declare(&mut self, mut custom_type: CustomType, graph: &mut SGraph, extends: &str, functions: &mut Vec<SFunc>) -> Result<()> {
+    pub fn declare(&mut self, mut custom_type: CustomType, graph: &mut SGraph, extends: &str, functions: &mut Vec<SFunc>) -> Result<(), SError> {
         // Insert path for this new custom type
         let mut insert_path = format!("__stof__/prototypes/{}", &custom_type.locid);
 
@@ -62,7 +61,7 @@ impl CustomTypes {
                 }
             }
 
-            if let Some(extend_type) = self.find(graph, extends_name, &extends_scope) {
+            if let Some(extend_type) = self.find(&graph, extends_name, &extends_scope) {
                 let custom_field_names = custom_type.fieldnames();
                 for ef in &extend_type.fields {
                     if !custom_field_names.contains(&ef.name) {
@@ -73,7 +72,13 @@ impl CustomTypes {
                 // Set insert path as a child of the extends type
                 insert_path = format!("{}/{}", SNodeRef::new(&extend_type.locid).path(&graph), &custom_type.locid);
             } else {
-                return Err(anyhow!("Attempting to extend a type that does not exist: {}", extends));
+                let error = SError {
+                    pid: "main".to_string(),
+                    error_type: ErrorType::ParseError,
+                    message: format!("attempting to extend a type that does not exist: {}", extends),
+                    call_stack: Default::default(),
+                };
+                return Err(error);
             }
         }
 

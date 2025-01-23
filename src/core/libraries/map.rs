@@ -15,8 +15,7 @@
 //
 
 use std::{collections::BTreeMap, ops::DerefMut};
-use anyhow::{anyhow, Result};
-use crate::{Library, SData, SDoc, SFunc, SNum, SVal};
+use crate::{lang::SError, Library, SData, SDoc, SFunc, SNum, SVal};
 
 
 /// Map library.
@@ -24,13 +23,13 @@ use crate::{Library, SData, SDoc, SFunc, SNum, SVal};
 pub struct MapLibrary;
 impl MapLibrary {
     /// Call map operation.
-    pub fn operate(&self, pid: &str, doc: &mut SDoc, name: &str, map: &mut BTreeMap<SVal, SVal>, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    pub fn operate(&self, pid: &str, doc: &mut SDoc, name: &str, map: &mut BTreeMap<SVal, SVal>, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         match name {
             // Move all elements from another map onto this map, leaving other map empty.
             // Signature: Map.append(map, other: map): void
             "append" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Map.append(map, other: map) requires another map to move values from"));
+                    return Err(SError::map(pid, &doc, "append", "map argument not found for append operation"));
                 }
                 match &mut parameters[0] {
                     SVal::Map(other) => {
@@ -46,12 +45,12 @@ impl MapLibrary {
                                 Ok(SVal::Void)
                             },
                             _ => {
-                                Err(anyhow!("Map.append(map, other: map) requires a map parameter to move values from"))
+                                Err(SError::map(pid, &doc, "append", "map argument not found"))
                             }
                         }
                     },
                     _ => {
-                        Err(anyhow!("Map.append(map, other: map) requires a map parameter to move values from"))
+                        Err(SError::map(pid, &doc, "append", "map argument not found"))
                     }
                 }
             },
@@ -65,7 +64,7 @@ impl MapLibrary {
             // Signature: Map.contains(map, key: unknown): bool
             "contains" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Map.contains(map, key: unknown) requires a key parameter to look for"));
+                    return Err(SError::map(pid, &doc, "contains", "key argument not found"));
                 }
                 Ok(SVal::Bool(map.contains_key(&parameters[0])))
             },
@@ -89,7 +88,7 @@ impl MapLibrary {
             // Signature: Map.get(map, key: unknown): null | unknown
             "get" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Map.get(map, key: unknown) requires a key parameter to search with"));
+                    return Err(SError::map(pid, &doc, "get", "key argument for retrieving a value not found"));
                 }
                 if let Some(value) = map.get(&parameters[0]) {
                     return Ok(value.clone());
@@ -100,7 +99,7 @@ impl MapLibrary {
             // Signature: Map.insert(map, key: unknown, value: unknown): null | unknown
             "insert" => {
                 if parameters.len() < 2 {
-                    return Err(anyhow!("Map.insert(map, key: unknown, value: unknown) requires a key and value to insert with"));
+                    return Err(SError::map(pid, &doc, "insert", "key and value arguments not found for insert operation"));
                 }
                 let value = parameters.pop().unwrap();
                 let key = parameters.pop().unwrap();
@@ -139,13 +138,13 @@ impl MapLibrary {
             // Signature: Map.at(map, index): (key: unknown, value: unknown)
             "at" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Map.at(map, index: unknown) requires an index parameter"));
+                    return Err(SError::map(pid, &doc, "at", "index argument not found"));
                 }
                 match &parameters[0] {
                     SVal::Number(index) => {
                         let index = index.int() as usize;
                         if index >= map.len() {
-                            return Err(anyhow!("Map.at(map, index: int) index out of bounds"));
+                            return Err(SError::map(pid, &doc, "at", "index out of bounds"));
                         }
                         if let Some((key, value)) = map.iter().nth(index) {
                             Ok(SVal::Tuple(vec![key.clone(), value.clone()]))
@@ -184,7 +183,7 @@ impl MapLibrary {
             // Signature: Map.remove(map, key: unknown): null | unknown
             "remove" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Map.remove(map, key: unknown) requires a key parameter to remove with"))
+                    return Err(SError::map(pid, &doc, "remove", "key argument not found for removal"));
                 }
                 if let Some(value) = map.remove(&parameters[0]) {
                     Ok(value)
@@ -196,7 +195,7 @@ impl MapLibrary {
             // Signagure: Map.retain(map, pred: fn): void
             "retain" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Map.retain(map, predicate: fn) requires a function parameter"));
+                    return Err(SError::map(pid, &doc, "retain", "predicate argument not found"));
                 }
                 match &parameters[0] {
                     SVal::FnPtr(dref) => {
@@ -210,16 +209,16 @@ impl MapLibrary {
                             });
                             Ok(SVal::Void)
                         } else {
-                            Err(anyhow!("Map.retain(map, predicate: fn) function does not exist"))
+                            Err(SError::map(pid, &doc, "retain", "predicate not found"))
                         }
                     },
                     _ => {
-                        Err(anyhow!("Map.retain(map, predicate: fn) requires a function parameter"))
+                        Err(SError::map(pid, &doc, "retain", "predicate not found"))
                     }
                 }
             },
             _ => {
-                Err(anyhow!("Did not find the requested Map library function '{}'", name))
+                Err(SError::map(pid, &doc, "NotFound", &format!("{} is not a function in the Map Library", name)))
             }
         }
     }
@@ -229,7 +228,7 @@ impl Library for MapLibrary {
         "Map".to_string()
     }
 
-    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         if parameters.len() > 0 {
             match name {
                 "toString" => {
@@ -264,16 +263,16 @@ impl Library for MapLibrary {
                             return self.operate(pid, doc, name, map, &mut params);
                         },
                         _ => {
-                            return Err(anyhow!("Map library requires the first parameter to be a map"));
+                            return Err(SError::map(pid, &doc, "InvalidArgument", "map argument not found"));
                         }
                     }
                 },
                 _ => {
-                    return Err(anyhow!("Map library requires the first parameter to be a map"));
+                    return Err(SError::map(pid, &doc, "InvalidArgument", "map argument not found"));
                 }
             }
         } else {
-            return Err(anyhow!("Map library requires a 'map' parameter to work with"));
+            return Err(SError::map(pid, &doc, "InvalidArgument", "map argument not found"));
         }
     }
 }

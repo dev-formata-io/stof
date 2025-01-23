@@ -15,10 +15,9 @@
 //
 
 use std::{collections::{BTreeMap, BTreeSet, HashSet}, sync::Arc};
-use anyhow::{anyhow, Result};
 use bytes::Bytes;
 use colored::Colorize;
-use crate::{SData, SDoc, SField, SFunc, SType, SVal};
+use crate::{lang::SError, SData, SDoc, SField, SFunc, SType, SVal};
 
 
 /// Stof Libraries.
@@ -57,7 +56,7 @@ pub trait Library: Sync + Send {
     fn scope(&self) -> String;
 
     /// Call a library function with a set of parameters.
-    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal>;
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal, SError>;
 }
 
 
@@ -71,7 +70,7 @@ impl Library for StdLibrary {
     }
 
     /// Call a standard library function.
-    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         match name {
             "parse" => {
                 if parameters.len() > 0 {
@@ -161,7 +160,7 @@ impl Library for StdLibrary {
                     let available = doc.available_formats();
                     return Ok(SVal::Bool(available.contains(&format)));
                 }
-                Err(anyhow!("Must provide a format string to look for"))
+                Err(SError::std(pid, &doc, "hasFormat", "must provide a format string argument"))
             },
             "formats" => {
                 let formats: Vec<SVal> = doc.available_formats().into_iter().map(|fmt| SVal::String(fmt)).collect();
@@ -172,7 +171,7 @@ impl Library for StdLibrary {
                     let format = parameters[0].to_string();
                     return Ok(SVal::String(doc.format_content_type(&format).unwrap_or("text/plain".to_string())));
                 }
-                Err(anyhow!("Must provide a format to get a content type for"))
+                Err(SError::std(pid, &doc, "formatContentType", "must provide a format string argument"))
             },
             "hasLib" |
             "hasLibrary" => {
@@ -181,7 +180,7 @@ impl Library for StdLibrary {
                     let available = doc.available_libraries();
                     return Ok(SVal::Bool(available.contains(&lib)));
                 }
-                Err(anyhow!("Must provide a library name to look for"))
+                Err(SError::std(pid, &doc, "hasLibrary", "must provide a library string argument"))
             },
             "libs" |
             "libraries" => {
@@ -260,7 +259,13 @@ impl Library for StdLibrary {
             },
             "throw" => {
                 let mut res = String::default();
-                for i in 0..parameters.len() {
+                let mut error_type = String::from("Std");
+                let mut start = 0;
+                if parameters.len() > 1 {
+                    error_type = parameters[0].to_string();
+                    start += 1;
+                }
+                for i in start..parameters.len() {
                     let param = &parameters[i];
                     let print = param.print(doc);
                     
@@ -278,72 +283,72 @@ impl Library for StdLibrary {
                         }
                     }
                 }
-                Err(anyhow!("{}", res))
+                Err(SError::thrown(pid, &doc, &error_type, &res))
             },
             "assert" => {
                 if parameters.len() == 1 {
                     let truthy = parameters[0].truthy();
                     if !truthy {
-                        return Err(anyhow!("Assert failed - {:?} is not truthy", parameters[0]));
+                        return Err(SError::std(pid, &doc, "assert", &format!("{:?} is not truthy", parameters[0])));
                     }
                     return Ok(SVal::Void);
                 }
-                Err(anyhow!("Assert must have 1 parameter"))
+                Err(SError::std(pid, &doc, "assert", "must have one argument to assert"))
             },
             "assertNot" => {
                 if parameters.len() == 1 {
                     let truthy = parameters[0].truthy();
                     if truthy {
-                        return Err(anyhow!("Assert failed - {:?} is truthy", parameters[0]));
+                        return Err(SError::std(pid, &doc, "assertNot", &format!("{:?} is truthy", parameters[0])));
                     }
                     return Ok(SVal::Void);
                 }
-                Err(anyhow!("Assert must have 1 parameter"))
+                Err(SError::std(pid, &doc, "assertNot", "must have one argument to assert not truthy"))
             },
             "assertNull" => {
                 if parameters.len() == 1 {
                     if !parameters[0].is_null() {
-                        return Err(anyhow!("Assert null failed"));
+                        return Err(SError::std(pid, &doc, "assertNull", &format!("{:?} is not null", parameters[0])));
                     }
                     return Ok(SVal::Void);
                 }
-                Err(anyhow!("Assert null must have 1 parameter"))
+                Err(SError::std(pid, &doc, "assertNull", "must give one argument to assert a null value"))
             },
             "assertObject" => {
                 if parameters.len() == 1 {
                     if !parameters[0].is_object() {
-                        return Err(anyhow!("Assert object failed"));
+                        return Err(SError::std(pid, &doc, "assertObject", &format!("{:?} is not an object", parameters[0])));
                     }
                     return Ok(SVal::Void);
                 }
-                Err(anyhow!("Assert object must have 1 parameter"))
+                Err(SError::std(pid, &doc, "assertObject", "must give one argument to assert it is an object value"))
             },
             "assertArray" => {
                 if parameters.len() == 1 {
                     if !parameters[0].is_array() {
-                        return Err(anyhow!("Assert array failed"));
+                        return Err(SError::std(pid, &doc, "assertArray", &format!("{:?} is not an array value", parameters[0])));
                     }
                     return Ok(SVal::Void);
                 }
-                Err(anyhow!("Assert array must have 1 parameter"))
+                Err(SError::std(pid, &doc, "assertArray", "must give one argument to assert it is an array value type"))
             },
             "assertTuple" => {
                 if parameters.len() == 1 {
                     if !parameters[0].is_tuple() {
-                        return Err(anyhow!("Assert tuple failed"));
+                        return Err(SError::std(pid, &doc, "assertTuple", &format!("{:?} is not a tuple value", parameters[0])));
                     }
                     return Ok(SVal::Void);
                 }
-                Err(anyhow!("Assert tuple must have 1 parameter"))
+                Err(SError::std(pid, &doc, "assertTuple", "must give one argument to assert it is a tuple value type"))
             },
             "assertNumber" => {
                 if parameters.len() == 1 {
                     if !parameters[0].is_number() {
-                        return Err(anyhow!("Assert number failed"));
+                        return Err(SError::std(pid, &doc, "assertNumber", &format!("{:?} is not a number value", parameters[0])));
                     }
                     return Ok(SVal::Void);
                 }
-                Err(anyhow!("Assert number must have 1 parameter"))
+                Err(SError::std(pid, &doc, "assertNumber", "must give one argument to assert it is a number value type"))
             },
             "assertEq" => {
                 if parameters.len() == 2 {
@@ -352,16 +357,16 @@ impl Library for StdLibrary {
                         Ok(val) => {
                             let truthy = val.truthy();
                             if !truthy {
-                                return Err(anyhow!("Assert equals failed - {:?} != {:?}", parameters[0], parameters[1]));
+                                return Err(SError::std(pid, &doc, "assertEq", &format!("{:?} != {:?}", parameters[0], parameters[1])));
                             }
                             return Ok(SVal::Void);
                         },
                         Err(msg) => {
-                            return Err(anyhow!("Assert equals failed: {}", msg))
+                            return Err(SError::std(pid, &doc, "assertEq", &msg.to_string(&doc.graph)));
                         }
                     }
                 }
-                Err(anyhow!("Assert equals must have 2 parameters"))
+                Err(SError::std(pid, &doc, "assertEq", "must give 2 parameters to assert they equal each other"))
             },
             "assertNeq" => {
                 if parameters.len() == 2 {
@@ -370,16 +375,16 @@ impl Library for StdLibrary {
                         Ok(val) => {
                             let truthy = val.truthy();
                             if !truthy {
-                                return Err(anyhow!("Assert not equals failed - {:?} == {:?}", parameters[0], parameters[1]));
+                                return Err(SError::std(pid, &doc, "assertNeq", &format!("{:?} == {:?}", parameters[0], parameters[1])));
                             }
                             return Ok(SVal::Void);
                         },
                         Err(msg) => {
-                            return Err(anyhow!("Assert not equals failed: {}", msg))
+                            return Err(SError::std(pid, &doc, "assertNeq", &msg.to_string(&doc.graph)));
                         }
                     }
                 }
-                Err(anyhow!("Assert not equals must have 2 parameters"))
+                Err(SError::std(pid, &doc, "assertNeq", "must give 2 arguments to assert they do not equal each other"))
             },
             /*"dump" => {
                 doc.graph.dump(true);
@@ -460,13 +465,13 @@ impl Library for StdLibrary {
                 if parameters.len() > 0 {
                     return Ok(parameters.pop().unwrap().to_box());
                 }
-                Err(anyhow!("std.box(val): Box<unknown> requires one value to box"))
+                Err(SError::std(pid, &doc, "box", "must give one argument value to ensure it is boxed"))
             },
             "unbox" => {
                 if parameters.len() > 0 {
                     return Ok(parameters.pop().unwrap().unbox());
                 }
-                Err(anyhow!("std.unbox(val): unknown requires one value to unbox"))
+                Err(SError::std(pid, &doc, "unbox", "must give one argument value to ensure it is not boxed"))
             },
 
             /*****************************************************************************
@@ -532,7 +537,7 @@ impl Library for StdLibrary {
                                             }
                                         },
                                         _ => {
-                                            return Err(anyhow!("Cannot initialize a Map with any value other than a tuple (key, value)"));
+                                            return Err(SError::std(pid, &doc, "map", "cannot initialize a map with any array containing a non-tuple type with anything other than 2 values (key, value)"));
                                         }
                                     }
                                 }
@@ -576,7 +581,7 @@ impl Library for StdLibrary {
                 Ok(SVal::Map(map))
             },
             _ => {
-                Err(anyhow!("Did not find a function named '{}' in the standard library", name))
+                Err(SError::std(pid, &doc, "NotFound", &format!("{} is not a function in the Stof Standard Library", name)))
             }
         }
     }

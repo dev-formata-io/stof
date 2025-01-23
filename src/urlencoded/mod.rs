@@ -15,7 +15,7 @@
 //
 
 use anyhow::Result;
-use crate::{Format, SGraph};
+use crate::{lang::SError, Format, SGraph};
 
 mod encoded;
 use encoded::URLEncode;
@@ -35,13 +35,20 @@ impl Format for URLENC {
     }
 
     /// Header import.
-    fn header_import(&self, pid: &str, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<()> {
-        let str = std::str::from_utf8(bytes.as_ref())?;
-        self.string_import(pid, doc, str, as_name)
+    fn header_import(&self, pid: &str, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<(), SError> {
+        let res = std::str::from_utf8(bytes.as_ref());
+        match res {
+            Ok(str) => {
+                self.string_import(pid, doc, str, as_name)
+            },
+            Err(error) => {
+                Err(SError::fmt(pid, &doc, "urlencoded", &error.to_string()))
+            }
+        }
     }
 
     /// String import.
-    fn string_import(&self, pid: &str, doc: &mut crate::SDoc, src: &str, as_name: &str) -> Result<()> {
+    fn string_import(&self, pid: &str, doc: &mut crate::SDoc, src: &str, as_name: &str) -> Result<(), SError> {
         let mut graph = URLEncode::decode(src);
         if as_name.len() > 0 && as_name != "root" {
             let mut path = as_name.replace(".", "/");
@@ -65,13 +72,13 @@ impl Format for URLENC {
     }
 
     /// File import.
-    fn file_import(&self, pid: &str, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
+    fn file_import(&self, pid: &str, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<(), SError> {
         let src = doc.fs_read_string(pid, full_path)?;
         self.string_import(pid, doc, &src, as_name)
     }
 
     /// Export string.
-    fn export_string(&self, _pid: &str, doc: &crate::SDoc, node: Option<&crate::SNodeRef>) -> Result<String> {
+    fn export_string(&self, _pid: &str, doc: &crate::SDoc, node: Option<&crate::SNodeRef>) -> Result<String, SError> {
         if node.is_some() {
             Ok(URLEncode::node_encode(&doc.graph, node.unwrap()))
         } else {

@@ -22,3 +22,6 @@ pub use statement::*;
 
 pub mod dectype;
 pub use dectype::*;
+
+pub mod error;
+pub use error::*;

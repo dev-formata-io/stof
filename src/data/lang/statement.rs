@@ -15,10 +15,9 @@
 //
 
 use std::collections::HashMap;
-use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use crate::{Data, SDoc, SField, SVal, SFunc};
-use super::Expr;
+use super::{Expr, SError};
 
 
 /// Statements result enum.
@@ -46,24 +45,27 @@ impl Statements {
     }
 
     /// Execute these statements with the given doc.
-    pub fn exec(&self, pid: &str, doc: &mut SDoc) -> Result<StatementsRes> {
+    pub fn exec(&self, pid: &str, doc: &mut SDoc) -> Result<StatementsRes, SError> {
         for statement in &self.statements {
             match statement {
                 Statement::Declare(name, rhs) => {
                     // Check to see if the symbol already exists in the current scope
                     if doc.has_var_with_name_in_current(pid, name) {
-                        return Err(anyhow!("Attempting to declare a variable that already exists in the same scope: {}", &name));
+                        let error = SError::custom(pid, &doc, "VarDeclare", &format!("cannot declare a variable twice within the same scope: {}", &name));
+                        return Err(error);
                     }
 
                     // Eval rhs, which is the value of the new variable
                     let val = rhs.exec(pid, doc)?;
                     if val.is_void() {
-                        return Err(anyhow!("Cannot declare void variable"));
+                        let error = SError::custom(pid, &doc, "VarDeclare", "cannot declare a void variable");
+                        return Err(error);
                     }
 
                     // Do not allow fields to be set on declare!
                     if name.contains('.') {
-                        return Err(anyhow!("Cannot declare variables that are paths. If you're setting fields, drop the 'let' keyword."));
+                        let error = SError::custom(pid, &doc, "VarDeclare", "cannot declare variables that are paths, use an assignment operation if intending to create/assign fields");
+                        return Err(error);
                     } else {
                         doc.add_variable(pid, &name, val);
                     }
@@ -72,7 +74,8 @@ impl Statements {
                     // Eval rhs, which is the value of the variable!
                     let mut val = rhs.exec(pid, doc)?;
                     if val.is_void() {
-                        return Err(anyhow!("Cannot assign void"));
+                        let error = SError::custom(pid, &doc, "AssignError", "cannot assign a void value");
+                        return Err(error);
                     }
 
                     // Try setting a variable in the symbol table
@@ -158,7 +161,10 @@ impl Statements {
                                 }
                                 doc.graph.roots.push(nref);
                             },
-                            _ => return Err(anyhow!("Cannot assign anything but an object as a root"))
+                            _ => {
+                                let error = SError::custom(pid, &doc, "AssignError", "variable does not exist and cannot create/assign a root object with a non-object value");
+                                return Err(error)
+                            }
                         }
                     }
                 },

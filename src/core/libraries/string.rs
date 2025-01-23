@@ -14,9 +14,8 @@
 // limitations under the License.
 //
 
-use std::ops::DerefMut;
-use anyhow::{anyhow, Result};
-use crate::{SDoc, Library, SNum, SVal};
+use std::ops::{Deref, DerefMut};
+use crate::{lang::SError, Library, SDoc, SNum, SVal};
 
 
 /// String library.
@@ -24,7 +23,7 @@ use crate::{SDoc, Library, SNum, SVal};
 pub struct StringLibrary;
 impl StringLibrary {
     /// Call string operation.
-    pub fn operate(&self, _pid: &str, _doc: &mut SDoc, name: &str, val: &mut String, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    pub fn operate(&self, pid: &str, doc: &mut SDoc, name: &str, val: &mut String, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         match name {
             // Get the length of this string.
             "len" => {
@@ -33,7 +32,7 @@ impl StringLibrary {
             // Get a char from this string at a specific index.
             "at" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("String.at(val, index) requires an index parameter"));
+                    return Err(SError::string(pid, &doc, "at", "invalid arguments - index not found"));
                 }
                 let index = parameters.pop().unwrap().unbox();
                 match index {
@@ -45,8 +44,25 @@ impl StringLibrary {
                         let char = val.as_bytes()[index] as char;
                         Ok(SVal::from(char))
                     },
+                    SVal::Boxed(bval) => {
+                        let bval = bval.lock().unwrap();
+                        let bval = bval.deref();
+                        match bval {
+                            SVal::Number(index) => {
+                                let index = index.int() as usize;
+                                if index >= val.len() {
+                                    return Ok(SVal::Null);
+                                }
+                                let char = val.as_bytes()[index] as char;
+                                Ok(SVal::from(char))
+                            },
+                            _ => {
+                                Err(SError::string(pid, &doc, "at", "invalid arguments - index must be numerical"))
+                            }
+                        }
+                    },
                     _ => {
-                        Err(anyhow!("String.at(val, index) index must be a number value"))
+                        Err(SError::string(pid, &doc, "at", "invalid arguments - index must be numerical"))
                     }
                 }
             },
@@ -72,7 +88,7 @@ impl StringLibrary {
                     let second = parameters[0].to_string();
                     return Ok(SVal::Bool(val.starts_with(&second)));
                 }
-                Err(anyhow!("String.startsWith(val, test: str) requires a string parameter to test with"))
+                Err(SError::string(pid, &doc, "startsWith", "invalid arguments - string value to test startsWith not found"))
             },
             // Test whether the string ends with a value.
             "endsWith" => {
@@ -80,7 +96,7 @@ impl StringLibrary {
                     let second = parameters[0].to_string();
                     return Ok(SVal::Bool(val.ends_with(&second)));
                 }
-                Err(anyhow!("String.endsWith(val, test: str) requires a string parameter to test with"))
+                Err(SError::string(pid, &doc, "endsWith", "invalid arguments - string value to test endsWith not found"))
             },
             // Push values to this string.
             "push" => {
@@ -92,14 +108,14 @@ impl StringLibrary {
             // Does this string contain a substring?
             "contains" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("String.contains(val, substr) requires a substring parameter to test with"));
+                    return Err(SError::string(pid, &doc, "contains", "invalid arguments - contains string not found"));
                 }
                 Ok(SVal::Bool(val.contains(&parameters[0].to_string())))
             },
             // Index of a substring in this string. -1 if not found, index of first char otherwise.
             "indexOf" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("String.indexOf(val, substr) requires a substring parameter to find"))
+                    return Err(SError::string(pid, &doc, "indexOf", "invalid arguments - substring to search for not found"));
                 }
                 if let Some(index) = val.find(&parameters[0].to_string()) {
                     return Ok(SVal::Number(SNum::I64(index as i64)));
@@ -109,7 +125,7 @@ impl StringLibrary {
             // Replace all instances of a substring in this string.
             "replace" => {
                 if parameters.len() < 2 {
-                    return Err(anyhow!("String.replace(val, from, to) requires 3 string parameters"));
+                    return Err(SError::string(pid, &doc, "replace", "invalid arguments - string replace takes a from string value and a to string value"));
                 }
                 let from = parameters[0].to_string();
                 let to = parameters[1].to_string();
@@ -118,7 +134,7 @@ impl StringLibrary {
             // Split this string at every occurrence of a substring.
             "split" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("String.split(val, substr) requires a substring to split this string with"));
+                    return Err(SError::string(pid, &doc, "split", "invalid arguments - substring to split with not found"));
                 }
                 let vals = val.split(&parameters[0].to_string()).collect::<Vec<&str>>();
                 let mut array = Vec::new();
@@ -148,7 +164,7 @@ impl StringLibrary {
             // Get a substring of this string.
             "substring" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("String.substring(val, start, end) requires a starting index and optional end index"));
+                    return Err(SError::string(pid, &doc, "substring", "invalid arguments - start (and optional end) not found"));
                 }
                 let start;
                 match &parameters[0] {
@@ -156,7 +172,7 @@ impl StringLibrary {
                         start = num.int() as usize;
                     },
                     _ => {
-                        return Err(anyhow!("String.substring(val, start, end) starting index must be a number value"));
+                        return Err(SError::string(pid, &doc, "substring", "non-numerical ranges are not supported"));
                     }
                 }
                 if parameters.len() > 1 {
@@ -166,22 +182,22 @@ impl StringLibrary {
                             end = num.int() as usize;
                         },
                         _ => {
-                            return Err(anyhow!("String.substring(val, start, end) ending index must be a number value"));
+                            return Err(SError::string(pid, &doc, "substring", "non-numerical ranges are not supported"));
                         }
                     }
                     if let Some(slice) = val.get(start..end) {
                         return Ok(SVal::String(slice.to_string()));
                     }
-                    return Err(anyhow!("String.substring(val, start, end) could not get substring at the requested range"));
+                    return Err(SError::string(pid, &doc, "substring", "cannot get substring at the requested range"));
                 }
                 if let Some(slice) = val.get(start..) {
                     Ok(SVal::String(slice.to_string()))
                 } else {
-                    Err(anyhow!("String.substring(val, start, end) could not get substring at the requested range"))
+                    Err(SError::string(pid, &doc, "substring", "cannot get substring at the requested range"))
                 }
             },
             _ => {
-                Err(anyhow!("Did not find the requested String library function '{}'", name))
+                Err(SError::string(pid, &doc, "NotFound", &format!("{} is not a function in the String Library", name)))
             }
         }
     }
@@ -193,7 +209,7 @@ impl Library for StringLibrary {
     }
     
     /// Call into the String library.
-    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         if parameters.len() > 0 {
             match name {
                 "toString" => {
@@ -228,16 +244,16 @@ impl Library for StringLibrary {
                             return self.operate(pid, doc, name, val, &mut params);
                         },
                         _ => {
-                            return Err(anyhow!("String library requires the first parameter to be a str"));
+                            return Err(SError::string(pid, &doc, "InvalidArgument", "string argument not found"));
                         }
                     }
                 },
                 _ => {
-                    return Err(anyhow!("String library requires the first parameter to be a str"));
+                    return Err(SError::string(pid, &doc, "InvalidArgument", "string argument not found"));
                 }
             }
         } else {
-            return Err(anyhow!("String library requires a 'str' parameter to work with"));
+            return Err(SError::string(pid, &doc, "InvalidArgument", "string argument not found"));
         }
     }
 }

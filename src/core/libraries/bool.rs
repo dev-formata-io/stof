@@ -15,8 +15,7 @@
 //
 
 use std::ops::DerefMut;
-use anyhow::{anyhow, Result};
-use crate::{Library, SDoc, SVal};
+use crate::{lang::SError, Library, SDoc, SVal};
 
 
 /// Bool library.
@@ -24,10 +23,10 @@ use crate::{Library, SDoc, SVal};
 pub struct BoolLibrary;
 impl BoolLibrary {
     /// Call bool operation.
-    pub fn operate(&self, _pid: &str, _doc: &mut SDoc, name: &str, _bool: &mut bool, _parameters: &mut Vec<SVal>) -> Result<SVal> {
+    pub fn operate(&self, pid: &str, doc: &mut SDoc, name: &str, _bool: &mut bool, _parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         match name {
             _ => {
-                Err(anyhow!("Did not find the requested Bool library function '{}'", name))
+                Err(SError::bool(pid, &doc, "NotFound", &format!("{} is not a function in the Bool Library", name)))
             }
         }
     }
@@ -39,7 +38,7 @@ impl Library for BoolLibrary {
     }
     
     /// Call into the Bool library.
-    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         if parameters.len() > 0 {
             match name {
                 "toString" => {
@@ -74,16 +73,16 @@ impl Library for BoolLibrary {
                             return self.operate(pid, doc, name, val, &mut params);
                         },
                         _ => {
-                            return Err(anyhow!("Bool library requires the first parameter to be a bool"));
+                            return Err(SError::bool(pid, &doc, "InvalidArgument", "bool argument not found"));
                         }
                     }
                 },
                 _ => {
-                    return Err(anyhow!("Bool library requires the first parameter to be a bool"));
+                    return Err(SError::bool(pid, &doc, "InvalidArgument", "bool argument not found"));
                 }
             }
         } else {
-            return Err(anyhow!("Bool library requires a bool parameter to work with"));
+            return Err(SError::bool(pid, &doc, "InvalidArgument", "bool argument not found"));
         }
     }
 }

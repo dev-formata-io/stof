@@ -14,9 +14,9 @@
 // limitations under the License.
 //
 
-use anyhow::{anyhow, Result};
 use serde_json::Value;
-use crate::{json::JSON, Format, IntoNodeRef, SDoc, SGraph};
+use crate::{json::JSON, lang::SError, Format, IntoNodeRef, SDoc, SGraph};
+
 
 #[cfg(test)]
 mod tests;
@@ -26,28 +26,51 @@ mod tests;
 pub struct YAML;
 impl YAML {
     /// Parse a YAML string into a new document.
-    pub fn parse_new(yaml: &str) -> Result<SDoc> {
+    pub fn parse_new(yaml: &str) -> Result<SDoc, SError> {
         Ok(SDoc::new(Self::parse(yaml)?))
     }
 
     /// Parse a YAML string into a Stof graph.
-    pub fn parse(yaml: &str) -> Result<SGraph> {
-        let value: Value = serde_yaml::from_str(yaml)?;
-        Ok(JSON::from_value(value))
+    pub fn parse(yaml: &str) -> Result<SGraph, SError> {
+        let res = serde_yaml::from_str::<Value>(yaml);
+        match res {
+            Ok(value) => {
+                Ok(JSON::from_value(value))
+            },
+            Err(error) => {
+                Err(SError::empty_fmt("yaml", &error.to_string()))
+            }
+        }
     }
 
     /// Export a graph as a YAML string.
     /// Exports the main root of the graph only.
-    pub fn stringify(graph: &SGraph) -> Result<String> {
-        if let Ok(value) = JSON::to_value(graph) {
-            return Ok(serde_yaml::to_string(&value)?);
+    pub fn stringify(pid: &str, doc: &SDoc) -> Result<String, SError> {
+        if let Ok(value) = JSON::to_value(pid, doc) {
+            let res = serde_yaml::to_string(&value);
+            return match res {
+                Ok(value) => {
+                    Ok(value)
+                },
+                Err(error) => {
+                    Err(SError::fmt(pid, doc, "yaml", &error.to_string()))
+                }
+            };
         }
-        Err(anyhow!("Stof YAML Error: Could not stringify graph"))
+        Err(SError::fmt(pid, doc, "yaml", "could not stringify document"))
     }
 
     /// Export a node as a TOML string.
-    pub fn stringify_node(graph: &SGraph, node: impl IntoNodeRef) -> Result<String> {
-        Ok(serde_yaml::to_string(&JSON::to_node_value(graph, node))?)
+    pub fn stringify_node(pid: &str, doc: &SDoc, node: impl IntoNodeRef) -> Result<String, SError> {
+        let res = serde_yaml::to_string(&JSON::to_node_value(&doc.graph, node));
+        match res {
+            Ok(value) => {
+                Ok(value)
+            },
+            Err(error) => {
+                Err(SError::fmt(pid, doc, "yaml", &error.to_string()))
+            }
+        }
     }
 }
 
@@ -63,13 +86,20 @@ impl Format for YAML {
     }
 
     /// Header import.
-    fn header_import(&self, pid: &str, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<()> {
-        let str = std::str::from_utf8(bytes.as_ref())?;
-        self.string_import(pid, doc, str, as_name)
+    fn header_import(&self, pid: &str, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<(), SError> {
+        let res = std::str::from_utf8(bytes.as_ref());
+        match res {
+            Ok(str) => {
+                self.string_import(pid, doc, str, as_name)
+            },
+            Err(error) => {
+                Err(SError::fmt(pid, &doc, "yaml", &error.to_string()))
+            }
+        }
     }
 
     /// String import.
-    fn string_import(&self, pid: &str, doc: &mut crate::SDoc, src: &str, as_name: &str) -> Result<()> {
+    fn string_import(&self, pid: &str, doc: &mut crate::SDoc, src: &str, as_name: &str) -> Result<(), SError> {
         let mut graph = YAML::parse(src)?;
         if as_name.len() > 0 && as_name != "root" {
             let mut path = as_name.replace(".", "/");
@@ -93,17 +123,17 @@ impl Format for YAML {
     }
 
     /// File import.
-    fn file_import(&self, pid: &str, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
+    fn file_import(&self, pid: &str, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<(), SError> {
         let src = doc.fs_read_string(pid, full_path)?;
         self.string_import(pid, doc, &src, as_name)
     }
 
     /// Export string.
-    fn export_string(&self, _pid: &str, doc: &crate::SDoc, node: Option<&crate::SNodeRef>) -> Result<String> {
+    fn export_string(&self, pid: &str, doc: &crate::SDoc, node: Option<&crate::SNodeRef>) -> Result<String, SError> {
         if node.is_some() {
-            YAML::stringify_node(&doc.graph, node)
+            YAML::stringify_node(pid, &doc, node)
         } else {
-            YAML::stringify(&doc.graph)
+            YAML::stringify(pid, &doc)
         }
     }
 }

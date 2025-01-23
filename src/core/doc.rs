@@ -15,11 +15,10 @@
 //
 
 use std::{collections::HashSet, sync::Arc, time::SystemTime};
-use anyhow::{anyhow, Result};
 use bytes::Bytes;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
-use crate::{bytes::BYTES, text::TEXT, SData, SField, SFunc, SVal, BSTOF, STOF};
+use crate::{bytes::BYTES, lang::SError, text::TEXT, SData, SField, SFunc, SVal, BSTOF, STOF};
 use super::{runtime::{DocPermissions, Library, Symbol, SymbolTable}, ArrayLibrary, BlobLibrary, BoolLibrary, CustomTypes, Format, FunctionLibrary, IntoDataRef, IntoNodeRef, MapLibrary, NumberLibrary, ObjectLibrary, SFormats, SGraph, SLibraries, SNodeRef, SProcesses, SetLibrary, StdLibrary, StringLibrary, TupleLibrary};
 
 #[cfg(not(feature = "wasm"))]
@@ -103,42 +102,42 @@ impl SDoc {
     }
 
     /// New document from a string import format.
-    pub fn src(src: &str, format: &str) -> Result<Self> {
+    pub fn src(src: &str, format: &str) -> Result<Self, SError> {
         let mut doc = Self::default();
         doc.string_import("main", format, src, "")?;
         Ok(doc)
     }
 
     /// New document from a file import.
-    pub fn file(path: &str, format: &str) -> Result<Self> {
+    pub fn file(path: &str, format: &str) -> Result<Self, SError> {
         let mut doc = Self::default();
         doc.file_import("main", format, path, format, "")?;
         Ok(doc)
     }
 
     /// New document from bytes.
-    pub fn bytes(mut bytes: Bytes, format: &str) -> Result<Self> {
+    pub fn bytes(mut bytes: Bytes, format: &str) -> Result<Self, SError> {
         let mut doc = Self::default();
         doc.header_import("main", format, format, &mut bytes, "")?;
         Ok(doc)
     }
 
     /// Export this document to a text file at "path" using "format".
-    pub fn text_file_out(&mut self, path: &str, format: &str) -> Result<()> {
+    pub fn text_file_out(&mut self, path: &str, format: &str) -> Result<(), SError> {
         if let Ok(out) = self.export_min_string("main", format, None) {
             self.fs_write_string("main", path, &out)?;
             return Ok(());
         }
-        Err(anyhow!("Could not export to a text file"))
+        Err(SError::filesys("main", &self, "text_file_out", "could not export to a text file"))
     }
 
     /// Export this document to a binary file at "path" using "format".
-    pub fn bin_file_out(&mut self, path: &str, format: &str) -> Result<()> {
+    pub fn bin_file_out(&mut self, path: &str, format: &str) -> Result<(), SError> {
         if let Ok(out) = self.export_bytes("main", format, None) {
             self.fs_write_blob("main", path, out.to_vec())?;
             return Ok(());
         }
-        Err(anyhow!("Could not export to a binary file"))
+        Err(SError::filesys("main", &self, "bin_file_out", "could not export to a binary file"))
     }
 
 
@@ -196,12 +195,12 @@ impl SDoc {
     }
 
     /// Header import (content type with bytes).
-    pub fn header_import(&mut self, pid: &str, format: &str, content_type: &str, bytes: &mut Bytes, as_name: &str) -> Result<()> {
+    pub fn header_import(&mut self, pid: &str, format: &str, content_type: &str, bytes: &mut Bytes, as_name: &str) -> Result<(), SError> {
         self.formats.clone().header_import(format, pid, self, content_type, bytes, as_name)
     }
 
     /// String import.
-    pub fn string_import(&mut self, pid: &str, format: &str, src: &str, as_name: &str) -> Result<()> {
+    pub fn string_import(&mut self, pid: &str, format: &str, src: &str, as_name: &str) -> Result<(), SError> {
         self.formats.clone().string_import(format, pid, self, src, as_name)
     }
 
@@ -209,22 +208,22 @@ impl SDoc {
     /// Stof Syntax: 'import <format> "<path>.<extension>" as <as_name>;'
     /// If <format> isn't supplied, "format" will be "extension".
     /// If <as_name> isn't supplied, the data should be imported into the current doc scope (or main root).
-    pub fn file_import(&mut self, pid: &str, format: &str, full_path: &str, extension: &str, as_name: &str) -> Result<()> {
+    pub fn file_import(&mut self, pid: &str, format: &str, full_path: &str, extension: &str, as_name: &str) -> Result<(), SError> {
         self.formats.clone().file_import(format, pid, self, full_path, extension, as_name)
     }
 
-    /// Export document string.
-    pub fn export_string(&self, pid: &str, format: &str, node: Option<&SNodeRef>) -> Result<String> {
+    /// Export document string.i
+    pub fn export_string(&self, pid: &str, format: &str, node: Option<&SNodeRef>) -> Result<String, SError> {
         self.formats.export_string(format, pid, self, node)
     }
 
     /// Export document min string.
-    pub fn export_min_string(&self, pid: &str, format: &str, node: Option<&SNodeRef>) -> Result<String> {
+    pub fn export_min_string(&self, pid: &str, format: &str, node: Option<&SNodeRef>) -> Result<String, SError> {
         self.formats.export_min_string(format, pid, self, node)
     }
 
     /// Export document bytes.
-    pub fn export_bytes(&self, pid: &str, format: &str, node: Option<&SNodeRef>) -> Result<Bytes> {
+    pub fn export_bytes(&self, pid: &str, format: &str, node: Option<&SNodeRef>) -> Result<Bytes, SError> {
         self.formats.export_bytes(format, pid, self, node)
     }
 
@@ -270,34 +269,34 @@ impl SDoc {
     }
 
     /// Write a string to a file using the fs library.
-    pub fn fs_write_string(&mut self, pid: &str, path: &str, contents: &str) -> Result<()> {
+    pub fn fs_write_string(&mut self, pid: &str, path: &str, contents: &str) -> Result<(), SError> {
         if let Some(fs) = self.library("fs") {
             fs.call(pid, self, "write", &mut vec![SVal::String(path.to_owned()), SVal::String(contents.to_owned())])?;
             return Ok(());
         }
-        Err(anyhow!("Was not able to use the 'fs' library to write a file"))
+        Err(SError::filesys("main", &self, "fs_write_string", "no FileSystem 'fs' library loaded into this document"))
     }
 
     /// Write a blob to a file using the fs library.
-    pub fn fs_write_blob(&mut self, pid: &str, path: &str, contents: Vec<u8>) -> Result<()> {
+    pub fn fs_write_blob(&mut self, pid: &str, path: &str, contents: Vec<u8>) -> Result<(), SError> {
         if let Some(fs) = self.library("fs") {
             fs.call(pid, self, "write_blob", &mut vec![SVal::String(path.to_owned()), SVal::Blob(contents)])?;
             return Ok(());
         }
-        Err(anyhow!("Was not able to use the 'fs' library to write a file"))
+        Err(SError::filesys("main", &self, "fs_write_blob", "no FileSystem 'fs' library loaded into this document"))
     }
 
     /// Read a file to a string using the fs library.
-    pub fn fs_read_string(&mut self, pid: &str, path: &str) -> Result<String> {
+    pub fn fs_read_string(&mut self, pid: &str, path: &str) -> Result<String, SError> {
         if let Some(fs) = self.library("fs") {
             let res = fs.call(pid, self, "read", &mut vec![SVal::String(path.to_owned())])?;
             return Ok(res.owned_to_string());
         }
-        Err(anyhow!("Was not able to use the 'fs' library to read a file to a string"))
+        Err(SError::filesys("main", &self, "fs_read_string", "no FileSystem 'fs' library loaded into this document"))
     }
 
     /// Read a file to a blob using the fs library.
-    pub fn fs_read_blob(&mut self, pid: &str, path: &str) -> Result<Bytes> {
+    pub fn fs_read_blob(&mut self, pid: &str, path: &str) -> Result<Bytes, SError> {
         if let Some(fs) = self.library("fs") {
             let res = fs.call(pid, self, "read_blob", &mut vec![SVal::String(path.to_owned())])?;
             match res {
@@ -307,7 +306,7 @@ impl SDoc {
                 _ => {}
             }
         }
-        Err(anyhow!("Was not able to use the 'fs' library to read a file to bytes"))
+        Err(SError::filesys("main", &self, "fs_read_blob", "no FileSystem 'fs' library loaded into this document"))
     }
 
 
@@ -327,8 +326,10 @@ impl SDoc {
                 parameters.push(params.clone());
             }
             if let Ok(res) = func.call("main", self, parameters, true) {
+                self.clean("main");
                 return Some(res);
             }
+            self.clean("main");
         }
         None
     }
@@ -358,7 +359,7 @@ impl SDoc {
         match doc_res {
             Ok(dr) => doc = dr,
             Err(err) => {
-                let message = format!("{}: {}", "parse error".red(), err.to_string());
+                let message = format!("{}: {} - {}", "parse error".red(), err.error_type.to_string().blue(), err.message.dimmed());
                 if throw {
                     panic!("{message}");
                 } else {
@@ -401,6 +402,7 @@ impl SDoc {
                 } else {
                     result = func.call("main", self, vec![attr_val.clone()], true);
                 }
+                self.clean("main");
                 match result {
                     Ok(_) => {
                         // Nada... keep going!
@@ -414,7 +416,7 @@ impl SDoc {
                             func_path = String::from("<unknown>");
                         }
 
-                        errors.push(format!("{} {} ... {}", func_path.italic().dimmed(), func.name.blue(), error.to_string().purple()));
+                        errors.push(format!("{} {} ...\n{}", func_path.italic().dimmed(), func.name.blue(), error.to_string(&self.graph)));
                     },
                 }
             }
@@ -422,7 +424,7 @@ impl SDoc {
         if errors.len() > 0 {
             let mut error = String::default();
             for err in errors {
-                error.push_str(&format!("{} @ {}\n", "error".bold().red(), err));
+                error.push_str(&format!("\n{} @ {}\n", "error".bold().red(), err));
             }
             Err(error)
         } else {
@@ -437,17 +439,21 @@ impl SDoc {
     }
 
     /// Call a function in this document with a path.
-    pub fn call_func(&mut self, path: &str, start: Option<&SNodeRef>, params: Vec<SVal>) -> Result<SVal> {
+    pub fn call_func(&mut self, path: &str, start: Option<&SNodeRef>, params: Vec<SVal>) -> Result<SVal, SError> {
         if let Some(func) = self.func(path, start) {
-            return func.call("main", self, params, true);
+            let res = func.call("main", self, params, true);
+            self.clean("main");
+            return res;
         }
-        Err(anyhow!("Did not find a function at path '{}' to call", path))
+        Err(SError::call("main", &self, &format!("did not find a function at the path '{}' to call", path)))
     }
     
     /// Call a function on this document.
     /// Function does not have to be contained within this document.
-    pub fn call(&mut self, func: &SFunc, params: Vec<SVal>) -> Result<SVal> {
-        func.call("main", self, params, true)
+    pub fn call(&mut self, func: &SFunc, params: Vec<SVal>) -> Result<SVal, SError> {
+        let res = func.call("main", self, params, true);
+        self.clean("main");
+        res
     }
 
     /// Test some Stof in a file.
@@ -462,7 +468,7 @@ impl SDoc {
         match doc_res {
             Ok(dr) => doc = dr,
             Err(err) => {
-                let message = format!("{}: {}", "parse error".red(), err.to_string());
+                let message = format!("{}: {} - {}", "parse error".red(), err.error_type.to_string().blue(), err.message.dimmed());
                 if throw {
                     panic!("{message}");
                 } else {
@@ -492,7 +498,7 @@ impl SDoc {
         match doc_res {
             Ok(dr) => doc = dr,
             Err(err) => {
-                let message = format!("{}: {}", "parse error".red(), err.to_string());
+                let message = format!("{}: {} - {}", "parse error".red(), err.error_type.to_string().blue(), err.message.dimmed());
                 if throw {
                     panic!("{message}");
                 } else {
@@ -535,6 +541,7 @@ impl SDoc {
                 if let Some(res_test_val) = func.attributes.get("test") {
                     let silent = func.attributes.contains_key("silent");
                     let mut result = func.call("main", self, vec![], true);
+                    self.clean("main");
 
                     let func_nodes = func.data_ref().nodes(&self.graph);
                     let func_path;
@@ -548,7 +555,7 @@ impl SDoc {
                         if result.is_err() {
                             result = Ok(error_val.clone());
                         } else {
-                            result = Err(anyhow!("Expected function to throw an error"));
+                            result = Err(SError::custom("main", &self, "TestError", "expected function to throw an error"));
                         }
                     }
 
@@ -581,6 +588,7 @@ impl SDoc {
                                         let profile_start = SystemTime::now();
                                         for _ in 0..iterations {
                                             let _ = func.call("main", self, vec![], true);
+                                            self.clean("main");
                                         }
                                         let total_duration = profile_start.elapsed().unwrap();
                                         let total_ns = total_duration.as_nanos();
@@ -598,8 +606,8 @@ impl SDoc {
                                 println!("{} {} {} ... {}", "test".purple(), func_path.italic().dimmed(), name.blue(), "failed".bold().red());
                             }
 
-                            let err_str = err.to_string();
-                            failures.push((func, format!("\t{}: {} at {}: {}", "failed".bold().red(), name.blue(), func_path.italic().dimmed(), err_str.bold())));
+                            let err_str = err.to_string(&self.graph);
+                            failures.push((func, format!("{}: {} at {} ...\n{}", "failed".bold().red(), name.blue(), func_path.italic().dimmed(), err_str.bold())));
                         }
                     }
                 }
@@ -613,7 +621,7 @@ impl SDoc {
             result = "failed".bold().red();
             output.push_str(&format!("{} failures:\n", failures.len()));
             for failure in &failures {
-                output.push_str(&format!("{}\n", failure.1));
+                output.push_str(&format!("{}\n\n", failure.1));
             }
             output.push('\n');
         }

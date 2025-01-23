@@ -14,9 +14,8 @@
 // limitations under the License.
 //
 
-use std::ops::DerefMut;
-use anyhow::{anyhow, Result};
-use crate::{SDoc, Library, SNum, SUnits, SVal};
+use std::ops::{Deref, DerefMut};
+use crate::{lang::SError, Library, SDoc, SNum, SUnits, SVal};
 
 
 /// Number library.
@@ -29,7 +28,7 @@ impl Library for NumberLibrary {
     }
     
     /// Call into the Number library.
-    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         if parameters.len() > 0 {
             match name {
                 "toString" => {
@@ -64,22 +63,22 @@ impl Library for NumberLibrary {
                             return self.operate(pid, doc, name, num, &mut params);
                         },
                         _ => {
-                            return Err(anyhow!("Number library requires the first parameter to be a number"));
+                            return Err(SError::num(pid, &doc, "InvalidArgument", "number argument not found"));
                         }
                     }
                 },
                 _ => {
-                    return Err(anyhow!("Number library requires the first parameter to be a number"));
+                    return Err(SError::num(pid, &doc, "InvalidArgument", "number argument not found"));
                 }
             }
         } else {
-            return Err(anyhow!("Number library requires a number parameter to work with"));
+            return Err(SError::num(pid, &doc, "InvalidArgument", "number argument not found"));
         }
     }
 }
 impl NumberLibrary {
     /// Call number operation.
-    pub fn operate(&self, _pid: &str, _doc: &mut SDoc, name: &str, nval: &mut SNum, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    pub fn operate(&self, pid: &str, doc: &mut SDoc, name: &str, nval: &mut SNum, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         match name {
             "len" => return Ok(SVal::Number(nval.int().into())),
             "units" => return Self::units(nval),
@@ -119,43 +118,79 @@ impl NumberLibrary {
             "atanh" => return Self::atanh(nval),
             "pow" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Number.pow(num, num) requires 2 number parameters"));
+                    return Err(SError::num(pid, &doc, "pow", "invalid arguments"));
                 }
                 let power = parameters.pop().unwrap().unbox();
                 match &power {
                     SVal::Number(second) => {
                         Self::pow(nval, second)
                     },
+                    SVal::Boxed(val) => {
+                        let val = val.lock().unwrap();
+                        let val = val.deref();
+                        match val {
+                            SVal::Number(second) => {
+                                Self::pow(nval, second)
+                            },
+                            _ => {
+                                Err(SError::num(pid, &doc, "pow", "invalid arguments"))
+                            }
+                        }
+                    },
                     _ => {
-                        Err(anyhow!("Number.pow(num, num) must have a number as the second parameter"))
+                        Err(SError::num(pid, &doc, "pow", "invalid arguments"))
                     }
                 }
             },
             "log" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Number.log(num, num) requires 2 number parameters"));
+                    return Err(SError::num(pid, &doc, "log", "base value not found"));
                 }
                 let base = parameters.pop().unwrap().unbox();
                 match &base {
                     SVal::Number(second) => {
                         Self::log(nval, second)
                     },
+                    SVal::Boxed(val) => {
+                        let val = val.lock().unwrap();
+                        let val = val.deref();
+                        match val {
+                            SVal::Number(second) => {
+                                Self::log(nval, second)
+                            },
+                            _ => {
+                                Err(SError::num(pid, &doc, "log", "non-numerical base value not supported"))
+                            }
+                        }
+                    },
                     _ => {
-                        Err(anyhow!("Number.log(num, num) must have a number as the second parameter"))
+                        Err(SError::num(pid, &doc, "log", "non-numerical base value not supported"))
                     }
                 }
             },
             "atan2" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Number.atan2(num, num) requires 2 number parameters"));
+                    return Err(SError::num(pid, &doc, "atan2", "invalid arguments"));
                 }
                 let second = parameters.pop().unwrap().unbox();
                 match &second {
                     SVal::Number(second) => {
                         Self::atan2(nval, second)
                     },
+                    SVal::Boxed(val) => {
+                        let val = val.lock().unwrap();
+                        let val = val.deref();
+                        match val {
+                            SVal::Number(second) => {
+                                Self::atan2(nval, second)
+                            },
+                            _ => {
+                                Err(SError::num(pid, &doc, "atan2", "non-numerical arguments not supported"))
+                            }
+                        }
+                    },
                     _ => {
-                        Err(anyhow!("Number.atan2(num, num) must have a number as the second parameter"))
+                        Err(SError::num(pid, &doc, "atan2", "non-numerical arguments not supported"))
                     }
                 }
             },
@@ -168,14 +203,26 @@ impl NumberLibrary {
                     SVal::Number(second) => {
                         Self::round2(nval, second)
                     },
+                    SVal::Boxed(val) => {
+                        let val = val.lock().unwrap();
+                        let val = val.deref();
+                        match val {
+                            SVal::Number(second) => {
+                                Self::round2(nval, second)
+                            },
+                            _ => {
+                                Err(SError::num(pid, &doc, "round", "non-numerical rounding place value not supported"))
+                            }
+                        }
+                    },
                     _ => {
-                        Err(anyhow!("Number.round(num, num) must have a number as the second parameter"))
+                        Err(SError::num(pid, &doc, "round", "non-numerical rounding place value not supported"))
                     }
                 }
             },
             "at" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Number.at(num, num) requires 2 number parameters"));
+                    return Err(SError::num(pid, &doc, "at", "index argument not found"));
                 }
                 let second = parameters.pop().unwrap().unbox();
                 match &second {
@@ -188,20 +235,38 @@ impl NumberLibrary {
                             Ok(SVal::Number(first.into()))
                         }
                     },
+                    SVal::Boxed(val) => {
+                        let val = val.lock().unwrap();
+                        let val = val.deref();
+                        match val {
+                            SVal::Number(second) => {
+                                let first = nval.int();
+                                let second = second.int();
+                                if second < first {
+                                    Ok(SVal::Number(second.into()))
+                                } else {
+                                    Ok(SVal::Number(first.into()))
+                                }
+                            },
+                            _ => {
+                                Err(SError::num(pid, &doc, "at", "non-numerical index not supported"))
+                            }
+                        }
+                    },
                     _ => {
-                        Err(anyhow!("Number.at(num, num) must have a number as the second parameter"))
+                        Err(SError::num(pid, &doc, "at", "non-numerical index not supported"))
                     }
                 }
             },
             _ => {
-                Err(anyhow!("Did not find the requested Number library function '{}'", name))
+                Err(SError::num(pid, &doc, "NotFound", &format!("{} is not a function in the Number Library", name)))
             }
         }
     }
 
     /// Units.
     /// Returns the string version of the units on this number, or null if no units are defined.
-    pub fn units(number: &SNum) -> Result<SVal> {
+    pub fn units(number: &SNum) -> Result<SVal, SError> {
         match number {
             SNum::Units(_, units) => Ok(SVal::String(units.to_string())),
             _ => Ok(SVal::Null)
@@ -209,7 +274,7 @@ impl NumberLibrary {
     }
 
     /// Remove units.
-    pub fn remove_units(number: &SNum) -> Result<SVal> {
+    pub fn remove_units(number: &SNum) -> Result<SVal, SError> {
         match number {
             SNum::Units(val, _) => Ok(SVal::Number(SNum::F64(*val))),
             _ => Ok(SVal::Number(number.clone()))
@@ -217,7 +282,7 @@ impl NumberLibrary {
     }
 
     /// Has units?
-    pub fn has_units(number: &SNum) -> Result<SVal> {
+    pub fn has_units(number: &SNum) -> Result<SVal, SError> {
         match number {
             SNum::Units(_, units) => Ok(SVal::Bool(units.has_units())),
             _ => Ok(SVal::Bool(false))
@@ -225,7 +290,7 @@ impl NumberLibrary {
     }
 
     /// Is angle units?
-    pub fn is_angle(number: &SNum) -> Result<SVal> {
+    pub fn is_angle(number: &SNum) -> Result<SVal, SError> {
         match number {
             SNum::Units(_, units) => Ok(SVal::Bool(units.is_angle())),
             _ => Ok(SVal::Bool(false)),
@@ -233,7 +298,7 @@ impl NumberLibrary {
     }
 
     /// Is degrees units?
-    pub fn is_degrees(number: &SNum) -> Result<SVal> {
+    pub fn is_degrees(number: &SNum) -> Result<SVal, SError> {
         match number {
             SNum::Units(_, units) => Ok(SVal::Bool(units.is_degrees())),
             _ => Ok(SVal::Bool(false)),
@@ -241,7 +306,7 @@ impl NumberLibrary {
     }
 
     /// Is radians units?
-    pub fn is_radians(number: &SNum) -> Result<SVal> {
+    pub fn is_radians(number: &SNum) -> Result<SVal, SError> {
         match number {
             SNum::Units(_, units) => Ok(SVal::Bool(units.is_radians())),
             _ => Ok(SVal::Bool(false)),
@@ -249,7 +314,7 @@ impl NumberLibrary {
     }
 
     /// Is positive degrees units?
-    pub fn is_pdegrees(number: &SNum) -> Result<SVal> {
+    pub fn is_pdegrees(number: &SNum) -> Result<SVal, SError> {
         match number {
             SNum::Units(_, units) => Ok(SVal::Bool(units.is_degrees() && units.is_positive_angle())),
             _ => Ok(SVal::Bool(false)),
@@ -257,7 +322,7 @@ impl NumberLibrary {
     }
 
     /// Is positive radians units?
-    pub fn is_pradians(number: &SNum) -> Result<SVal> {
+    pub fn is_pradians(number: &SNum) -> Result<SVal, SError> {
         match number {
             SNum::Units(_, units) => Ok(SVal::Bool(units.is_radians() && units.is_positive_angle())),
             _ => Ok(SVal::Bool(false)),
@@ -265,7 +330,7 @@ impl NumberLibrary {
     }
 
     /// Is mass units?
-    pub fn is_mass(number: &SNum) -> Result<SVal> {
+    pub fn is_mass(number: &SNum) -> Result<SVal, SError> {
         match number {
             SNum::Units(_, units) => Ok(SVal::Bool(units.is_mass())),
             _ => Ok(SVal::Bool(false))
@@ -273,7 +338,7 @@ impl NumberLibrary {
     }
 
     /// Is time units?
-    pub fn is_time(number: &SNum) -> Result<SVal> {
+    pub fn is_time(number: &SNum) -> Result<SVal, SError> {
         match number {
             SNum::Units(_, units) => Ok(SVal::Bool(units.is_time())),
             _ => Ok(SVal::Bool(false))
@@ -281,7 +346,7 @@ impl NumberLibrary {
     }
 
     /// Is temperature units?
-    pub fn is_temp(number: &SNum) -> Result<SVal> {
+    pub fn is_temp(number: &SNum) -> Result<SVal, SError> {
         match number {
             SNum::Units(_, units) => Ok(SVal::Bool(units.is_temperature())),
             _ => Ok(SVal::Bool(false))
@@ -289,7 +354,7 @@ impl NumberLibrary {
     }
 
     /// Is length units?
-    pub fn is_length(number: &SNum) -> Result<SVal> {
+    pub fn is_length(number: &SNum) -> Result<SVal, SError> {
         match number {
             SNum::Units(_, units) => Ok(SVal::Bool(units.is_length())),
             _ => Ok(SVal::Bool(false))
@@ -297,7 +362,7 @@ impl NumberLibrary {
     }
 
     /// Raise a number to a power.
-    pub fn pow(number: &SNum, power: &SNum) -> Result<SVal> {
+    pub fn pow(number: &SNum, power: &SNum) -> Result<SVal, SError> {
         if let Some(units) = number.get_units() {
             return Ok(SVal::Number(SNum::Units(number.float().powf(power.float()), units)));
         }
@@ -305,7 +370,7 @@ impl NumberLibrary {
     }
 
     /// Sqrt.
-    pub fn sqrt(number: &SNum) -> Result<SVal> {
+    pub fn sqrt(number: &SNum) -> Result<SVal, SError> {
         if let Some(units) = number.get_units() {
             return Ok(SVal::Number(SNum::Units(number.float().sqrt(), units)));
         }
@@ -313,7 +378,7 @@ impl NumberLibrary {
     }
 
     /// Cbrt (cube root).
-    pub fn cbrt(number: &SNum) -> Result<SVal> {
+    pub fn cbrt(number: &SNum) -> Result<SVal, SError> {
         if let Some(units) = number.get_units() {
             return Ok(SVal::Number(SNum::Units(number.float().cbrt(), units)));
         }
@@ -321,7 +386,7 @@ impl NumberLibrary {
     }
 
     /// Abs.
-    pub fn abs(number: &SNum) -> Result<SVal> {
+    pub fn abs(number: &SNum) -> Result<SVal, SError> {
         if let Some(units) = number.get_units() {
             return Ok(SVal::Number(SNum::Units(number.float().abs(), units)));
         }
@@ -329,7 +394,7 @@ impl NumberLibrary {
     }
 
     /// Floor.
-    pub fn floor(number: &SNum) -> Result<SVal> {
+    pub fn floor(number: &SNum) -> Result<SVal, SError> {
         if let Some(units) = number.get_units() {
             return Ok(SVal::Number(SNum::Units(number.float().floor(), units)));
         }
@@ -337,7 +402,7 @@ impl NumberLibrary {
     }
 
     /// Ceil.
-    pub fn ceil(number: &SNum) -> Result<SVal> {
+    pub fn ceil(number: &SNum) -> Result<SVal, SError> {
         if let Some(units) = number.get_units() {
             return Ok(SVal::Number(SNum::Units(number.float().ceil(), units)));
         }
@@ -345,7 +410,7 @@ impl NumberLibrary {
     }
 
     /// Round.
-    pub fn round(number: &SNum) -> Result<SVal> {
+    pub fn round(number: &SNum) -> Result<SVal, SError> {
         if let Some(units) = number.get_units() {
             return Ok(SVal::Number(SNum::Units(number.float().round(), units)));
         }
@@ -354,7 +419,7 @@ impl NumberLibrary {
 
     /// Round2.
     /// Round to places after the decimal point.
-    pub fn round2(number: &SNum, digits: &SNum) -> Result<SVal> {
+    pub fn round2(number: &SNum, digits: &SNum) -> Result<SVal, SError> {
         let digits = digits.int();
         let mut float = number.float();
 
@@ -373,7 +438,7 @@ impl NumberLibrary {
     }
 
     /// Trunc.
-    pub fn trunc(number: &SNum) -> Result<SVal> {
+    pub fn trunc(number: &SNum) -> Result<SVal, SError> {
         if let Some(units) = number.get_units() {
             return Ok(SVal::Number(SNum::Units(number.float().trunc(), units)));
         }
@@ -382,7 +447,7 @@ impl NumberLibrary {
 
     /// Fract.
     /// Returns the fractional part of self.
-    pub fn fract(number: &SNum) -> Result<SVal> {
+    pub fn fract(number: &SNum) -> Result<SVal, SError> {
         if let Some(units) = number.get_units() {
             return Ok(SVal::Number(SNum::Units(number.float().fract(), units)));
         }
@@ -391,13 +456,13 @@ impl NumberLibrary {
 
     /// Signum.
     /// The number that represents the sign of self.
-    pub fn signum(number: &SNum) -> Result<SVal> {
+    pub fn signum(number: &SNum) -> Result<SVal, SError> {
         Ok(SVal::Number(SNum::F64(number.float().signum())))
     }
 
     /// Exp.
     /// e^(self).
-    pub fn exp(number: &SNum) -> Result<SVal> {
+    pub fn exp(number: &SNum) -> Result<SVal, SError> {
         if let Some(units) = number.get_units() {
             return Ok(SVal::Number(SNum::Units(number.float().exp(), units)));
         }
@@ -406,7 +471,7 @@ impl NumberLibrary {
 
     /// Exp2.
     /// 2^(self)
-    pub fn exp2(number: &SNum) -> Result<SVal> {
+    pub fn exp2(number: &SNum) -> Result<SVal, SError> {
         if let Some(units) = number.get_units() {
             return Ok(SVal::Number(SNum::Units(number.float().exp2(), units)));
         }
@@ -415,7 +480,7 @@ impl NumberLibrary {
 
     /// Ln.
     /// Natural log of self (ln(self)).
-    pub fn ln(number: &SNum) -> Result<SVal> {
+    pub fn ln(number: &SNum) -> Result<SVal, SError> {
         if let Some(units) = number.get_units() {
             return Ok(SVal::Number(SNum::Units(number.float().ln(), units)));
         }
@@ -423,7 +488,7 @@ impl NumberLibrary {
     }
 
     /// Log with a base.
-    pub fn log(number: &SNum, base: &SNum) -> Result<SVal> {
+    pub fn log(number: &SNum, base: &SNum) -> Result<SVal, SError> {
         if let Some(units) = number.get_units() {
             return Ok(SVal::Number(SNum::Units(number.float().log(base.float()), units)));
         }
@@ -431,7 +496,7 @@ impl NumberLibrary {
     }
 
     /// Sin in radians.
-    pub fn sin(number: &SNum) -> Result<SVal> {
+    pub fn sin(number: &SNum) -> Result<SVal, SError> {
         if let Some(units) = number.get_units() {
             let mut val = number.float(); // assumes number is in rads
             if units.is_degrees() {
@@ -444,7 +509,7 @@ impl NumberLibrary {
     }
 
     /// Cos in radians.
-    pub fn cos(number: &SNum) -> Result<SVal> {
+    pub fn cos(number: &SNum) -> Result<SVal, SError> {
         if let Some(units) = number.get_units() {
             let mut val = number.float();
             if units.is_degrees() {
@@ -456,7 +521,7 @@ impl NumberLibrary {
     }
 
     /// Tan in radians.
-    pub fn tan(number: &SNum) -> Result<SVal> {
+    pub fn tan(number: &SNum) -> Result<SVal, SError> {
         if let Some(units) = number.get_units() {
             let mut val = number.float();
             if units.is_degrees() {
@@ -468,7 +533,7 @@ impl NumberLibrary {
     }
 
     /// Arcsin in radians.
-    pub fn asin(number: &SNum) -> Result<SVal> {
+    pub fn asin(number: &SNum) -> Result<SVal, SError> {
         let val = number.float().asin();
         if val.is_nan() || val.is_infinite() {
             return Ok(SVal::Null);
@@ -477,7 +542,7 @@ impl NumberLibrary {
     }
 
     /// Arccos in radians.
-    pub fn acos(number: &SNum) -> Result<SVal> {
+    pub fn acos(number: &SNum) -> Result<SVal, SError> {
         let val = number.float().acos();
         if val.is_nan() || val.is_infinite() {
             return Ok(SVal::Null);
@@ -486,7 +551,7 @@ impl NumberLibrary {
     }
 
     /// Arctan in radians.
-    pub fn atan(number: &SNum) -> Result<SVal> {
+    pub fn atan(number: &SNum) -> Result<SVal, SError> {
         let val = number.float().atan();
         if val.is_nan() || val.is_infinite() {
             return Ok(SVal::Null);
@@ -495,7 +560,7 @@ impl NumberLibrary {
     }
 
     /// Atan2.
-    pub fn atan2(number: &SNum, other: &SNum) -> Result<SVal> {
+    pub fn atan2(number: &SNum, other: &SNum) -> Result<SVal, SError> {
         let val = number.float().atan2(other.float());
         if val.is_nan() || val.is_infinite() {
             return Ok(SVal::Null);
@@ -504,7 +569,7 @@ impl NumberLibrary {
     }
 
     /// Sinh.
-    pub fn sinh(number: &SNum) -> Result<SVal> {
+    pub fn sinh(number: &SNum) -> Result<SVal, SError> {
         if let Some(units) = number.get_units() {
             return Ok(SVal::Number(SNum::Units(number.float().sinh(), units)));
         }
@@ -512,7 +577,7 @@ impl NumberLibrary {
     }
 
     /// Cosh.
-    pub fn cosh(number: &SNum) -> Result<SVal> {
+    pub fn cosh(number: &SNum) -> Result<SVal, SError> {
         if let Some(units) = number.get_units() {
             return Ok(SVal::Number(SNum::Units(number.float().cosh(), units)));
         }
@@ -520,7 +585,7 @@ impl NumberLibrary {
     }
 
     /// Tanh.
-    pub fn tanh(number: &SNum) -> Result<SVal> {
+    pub fn tanh(number: &SNum) -> Result<SVal, SError> {
         if let Some(units) = number.get_units() {
             return Ok(SVal::Number(SNum::Units(number.float().tanh(), units)));
         }
@@ -528,7 +593,7 @@ impl NumberLibrary {
     }
 
     /// Asinh.
-    pub fn asinh(number: &SNum) -> Result<SVal> {
+    pub fn asinh(number: &SNum) -> Result<SVal, SError> {
         if let Some(units) = number.get_units() {
             return Ok(SVal::Number(SNum::Units(number.float().asinh(), units)));
         }
@@ -536,7 +601,7 @@ impl NumberLibrary {
     }
 
     /// Acosh.
-    pub fn acosh(number: &SNum) -> Result<SVal> {
+    pub fn acosh(number: &SNum) -> Result<SVal, SError> {
         if let Some(units) = number.get_units() {
             return Ok(SVal::Number(SNum::Units(number.float().acosh(), units)));
         }
@@ -544,7 +609,7 @@ impl NumberLibrary {
     }
 
     /// Atanh.
-    pub fn atanh(number: &SNum) -> Result<SVal> {
+    pub fn atanh(number: &SNum) -> Result<SVal, SError> {
         if let Some(units) = number.get_units() {
             return Ok(SVal::Number(SNum::Units(number.float().atanh(), units)));
         }

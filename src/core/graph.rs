@@ -18,7 +18,7 @@ use std::{collections::{HashMap, HashSet}, ops::{Index, IndexMut}};
 use anyhow::Result;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{SField, FKIND};
+use crate::{lang::SError, SField, FKIND};
 use super::{Data, IntoDataRef, IntoNodeRef, SData, SDataRef, SDataSelection, SDataStore, SNode, SNodeRef, SNodeStore, SRef, Store, DATA_DIRTY_NODES};
 
 
@@ -738,7 +738,7 @@ impl SGraph {
 
     /// Default version of absorb merge.
     /// Used in imports of additional graphs.
-    pub fn default_absorb_merge(&mut self, other: Self) -> Result<()> {    
+    pub fn default_absorb_merge(&mut self, other: Self) -> Result<(), SError> {    
         self.absorb_merge(other, true,
         |graph, other, nodes| {
             // Move all data from these nodes to the first node on 'graph' at this path

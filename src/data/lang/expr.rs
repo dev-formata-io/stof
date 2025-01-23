@@ -14,11 +14,10 @@
 // limitations under the License.
 //
 
-use anyhow::{anyhow, Result};
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use crate::{IntoDataRef, IntoNodeRef, SDoc, SField, SFunc, SPrototype, SType, SVal};
-use super::{Statement, Statements, StatementsRes};
+use super::{SError, Statement, Statements, StatementsRes};
 
 
 /// Stof expression.
@@ -71,7 +70,7 @@ impl<T> From<T> for Expr where T: Into<SVal> {
 }
 impl Expr {
     /// Execute this expression.
-    pub fn exec(&self, pid: &str, doc: &mut SDoc) -> Result<SVal> {
+    pub fn exec(&self, pid: &str, doc: &mut SDoc) -> Result<SVal, SError> {
         match self {
             Expr::Variable(id) => {
                 // Look for a symbol first!
@@ -304,10 +303,12 @@ impl Expr {
                                     }
                                 }
                                 if !found {
-                                    return Err(anyhow!("Cannot find the requested type scope in the extends stack of this object for the requested function call"));
+                                    let error = SError::type_error(pid, &doc, "cannot find the requested type in the extends stack of this object in resolving function call");
+                                    return Err(error);
                                 }
                             } else if type_scope_resolution.len() > 1 {
-                                return Err(anyhow!("Cannot specify more than one type scope for a function call"));
+                                let error = SError::type_error(pid, &doc, "cannot specify more than one type to resolve a function call");
+                                return Err(error);
                             }
 
                             while current.is_some() {
@@ -412,7 +413,8 @@ impl Expr {
                     doc.set_table(pid, current_symbol_table);
                     return Ok(res);
                 }
-                Err(anyhow!("Function/Call does not exist: {}({:?})", name, params))
+                let error = SError::custom(pid, &doc, "ExprCall", &format!("function does not exist: {}({:?})", name, params));
+                Err(error)
             },
             Expr::And(exprs) => {
                 for expr in exprs {
@@ -441,7 +443,7 @@ impl Expr {
                         res = val;
                         first = false;
                     } else {
-                        res = res.add(val, doc)?;
+                        res = res.add(pid, val, doc)?;
                     }
                 }
                 Ok(res)
@@ -455,7 +457,7 @@ impl Expr {
                         res = val;
                         first = false;
                     } else {
-                        res = res.sub(val)?;
+                        res = res.sub(pid, val, doc)?;
                     }
                 }
                 Ok(res)
@@ -469,7 +471,7 @@ impl Expr {
                         res = val;
                         first = false;
                     } else {
-                        res = res.mul(val)?;
+                        res = res.mul(pid, val, doc)?;
                     }
                 }
                 Ok(res)
@@ -483,7 +485,7 @@ impl Expr {
                         res = val;
                         first = false;
                     } else {
-                        res = res.div(val)?;
+                        res = res.div(pid, val, doc)?;
                     }
                 }
                 Ok(res)
@@ -497,7 +499,7 @@ impl Expr {
                         res = val;
                         first = false;
                     } else {
-                        res = res.rem(val)?;
+                        res = res.rem(pid, val, doc)?;
                     }
                 }
                 Ok(res)

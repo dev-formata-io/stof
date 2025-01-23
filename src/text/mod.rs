@@ -14,8 +14,7 @@
 // limitations under the License.
 //
 
-use anyhow::{anyhow, Result};
-use crate::{Format, IntoNodeRef, SDoc, SField, SGraph};
+use crate::{lang::SError, Format, IntoNodeRef, SDoc, SField, SGraph};
 
 
 /// Stof TEXT interface.
@@ -35,19 +34,19 @@ impl TEXT {
     }
 
     /// Stringify.
-    pub fn stringify(graph: &SGraph) -> Result<String> {
-        if let Some(field) = SField::field(graph, "text", '.', graph.main_root().as_ref()) {
+    pub fn stringify(pid: &str, doc: &SDoc) -> Result<String, SError> {
+        if let Some(field) = SField::field(&doc.graph, "text", '.', doc.graph.main_root().as_ref()) {
             return Ok(field.to_string());
         }
-        Err(anyhow!("Stof TEXT Error: Did not find a 'text' field on the main root of this graph"))
+        Err(SError::fmt(pid, &doc, "text", "did not find a 'text' field on the main root of this graph to stringify"))
     }
 
     /// Stringify node.
-    pub fn stringify_node(graph: &SGraph, node: impl IntoNodeRef) -> Result<String> {
-        if let Some(field) = SField::field(graph, "text", '.', Some(&node.node_ref())) {
+    pub fn stringify_node(pid: &str, doc: &SDoc, node: impl IntoNodeRef) -> Result<String, SError> {
+        if let Some(field) = SField::field(&doc.graph, "text", '.', Some(&node.node_ref())) {
             return Ok(field.to_string());
         }
-        Err(anyhow!("Stof TEXT Error: Did not find a 'text' field on this node"))
+        Err(SError::fmt(pid, doc, "text", "did not find a 'text' field on this node to stringify"))
     }
 }
 
@@ -63,13 +62,20 @@ impl Format for TEXT {
     }
 
     /// Header import.
-    fn header_import(&self, pid: &str, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<()> {
-        let str = std::str::from_utf8(bytes.as_ref())?;
-        self.string_import(pid, doc, str, as_name)
+    fn header_import(&self, pid: &str, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<(), SError> {
+        let res = std::str::from_utf8(bytes.as_ref());
+        match res {
+            Ok(str) => {
+                self.string_import(pid, doc, str, as_name)
+            },
+            Err(error) => {
+                Err(SError::fmt(pid, &doc, "text", &error.to_string()))
+            }
+        }
     }
 
     /// String import.
-    fn string_import(&self, pid: &str, doc: &mut crate::SDoc, src: &str, as_name: &str) -> Result<()> {
+    fn string_import(&self, pid: &str, doc: &mut crate::SDoc, src: &str, as_name: &str) -> Result<(), SError> {
         let mut graph = TEXT::parse(src);
         if as_name.len() > 0 && as_name != "root" {
             let mut path = as_name.replace(".", "/");
@@ -93,17 +99,17 @@ impl Format for TEXT {
     }
 
     /// File import.
-    fn file_import(&self, pid: &str, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
+    fn file_import(&self, pid: &str, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<(), SError> {
         let src = doc.fs_read_string(pid, full_path)?;
         self.string_import(pid, doc, &src, as_name)
     }
 
     /// Export string.
-    fn export_string(&self, _pid: &str, doc: &crate::SDoc, node: Option<&crate::SNodeRef>) -> Result<String> {
+    fn export_string(&self, pid: &str, doc: &crate::SDoc, node: Option<&crate::SNodeRef>) -> Result<String, SError> {
         if node.is_some() {
-            TEXT::stringify_node(&doc.graph, node)
+            TEXT::stringify_node(pid, &doc, node)
         } else {
-            TEXT::stringify(&doc.graph)
+            TEXT::stringify(pid, &doc)
         }
     }
 }

@@ -15,8 +15,7 @@
 //
 
 use std::fs;
-use anyhow::{anyhow, Result};
-use crate::{Library, SDoc, SVal};
+use crate::{lang::SError, Library, SDoc, SVal};
 
 
 /// File system library.
@@ -27,17 +26,24 @@ impl Library for FileSystemLibrary {
         "fs".to_string()
     }
 
-    fn call(&self, _pid: &str, _doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         match name {
             "write" => {
                 if parameters.len() == 2 {
                     // write(path, contents)
                     let contents = parameters.pop().unwrap().owned_to_string();
                     let path = parameters.pop().unwrap().owned_to_string();
-                    fs::write(&path, &contents)?;
-                    return Ok(SVal::Void);
+                    let res = fs::write(&path, &contents);
+                    return match res {
+                        Ok(_) => {
+                            Ok(SVal::Void)
+                        },
+                        Err(error) => {
+                            Err(SError::filesys(pid, &doc, "write", &error.to_string()))
+                        }
+                    };
                 }
-                Err(anyhow!("Could not write '{:?}' using the filesystem library", parameters))
+                Err(SError::filesys(pid, &doc, "write", "invalid arguments - path and contents not found"))
             },
             "write_blob" => {
                 if parameters.len() == 2 {
@@ -46,32 +52,53 @@ impl Library for FileSystemLibrary {
                     let path = parameters.pop().unwrap().owned_to_string();
                     match contents {
                         SVal::Blob(blob) => {
-                            fs::write(&path, blob)?;
-                            return Ok(SVal::Void);
+                            let res = fs::write(&path, blob);
+                            return match res {
+                                Ok(_) => {
+                                    Ok(SVal::Void)
+                                },
+                                Err(error) => {
+                                    Err(SError::filesys(pid, &doc, "write_blob", &error.to_string()))
+                                }
+                            };
                         },
                         _ => {}
                     }
                 }
-                Err(anyhow!("Could not write blob '{:?}' using the filesystem library", parameters))
+                Err(SError::filesys(pid, &doc, "write_blob", "invalid arguments - path and blob contents not found"))
             },
             "read" => {
                 if parameters.len() == 1 {
                     let path = parameters.pop().unwrap().owned_to_string();
-                    let contents = fs::read_to_string(&path)?;
-                    return Ok(SVal::String(contents));
+                    let res = fs::read_to_string(&path);
+                    return match res {
+                        Ok(contents) => {
+                            Ok(SVal::String(contents))
+                        },
+                        Err(error) => {
+                            Err(SError::filesys(pid, &doc, "read", &error.to_string()))
+                        }
+                    };
                 }
-                Err(anyhow!("Could not read '{:?}' to a string using the filesystem library", parameters))
+                Err(SError::filesys(pid, &doc, "read", "invalid arguments - file path not found"))
             },
             "read_blob" => {
                 if parameters.len() == 1 {
                     let path = parameters.pop().unwrap().owned_to_string();
-                    let blob = fs::read(&path)?;
-                    return Ok(SVal::Blob(blob));
+                    let res = fs::read(&path);
+                    return match res {
+                        Ok(blob) => {
+                            Ok(SVal::Blob(blob))
+                        },
+                        Err(error) => {
+                            Err(SError::filesys(pid, &doc, "read_blob", &error.to_string()))
+                        }
+                    };
                 }
-                Err(anyhow!("Could not read '{:?}' to a blob using the filesystem library", parameters))
+                Err(SError::filesys(pid, &doc, "read_blob", "invalid arguments - file path not found"))
             },
             _ => {
-                Err(anyhow!("Did not find the function '{}' in the filesystem library", name))
+                Err(SError::filesys(pid, &doc, "NotFound", &format!("{} is not a function in the FileSystem Library", name)))
             }
         }
     }

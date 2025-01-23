@@ -15,9 +15,8 @@
 //
 
 use std::{collections::{BTreeMap, HashSet}, sync::Arc};
-use anyhow::{anyhow, Result};
 use bytes::Bytes;
-use crate::{SDoc, SNodeRef};
+use crate::{lang::SError, SDoc, SNodeRef};
 
 
 /// Stof Formats.
@@ -61,7 +60,7 @@ impl SFormats {
     /// Header import (content type with bytes).
     /// Use an explicit "format" if you know it.
     /// Otherwise, supply a "content_type" for a more flexible format search.
-    pub fn header_import(&self, format: &str, pid: &str, doc: &mut SDoc, content_type: &str, bytes: &mut Bytes, as_name: &str) -> Result<()> {
+    pub fn header_import(&self, format: &str, pid: &str, doc: &mut SDoc, content_type: &str, bytes: &mut Bytes, as_name: &str) -> Result<(), SError> {
         // Check for an explicit format first!
         // If not found, search for the best match via content type.
         if let Some(format) = self.get(format) {
@@ -89,26 +88,26 @@ impl SFormats {
                 return self.header_import("bytes", pid, doc, content_type, bytes, as_name);
             }
         }
-        Err(anyhow!("Did not find a format to import with"))
+        Err(SError::fmt(pid, &doc, format, "header import (bytes) - format not found"))
     }
 
     /// String import.
-    pub fn string_import(&self, format: &str, pid: &str, doc: &mut SDoc, src: &str, as_name: &str) -> Result<()> {
+    pub fn string_import(&self, format: &str, pid: &str, doc: &mut SDoc, src: &str, as_name: &str) -> Result<(), SError> {
         if let Some(format) = self.get(format) {
             return format.string_import(pid, doc, src, as_name);
         }
-        Err(anyhow!("Did not find a format to import with"))
+        Err(SError::fmt(pid, &doc, format, "import string - format not found"))
     }
 
     /// File import.
     /// Stof Syntax: 'import <format> "<path>.<extension>" as <as_name>;'
     /// If <format> isn't supplied, "format" will be "extension".
     /// If <as_name> isn't supplied, the data should be imported into the current doc scope (or main root).
-    pub fn file_import(&self, format: &str, pid: &str, doc: &mut SDoc, full_path: &str, extension: &str, as_name: &str) -> Result<()> {
+    pub fn file_import(&self, format: &str, pid: &str, doc: &mut SDoc, full_path: &str, extension: &str, as_name: &str) -> Result<(), SError> {
         if let Some(fmt) = self.get(format) {
             return fmt.file_import(pid, doc, format, full_path, extension, as_name);
         }
-        Err(anyhow!("Did not find a format to import with"))
+        Err(SError::fmt(pid, &doc, format, "import file - format not found"))
     }
 
 
@@ -117,27 +116,27 @@ impl SFormats {
      *****************************************************************************/
     
     /// Export document into a string (human readable string).
-    pub fn export_string(&self, format: &str, pid: &str, doc: &SDoc, node: Option<&SNodeRef>) -> Result<String> {
+    pub fn export_string(&self, format: &str, pid: &str, doc: &SDoc, node: Option<&SNodeRef>) -> Result<String, SError> {
         if let Some(format) = self.get(format) {
             return format.export_string(pid, doc, node);
         }
-        Err(anyhow!("Did not find a format to export with"))
+        Err(SError::fmt(pid, &doc, format, "export string - format not found"))
     }
 
     /// Export document into a string (minified string).
-    pub fn export_min_string(&self, format: &str, pid: &str, doc: &SDoc, node: Option<&SNodeRef>) -> Result<String> {
+    pub fn export_min_string(&self, format: &str, pid: &str, doc: &SDoc, node: Option<&SNodeRef>) -> Result<String, SError> {
         if let Some(format) = self.get(format) {
             return format.export_min_string(pid, doc, node);
         }
-        Err(anyhow!("Did not find a format to export with"))
+        Err(SError::fmt(pid, &doc, format, "export min string - format not found"))
     }
 
     /// Export document into bytes.
-    pub fn export_bytes(&self, format: &str, pid: &str, doc: &SDoc, node: Option<&SNodeRef>) -> Result<Bytes> {
+    pub fn export_bytes(&self, format: &str, pid: &str, doc: &SDoc, node: Option<&SNodeRef>) -> Result<Bytes, SError> {
         if let Some(format) = self.get(format) {
             return format.export_bytes(pid, doc, node);
         }
-        Err(anyhow!("Did not find a format to export with"))
+        Err(SError::fmt(pid, &doc, format, "export bytes - format not found"))
     }
 }
 
@@ -167,14 +166,14 @@ pub trait Format: Send + Sync {
     
     /// Content type import.
     #[allow(unused)]
-    fn header_import(&self, pid: &str, doc: &mut SDoc, content_type: &str, bytes: &mut Bytes, as_name: &str) -> Result<()> {
-        Err(anyhow!("Not implemented"))
+    fn header_import(&self, pid: &str, doc: &mut SDoc, content_type: &str, bytes: &mut Bytes, as_name: &str) -> Result<(), SError> {
+        Err(SError::fmt(pid, &doc, &self.format(), "header import not implemented"))
     }
 
     /// String import.
     #[allow(unused)]
-    fn string_import(&self, pid: &str, doc: &mut SDoc, src: &str, as_name: &str) -> Result<()> {
-        Err(anyhow!("Not implemented"))
+    fn string_import(&self, pid: &str, doc: &mut SDoc, src: &str, as_name: &str) -> Result<(), SError> {
+        Err(SError::fmt(pid, &doc, &self.format(), "string import not implemented"))
     }
 
     /// File import.
@@ -182,8 +181,8 @@ pub trait Format: Send + Sync {
     /// If <format> isn't supplied, "format" will be "extension".
     /// If <as_name> isn't supplied, the data should be imported into the current doc scope (or main root).
     #[allow(unused)]
-    fn file_import(&self, pid: &str, doc: &mut SDoc, format: &str, full_path: &str, extension: &str, as_name: &str) -> Result<()> {
-        Err(anyhow!("Not implemented"))
+    fn file_import(&self, pid: &str, doc: &mut SDoc, format: &str, full_path: &str, extension: &str, as_name: &str) -> Result<(), SError> {
+        Err(SError::fmt(pid, &doc, &self.format(), "file import not implemented"))
     }
 
 
@@ -193,22 +192,22 @@ pub trait Format: Send + Sync {
 
     /// Export document into a string (human readable string).
     #[allow(unused)]
-    fn export_string(&self, pid: &str, doc: &SDoc, node: Option<&SNodeRef>) -> Result<String> {
-        Err(anyhow!("Not implemented"))
+    fn export_string(&self, pid: &str, doc: &SDoc, node: Option<&SNodeRef>) -> Result<String, SError> {
+        Err(SError::fmt(pid, &doc, &self.format(), "export string not implemented"))
     }
 
     /// Export document into a string (minified string).
     #[allow(unused)]
-    fn export_min_string(&self, pid: &str, doc: &SDoc, node: Option<&SNodeRef>) -> Result<String> {
+    fn export_min_string(&self, pid: &str, doc: &SDoc, node: Option<&SNodeRef>) -> Result<String, SError> {
         self.export_string(pid, doc, node)
     }
 
     /// Export document into bytes.
     #[allow(unused)]
-    fn export_bytes(&self, pid: &str, doc: &SDoc, node: Option<&SNodeRef>) -> Result<Bytes> {
+    fn export_bytes(&self, pid: &str, doc: &SDoc, node: Option<&SNodeRef>) -> Result<Bytes, SError> {
         if let Ok(res) = self.export_min_string(pid, doc, node) {
             return Ok(Bytes::from(res));
         }
-        Err(anyhow!("Not implemented"))
+        Err(SError::fmt(pid, &doc, &self.format(), "export bytes not implemented"))
     }
 }

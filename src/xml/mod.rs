@@ -22,6 +22,7 @@ use writer::node_write_xml;
 use writer::write_xml;
 
 use anyhow::Result;
+use crate::lang::SError;
 use crate::{Format, IntoNodeRef, SDoc, SGraph};
 
 
@@ -29,23 +30,23 @@ use crate::{Format, IntoNodeRef, SDoc, SGraph};
 pub struct XML;
 impl XML {
     /// Parse xml string into a new document.
-    pub fn parse_new(xml: &str) -> Result<SDoc> {
+    pub fn parse_new(xml: &str) -> Result<SDoc, SError> {
         Ok(SDoc::new(Self::parse(xml)?))
     }
 
     /// Parse xml string.
-    pub fn parse(xml: &str) -> Result<SGraph> {
+    pub fn parse(xml: &str) -> Result<SGraph, SError> {
         Ok(read_xml_to_graph(xml))
     }
 
     /// Stringify a graph as an XML string.
-    pub fn stringify(graph: &SGraph) -> Result<String> {
-        write_xml(graph)
+    pub fn stringify(pid: &str, doc: &SDoc) -> Result<String, SError> {
+        write_xml(pid, doc)
     }
 
     /// Stringify a node as an XML string.
-    pub fn stringify_node(graph: &SGraph, node: impl IntoNodeRef) -> Result<String> {
-        node_write_xml(graph, &node.node_ref())
+    pub fn stringify_node(pid: &str, doc: &SDoc, node: impl IntoNodeRef) -> Result<String, SError> {
+        node_write_xml(pid, doc, &node.node_ref())
     }
 }
 
@@ -61,13 +62,20 @@ impl Format for XML {
     }
 
     /// Header import.
-    fn header_import(&self, pid: &str, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<()> {
-        let str = std::str::from_utf8(bytes.as_ref())?;
-        self.string_import(pid, doc, str, as_name)
+    fn header_import(&self, pid: &str, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<(), SError> {
+        let res = std::str::from_utf8(bytes.as_ref());
+        match res {
+            Ok(str) => {
+                self.string_import(pid, doc, str, as_name)
+            },
+            Err(error) => {
+                Err(SError::fmt(pid, &doc, "xml", &error.to_string()))
+            }
+        }
     }
 
     /// String import.
-    fn string_import(&self, pid: &str, doc: &mut crate::SDoc, src: &str, as_name: &str) -> Result<()> {
+    fn string_import(&self, pid: &str, doc: &mut crate::SDoc, src: &str, as_name: &str) -> Result<(), SError> {
         let mut graph = XML::parse(src)?;
         if as_name.len() > 0 && as_name != "root" {
             let mut path = as_name.replace(".", "/");
@@ -91,17 +99,17 @@ impl Format for XML {
     }
 
     /// File import.
-    fn file_import(&self, pid: &str, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
+    fn file_import(&self, pid: &str, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<(), SError> {
         let src = doc.fs_read_string(pid, full_path)?;
         self.string_import(pid, doc, &src, as_name)
     }
 
     /// Export string.
-    fn export_string(&self, _pid: &str, doc: &crate::SDoc, node: Option<&crate::SNodeRef>) -> Result<String> {
+    fn export_string(&self, pid: &str, doc: &crate::SDoc, node: Option<&crate::SNodeRef>) -> Result<String, SError> {
         if node.is_some() {
-            XML::stringify_node(&doc.graph, node)
+            XML::stringify_node(pid, &doc, node)
         } else {
-            XML::stringify(&doc.graph)
+            XML::stringify(pid, &doc)
         }
     }
 }

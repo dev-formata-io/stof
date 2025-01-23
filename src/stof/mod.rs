@@ -22,11 +22,11 @@ use bytes::Bytes;
 pub mod env;
 pub use env::*;
 
-use anyhow::{anyhow, Result};
-use crate::{Format, SDoc, SGraph};
+use crate::{lang::SError, Format, SDoc, SGraph};
 
 #[cfg(test)]
 mod tests;
+
 
 /// Stof binary format interface.
 /// BSTOF is a snappy compressed bincode serialized SDoc.
@@ -34,38 +34,40 @@ pub struct BSTOF;
 impl BSTOF {
     /// Parse bytes into a new document.
     /// Bytes can either be a serialized SDoc or a serialized SGraph.
-    pub fn parse(bytes: &Bytes) -> Result<SDoc> {
+    pub fn parse(bytes: &Bytes) -> Result<SDoc, SError> {
         let mut decoder = snap::raw::Decoder::new();
-        let vec = decoder.decompress_vec(&bytes)?;
+        let res = decoder.decompress_vec(&bytes);
+        let vec;
+        match res {
+            Ok(res) => vec = res,
+            Err(error) => return Err(SError::empty_fmt("bstof", &error.to_string())),
+        }
         if let Ok(doc) = bincode::deserialize::<SDoc>(vec.as_ref()) {
             Ok(doc)
         } else {
             if let Ok(graph) = bincode::deserialize::<SGraph>(vec.as_ref()) {
                 Ok(SDoc::new(graph))
             } else {
-                Err(anyhow!(""))
+                Err(SError::empty_fmt("bstof", "failed to deserialize/parse bstof doc/graph"))
             }
         }
     }
 
     /// To bytes.
-    pub fn doc_to_bytes(doc: &SDoc) -> Result<Bytes> {
+    pub fn doc_to_bytes(pid: &str, doc: &SDoc) -> Result<Bytes, SError> {
         if let Ok(bytes) = bincode::serialize(doc) {
             let mut encoder = snap::raw::Encoder::new();
-            let bytes = encoder.compress_vec(&bytes)?;
-            return Ok(bytes.into());
+            let res = encoder.compress_vec(&bytes);
+            match res {
+                Ok(bytes) => {
+                    return Ok(bytes.into());
+                },
+                Err(error) => {
+                    return Err(SError::fmt(pid, doc, "bstof", &format!("failed to compress document to bytes: {}", error.to_string())));
+                }
+            }
         }
-        Err(anyhow!("Could not serialize document"))
-    }
-
-    /// To bytes.
-    pub fn graph_to_bytes(graph: &SGraph) -> Result<Bytes> {
-        if let Ok(bytes) = bincode::serialize(graph) {
-            let mut encoder = snap::raw::Encoder::new();
-            let bytes = encoder.compress_vec(&bytes)?;
-            return Ok(bytes.into());
-        }
-        Err(anyhow!("Could not serialize graph"))
+        Err(SError::fmt(pid, doc, "bstof", "could not serialize document"))
     }
 }
 impl Format for BSTOF {
@@ -80,7 +82,7 @@ impl Format for BSTOF {
     }
 
     /// Header import.
-    fn header_import(&self, _pid: &str, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, _as_name: &str) -> Result<()> {
+    fn header_import(&self, _pid: &str, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, _as_name: &str) -> Result<(), SError> {
         let mut new_doc = BSTOF::parse(&bytes)?;
 
         // Before we merge the types, we have to re-link the decids with the collisions that happened
@@ -116,14 +118,14 @@ impl Format for BSTOF {
     }
 
     /// File import.
-    fn file_import(&self, pid: &str, doc: &mut crate::SDoc, format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
+    fn file_import(&self, pid: &str, doc: &mut crate::SDoc, format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<(), SError> {
         let mut bytes = doc.fs_read_blob(pid, full_path)?;
         self.header_import(pid, doc, format, &mut bytes, as_name)
     }
 
     /// Export to binary form.
-    fn export_bytes(&self, _pid: &str, doc: &SDoc, _node: Option<&crate::SNodeRef>) -> Result<Bytes> {
-        BSTOF::doc_to_bytes(doc)
+    fn export_bytes(&self, pid: &str, doc: &SDoc, _node: Option<&crate::SNodeRef>) -> Result<Bytes, SError> {
+        BSTOF::doc_to_bytes(pid, doc)
     }
 }
 
@@ -131,14 +133,14 @@ impl Format for BSTOF {
 pub struct STOF;
 impl STOF {
     /// Parse a STOF string into a new document.
-    pub fn parse_new(pid: &str, stof: &str, env: Option<&mut StofEnv>) -> Result<SDoc> {
+    pub fn parse_new(pid: &str, stof: &str, env: Option<&mut StofEnv>) -> Result<SDoc, SError> {
         let mut doc = SDoc::default();
         Self::parse(pid, &mut doc, stof, env)?;
         Ok(doc)
     }
 
     /// Parse a STOF string into a Stof graph.
-    pub fn parse(pid: &str, doc: &mut SDoc, stof: &str, env: Option<&mut StofEnv>) -> Result<()> {
+    pub fn parse(pid: &str, doc: &mut SDoc, stof: &str, env: Option<&mut StofEnv>) -> Result<(), SError> {
         let res;
         if let Some(env_ref) = env {
             env_ref.before_parse(doc);
@@ -165,13 +167,20 @@ impl Format for STOF {
     }
 
     /// Header import.
-    fn header_import(&self, pid: &str, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<()> {
-        let str = std::str::from_utf8(bytes.as_ref())?;
-        self.string_import(pid, doc, str, as_name)
+    fn header_import(&self, pid: &str, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<(), SError> {
+        let res = std::str::from_utf8(bytes.as_ref());
+        match res {
+            Ok(str) => {
+                self.string_import(pid, doc, str, as_name)
+            },
+            Err(error) => {
+                Err(SError::fmt(pid, &doc, "stof", &error.to_string()))
+            }
+        }
     }
 
     /// String import.
-    fn string_import(&self, pid: &str, doc: &mut crate::SDoc, src: &str, as_name: &str) -> Result<()> {
+    fn string_import(&self, pid: &str, doc: &mut crate::SDoc, src: &str, as_name: &str) -> Result<(), SError> {
         if doc.graph.roots.len() < 1 {
             doc.graph.insert_root("root");
         }
@@ -198,7 +207,7 @@ impl Format for STOF {
     }
 
     /// File import.
-    fn file_import(&self, pid: &str, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<()> {
+    fn file_import(&self, pid: &str, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<(), SError> {
         let src = doc.fs_read_string(pid, full_path)?;
 
         if doc.graph.roots.len() < 1 {

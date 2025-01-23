@@ -15,8 +15,7 @@
 //
 
 use std::{collections::BTreeMap, ops::Deref};
-use anyhow::{anyhow, Result};
-use crate::{Library, SDataRef, SDoc, SFunc, SVal};
+use crate::{lang::SError, Library, SDataRef, SDoc, SFunc, SVal};
 
 
 /// Function library.
@@ -24,7 +23,7 @@ use crate::{Library, SDataRef, SDoc, SFunc, SVal};
 pub struct FunctionLibrary;
 impl FunctionLibrary {
     /// Call function operation.
-    pub fn operate(&self, pid: &str, doc: &mut SDoc, name: &str, dref: &SDataRef, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    pub fn operate(&self, pid: &str, doc: &mut SDoc, name: &str, dref: &SDataRef, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         match name {
             // Get the name of this function.
             "name" => {
@@ -48,7 +47,7 @@ impl FunctionLibrary {
             // Has the given attribute on this function?
             "hasAttribute" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Function.hasAttribute(fn, attribute: str) requires an attribute parameter to look for"));
+                    return Err(SError::func(pid, &doc, "hasAttribute", "attribute str argument not found"));
                 }
                 let func: SFunc = dref.data(&doc.graph).unwrap().get_value().unwrap();
                 Ok(SVal::Bool(func.attributes.contains_key(&parameters[0].to_string())))
@@ -85,7 +84,7 @@ impl FunctionLibrary {
                 func.call(pid, doc, parameters.drain(..).collect(), true)
             },
             _ => {
-                Err(anyhow!("Did not find the requested Function library function '{}'", name))
+                Err(SError::func(pid, &doc, "NotFound", &format!("{} is not a function in the Function Library", name)))
             }
         }
     }
@@ -97,7 +96,7 @@ impl Library for FunctionLibrary {
     }
     
     /// Call into the Function library.
-    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         if parameters.len() > 0 {
             match name {
                 "toString" => {
@@ -132,16 +131,16 @@ impl Library for FunctionLibrary {
                             return self.operate(pid, doc, name, data, &mut params);
                         },
                         _ => {
-                            return Err(anyhow!("Function library requires the first parameter to be a fn (function)"));
+                            return Err(SError::func(pid, &doc, "InvalidArgument", "function (fn) argument not found"));
                         }
                     }
                 },
                 _ => {
-                    return Err(anyhow!("Function library requires the first parameter to be a fn (function)"));
+                    return Err(SError::func(pid, &doc, "InvalidArgument", "function (fn) argument not found"));
                 }
             }
         } else {
-            return Err(anyhow!("Function library requires a 'fn' parameter to work with"));
+            return Err(SError::func(pid, &doc, "InvalidArgument", "function (fn) argument not found"));
         }
     }
 }

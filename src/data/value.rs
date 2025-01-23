@@ -16,10 +16,9 @@
 
 use core::str;
 use std::{cmp::Ordering, collections::{BTreeMap, BTreeSet, HashSet}, hash::{Hash, Hasher}, ops::{Deref, DerefMut}, sync::{Arc, Mutex}};
-use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use crate::{Data, SDataRef, SDoc, SGraph, SNodeRef};
-use super::{SField, SNumType, SPrototype, SType, SUnits};
+use super::{lang::SError, SField, SNumType, SPrototype, SType, SUnits};
 
 #[cfg(feature = "json")]
 use crate::json::JSON;
@@ -950,7 +949,7 @@ impl SVal {
     }
 
     /// Cast a value to another type of value.
-    pub fn cast(&self, target: SType, pid: &str, doc: &mut SDoc) -> Result<Self> {
+    pub fn cast(&self, target: SType, pid: &str, doc: &mut SDoc) -> Result<Self, SError> {
         match &target {
             SType::Boxed(target) => {
                 // Make the resulting value boxed
@@ -976,9 +975,17 @@ impl SVal {
                         Ok(Self::Array(blob.iter().map(|byte| Self::Number(SNum::I64((*byte) as i64))).collect()))
                     },
                     SType::String => {
-                        Ok(Self::String(str::from_utf8(blob.as_slice())?.to_string()))
+                        let res = str::from_utf8(blob.as_slice());
+                        match res {
+                            Ok(val) => {
+                                Ok(Self::String(val.to_owned()))
+                            },
+                            Err(error) => {
+                                Err(SError::val(pid, &doc, "cast", &error.to_string()))
+                            }
+                        }
                     },
-                    _ => Err(anyhow!("Cannot cast blob to anything but an array."))
+                    _ => Err(SError::val(pid, &doc, "cast", &format!("cannot cast blob to {:?}", target)))
                 }
             },
             Self::Array(vals) => {
@@ -998,12 +1005,12 @@ impl SVal {
                                 Self::Number(num) => {
                                     let res: Result<u8, _> = num.int().try_into();
                                     if res.is_err() {
-                                        return Err(anyhow!("Cannot fit number into u8 while converting array to binary blob"));
+                                        return Err(SError::val(pid, &doc, "cast", "cannot fit number into u8 while converting array to binary blob"));
                                     }
                                     blob.push(res.unwrap());
                                 },
                                 _ => {
-                                    return Err(anyhow!("Cannot cast anything but numbers in an array to a binary blob"));
+                                    return Err(SError::val(pid, &doc, "cast", "cannot cast values that are not numerical into a u8 for blob cast"));
                                 }
                             }
                         }
@@ -1030,9 +1037,9 @@ impl SVal {
                             }
                             return Ok(Self::Tuple(new_vals));
                         }
-                        Err(anyhow!("Cannot cast array to type: {:?}", SType::Tuple(types.clone())))
+                        Err(SError::val(pid, &doc, "cast", &format!("cannot cast array to type: {:?}", SType::Tuple(types.clone()))))
                     },
-                    target => Err(anyhow!("Cannot cast array to type: {:?}", target))
+                    target => Err(SError::val(pid, &doc, "cast", &format!("cannot cast array to type: {:?}", target)))
                 }
             },
             Self::Bool(val) => {
@@ -1062,12 +1069,12 @@ impl SVal {
                         return Ok(Self::Bool(*val));
                     },
                     ty => {
-                        return Err(anyhow!("Cannot cast a bool to type: {:?}", ty));
+                        return Err(SError::val(pid, &doc, "cast", &format!("cannot cast a bool to type: {:?}", ty)));
                     }
                 }
             },
             Self::FnPtr(_) => {
-                Err(anyhow!("Cannot cast fn pointer to anything"))
+                Err(SError::val(pid, &doc, "cast", "cannot cast a fn pointer to anything"))
             },
             Self::Null => {
                 // Null can be any type!
@@ -1087,7 +1094,7 @@ impl SVal {
                     SType::Number(ntype) => {
                         Ok(Self::Number(val.cast(ntype)))
                     },
-                    stype => Err(anyhow!("Cannot cast number to: {:?}", stype))
+                    stype => Err(SError::val(pid, &doc, "cast", &format!("cannot cast a number to type: {:?}", stype)))
                 }
             },
             Self::String(val) => {
@@ -1115,23 +1122,23 @@ impl SVal {
                                 if let Ok(res) = val.replace('+', "").parse::<i64>() {
                                     return Ok(Self::Number(SNum::I64(res)));
                                 }
-                                Err(anyhow!("Value '{}' is not an int", val))
+                                Err(SError::val(pid, &doc, "cast", &format!("value '{}' is not an int", val)))
                             },
                             SNumType::F64 => {
                                 if let Ok(res) = val.replace('+', "").parse::<f64>() {
                                     return Ok(Self::Number(SNum::F64(res)));
                                 }
-                                Err(anyhow!("Value '{}' is not a float", val))
+                                Err(SError::val(pid, &doc, "cast", &format!("value '{}' is not a float", val)))
                             },
                             SNumType::Units(units) => {
                                 if let Ok(res) = val.replace('+', "").parse::<f64>() {
                                     return Ok(Self::Number(SNum::Units(res, units)));
                                 }
-                                Err(anyhow!("Value '{}' is not a float (to units)", val))
+                                Err(SError::val(pid, &doc, "cast", &format!("value '{}' is not a float (to units)", val)))
                             },
                         }
                     },
-                    stype => Err(anyhow!("Cannot cast string to: {:?}", stype))
+                    stype => Err(SError::val(pid, &doc, "cast", &format!("cannot cast a string to type: {:?}", stype)))
                 }
             },
             Self::Tuple(vals) => {
@@ -1157,11 +1164,11 @@ impl SVal {
                             }
                             return Ok(SVal::Tuple(new_tup));
                         }
-                        return Err(anyhow!("Cannot cast tuple of one length into a tuple of another length"))
+                        return Err(SError::val(pid, &doc, "cast", "cannot cast tuple of one length into a tuple of another length"));
                     },
                     _ => {}
                 }
-                Err(anyhow!("Cannot cast tuple to anything"))
+                Err(SError::val(pid, &doc, "cast", &format!("cannot cast a tuple to type: {:?}", target)))
             },
             Self::Set(set) => {
                 match target {
@@ -1174,7 +1181,7 @@ impl SVal {
                     },
                     _ => {}
                 }
-                Err(anyhow!("Cannot cast a set to type: {:?}", target))
+                Err(SError::val(pid, &doc, "cast", &format!("cannot cast a set to type: {:?}", target)))
             },
             Self::Map(map) => {
                 match target {
@@ -1187,10 +1194,10 @@ impl SVal {
                     },
                     _ => {}
                 }
-                Err(anyhow!("Cannot cast a map to type: {:?}", target))
+                Err(SError::val(pid, &doc, "cast", &format!("cannot cast a map to type: {:?}", target)))
             },
             Self::Void => {
-                Err(anyhow!("Cannot cast void to anything"))
+                Err(SError::val(pid, &doc, "cast", "cannot cast a void type"))
             },
             Self::Object(nref) => {
                 match target {
@@ -1219,13 +1226,13 @@ impl SVal {
                                 if let Some(nref) = doc.graph.node_ref(&path, Some(&type_scope)) {
                                     type_scope = nref;
                                 } else {
-                                    return Err(anyhow!("Cannot find referenced type scope for casting an object to {}", typepath));
+                                    return Err(SError::val(pid, &doc, "cast", &format!("cannot find referenced type scope for casting an object to {}", typepath)));
                                 }
                             } else {
                                 if let Some(nref) = doc.graph.node_ref(&path, None) {
                                     type_scope = nref;
                                 } else {
-                                    return Err(anyhow!("Cannot find referenced type scope for casting an object to {}", typepath));
+                                    return Err(SError::val(pid, &doc, "cast", &format!("cannot find referenced type scope for casting an object to {}", typepath)));
                                 }
                             }
                         }
@@ -1236,7 +1243,7 @@ impl SVal {
                         if let Some(custom_type) = doc.types.find(&doc.graph, custom_type_name, &type_scope) {
                             if custom_type.is_private() && !current_scope.is_child_of(&doc.graph, &type_scope) {
                                 // Custom type is private and the current scope is not equal or a child of the type's scope
-                                return Err(anyhow!("Cannot cast expr to private object type: {}", typepath));
+                                return Err(SError::val(pid, &doc, "cast", &format!("cannot cast expr to private object type: {}", typepath)));
                             }
 
                             // Check the current type of the object, to see if we already are an instance of this custom type
@@ -1281,14 +1288,14 @@ impl SVal {
                                     field.attributes = typefield.attributes;
                                     field.attach(nref, &mut doc.graph);
                                 } else {
-                                    return Err(anyhow!("Could not find or create the field '{}' while casting object into '{}'", typefield.name, typepath));
+                                    return Err(SError::val(pid, &doc, "cast", &format!("Could not find or create the field '{}' while casting object into '{}'", typefield.name, typepath)));
                                 }
                             }
                             return Ok(self.clone());
                         }
-                        Err(anyhow!("Cannot cast expr to object type: {}", typepath))
+                        Err(SError::val(pid, &doc, "cast", &format!("cannot cast expr to object type: {}", typepath)))
                     },
-                    _ => Err(anyhow!("Cannot cast Object into {:?}", target))
+                    _ => Err(SError::val(pid, &doc, "cast", &format!("Cannot cast Object into {:?}", target)))
                 }
             },
         }
@@ -1341,10 +1348,10 @@ impl SVal {
             #[allow(unused)]
             Self::Object(nref) => {
                 #[cfg(feature = "json")]
-                return JSON::stringify_node(&doc.graph, nref).expect("Unable to export node during print to JSON");
+                return JSON::stringify_node("main", &doc, nref).expect("Unable to export node during print to JSON");
 
                 #[cfg(feature = "toml")]
-                return TOML::stringify_node(&doc.graph, nref).expect("Unable to export node during print to TOML");
+                return TOML::stringify_node("main", &doc, nref).expect("Unable to export node during print to TOML");
 
                 #[cfg(not(feature = "json"))]
                 return self.debug(doc);
@@ -1412,17 +1419,17 @@ impl SVal {
     }
 
     /// Equality.
-    pub fn equal(&self, other: &Self) -> Result<Self> {
+    pub fn equal(&self, other: &Self) -> Result<Self, SError> {
         Ok((self == other).into())
     }
 
     /// Not equals.
-    pub fn neq(&self, other: &Self) -> Result<Self> {
+    pub fn neq(&self, other: &Self) -> Result<Self, SError> {
         Ok((self != other).into())
     }
 
     /// Greater than other?
-    pub fn gt(&self, other: &Self) -> Result<Self> {
+    pub fn gt(&self, other: &Self) -> Result<Self, SError> {
         if other.is_boxed() {
             match other {
                 Self::Boxed(oval) => {
@@ -1478,7 +1485,7 @@ impl SVal {
     }
 
     /// Less than other?
-    pub fn lt(&self, other: &Self) -> Result<Self> {
+    pub fn lt(&self, other: &Self) -> Result<Self, SError> {
         if other.is_boxed() {
             match other {
                 Self::Boxed(oval) => {
@@ -1532,7 +1539,7 @@ impl SVal {
     }
 
     /// Greater than or equal?
-    pub fn gte(&self, other: &Self) -> Result<Self> {
+    pub fn gte(&self, other: &Self) -> Result<Self, SError> {
         let mut res = self.gt(other)?;
         match res {
             Self::Bool(val) => {
@@ -1550,7 +1557,7 @@ impl SVal {
     }
 
     /// Less than or equal?
-    pub fn lte(&self, other: &Self) -> Result<Self> {
+    pub fn lte(&self, other: &Self) -> Result<Self, SError> {
         let mut res = self.lt(other)?;
         match res {
             Self::Bool(val) => {
@@ -1568,11 +1575,11 @@ impl SVal {
     }
 
     /// Add.
-    pub fn add(self, other: Self, doc: &mut SDoc) -> Result<Self> {
+    pub fn add(self, pid: &str, other: Self, doc: &mut SDoc) -> Result<Self, SError> {
         if other.is_boxed() {
             match other {
                 Self::Boxed(oval) => {
-                    return self.add(oval.lock().unwrap().clone(), doc);
+                    return self.add(pid, oval.lock().unwrap().clone(), doc);
                 },
                 _ => {}
             }
@@ -1582,11 +1589,11 @@ impl SVal {
                 {
                     let mut lock = val.lock().unwrap();
                     let val = lock.deref_mut();
-                    *val = val.clone().add(other, doc)?;
+                    *val = val.clone().add(pid, other, doc)?;
                 }
                 Ok(Self::Boxed(val))
             },
-            Self::Object(_) => Err(anyhow!("Cannot add objects")),
+            Self::Object(_) => Err(SError::val(pid, &doc, "add", "cannot add objects together")),
             Self:: Null |
             Self::Void => {
                 Ok(other)
@@ -1597,12 +1604,12 @@ impl SVal {
                         blob.append(&mut other_blob);
                         Ok(Self::Blob(blob))
                     },
-                    _ => Err(anyhow!("Cannot add something other than a binary blob to a blob"))
+                    _ => Err(SError::val(pid, &doc, "add", "cannot add a non-blob to a blob"))
                 }
             },
             Self::Bool(aval) => {
                 match other {
-                    Self::Object(_) => Err(anyhow!("Cannot add objects")),
+                    Self::Object(_) => Err(SError::val(pid, &doc, "add", "cannot add objects together")),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::Bool(aval))
@@ -1617,29 +1624,29 @@ impl SVal {
                         Ok(Self::String(format!("{}{}", aval, bval)))
                     },
                     Self::Array(_) => {
-                        Err(anyhow!("Cannot 'bool + array'"))
+                        Err(SError::val(pid, &doc, "add", "cannot add a bool and an array"))
                     },
                     Self::Tuple(_) => {
-                        Err(anyhow!("Cannot 'bool + tuple'"))
+                        Err(SError::val(pid, &doc, "add", "cannot add a bool and a tuple"))
                     },
                     Self::FnPtr(_) => {
-                        Err(anyhow!("Cannot 'bool + function ptr'"))
+                        Err(SError::val(pid, &doc, "add", "cannot add a bool and a function ptr"))
                     },
                     Self::Blob(_) => {
-                        Err(anyhow!("Cannot 'bool + blob'"))
+                        Err(SError::val(pid, &doc, "add", "cannot add a bool and a blob"))
                     },
                     Self::Map(_) => {
-                        Err(anyhow!("Cannot 'bool + map'"))
+                        Err(SError::val(pid, &doc, "add", "cannot add a bool and a map"))
                     },
                     Self::Set(_) => {
-                        Err(anyhow!("Cannot 'bool + set'"))
+                        Err(SError::val(pid, &doc, "add", "cannot add a bool and a set"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of")
                 }
             },
             Self::String(aval) => {
                 match other {
-                    Self::Object(_) => Err(anyhow!("Cannot add objects")),
+                    Self::Object(_) => Err(SError::val(pid, &doc, "add", "cannot add a string and an object")),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::String(aval))
@@ -1664,20 +1671,20 @@ impl SVal {
                     },
                     Self::Blob(_) => {
                         // TODO - cast string to blob?
-                        Err(anyhow!("Cannot 'string + blob'"))
+                        Err(SError::val(pid, &doc, "add", "cannot add a string and a blob"))
                     },
                     Self::Map(_) => {
-                        Err(anyhow!("Cannot 'string + map'"))
+                        Err(SError::val(pid, &doc, "add", "cannot add a string and a map"))
                     },
                     Self::Set(_) => {
-                        Err(anyhow!("Cannot 'string + set'"))
+                        Err(SError::val(pid, &doc, "add", "cannot add a string and a set"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of")
                 }
             },
             Self::Number(aval) => {
                 match other {
-                    Self::Object(_) => Err(anyhow!("Cannot add objects")),
+                    Self::Object(_) => Err(SError::val(pid, &doc, "add", "cannot add a number and an object")),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::Number(aval))
@@ -1689,36 +1696,36 @@ impl SVal {
                         if let Ok(bval) = bval.parse::<f64>() {
                             Ok(Self::Number(aval.add(&SNum::F64(bval))))
                         } else {
-                            Err(anyhow!("Cannot add string that is not a number to a number"))
+                            Err(SError::val(pid, &doc, "add", "this string cannot be parsed into a number for addition"))
                         }
                     },
                     Self::Bool(bval) => {
                         Ok(Self::String(format!("{}{}", aval.print(), bval)))
                     },
                     Self::Array(_) => {
-                        Err(anyhow!("Cannot 'number + array'"))
+                        Err(SError::val(pid, &doc, "add", "cannot add a number and an array"))
                     },
                     Self::Tuple(_) => {
-                        Err(anyhow!("Cannot 'number + tuple'"))
+                        Err(SError::val(pid, &doc, "add", "cannot add a number and a tuple"))
                     },
                     Self::FnPtr(_) => {
-                        Err(anyhow!("Cannot 'number + fn ptr'"))
+                        Err(SError::val(pid, &doc, "add", "cannot add a number and a function ptr"))
                     },
                     Self::Blob(_) => {
-                        Err(anyhow!("Cannot 'number + blob'"))
+                        Err(SError::val(pid, &doc, "add", "cannot add a number and a blob"))
                     },
                     Self::Map(_) => {
-                        Err(anyhow!("Cannot 'number + map'"))
+                        Err(SError::val(pid, &doc, "add", "cannot add a number and a map"))
                     },
                     Self::Set(_) => {
-                        Err(anyhow!("Cannot 'number + set'"))
+                        Err(SError::val(pid, &doc, "add", "cannot add a number and a set"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of")
                 }
             },
             Self::Array(mut vals) => {
                 match other {
-                    Self::Object(_) => Err(anyhow!("Cannot add objects")),
+                    Self::Object(_) => Err(SError::val(pid, &doc, "add", "cannot add an array and an object")),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::Array(vals))
@@ -1750,23 +1757,23 @@ impl SVal {
                     Self::Blob(_) => {
                         // PID here doesn't matter, because they only get used when casting with objects...
                         let arr_blob = Self::Array(vals).cast(SType::Blob, "main", doc)?;
-                        arr_blob.add(other, doc)
+                        arr_blob.add(pid, other, doc)
                     },
                     Self::Set(set) => {
                         vals.append(&mut set.into_iter().collect());
                         Ok(Self::Array(vals))
                     },
                     Self::Map(_) => {
-                        Err(anyhow!("Cannot 'bool + map'"))
+                        Err(SError::val(pid, &doc, "add", "cannot add an array and a map"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of")
                 }
             },
             Self::Tuple(_) => {
-                Err(anyhow!("Cannot mutate a tuple."))
+                Err(SError::val(pid, &doc, "add", "cannot add a tuple with anything"))
             },
             Self::FnPtr(_) => {
-                Err(anyhow!("Cannot add anything to a function"))
+                Err(SError::val(pid, &doc, "add", "cannot add a function pointer with anything"))
             },
             Self::Map(mut map) => {
                 match other {
@@ -1777,7 +1784,7 @@ impl SVal {
                             map.insert(key, value);
                             return Ok(SVal::Map(map));
                         }
-                        Err(anyhow!("Tuple must have two values to add into a map"))
+                        Err(SError::val(pid, &doc, "add", "tuple must have two values in order to be added to a map (key, value)"))
                     },
                     Self::Map(omap) => {
                         for (k, v) in omap {
@@ -1790,7 +1797,7 @@ impl SVal {
                         Ok(SVal::Map(map))
                     },
                     _ => {
-                        Err(anyhow!("Cannot add anything other than a tuple or a map to a map"))
+                        Err(SError::val(pid, &doc, "add", "cannot add this value to a map"))
                     }
                 }
             },
@@ -1814,11 +1821,11 @@ impl SVal {
     }
 
     /// Subtract.
-    pub fn sub(self, other: Self) -> Result<Self> {
+    pub fn sub(self, pid: &str, other: Self, doc: &mut SDoc) -> Result<Self, SError> {
         if other.is_boxed() {
             match other {
                 Self::Boxed(oval) => {
-                    return self.sub(oval.lock().unwrap().clone());
+                    return self.sub(pid, oval.lock().unwrap().clone(), doc);
                 },
                 _ => {}
             }
@@ -1828,21 +1835,21 @@ impl SVal {
                 {
                     let mut lock = val.lock().unwrap();
                     let val = lock.deref_mut();
-                    *val = val.clone().sub(other)?;
+                    *val = val.clone().sub(pid, other, doc)?;
                 }
                 Ok(Self::Boxed(val))
             },
-            Self::Object(_) => Err(anyhow!("Cannot subtract objects")),
+            Self::Object(_) => Err(SError::val(pid, &doc, "subtract", "cannot subtract from an object")),
             Self::Null |
             Self::Void => {
-                Err(anyhow!("Cannot subtract anything from null or void"))
+                Err(SError::val(pid, &doc, "subtract", "cannot subtract from a null or void value"))
             },
             Self::Blob(_) => {
-                Err(anyhow!("Cannot subtract from a binary blob"))
+                Err(SError::val(pid, &doc, "subtract", "cannot subtract from a binary blob"))
             },
             Self::Bool(aval) => {
                 match other {
-                    Self::Object(_) => Err(anyhow!("Cannot subtract objects")),
+                    Self::Object(_) => Err(SError::val(pid, &doc, "subtract", "cannot subtract an object from a bool")),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::Bool(aval))
@@ -1851,35 +1858,35 @@ impl SVal {
                         Ok(Self::Bool(aval ^ bval))
                     },
                     Self::Number(_) => {
-                        Err(anyhow!("Cannot subtract a number from a bool"))
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract a number from a bool"))
                     },
                     Self::String(_) => {
-                        Err(anyhow!("Cannot subtract a string from a bool"))
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract a string from a bool"))
                     },
                     Self::Array(_) => {
-                        Err(anyhow!("Cannot subtract an array from a bool"))
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract an array from a bool"))
                     },
                     Self::Tuple(_) => {
-                        Err(anyhow!("Cannot subtract a tuple from a bool"))
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract a tuple from a bool"))
                     },
                     Self::FnPtr(_) => {
-                        Err(anyhow!("Cannot subtract a fn pointer from a bool"))
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract a fn pointer from a bool"))
                     },
                     Self::Blob(_) => {
-                        Err(anyhow!("Cannot subtract a blob"))
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract a blob from a bool"))
                     },
                     Self::Map(_) => {
-                        Err(anyhow!("Cannot subtract a map from a bool"))
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract a map from a bool"))
                     },
                     Self::Set(_) => {
-                        Err(anyhow!("Cannot subtract a set from a bool"))
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract a set from a bool"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::String(aval) => {
                 match other {
-                    Self::Object(_) => Err(anyhow!("Cannot subtract objects")),
+                    Self::Object(_) => Err(SError::val(pid, &doc, "subtract", "cannot subtract an object from a string")),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::String(aval))
@@ -1894,29 +1901,29 @@ impl SVal {
                         Ok(Self::String(aval.replace(&bval.to_string(), "")))
                     },
                     Self::Array(_) => {
-                        Err(anyhow!("Cannot subtract an array from a string"))
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract an array from a string"))
                     },
                     Self::Tuple(_) => {
-                        Err(anyhow!("Cannot subtract a tuple from a string"))
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract a tuple from a string"))
                     },
                     Self::FnPtr(_) => {
-                        Err(anyhow!("Cannot subtract a fn pointer from a string"))
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract a fn pointer from a string"))
                     },
                     Self::Blob(_) => {
-                        Err(anyhow!("Cannot subtract a blob"))
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract a blob from a string"))
                     },
                     Self::Map(_) => {
-                        Err(anyhow!("Cannot subtract a map from a string"))
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract a map from a string"))
                     },
                     Self::Set(_) => {
-                        Err(anyhow!("Cannot subtract a set from a string"))
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract a set from a string"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::Number(aval) => {
                 match other {
-                    Self::Object(_) => Err(anyhow!("Cannot subtract objects")),
+                    Self::Object(_) => Err(SError::val(pid, &doc, "subtract", "cannot subtract an object from a number")),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::Number(aval))
@@ -1928,7 +1935,7 @@ impl SVal {
                         if let Ok(bval) = bval.parse::<f64>() {
                             Ok(Self::Number(aval.sub(&SNum::F64(bval))))
                         } else {
-                            Err(anyhow!("Cannot subtract string that is not a number to a number"))
+                            Err(SError::val(pid, &doc, "subtract", "this string cannot be parsed into a number for subtraction"))
                         }
                     },
                     Self::Bool(bval) => {
@@ -1937,34 +1944,34 @@ impl SVal {
                         Ok(Self::Number(aval.sub(&SNum::I64(num))))
                     },
                     Self::Array(_) => {
-                        Err(anyhow!("Cannot subtract an array from a number"))
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract an array from a number"))
                     },
                     Self::Tuple(_) => {
-                        Err(anyhow!("Cannot subtract a tuple from a string"))
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract a tuple from a number"))
                     },
                     Self::FnPtr(_) => {
-                        Err(anyhow!("Cannot subtract a fn pointer from a number"))
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract a fn pointer from a number"))
                     },
                     Self::Blob(_) => {
-                        Err(anyhow!("Cannot subtract a blob"))
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract a blob from a number"))
                     },
                     Self::Map(_) => {
-                        Err(anyhow!("Cannot subtract a map from a number"))
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract a map from a number"))
                     },
                     Self::Set(_) => {
-                        Err(anyhow!("Cannot subtract a set from a number"))
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract a set from a number"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::Array(_) => {
-                Err(anyhow!("Cannot subtract anything from an array"))
+                Err(SError::val(pid, &doc, "subtract", "cannot subtract anything from an array"))
             },
             Self::Tuple(_) => {
-                Err(anyhow!("Cannot mutate a tuple"))
+                Err(SError::val(pid, &doc, "subtract", "cannot subtract anything from a tuple"))
             },
             Self::FnPtr(_) => {
-                Err(anyhow!("Cannot subtract anything from a fn pointer"))
+                Err(SError::val(pid, &doc, "subtract", "cannot subtract anything from a function pointer"))
             },
             Self::Map(mut map) => {
                 match other {
@@ -2007,11 +2014,11 @@ impl SVal {
     }
 
     /// Multiply another value with this value.
-    pub fn mul(self, other: Self) -> Result<Self> {
+    pub fn mul(self, pid: &str, other: Self, doc: &mut SDoc) -> Result<Self, SError> {
         if other.is_boxed() {
             match other {
                 Self::Boxed(oval) => {
-                    return self.mul(oval.lock().unwrap().clone());
+                    return self.mul(pid, oval.lock().unwrap().clone(), doc);
                 },
                 _ => {}
             }
@@ -2021,21 +2028,21 @@ impl SVal {
                 {
                     let mut lock = val.lock().unwrap();
                     let val = lock.deref_mut();
-                    *val = val.clone().mul(other)?;
+                    *val = val.clone().mul(pid, other, doc)?;
                 }
                 Ok(Self::Boxed(val))
             },
-            Self::Object(_) => Err(anyhow!("Cannot multiply objects")),
+            Self::Object(_) => Err(SError::val(pid, &doc, "multiply", "cannot multiply objects")),
             Self::Null |
             Self::Void => {
                 Ok(other)
             },
             Self::Blob(_) => {
-                Err(anyhow!("Cannot multiply a blob"))
+                Err(SError::val(pid, &doc, "multiply", "cannot multiply a blob"))
             },
             Self::Bool(aval) => {
                 match other {
-                    Self::Object(_) => Err(anyhow!("Cannot multiply objects")),
+                    Self::Object(_) => Err(SError::val(pid, &doc, "multiply", "cannot multiply a bool and object")),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::Bool(aval))
@@ -2044,35 +2051,35 @@ impl SVal {
                         Ok(Self::Bool(aval || bval))
                     },
                     Self::Number(_) => {
-                        Err(anyhow!("Cannot multiply a bool and a number"))
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a bool and a number"))
                     },
                     Self::String(_) => {
-                        Err(anyhow!("Cannot multiply a bool and a string"))
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a bool and a string"))
                     },
                     Self::Array(_) => {
-                        Err(anyhow!("Cannot multiply a bool and an array"))
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a bool and an array"))
                     },
                     Self::Tuple(_) => {
-                        Err(anyhow!("Cannot multiply a bool and a tuple"))
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a bool and a tuple"))
                     },
                     Self::FnPtr(_) => {
-                        Err(anyhow!("Cannot multiply a bool and a fn pointer"))
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a bool and a function pointer"))
                     },
                     Self::Blob(_) => {
-                        Err(anyhow!("Cannot multiply a blob"))
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a bool and a blob"))
                     },
                     Self::Map(_) => {
-                        Err(anyhow!("Cannot multiply a map and a bool"))
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a bool and a map"))
                     },
                     Self::Set(_) => {
-                        Err(anyhow!("Cannot multiply a set and a bool"))
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a bool and a set"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::String(aval) => {
                 match other {
-                    Self::Object(_) => Err(anyhow!("Cannot multiply objects")),
+                    Self::Object(_) => Err(SError::val(pid, &doc, "multiply", "cannot multiply a string and an object")),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::String(aval))
@@ -2091,29 +2098,29 @@ impl SVal {
                         Ok(Self::String(format!("{}{}", aval, bval)))
                     },
                     Self::Array(_) => {
-                        Err(anyhow!("Cannot multiply a string and an array"))
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a string and an array"))
                     },
                     Self::Tuple(_) => {
-                        Err(anyhow!("Cannot multiply a string and a tuple"))
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a string and a tuple"))
                     },
                     Self::FnPtr(_) => {
-                        Err(anyhow!("Cannot multiply a string and a fn pointer"))
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a string and a function pointer"))
                     },
                     Self::Blob(_) => {
-                        Err(anyhow!("Cannot multiply a blob"))
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a string and a blob"))
                     },
                     Self::Map(_) => {
-                        Err(anyhow!("Cannot multiply a map and a string"))
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a string and a map"))
                     },
                     Self::Set(_) => {
-                        Err(anyhow!("Cannot multiply a set and a string"))
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a string and a set"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::Number(aval) => {
                 match other {
-                    Self::Object(_) => Err(anyhow!("Cannot multiply objects")),
+                    Self::Object(_) => Err(SError::val(pid, &doc, "multiply", "cannot multiply a number and an object")),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::Number(aval))
@@ -2125,41 +2132,41 @@ impl SVal {
                         if let Ok(bval) = bval.parse::<f64>() {
                             Ok(Self::Number(aval.mul(&SNum::F64(bval))))
                         } else {
-                            Err(anyhow!("Cannot multiply string that is not a number to a number"))
+                            Err(SError::val(pid, &doc, "multiply", "this string cannot be parsed into a number for multiplication"))
                         }
                     },
                     Self::Bool(_) => {
-                        Err(anyhow!("Cannot multiply a number and a bool"))
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a number and a bool"))
                     },
                     Self::Array(_) => {
-                        Err(anyhow!("Cannot multiply a number with an array"))
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a number and an array"))
                     },
                     Self::Tuple(_) => {
-                        Err(anyhow!("Cannot multiply a number with a tuple"))
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a number and a tuple"))
                     },
                     Self::FnPtr(_) => {
-                        Err(anyhow!("Cannot multiply a number with a fn pointer"))
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a number and a function pointer"))
                     },
                     Self::Blob(_) => {
-                        Err(anyhow!("Cannot multiply a blob"))
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a number and a blob"))
                     },
                     Self::Map(_) => {
-                        Err(anyhow!("Cannot multiply a map and a number"))
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a number and a map"))
                     },
                     Self::Set(_) => {
-                        Err(anyhow!("Cannot multiply a set and a number"))
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a number and a set"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::Array(_) => {
-                Err(anyhow!("Cannot multiply an array with anything"))
+                Err(SError::val(pid, &doc, "multiply", "cannot multiply an array"))
             },
             Self::Tuple(_) => {
-                Err(anyhow!("Cannot multiply a tuple with anything"))
+                Err(SError::val(pid, &doc, "multiply", "cannot multiply a tuple"))
             },
             Self::FnPtr(_) => {
-                Err(anyhow!("Cannot multiply a fn pointer with anything"))
+                Err(SError::val(pid, &doc, "multiply", "cannot multiply a function"))
             },
             Self::Set(set) => {
                 match other {
@@ -2172,7 +2179,7 @@ impl SVal {
                         Ok(Self::Set(set.intersection(&oset).into_iter().cloned().collect()))
                     },
                     _ => {
-                        Err(anyhow!("Cannot intersect a set with anything other than another set or an array"))
+                        Err(SError::val(pid, &doc, "multiply", "cannot intersect a set with a non-set and non-array value"))
                     }
                 }
             },
@@ -2207,19 +2214,33 @@ impl SVal {
                         }
                         return Ok(Self::Map(map));
                     },
+                    Self::Set(vals) => {
+                        // Perform an intersection with this set
+                        // Keep only the keys that are in this set
+                        let mut to_remove = Vec::new();
+                        for (k, _v) in &map {
+                            if !vals.contains(k) {
+                                to_remove.push(k.clone());
+                            }
+                        }
+                        for key in to_remove {
+                            map.remove(&key);
+                        }
+                        return Ok(Self::Map(map));
+                    },
                     _ => {}
                 }
-                Err(anyhow!("Cannot multiply a map with anything other than a map or an array"))
+                Err(SError::val(pid, &doc, "multiply", "cannot intersect a map with a non-map, non-array, and non-set value"))
             }
         }
     }
 
     /// Divide another value with this value.
-    pub fn div(self, other: Self) -> Result<Self> {
+    pub fn div(self, pid: &str, other: Self, doc: &mut SDoc) -> Result<Self, SError> {
         if other.is_boxed() {
             match other {
                 Self::Boxed(oval) => {
-                    return self.div(oval.lock().unwrap().clone());
+                    return self.div(pid, oval.lock().unwrap().clone(), doc);
                 },
                 _ => {}
             }
@@ -2229,21 +2250,21 @@ impl SVal {
                 {
                     let mut lock = val.lock().unwrap();
                     let val = lock.deref_mut();
-                    *val = val.clone().div(other)?;
+                    *val = val.clone().div(pid, other, doc)?;
                 }
                 Ok(Self::Boxed(val))
             },
-            Self::Object(_) => Err(anyhow!("Cannot divide objects")),
+            Self::Object(_) => Err(SError::val(pid, &doc, "divide", "cannot divide an object")),
             Self::Null |
             Self::Void => {
                 Ok(other)
             },
             Self::Blob(_) => {
-                Err(anyhow!("Cannot divide a blob"))
+                Err(SError::val(pid, &doc, "divide", "cannot divide a blob"))
             },
             Self::Bool(aval) => {
                 match other {
-                    Self::Object(_) => Err(anyhow!("Cannot divide objects")),
+                    Self::Object(_) => Err(SError::val(pid, &doc, "divide", "cannot divide a bool with an object")),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::Bool(aval))
@@ -2252,35 +2273,35 @@ impl SVal {
                         Ok(Self::Bool(aval && bval))
                     },
                     Self::Number(_) => {
-                        Err(anyhow!("Cannot divide a bool and a number"))
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a bool with a number"))
                     },
                     Self::String(_) => {
-                        Err(anyhow!("Cannot divide a bool and a string"))
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a bool with a string"))
                     },
                     Self::Array(_) => {
-                        Err(anyhow!("Cannot divide a bool and an array"))
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a bool with an array"))
                     },
                     Self::Tuple(_) => {
-                        Err(anyhow!("Cannot divide a bool and a tuple"))
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a bool with a tuple"))
                     },
                     Self::FnPtr(_) => {
-                        Err(anyhow!("Cannot divide a bool and a fn pointer"))
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a bool with a function pointer"))
                     },
                     Self::Blob(_) => {
-                        Err(anyhow!("Cannot divide a blob"))
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a bool with a blob"))
                     },
                     Self::Map(_) => {
-                        Err(anyhow!("Cannot divide a map and a bool"))
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a bool with a map"))
                     },
                     Self::Set(_) => {
-                        Err(anyhow!("Cannot divide a set and a bool"))
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a bool with a set"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::String(aval) => {
                 match other {
-                    Self::Object(_) => Err(anyhow!("Cannot divide objects")),
+                    Self::Object(_) => Err(SError::val(pid, &doc, "divide", "cannot divide a string with an object")),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::String(aval))
@@ -2294,35 +2315,35 @@ impl SVal {
                         Ok(Self::Array(new))
                     },
                     Self::Number(_) => {
-                        Err(anyhow!("Cannot divide a string by a number"))
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a string with a number"))
                     },
                     Self::Bool(_) => {
-                        Err(anyhow!("Cannot divide a string by a bool"))
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a string with a bool"))
                     },
                     Self::Array(_) => {
-                        Err(anyhow!("Cannot divide a string and an array"))
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a string with an array"))
                     },
                     Self::Tuple(_) => {
-                        Err(anyhow!("Cannot divide a string and a tuple"))
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a string with a tuple"))
                     },
                     Self::FnPtr(_) => {
-                        Err(anyhow!("Cannot divide a string and a fn pointer"))
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a string with a function pointer"))
                     },
                     Self::Blob(_) => {
-                        Err(anyhow!("Cannot divide a blob"))
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a string with a blob"))
                     },
                     Self::Map(_) => {
-                        Err(anyhow!("Cannot divide a map and a string"))
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a string with a map"))
                     },
                     Self::Set(_) => {
-                        Err(anyhow!("Cannot divide a set and a string"))
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a string with a set"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::Number(aval) => {
                 match other {
-                    Self::Object(_) => Err(anyhow!("Cannot divide objects")),
+                    Self::Object(_) => Err(SError::val(pid, &doc, "divide", "cannot divide a number with an object")),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::Number(aval))
@@ -2334,57 +2355,57 @@ impl SVal {
                         if let Ok(bval) = bval.parse::<f64>() {
                             Ok(Self::Number(aval.div(&SNum::F64(bval))))
                         } else {
-                            Err(anyhow!("Cannot divide string that is not a number to a number"))
+                            Err(SError::val(pid, &doc, "divide", "this string cannot be parsed into a number for division"))
                         }
                     },
                     Self::Bool(_) => {
-                        Err(anyhow!("Cannot divide a number and a bool"))
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a number with a bool"))
                     },
                     Self::Array(_) => {
-                        Err(anyhow!("Cannot divide a number with an array"))
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a number with an array"))
                     },
                     Self::Tuple(_) => {
-                        Err(anyhow!("Cannot divide a number with a tuple"))
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a number with a tuple"))
                     },
                     Self::FnPtr(_) => {
-                        Err(anyhow!("Cannot divide a number with a fn pointer"))
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a number with a function pointer"))
                     },
                     Self::Blob(_) => {
-                        Err(anyhow!("Cannot divide a blob"))
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a number with a blob"))
                     },
                     Self::Map(_) => {
-                        Err(anyhow!("Cannot divide a map and a number"))
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a number with a map"))
                     },
                     Self::Set(_) => {
-                        Err(anyhow!("Cannot divide a set and a number"))
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a number with a set"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::Array(_) => {
-                Err(anyhow!("Cannot divide an array with anything"))
+                Err(SError::val(pid, &doc, "divide", "cannot divide an array"))
             },
             Self::Tuple(_) => {
-                Err(anyhow!("Cannot divide a tuple with anything"))
+                Err(SError::val(pid, &doc, "divide", "cannot divide a tuple"))
             },
             Self::FnPtr(_) => {
-                Err(anyhow!("Cannot divide a fn pointer with anything"))
+                Err(SError::val(pid, &doc, "divide", "cannot divide a function pointer"))
             },
             Self::Map(_) => {
-                Err(anyhow!("Cannot divide a map with anything"))
+                Err(SError::val(pid, &doc, "divide", "cannot divide a map"))
             },
             Self::Set(_) => {
-                Err(anyhow!("Cannot divide a set with anything"))
+                Err(SError::val(pid, &doc, "divide", "cannot divide a set"))
             },
         }
     }
 
     /// Modulus/remainder (mod) another value with this value.
-    pub fn rem(self, other: Self) -> Result<Self> {
+    pub fn rem(self, pid: &str, other: Self, doc: &mut SDoc) -> Result<Self, SError> {
         if other.is_boxed() {
             match other {
                 Self::Boxed(oval) => {
-                    return self.rem(oval.lock().unwrap().clone());
+                    return self.rem(pid, oval.lock().unwrap().clone(), doc);
                 },
                 _ => {}
             }
@@ -2394,21 +2415,21 @@ impl SVal {
                 {
                     let mut lock = val.lock().unwrap();
                     let val = lock.deref_mut();
-                    *val = val.clone().rem(other)?;
+                    *val = val.clone().rem(pid, other, doc)?;
                 }
                 Ok(Self::Boxed(val))
             },
-            Self::Object(_) => Err(anyhow!("Cannot divide objects")),
+            Self::Object(_) => Err(SError::val(pid, &doc, "modulo", "cannot divide an object")),
             Self::Null |
             Self::Void => {
                 Ok(other)
             },
             Self::Blob(_) => {
-                Err(anyhow!("Cannot divide a blob"))
+                Err(SError::val(pid, &doc, "modulo", "cannot divide a blob"))
             },
             Self::Bool(aval) => {
                 match other {
-                    Self::Object(_) => Err(anyhow!("Cannot divide objects")),
+                    Self::Object(_) => Err(SError::val(pid, &doc, "modulo", "cannot divide a bool with an object")),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::Bool(aval))
@@ -2417,35 +2438,35 @@ impl SVal {
                         Ok(Self::Bool(aval && bval))
                     },
                     Self::Number(_) => {
-                        Err(anyhow!("Cannot divide a bool and a number"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a bool with a number"))
                     },
                     Self::String(_) => {
-                        Err(anyhow!("Cannot divide a bool and a string"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a bool with a string"))
                     },
                     Self::Array(_) => {
-                        Err(anyhow!("Cannot divide a bool and an array"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a bool with an array"))
                     },
                     Self::Tuple(_) => {
-                        Err(anyhow!("Cannot divide a bool and a tuple"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a bool with a tuple"))
                     },
                     Self::FnPtr(_) => {
-                        Err(anyhow!("Cannot divide a bool and a fn pointer"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a bool with a function pointer"))
                     },
                     Self::Blob(_) => {
-                        Err(anyhow!("Cannot divide a blob"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a bool with a blob"))
                     },
                     Self::Map(_) => {
-                        Err(anyhow!("Cannot divide a map and a bool"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a bool with a map"))
                     },
                     Self::Set(_) => {
-                        Err(anyhow!("Cannot divide a set and a bool"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a bool with a set"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::String(aval) => {
                 match other {
-                    Self::Object(_) => Err(anyhow!("Cannot divide objects")),
+                    Self::Object(_) => Err(SError::val(pid, &doc, "modulo", "cannot divide a string with an object")),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::String(aval))
@@ -2459,35 +2480,35 @@ impl SVal {
                         Ok(Self::Array(new))
                     },
                     Self::Number(_) => {
-                        Err(anyhow!("Cannot divide a string by a number"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a string with a number"))
                     },
                     Self::Bool(_) => {
-                        Err(anyhow!("Cannot divide a string by a bool"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a string with a bool"))
                     },
                     Self::Array(_) => {
-                        Err(anyhow!("Cannot divide a string and an array"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a string with an array"))
                     },
                     Self::Tuple(_) => {
-                        Err(anyhow!("Cannot divide a string and a tuple"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a string with a tuple"))
                     },
                     Self::FnPtr(_) => {
-                        Err(anyhow!("Cannot divide a string and a fn pointer"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a string with a function pointer"))
                     },
                     Self::Blob(_) => {
-                        Err(anyhow!("Cannot divide a blob"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a string with a blob"))
                     },
                     Self::Map(_) => {
-                        Err(anyhow!("Cannot divide a map and a string"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a string with a map"))
                     },
                     Self::Set(_) => {
-                        Err(anyhow!("Cannot divide a set and a string"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a string with a set"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::Number(aval) => {
                 match other {
-                    Self::Object(_) => Err(anyhow!("Cannot divide objects")),
+                    Self::Object(_) => Err(SError::val(pid, &doc, "modulo", "cannot divide a number with an object")),
                     Self::Null |
                     Self::Void => {
                         Ok(Self::Number(aval))
@@ -2499,41 +2520,41 @@ impl SVal {
                         if let Ok(bval) = bval.parse::<f64>() {
                             Ok(Self::Number(aval.rem(&SNum::F64(bval))))
                         } else {
-                            Err(anyhow!("Cannot divide string that is not a number to a number"))
+                            Err(SError::val(pid, &doc, "modulo", "this string cannot be parsed into a number for division"))
                         }
                     },
                     Self::Bool(_) => {
-                        Err(anyhow!("Cannot divide a number and a bool"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a number with a bool"))
                     },
                     Self::Array(_) => {
-                        Err(anyhow!("Cannot divide a number with an array"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a number with an array"))
                     },
                     Self::Tuple(_) => {
-                        Err(anyhow!("Cannot divide a number with a tuple"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a number with a tuple"))
                     },
                     Self::FnPtr(_) => {
-                        Err(anyhow!("Cannot divide a number with a fn pointer"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a number with a function pointer"))
                     },
                     Self::Blob(_) => {
-                        Err(anyhow!("Cannot divide a blob"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a number with a blob"))
                     },
                     Self::Map(_) => {
-                        Err(anyhow!("Cannot divide a map and a number"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a number with a map"))
                     },
                     Self::Set(_) => {
-                        Err(anyhow!("Cannot divide a set and a number"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a number with a set"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
             Self::Array(_) => {
-                Err(anyhow!("Cannot divide an array with anything"))
+                Err(SError::val(pid, &doc, "modulo", "cannot divide an array"))
             },
             Self::Tuple(_) => {
-                Err(anyhow!("Cannot divide a tuple with anything"))
+                Err(SError::val(pid, &doc, "modulo", "cannot divide a tuple"))
             },
             Self::FnPtr(_) => {
-                Err(anyhow!("Cannot divide a fn pointer with anything"))
+                Err(SError::val(pid, &doc, "modulo", "cannot divide a function pointer"))
             },
             Self::Set(set) => {
                 match other {
@@ -2546,7 +2567,7 @@ impl SVal {
                         Ok(Self::Set(set.symmetric_difference(&oset).into_iter().cloned().collect()))
                     },
                     _ => {
-                        Err(anyhow!("Cannot take symmetric difference of a set with anything other than another set or an array"))
+                        Err(SError::val(pid, &doc, "modulo", "cannot perform a symmetric difference on a set with anything other than another set or array value"))
                     }
                 }
             },
@@ -2575,7 +2596,7 @@ impl SVal {
                     },
                     _ => {}
                 }
-                Err(anyhow!("Cannot use a map symmetric difference with anything other than a map"))
+                Err(SError::val(pid, &doc, "modulo", "cannot perform a symmetric difference with a map and a non-map value"))
             }
         }
     }

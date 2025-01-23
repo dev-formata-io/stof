@@ -14,9 +14,8 @@
 // limitations under the License.
 //
 
-use std::ops::DerefMut;
-use anyhow::{anyhow, Result};
-use crate::{SDoc, Library, SNum, SVal};
+use std::ops::{Deref, DerefMut};
+use crate::{lang::SError, Library, SDoc, SNum, SVal};
 
 
 /// Tuple library.
@@ -24,7 +23,7 @@ use crate::{SDoc, Library, SNum, SVal};
 pub struct TupleLibrary;
 impl TupleLibrary {
     /// Call tuple operation.
-    pub fn operate(&self, _pid: &str, _doc: &mut SDoc, name: &str, tup: &mut Vec<SVal>, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    pub fn operate(&self, pid: &str, doc: &mut SDoc, name: &str, tup: &mut Vec<SVal>, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         match name {
             // Get the length of this tuple.
             "len" => {
@@ -33,7 +32,7 @@ impl TupleLibrary {
             // Get a value from this tuple at a specific index.
             "at" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Tuple.at(tup, index) requires an index parameter"));
+                    return Err(SError::tup(pid, &doc, "at", "invalid arguments - index not found"));
                 }
                 let index = parameters.pop().unwrap().unbox();
                 match index {
@@ -42,15 +41,31 @@ impl TupleLibrary {
                         if let Some(val) = tup.get(index) {
                             return Ok(val.clone());
                         }
-                        Err(anyhow!("Tuple.at(tup, index) index out of bounds"))
+                        Err(SError::tup(pid, &doc, "at", "index out of bounds"))
+                    },
+                    SVal::Boxed(val) => {
+                        let val = val.lock().unwrap();
+                        let val = val.deref();
+                        match val {
+                            SVal::Number(index) => {
+                                let index = index.int() as usize;
+                                if let Some(val) = tup.get(index) {
+                                    return Ok(val.clone());
+                                }
+                                Err(SError::tup(pid, &doc, "at", "index out of bounds"))
+                            },
+                            _ => {
+                                Err(SError::tup(pid, &doc, "at", "non-numerical index not supported"))
+                            }
+                        }
                     },
                     _ => {
-                        Err(anyhow!("Tuple.at(tup, index) index must be a number value"))
+                        Err(SError::tup(pid, &doc, "at", "non-numerical index not supported"))
                     }
                 }
             },
             _ => {
-                Err(anyhow!("Did not find the requested Tuple library function '{}'", name))
+                Err(SError::tup(pid, &doc, "NotFound", &format!("{} is not a function in the Tuple Library", name)))
             }
         }
     }
@@ -62,7 +77,7 @@ impl Library for TupleLibrary {
     }
 
     /// Call into the Tuple library.
-    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         if parameters.len() > 0 {
             match name {
                 "toString" => {
@@ -97,16 +112,16 @@ impl Library for TupleLibrary {
                             return self.operate(pid, doc, name, tup, &mut params);
                         },
                         _ => {
-                            return Err(anyhow!("Tuple library requires the first parameter to be a tuple"));
+                            return Err(SError::tup(pid, &doc, "InvalidArgument", "tuple argument not found"));
                         }
                     }
                 },
                 _ => {
-                    return Err(anyhow!("Tuple library requires the first parameter to be a tuple"));
+                    return Err(SError::tup(pid, &doc, "InvalidArgument", "tuple argument not found"));
                 }
             }
         } else {
-            return Err(anyhow!("Tuple library requires a tuple parameter to work with"));
+            return Err(SError::tup(pid, &doc, "InvalidArgument", "tuple argument not found"));
         }
     }
 }

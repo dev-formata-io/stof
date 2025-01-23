@@ -15,15 +15,14 @@
 //
 
 use std::{cmp::Ordering, collections::{BTreeMap, HashSet}, ops::Deref};
-use anyhow::{anyhow, Result};
-use crate::{Data, IntoDataRef, IntoNodeRef, Library, SDoc, SField, SFunc, SNodeRef, SNum, SPrototype, SVal, FKIND};
+use crate::{lang::SError, Data, IntoDataRef, IntoNodeRef, Library, SDoc, SField, SFunc, SNodeRef, SNum, SPrototype, SVal, FKIND};
 
 
 #[derive(Default, Debug)]
 pub struct ObjectLibrary;
 impl ObjectLibrary {
     /// Call object operation.
-    pub fn operate(&self, pid: &str, doc: &mut SDoc, name: &str, obj: &SNodeRef, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    pub fn operate(&self, pid: &str, doc: &mut SDoc, name: &str, obj: &SNodeRef, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         match name {
             "len" => {
                 if let Some(node) = obj.node(&doc.graph) {
@@ -81,7 +80,7 @@ impl ObjectLibrary {
                     }
                     return Ok(SVal::Array(array));
                 }
-                Err(anyhow!("Object.at(obj, index, ..) requires an index to be a number or string"))
+                Err(SError::obj(pid, &doc, "at", "invalid arguments - index must be a string or number"))
             },
             "reference" => {
                 if parameters.len() == 1 {
@@ -119,7 +118,7 @@ impl ObjectLibrary {
                         _ => {}
                     }
                 }
-                Err(anyhow!("Object.reference(obj, context, path) requires a path parameter (optional context parameter)"))
+                Err(SError::obj(pid, &doc, "reference", "path argument not found"))
             },
             "fields" => {
                 let fields = SField::fields(&doc.graph, obj);
@@ -133,7 +132,7 @@ impl ObjectLibrary {
             },
             "attributes" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Object.attributes(obj, path: str) requires a path parameter to get attributes for (func or field)"));
+                    return Err(SError::obj(pid, &doc, "attributes", "invalid arguments - path not found"));
                 }
                 match &parameters[0] {
                     SVal::String(index) => {
@@ -152,8 +151,33 @@ impl ObjectLibrary {
                         }
                         return Ok(SVal::Null); // Not found
                     },
+                    SVal::Boxed(val) => {
+                        let val = val.lock().unwrap();
+                        let val = val.deref();
+                        match val {
+                            SVal::String(index) => {
+                                if let Some(field) = SField::field(&doc.graph, &index, '.', Some(obj)) {
+                                    let mut attrs = BTreeMap::new();
+                                    for (key, value) in &field.attributes {
+                                        attrs.insert(SVal::String(key.clone()), value.clone());
+                                    }
+                                    return Ok(SVal::Map(attrs));
+                                } else if let Some(func) = SFunc::func(&doc.graph, &index, '.', Some(obj)) {
+                                    let mut attrs = BTreeMap::new();
+                                    for (key, value) in &func.attributes {
+                                        attrs.insert(SVal::String(key.clone()), value.clone());
+                                    }
+                                    return Ok(SVal::Map(attrs));
+                                }
+                                return Ok(SVal::Null); // Not found
+                            },
+                            _ => {
+                                Err(SError::obj(pid, &doc, "attributes", "invalid arguments - path must be a string"))
+                            }
+                        }
+                    },
                     _ => {
-                        Err(anyhow!("Object.attributes(obj, path) requires an object and path parameters"))
+                        Err(SError::obj(pid, &doc, "attributes", "invalid arguments - path must be a string"))
                     }
                 }
             },
@@ -214,13 +238,13 @@ impl ObjectLibrary {
                     field.attach(&fref, &mut doc.graph);
                     return Ok(SVal::Bool(true));
                 }
-                Err(anyhow!("Object.set(obj, name, value) requires a name and a value to set with"))
+                Err(SError::obj(pid, &doc, "set", "invalid arguments - requires a name and value to set a field"))
             },
             // Take a map and do rename/moves with all entries.
             // Signature: Object.mapFields(obj, map: map): map
             "mapFields" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Object.mapFields(obj, map) requires a map parameter with source and destinations"));
+                    return Err(SError::obj(pid, &doc, "mapFields", "invalid arguments - requires a map argument"));
                 }
                 match &parameters[0] {
                     SVal::Map(map) => {
@@ -233,8 +257,27 @@ impl ObjectLibrary {
                         }
                         Ok(SVal::Map(mapped_values))
                     },
+                    SVal::Boxed(val) => {
+                        let val = val.lock().unwrap();
+                        let val = val.deref();
+                        match val {
+                            SVal::Map(map) => {
+                                let mut mapped_values = BTreeMap::new();
+                                for (k, v) in map {
+                                    let res = self.operate(pid, doc, "renameField", obj, &mut vec![k.clone(), v.clone()])?;
+                                    if res.truthy() {
+                                        mapped_values.insert(k.clone(), v.clone());
+                                    }
+                                }
+                                Ok(SVal::Map(mapped_values))
+                            },
+                            _ => {
+                                Err(SError::obj(pid, &doc, "mapFields", "invalid arguments - map argument not found"))
+                            }
+                        }
+                    },
                     _ => {
-                        Err(anyhow!("Object.mapFields(obj, map) requires a map parameter with source and destinations"))
+                        Err(SError::obj(pid, &doc, "mapFields", "invalid arguments - map argument not found"))
                     }
                 }
             },
@@ -243,7 +286,7 @@ impl ObjectLibrary {
             "moveField" |
             "renameField" => {
                 if parameters.len() < 2 {
-                    return Err(anyhow!("Object.renameField(obj, path: str, new_path: str) requires two path parameters"));
+                    return Err(SError::obj(pid, &doc, "moveField", "invalid arguments - requires two paths, a source and a destination"));
                 }
                 let dest = parameters.pop().unwrap().to_string();
                 let source = parameters.pop().unwrap().to_string();
@@ -308,7 +351,7 @@ impl ObjectLibrary {
             // Signature: Object.removeField(obj, path: str, remove_obj: bool): bool
             "removeField" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Object.removeField(obj, path: str) requires a field path parameter"));
+                    return Err(SError::obj(pid, &doc, "removeField", "invalid arguments - field path not found"));
                 }
                 let mut remove_obj = false;
                 if parameters.len() > 1 {
@@ -342,7 +385,7 @@ impl ObjectLibrary {
             // Signature: Object.removeFunc(obj, path: str): bool
             "removeFunc" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Object.removeFunc(obj, path: str) requires a func path parameter"));
+                    return Err(SError::obj(pid, &doc, "removeFunc", "invalid arguments - func path not found"));
                 }
                 let path = parameters.pop().unwrap().to_string();
 
@@ -362,7 +405,7 @@ impl ObjectLibrary {
                 if let Some(node) = obj.node(&doc.graph) {
                     return Ok(SVal::String(node.name.clone()));
                 }
-                Err(anyhow!("Object.name(obj) could not find object"))
+                Err(SError::obj(pid, &doc, "name", "could not find object"))
             },
             "id" => {
                 Ok(SVal::String(obj.id.clone()))
@@ -385,7 +428,7 @@ impl ObjectLibrary {
             // Set this objects prototype explicitly.
             "setPrototype" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Object.setPrototype(obj, other: obj) requires an object parameter as this objects prototype."));
+                    return Err(SError::obj(pid, &doc, "setPrototype", "invalid arguments - object prototype not found"));
                 }
                 match &parameters[0] {
                     SVal::Object(nref) => {
@@ -398,9 +441,26 @@ impl ObjectLibrary {
                         }
                         return Ok(SVal::Void);
                     },
+                    SVal::Boxed(val) => {
+                        let val = val.lock().unwrap();
+                        let val = val.deref();
+                        match val {
+                            SVal::Object(nref) => {
+                                if let Some(mut prototype) = SPrototype::get(&doc.graph, obj) {
+                                    prototype.prototype = nref.id.clone();
+                                    prototype.set(&mut doc.graph);
+                                } else {
+                                    let mut prototype = SPrototype::new(nref);
+                                    prototype.attach(obj, &mut doc.graph);
+                                }
+                                return Ok(SVal::Void);
+                            },
+                            _ => {}
+                        }
+                    },
                     _ => {}
                 }
-                Err(anyhow!("Object.setPrototype(obj, other: obj) requires an object parameter as this objects prototype."))
+                Err(SError::obj(pid, &doc, "setPrototype", "invalid arguments - object prototype not found"))
             },
             // Get the attributes for the prototype of this object (if any)
             "prototypeAttributes" => {
@@ -453,7 +513,7 @@ impl ObjectLibrary {
             },
             "instanceOf" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Object.instanceOf(obj, type: str) requires a type string parameter to test type with"));
+                    return Err(SError::obj(pid, &doc, "instanceOf", "invalid arguments - type string not found"));
                 }
                 let iof = SVal::Object(obj.clone()).instance_of(&doc.graph, &parameters[0].to_string());
                 Ok(SVal::Bool(iof))
@@ -491,7 +551,7 @@ impl ObjectLibrary {
             // Signature: Object.search(obj, field_name: str, search_parent_children: bool = true, obj_ignore_set: vec = []): null | (unknown, int)
             "search" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Object.search(obj, field_name: str) requires a field name to search for"));
+                    return Err(SError::obj(pid, &doc, "search", "invalid arguments - field name not found"));
                 }
                 let up = self.operate(pid, doc, "searchUp", obj, parameters)?;
                 
@@ -531,7 +591,7 @@ impl ObjectLibrary {
             // Signature: Object.searchUp(obj, field_name: str, search_parent_children: bool = true, obj_ignore_set: vec = []): null | (unknown, int)
             "searchUp" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Object.searchUp(obj, field_name: str) requires a field name to search for"));
+                    return Err(SError::obj(pid, &doc, "searchUp", "invalid arguments - field name not found"));
                 }
                 let mut obj_ignore_set = HashSet::new();
                 if parameters.len() > 2 {
@@ -666,7 +726,7 @@ impl ObjectLibrary {
             // Signature: Object.searchDown(obj, field_name: str, current_dist: int = 0, obj_ignore_set: vec = []): null | (unknown, int)
             "searchDown" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Object.searchDown(obj, field_name: str) requires a field name to search for"));
+                    return Err(SError::obj(pid, &doc, "searchDown", "invalid arguments - field name not found"));
                 }
 
                 let mut current_distance = 0;
@@ -755,7 +815,7 @@ impl ObjectLibrary {
             // Signature: Object.shallowCopy(obj, to_copy: obj): void
             "shallowCopy" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Object.shallowCopy(obj, to_copy: obj) requires an object parameter to copy"));
+                    return Err(SError::obj(pid, &doc, "shallowCopy", "invalid arguments - object to copy not found"));
                 }
                 match &parameters[0] {
                     SVal::Object(to_copy) => {
@@ -763,15 +823,36 @@ impl ObjectLibrary {
                         if let Some(copy_node) = to_copy.node(&doc.graph) {
                             data = copy_node.data.clone();
                         } else {
-                            return Err(anyhow!("Object.shallowCopy(obj, to_copy: obj) copy node does not exist"));
+                            return Err(SError::obj(pid, &doc, "shallowCopy", "invalid arguments - object to copy does not exist"));
                         }
                         for data in data {
                             doc.graph.put_data_ref(obj, data);
                         }
                         Ok(SVal::Void)
                     },
+                    SVal::Boxed(val) => {
+                        let val = val.lock().unwrap();
+                        let val = val.deref();
+                        match val {
+                            SVal::Object(to_copy) => {
+                                let data;
+                                if let Some(copy_node) = to_copy.node(&doc.graph) {
+                                    data = copy_node.data.clone();
+                                } else {
+                                    return Err(SError::obj(pid, &doc, "shallowCopy", "invalid arguments - object to copy does not exist"));
+                                }
+                                for data in data {
+                                    doc.graph.put_data_ref(obj, data);
+                                }
+                                Ok(SVal::Void)
+                            },
+                            _ => {
+                                Err(SError::obj(pid, &doc, "shallowCopy", "invalid arguments - object to copy not found"))
+                            }
+                        }
+                    },
                     _ => {
-                        Err(anyhow!("Object.shallowCopy(obj, to_copy: obj) requires an object parameter to copy"))
+                        Err(SError::obj(pid, &doc, "shallowCopy", "invalid arguments - object to copy not found"))
                     }
                 }
             },
@@ -780,7 +861,7 @@ impl ObjectLibrary {
             // Signature: Object.deepCopyFields(obj, to_copy: obj): void
             "deepCopyFields" => {
                 if parameters.len() < 1 {
-                    return Err(anyhow!("Object.deepCopyFields(obj, to_copy: obj) requires an object parameter to copy"));
+                    return Err(SError::obj(pid, &doc, "deepCopyFields", "invalid arguments - object to copy not found"));
                 }
                 match &parameters[0] {
                     SVal::Object(to_copy) => {
@@ -801,13 +882,40 @@ impl ObjectLibrary {
                         }
                         Ok(SVal::Void)
                     },
+                    SVal::Boxed(val) => {
+                        let val = val.lock().unwrap();
+                        let val = val.deref();
+                        match val {
+                            SVal::Object(to_copy) => {
+                                for mut field in SField::fields(&doc.graph, to_copy) {
+                                    if field.is_object() {
+                                        match field.value.unbox() {
+                                            SVal::Object(nref) => {
+                                                let deep_copy = SField::new_object(&mut doc.graph, &field.name, obj);
+                                                let to_copy = SVal::Object(nref);
+                                                self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                            },
+                                            _ => {}
+                                        }
+                                    } else {
+                                        field.id = String::default(); // new data in the graph, already cloned
+                                        field.attach(obj, &mut doc.graph);
+                                    }
+                                }
+                                Ok(SVal::Void)
+                            },
+                            _ => {
+                                Err(SError::obj(pid, &doc, "deepCopyFields", "invalid arguments - object to copy not found"))
+                            }
+                        }
+                    },
                     _ => {
-                        Err(anyhow!("Object.deepCopyFields(obj, to_copy: obj) requires an object parameter to copy"))
+                        Err(SError::obj(pid, &doc, "deepCopyFields", "invalid arguments - object to copy not found"))
                     }
                 }
             },
             _ => {
-                Err(anyhow!("Did not find the requested Object library function '{}'", name))
+                Err(SError::obj(pid, &doc, "NotFound", &format!("{} is not a function in the Object Library", name)))
             }
         }
     }
@@ -816,7 +924,7 @@ impl Library for ObjectLibrary {
     fn scope(&self) -> String {
         "Object".into()
     }
-    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         if parameters.len() > 0 {
             match name {
                 "toString" => {
@@ -851,16 +959,16 @@ impl Library for ObjectLibrary {
                             return self.operate(pid, doc, name, nref, &mut params);
                         },
                         _ => {
-                            return Err(anyhow!("Object library requires the first parameter to be an obj"));
+                            return Err(SError::obj(pid, &doc, "InvalidArgument", "object argument not found"));
                         }
                     }
                 },
                 _ => {
-                    return Err(anyhow!("Object library requires the first parameter to be an obj"));
+                    return Err(SError::obj(pid, &doc, "InvalidArgument", "object argument not found"));
                 }
             }
         } else {
-            return Err(anyhow!("Object library requires an 'obj' parameter to work with"));
+            return Err(SError::obj(pid, &doc, "InvalidArgument", "object argument not found"));
         }
     }
 }
