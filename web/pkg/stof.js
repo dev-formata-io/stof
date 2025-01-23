@@ -939,17 +939,31 @@ export class StofDoc {
     }
     /**
      * Run this document, calling all #[main] functions.
+     * @returns {string | undefined}
      */
     run() {
-        wasm.stofdoc_run(this.__wbg_ptr);
+        const ret = wasm.stofdoc_run(this.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
     }
     /**
      * Run this node, calling all #[main] functions on or under this node.
      * @param {StofNode} node
+     * @returns {string | undefined}
      */
     runAt(node) {
         _assertClass(node, StofNode);
-        wasm.stofdoc_runAt(this.__wbg_ptr, node.__wbg_ptr);
+        const ret = wasm.stofdoc_runAt(this.__wbg_ptr, node.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
     }
     /**
      * Main root.
@@ -1528,7 +1542,7 @@ export class StofFunc {
         const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         _assertClass(node, StofNode);
-        const ret = wasm.stofdoc_func(doc.__wbg_ptr, ptr0, len0, node.__wbg_ptr);
+        const ret = wasm.stoffunc_func(doc.__wbg_ptr, ptr0, len0, node.__wbg_ptr);
         return ret === 0 ? undefined : StofFunc.__wrap(ret);
     }
     /**
@@ -1920,15 +1934,6 @@ export class StofNode {
         _assertClass(other, StofNode);
         const ret = wasm.stofnode_distanceTo(this.__wbg_ptr, doc.__wbg_ptr, other.__wbg_ptr);
         return ret;
-    }
-    /**
-     * Build this nodes trie for searching through data.
-     * Should already be built, but nice to have just in case.
-     * @param {StofDoc} doc
-     */
-    build_trie(doc) {
-        _assertClass(doc, StofDoc);
-        wasm.stofnode_build_trie(this.__wbg_ptr, doc.__wbg_ptr);
     }
     /**
      * Name of this node.

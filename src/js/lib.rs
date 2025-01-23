@@ -15,10 +15,9 @@
 //
 
 use std::sync::Arc;
-use anyhow::{anyhow, Result};
 use js_sys::Function;
 use wasm_bindgen::prelude::*;
-use crate::{Library, SDoc, SVal};
+use crate::{lang::SError, Library, SDoc, SVal};
 use super::StofDoc;
 
 
@@ -38,7 +37,7 @@ impl Library for StofLib {
     fn scope(&self) -> String {
         self.scope.clone()
     }
-    fn call(&self, _pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal> {
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         let context = JsValue::NULL;
         let mut func = None;
         if let Some(lib) = doc.libfuncs.read().unwrap().get(&self.scope) {
@@ -71,7 +70,7 @@ impl Library for StofLib {
         if let Some(res) = res {
             return Ok(SVal::from((res, doc)));
         }
-        Err(anyhow!("Failed to execute '{}' in library '{}'", name, &self.scope))
+        Err(SError::custom(pid, &doc, "WasmStofLibError", &format!("failed to execute '{}' in library '{}'", name, &self.scope)))
     }
 }
 #[wasm_bindgen]

@@ -15,7 +15,6 @@
 //
 
 use core::str;
-use anyhow::{anyhow, Result};
 use bytes::Bytes;
 use crate::{lang::SError, Data, Format, IntoNodeRef, SDoc, SField, SGraph, SVal};
 
@@ -38,25 +37,25 @@ impl BYTES {
     }
 
     /// To bytes.
-    pub fn to_bytes(graph: &SGraph) -> Result<Bytes> {
-        if let Some(field) = SField::field(graph, "bytes", '.', graph.main_root().as_ref()) {
+    pub fn to_bytes(pid: &str, doc: &SDoc) -> Result<Bytes, SError> {
+        if let Some(field) = SField::field(&doc.graph, "bytes", '.', doc.graph.main_root().as_ref()) {
             match field.value {
                 SVal::Blob(bytes) => return Ok(Bytes::from(bytes)),
                 _ => {}
             }
         }
-        Err(anyhow!("Stof BYTES Error: Did not find a 'bytes' field on the main root of this graph"))
+        Err(SError::fmt(pid, doc, "bytes", "did not find a 'bytes' field on the main root of this graph"))
     }
 
     /// Node to bytes.
-    pub fn node_to_bytes(graph: &SGraph, node: impl IntoNodeRef) -> Result<Bytes> {
-        if let Some(field) = SField::field(graph, "bytes", '.', Some(&node.node_ref())) {
+    pub fn node_to_bytes(pid: &str, doc: &SDoc, node: impl IntoNodeRef) -> Result<Bytes, SError> {
+        if let Some(field) = SField::field(&doc.graph, "bytes", '.', Some(&node.node_ref())) {
             match field.value {
                 SVal::Blob(bytes) => return Ok(Bytes::from(bytes)),
                 _ => {}
             }
         }
-        Err(anyhow!("Stof BYTES Error: Did not find a 'bytes' field on this node"))
+        Err(SError::fmt(pid, doc, "bytes", "did not find a 'bytes' field on this node"))
     }
 }
 
@@ -109,19 +108,10 @@ impl Format for BYTES {
 
     /// Export bytes.
     fn export_bytes(&self, pid: &str, doc: &SDoc, node: Option<&crate::SNodeRef>) -> Result<Bytes, SError> {
-        let res;
         if node.is_some() {
-            res = BYTES::node_to_bytes(&doc.graph, node);
+            BYTES::node_to_bytes(pid, doc, node)
         } else {
-            res = BYTES::to_bytes(&doc.graph);
-        }
-        match res {
-            Ok(bytes) => {
-                Ok(bytes)
-            },
-            Err(error) => {
-                Err(SError::fmt(pid, &doc, "bytes", &error.to_string()))
-            }
+            BYTES::to_bytes(pid, &doc)
         }
     }
 

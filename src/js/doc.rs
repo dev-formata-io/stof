@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use bytes::Bytes;
 use js_sys::{Function, Uint8Array};
 use serde::{Deserialize, Serialize};
@@ -344,14 +344,22 @@ impl StofDoc {
     }
 
     /// Run this document, calling all #[main] functions.
-    pub fn run(&mut self) {
-        self.doc.run(None);
+    pub fn run(&mut self) -> Option<String> {
+        let res = self.doc.run(None);
+        match res {
+            Ok(_) => None,
+            Err(error) => Some(error),
+        }
     }
 
     /// Run this node, calling all #[main] functions on or under this node.
     #[wasm_bindgen(js_name = runAt)]
-    pub fn run_node(&mut self, node: &StofNode) {
-        self.doc.run(Some(&node.node_ref()));
+    pub fn run_node(&mut self, node: &StofNode) -> Option<String> {
+        let res = self.doc.run(Some(&node.node_ref()));
+        match res {
+            Ok(_) => None,
+            Err(error) => Some(error),
+        }
     }
 
 
@@ -519,8 +527,8 @@ struct NodeRep {
     id: String,
     name: String,
     parent: Option<SNodeRef>,
-    children: Vec<SNodeRef>,
-    data: Vec<SDataRef>,
+    children: BTreeSet<SNodeRef>,
+    data: BTreeSet<SDataRef>,
 }
 
 

@@ -172,14 +172,6 @@ impl StofNode {
         self.node_ref().distance_to(&doc.doc().graph, &other.node_ref())
     }
 
-    /// Build this nodes trie for searching through data.
-    /// Should already be built, but nice to have just in case.
-    pub fn build_trie(&self, doc: &mut StofDoc) {
-        if let Some(node) = self.node_mut(doc) {
-            node.build_trie();
-        }
-    }
-
     /// Name of this node.
     pub fn name(&self, doc: &StofDoc) -> Option<String> {
         if let Some(node) = self.node(doc) {

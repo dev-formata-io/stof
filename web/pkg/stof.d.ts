@@ -258,11 +258,11 @@ export class StofDoc {
   /**
    * Run this document, calling all #[main] functions.
    */
-  run(): void;
+  run(): string | undefined;
   /**
    * Run this node, calling all #[main] functions on or under this node.
    */
-  runAt(node: StofNode): void;
+  runAt(node: StofNode): string | undefined;
   /**
    * Main root.
    * This is the first root in the graph, commonly named 'root'.
@@ -581,11 +581,6 @@ export class StofNode {
    */
   distanceTo(doc: StofDoc, other: StofNode): number;
   /**
-   * Build this nodes trie for searching through data.
-   * Should already be built, but nice to have just in case.
-   */
-  build_trie(doc: StofDoc): void;
-  /**
    * Name of this node.
    */
   name(doc: StofDoc): string | undefined;
@@ -641,10 +636,6 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly __wbg_stoflib_free: (a: number, b: number) => void;
-  readonly stoflib_new: (a: number, b: number) => number;
-  readonly stoflib_name: (a: number) => [number, number];
-  readonly stoflib_load: (a: number, b: number) => void;
   readonly __wbg_stofnode_free: (a: number, b: number) => void;
   readonly stofnode_new: (a: number, b: number) => number;
   readonly stofnode_fromPath: (a: number, b: number, c: number) => number;
@@ -663,7 +654,6 @@ export interface InitOutput {
   readonly stofnode_path: (a: number, b: number) => [number, number];
   readonly stofnode_idPath: (a: number, b: number) => [number, number];
   readonly stofnode_distanceTo: (a: number, b: number, c: number) => number;
-  readonly stofnode_build_trie: (a: number, b: number) => void;
   readonly stofnode_name: (a: number, b: number) => [number, number];
   readonly stofnode_parent: (a: number, b: number) => number;
   readonly stofnode_children: (a: number, b: number) => [number, number];
@@ -676,20 +666,24 @@ export interface InitOutput {
   readonly stofnode_createField: (a: number, b: number, c: number, d: number, e: any) => number;
   readonly stofnode_to_json: (a: number, b: number) => any;
   readonly stofnode_from_json: (a: number, b: any) => number;
-  readonly __wbg_stoffield_free: (a: number, b: number) => void;
-  readonly stoffield_new: (a: number, b: number, c: number, d: any) => number;
-  readonly stoffield_fromData: (a: number, b: number) => [number, number, number];
-  readonly stoffield_data: (a: number) => number;
-  readonly stoffield_name: (a: number) => [number, number];
-  readonly stoffield_value: (a: number) => any;
-  readonly stoffield_setValue: (a: number, b: number, c: any) => void;
-  readonly stoffield_attach: (a: number, b: number, c: number) => void;
-  readonly stoffield_remove: (a: number, b: number) => void;
-  readonly stoffield_removeFrom: (a: number, b: number, c: number) => void;
-  readonly stoffield_fields: (a: number, b: number) => [number, number];
-  readonly stoffield_adjacent: (a: number, b: number, c: number, d: number) => number;
-  readonly stoffield_fieldFromRoot: (a: number, b: number, c: number) => number;
-  readonly stoffield_field: (a: number, b: number, c: number, d: number) => number;
+  readonly __wbg_stoffunc_free: (a: number, b: number) => void;
+  readonly stoffunc_fromData: (a: number, b: number) => [number, number, number];
+  readonly stoffunc_data: (a: number) => number;
+  readonly stoffunc_name: (a: number) => [number, number];
+  readonly stoffunc_returnType: (a: number) => [number, number];
+  readonly stoffunc_parameters: (a: number) => [number, number];
+  readonly stoffunc_attach: (a: number, b: number, c: number) => void;
+  readonly stoffunc_remove: (a: number, b: number) => void;
+  readonly stoffunc_removeFrom: (a: number, b: number, c: number) => void;
+  readonly stoffunc_funcs: (a: number, b: number) => [number, number];
+  readonly stoffunc_adjacent: (a: number, b: number, c: number, d: number) => number;
+  readonly stoffunc_funcFromRoot: (a: number, b: number, c: number) => number;
+  readonly stoffunc_func: (a: number, b: number, c: number, d: number) => number;
+  readonly stoffunc_call: (a: number, b: number, c: number, d: number) => [number, number, number];
+  readonly __wbg_stoffuncparam_free: (a: number, b: number) => void;
+  readonly stoffuncparam_name: (a: number) => [number, number];
+  readonly stoffuncparam_type: (a: number) => [number, number];
+  readonly stoffuncparam_hasDefault: (a: number) => number;
   readonly __wbg_stofdoc_free: (a: number, b: number) => void;
   readonly stofdoc_new: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
   readonly stofdoc_js: (a: number, b: number, c: any) => [number, number, number];
@@ -716,8 +710,8 @@ export interface InitOutput {
   readonly stofdoc_funcFromRoot: (a: number, b: number, c: number) => number;
   readonly stofdoc_func: (a: number, b: number, c: number, d: number) => number;
   readonly stofdoc_callFunc: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
-  readonly stofdoc_run: (a: number) => void;
-  readonly stofdoc_runAt: (a: number, b: number) => void;
+  readonly stofdoc_run: (a: number) => [number, number];
+  readonly stofdoc_runAt: (a: number, b: number) => [number, number];
   readonly stofdoc_mainRoot: (a: number) => number;
   readonly stofdoc_rootByName: (a: number, b: number, c: number) => number;
   readonly stofdoc_isRoot: (a: number, b: number) => number;
@@ -753,26 +747,26 @@ export interface InitOutput {
   readonly stofdata_setValue: (a: number, b: number, c: any) => number;
   readonly stofdata_to_json: (a: number, b: number) => any;
   readonly stofdata_from_json: (a: number, b: any) => number;
-  readonly __wbg_stoffunc_free: (a: number, b: number) => void;
-  readonly stoffunc_fromData: (a: number, b: number) => [number, number, number];
-  readonly stoffunc_data: (a: number) => number;
-  readonly stoffunc_name: (a: number) => [number, number];
-  readonly stoffunc_returnType: (a: number) => [number, number];
-  readonly stoffunc_parameters: (a: number) => [number, number];
-  readonly stoffunc_attach: (a: number, b: number, c: number) => void;
-  readonly stoffunc_remove: (a: number, b: number) => void;
-  readonly stoffunc_removeFrom: (a: number, b: number, c: number) => void;
-  readonly stoffunc_funcs: (a: number, b: number) => [number, number];
-  readonly stoffunc_adjacent: (a: number, b: number, c: number, d: number) => number;
-  readonly stoffunc_funcFromRoot: (a: number, b: number, c: number) => number;
-  readonly stoffunc_call: (a: number, b: number, c: number, d: number) => [number, number, number];
-  readonly __wbg_stoffuncparam_free: (a: number, b: number) => void;
-  readonly stoffuncparam_name: (a: number) => [number, number];
-  readonly stoffuncparam_type: (a: number) => [number, number];
-  readonly stoffuncparam_hasDefault: (a: number) => number;
+  readonly __wbg_stoffield_free: (a: number, b: number) => void;
+  readonly stoffield_new: (a: number, b: number, c: number, d: any) => number;
+  readonly stoffield_fromData: (a: number, b: number) => [number, number, number];
+  readonly stoffield_data: (a: number) => number;
+  readonly stoffield_name: (a: number) => [number, number];
+  readonly stoffield_value: (a: number) => any;
+  readonly stoffield_setValue: (a: number, b: number, c: any) => void;
+  readonly stoffield_attach: (a: number, b: number, c: number) => void;
+  readonly stoffield_remove: (a: number, b: number) => void;
+  readonly stoffield_removeFrom: (a: number, b: number, c: number) => void;
+  readonly stoffield_fields: (a: number, b: number) => [number, number];
+  readonly stoffield_adjacent: (a: number, b: number, c: number, d: number) => number;
+  readonly stoffield_fieldFromRoot: (a: number, b: number, c: number) => number;
+  readonly stoffield_field: (a: number, b: number, c: number, d: number) => number;
   readonly stofdoc_createData: (a: number, b: number, c: any) => [number, number, number];
-  readonly stoffunc_func: (a: number, b: number, c: number, d: number) => number;
   readonly stofdoc_createDataWithId: (a: number, b: number, c: number, d: number, e: any) => [number, number, number];
+  readonly __wbg_stoflib_free: (a: number, b: number) => void;
+  readonly stoflib_new: (a: number, b: number) => number;
+  readonly stoflib_name: (a: number) => [number, number];
+  readonly stoflib_load: (a: number, b: number) => void;
   readonly __wbindgen_exn_store: (a: number) => void;
   readonly __externref_table_alloc: () => number;
   readonly __wbindgen_export_2: WebAssembly.Table;

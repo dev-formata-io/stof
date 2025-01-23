@@ -15,7 +15,6 @@
 //
 
 use std::f64::consts::PI;
-use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 
 
@@ -248,7 +247,7 @@ impl SUnits {
     ///
     /// Float convert between units.
     ///
-    pub fn convert(value: f64, units: Self, to: Self) -> Result<f64> {
+    pub fn convert(value: f64, units: Self, to: Self) -> Result<f64, String> {
         // No conversion if either has no units! (either converting to or from "None")
         if !units.has_units() || !to.has_units() { return Ok(value); }
 
@@ -260,7 +259,7 @@ impl SUnits {
             let rad = Self::to_radians(value, units);
             return Ok(Self::from_radians(rad, to));
         } else if units.is_angle() || to.is_angle() {
-            return Err(anyhow!("Cannot convert {:?} to {:?}", units, to));
+            return Err(format!("Cannot convert {:?} to {:?}", units, to));
         }
 
         // Length conversion?
@@ -268,7 +267,7 @@ impl SUnits {
             let mm = Self::to_mm(value, units);
             return Ok(Self::from_mm(mm, to));
         } else if units.is_length() || to.is_length() {
-            return Err(anyhow!("Cannot convert {:?} to {:?}", units, to));
+            return Err(format!("Cannot convert {:?} to {:?}", units, to));
         }
 
         // Time conversion?
@@ -276,7 +275,7 @@ impl SUnits {
             let ms = Self::to_ms(value, units);
             return Ok(Self::from_ms(ms, to));
         } else if units.is_time() || to.is_time() {
-            return Err(anyhow!("Cannot convert {:?} to {:?}", units, to));
+            return Err(format!("Cannot convert {:?} to {:?}", units, to));
         }
 
         // Temp conversion?
@@ -284,7 +283,7 @@ impl SUnits {
             let celc = Self::to_c(value, units);
             return Ok(Self::from_c(celc, to));
         } else if units.is_temperature() || to.is_temperature() {
-            return Err(anyhow!("Cannot convert {:?} to {:?}", units, to));
+            return Err(format!("Cannot convert {:?} to {:?}", units, to));
         }
 
         // Mass conversion?
@@ -292,10 +291,10 @@ impl SUnits {
             let grams = Self::to_grams(value, units);
             return Ok(Self::from_grams(grams, to));
         } else if units.is_mass() || to.is_mass() {
-            return Err(anyhow!("Cannot convert {:?} to {:?}", units, to));
+            return Err(format!("Cannot convert {:?} to {:?}", units, to));
         }
 
-        return Err(anyhow!("Cannot convert {:?} to {:?}", units, to));
+        return Err(format!("Cannot convert {:?} to {:?}", units, to));
     }
 
 
