@@ -396,9 +396,17 @@ impl Expr {
                         }
                     }
                     let current_symbol_table = doc.new_table(pid);
-                    let res = lib.call(pid, doc, name, &mut func_params)?;
-                    doc.set_table(pid, current_symbol_table);
-                    return Ok(res);
+                    let res = lib.call(pid, doc, name, &mut func_params);
+                    match res {
+                        Ok(val) => {
+                            doc.set_table(pid, current_symbol_table);
+                            return Ok(val);
+                        },
+                        Err(error) => {
+                            doc.set_table(pid, current_symbol_table);
+                            return Err(error);
+                        }
+                    }
                 } else if let Some(lib) = doc.library("std") {
                     let mut func_params = Vec::new();
                     for expr in params {
@@ -408,10 +416,17 @@ impl Expr {
                         }
                     }
                     let current_symbol_table = doc.new_table(pid);
-                    let res = lib.call(pid, doc, name, &mut func_params)?;
-                    
-                    doc.set_table(pid, current_symbol_table);
-                    return Ok(res);
+                    let res = lib.call(pid, doc, name, &mut func_params);
+                    match res {
+                        Ok(val) => {
+                            doc.set_table(pid, current_symbol_table);
+                            return Ok(val);
+                        },
+                        Err(error) => {
+                            doc.set_table(pid, current_symbol_table);
+                            return Err(error);
+                        }
+                    }
                 }
                 let error = SError::custom(pid, &doc, "ExprCall", &format!("function does not exist: {}({:?})", name, params));
                 Err(error)

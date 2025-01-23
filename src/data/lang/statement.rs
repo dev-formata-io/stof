@@ -14,9 +14,9 @@
 // limitations under the License.
 //
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use serde::{Deserialize, Serialize};
-use crate::{Data, SDoc, SField, SVal, SFunc};
+use crate::{Data, SDoc, SField, SFunc, SType, SVal};
 use super::{Expr, SError};
 
 
@@ -445,7 +445,7 @@ impl Statements {
                         }
                     }
                 },
-                Statement::TryCatch(try_statements, catch_statements) => {
+                Statement::TryCatch(try_statements, catch_statements, catch_type, catch_var) => {
                     doc.new_scope(pid);
                     let err_res = try_statements.exec(pid, doc);
                     doc.end_scope(pid);
@@ -456,8 +456,32 @@ impl Statements {
                         Ok(ok) => {
                             res = ok;
                         },
-                        Err(_) => {
+                        Err(error) => {
                             doc.new_scope(pid);
+                            if !catch_type.is_empty() && catch_var.len() > 0 {
+                                match catch_type {
+                                    SType::String => {
+                                        doc.add_variable(pid, catch_var, SVal::String(error.message));
+                                    },
+                                    SType::Tuple(types) => {
+                                        if types.len() == 2 && types[0].is_string() && types[1].is_string() {
+                                            doc.add_variable(pid, catch_var, SVal::Tuple(vec![SVal::String(error.error_type.to_string()), SVal::String(error.message)]));
+                                        } else {
+                                            return Err(SError::type_error(pid, &doc, "try-catch block tuple error must be in the form (type: str, message: str)"));
+                                        }
+                                    },
+                                    SType::Map => {
+                                        let mut map = BTreeMap::new();
+                                        map.insert(SVal::String("type".into()), SVal::String(error.error_type.to_string()));
+                                        map.insert(SVal::String("message".into()), SVal::String(error.message));
+                                        map.insert(SVal::String("stack".into()), SVal::Array(error.call_stack.into_iter().map(|dref| SVal::FnPtr(dref)).collect::<Vec<SVal>>()));
+                                        doc.add_variable(pid, catch_var, SVal::Map(map));
+                                    },
+                                    _ => {
+                                        return Err(SError::type_error(pid, &doc, "try-catch block has an incompatable type for catching an error"));
+                                    }
+                                }
+                            }
                             res = catch_statements.exec(pid, doc)?;
                             doc.end_scope(pid);
                         }
@@ -611,7 +635,7 @@ pub enum Statement {
         else_expr: Option<Statements>
     },
     Switch(Expr, HashMap<SVal, Statements>, Option<Statements>),
-    TryCatch(Statements, Statements),
+    TryCatch(Statements, Statements, SType, String),
     While(Expr, Statements),
     Break,
     Continue,

@@ -936,6 +936,8 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
             Rule::try_statement => {
                 let mut try_statements = None;
                 let mut catch_statements = None;
+                let mut catch_error_var_name = String::default();
+                let mut catch_error_type = SType::Null;
                 for pair in pair.into_inner() {
                     match pair.as_rule() {
                         Rule::single_block |
@@ -947,6 +949,19 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                                 catch_statements = Some(statements);
                             }
                         },
+                        Rule::catch_error => {
+                            for pair in pair.into_inner() {
+                                match pair.as_rule() {
+                                    Rule::ident => {
+                                        catch_error_var_name = pair.as_str().to_owned();
+                                    },
+                                    Rule::atype => {
+                                        catch_error_type = SType::from(pair.as_str());
+                                    },
+                                    _ => {}
+                                }
+                            }
+                        },
                         _ => {
                             return Err(SError::parse(&env.pid, &doc, "unrecognized rule for try-statement"));
                         }
@@ -954,7 +969,7 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                 }
                 if let Some(try_statements) = try_statements {
                     if let Some(catch_statements) = catch_statements {
-                        statements.push(Statement::TryCatch(try_statements, catch_statements));
+                        statements.push(Statement::TryCatch(try_statements, catch_statements, catch_error_type, catch_error_var_name));
                     }
                 }
             },

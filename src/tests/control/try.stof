@@ -48,3 +48,64 @@ fn try_catch_no_catch(): int {
 
     return x;
 }
+
+#[test]
+fn try_catch_message() {
+    let seen = false;
+    try {
+        throw('this is a message');
+    } catch (error: str) {
+        seen = true;
+        assertEq(error, 'this is a message');
+    }
+    assert(seen);
+}
+
+#[test]
+fn try_catch_error_type_message_only() {
+    let seen = false;
+    try {
+        throw('CustomType', 'this is a message');
+    } catch (error: str) {
+        seen = true;
+        assertEq(error, 'this is a message');
+    }
+    assert(seen);
+}
+
+#[test]
+fn try_catch_std_error_type() {
+    let seen = false;
+    try {
+        throw('this is a message');
+    } catch (error: (str, str)) {
+        seen = true;
+        assertEq(error, ('Std', 'this is a message'));
+    }
+    assert(seen);
+}
+
+#[test]
+fn try_catch_custom_error_type() {
+    let seen = false;
+    try {
+        throw('CustomError', 'this is a message');
+    } catch (error: (str, str)) {
+        seen = true;
+        assertEq(error, ('CustomError', 'this is a message'));
+    }
+    assert(seen);
+}
+
+#[test]
+fn try_catch_map() {
+    let seen = false;
+    try {
+        throw('CustomType', 'this is a message');
+    } catch (error: map) {
+        seen = true;
+        assertEq(error.get('type'), 'CustomType');
+        assertEq(error.get('message'), 'this is a message');
+    }
+    assert(seen);
+}

@@ -43,7 +43,7 @@ pub enum ErrorType {
     FileSystemLibError(String),
 
     FormatError(String),
-    ThrownError(String),
+    ThrownError(String), // error for when users call "throw"
     ValueError(String),
     Custom(String),
 }
@@ -52,6 +52,7 @@ impl ErrorType {
     pub fn to_string(&self) -> String {
         match self {
             Self::Custom(error) => error.clone(),
+            Self::ThrownError(error) => error.clone(),
             _ => format!("{:?}", self),
         }
     }
