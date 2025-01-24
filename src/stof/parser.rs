@@ -1338,33 +1338,6 @@ fn parse_expression(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                 let stype = SType::from(pair.as_str());
                 res = Expr::Cast(stype, Box::new(res));
             },
-            Rule::if_expr => { // Ternary expression
-                let mut set_first = false;
-                let mut if_expr = Expr::Literal(SVal::Bool(true));
-                let mut first = Expr::Literal(SVal::Void);
-                let mut second = Expr::Literal(SVal::Void);
-                for pair in pair.into_inner() {
-                    match pair.as_rule() {
-                        Rule::expr => {
-                            if set_first {
-                                second = parse_expression(doc, env, pair)?;
-                            } else {
-                                first = parse_expression(doc, env, pair)?;
-                                set_first = true;
-                            }
-                        },
-                        _ => {
-                            if_expr = parse_expr_pair(doc, env, pair)?;
-                        }
-                    }
-                }
-                let if_statement = Statement::If {
-                    if_expr: (if_expr, Statements::from(vec![Statement::Return(first)])),
-                    elif_exprs: vec![],
-                    else_expr: Some(Statements::from(vec![Statement::Return(second)])),
-                };
-                res = Expr::Block(Statements::from(vec![if_statement]));
-            },
             _ => {
                 res = parse_expr_pair(doc, env, pair)?;
             }
@@ -1877,6 +1850,37 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
             } else {
                 res = Expr::NewObject(Statements::from(block_statements));
             }
+        },
+        Rule::if_expr => { // modified ternary expression
+            let mut set_if = false;
+            let mut set_first = false;
+            let mut if_expr = Expr::Literal(SVal::Bool(true));
+            let mut first = Expr::Literal(SVal::Void);
+            let mut second = Expr::Literal(SVal::Void);
+            for pair in pair.into_inner() {
+                match pair.as_rule() {
+                    Rule::expr => {
+                        if set_if {
+                            if set_first {
+                                second = parse_expression(doc, env, pair)?;
+                            } else {
+                                first = parse_expression(doc, env, pair)?;
+                                set_first = true;
+                            }
+                        } else {
+                            if_expr = parse_expression(doc, env, pair)?;
+                            set_if = true;
+                        }
+                    },
+                    _ => {}
+                }
+            }
+            let if_statement = Statement::If {
+                if_expr: (if_expr, Statements::from(vec![Statement::Return(first)])),
+                elif_exprs: vec![],
+                else_expr: Some(Statements::from(vec![Statement::Return(second)])),
+            };
+            res = Expr::Block(Statements::from(vec![if_statement]));
         },
         _ => {
             return Err(SError::parse(&env.pid, &doc, "unrecognized rule for parse expressiion pair"));

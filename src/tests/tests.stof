@@ -105,6 +105,7 @@ import './language/null' as Language.Null;
 import './language/drop' as Language.Drop;
 import './language/ranges' as Language.Ranges;
 import './language/trace' as Language.Trace;
+import './language/ternary' as Language.Ternary;
 
 
 /**
@@ -202,7 +203,7 @@ stdlib: {
         assert(formats().len() > 1);
         assert(formats().has('json'));
 
-        let toml = formats().has('toml') ? 'yup' : 'nope';
+        let toml = if formats().has('toml') ? 'yup' : 'nope';
         assertEq(toml, 'yup');
     }
 

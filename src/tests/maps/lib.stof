@@ -17,8 +17,8 @@
 #[test]
 fn empty_constructor() {
     let map = map();
-    map = map + ('first', 'wohoo');
-    map += ('second', 'IT WORKS');
+    map.insert('first', 'wohoo');
+    map.insert('second', 'IT WORKS');
     map -= 'first';
     assertEq(map.toString(), '{String("second"): String("IT WORKS")}');
 }
@@ -37,8 +37,8 @@ fn bad_array_val_constructor() {
 
 #[test]
 fn map_constructor() {
-    let a = map([('a', 'A')]);
-    let b = map([('b', 'B')]);
+    let a = map(('a', 'A'));
+    let b = map(('b', 'B'));
     let c = map(a, b);
     assertEq(c.len(), 2);
 }
@@ -46,7 +46,7 @@ fn map_constructor() {
 lib: {
     #[test]
     fn append() {
-        let a = box(map([('a', 'A')]));
+        let a = box(map(('a', 'A')));
         let b = map([('b', 'B')]);
         b.append(a); // unboxed a will copy and a.len() will be 1 still, boxed passes by ref
         assertEq(a.len(), 0);
@@ -57,7 +57,7 @@ lib: {
 
     #[test]
     fn clear() {
-        let a = map([('a', 'A'), (10, 100)]);
+        let a = map(('a', 'A'), (10, 100));
         a.clear();
         assertEq(a.len(), 0);
         assert(a.empty());
@@ -65,7 +65,7 @@ lib: {
 
     #[test]
     fn contains() {
-        let a = map([('a', 'A'), (42, 'meaning of life')]);
+        let a = map(('a', 'A'), (42, 'meaning of life'));
         assert(a.contains('a'));
         assert(a.contains(42));
         assertNot(a.contains('b'));
@@ -73,14 +73,14 @@ lib: {
 
     #[test]
     fn first_last() {
-        let a = map([(10, 10), (9, 9), (8, 8), (7, 7)]);
+        let a = map((10, 10), (9, 9), (8, 8), (7, 7));
         assertEq(a.first(), (7, 7));
         assertEq(a.last(), (10, 10));
     }
 
     #[test]
     fn get() {
-        let a = map([(10, 22), (42, 'meaning of life'), ('hello', 'dude'), (('a', 'b'), ('A', 'B'))]);
+        let a = map((10, 22), (42, 'meaning of life'), ('hello', 'dude'), (('a', 'b'), ('A', 'B')));
         assertEq(a.get(10), 22);
         assertEq(a.get(42), 'meaning of life');
         assertEq(a.get('hello'), 'dude');
@@ -127,7 +127,7 @@ lib: {
 
     #[test]
     fn keys_values() {
-        let a = map([(3, 6), (1, 4), (2, 5)]);
+        let a = map((3, 6), (1, 4), (2, 5));
         assertEq(a.keys(), [1, 2, 3]);
         assertEq(a.values(), [4, 5, 6]);
     }
@@ -143,7 +143,7 @@ lib: {
     #[test]
     fn at() {
         // recommended that you use 'get' for getting elements, but 'at' works for non numerical keys
-        let a = map([(3, 6), (1, 4), (2, 5)]);
+        let a = map((3, 6), (1, 4), (2, 5));
         
         assertEq(a[0], (1, 4));
         assertEq(a.at(1), (2, 5));
@@ -161,13 +161,13 @@ lib: {
 
     #[test]
     fn at_non_index() {
-        let a = map([(3, 6), (1, 4), ('hi', 5)]);
+        let a = map((3, 6), (1, 4), ('hi', 5));
         assertEq(a['hi'], ('hi', 5));
     }
 
     #[test]
     fn pop_first() {
-        let a = map([(3, 6), (1, 4), (2, 5)]);
+        let a = map((3, 6), (1, 4), (2, 5));
         assertEq(a.popFirst(), (1, 4));
         assertEq(a.len(), 2);
         assertEq(a.first(), (2, 5));
@@ -175,7 +175,7 @@ lib: {
 
     #[test]
     fn pop_last() {
-        let a = map([(3, 6), (1, 4), (2, 5)]);
+        let a = map((3, 6), (1, 4), (2, 5));
         assertEq(a.popLast(), (3, 6));
         assertEq(a.len(), 2);
         assertEq(a.last(), (2, 5));
@@ -183,7 +183,7 @@ lib: {
 
     #[test]
     fn remove() {
-        let a = map([(3, 6), (1, 4), (2, 5), ('hi', 100)]);
+        let a = map((3, 6), (1, 4), (2, 5), ('hi', 100));
         
         let val: int = a.remove('hi');
         assertEq(val, 100);
@@ -212,23 +212,23 @@ lib: {
 set_operations: {
     #[test]
     fn union() {
-        let a = map([('a', 'A')]);
-        let b = map([('b', 'B')]);
+        let a = map(('a', 'A'));
+        let b = map(('b', 'B'));
         let c = a + b; // union operation
         assertEq(c.toString(), '{String("a"): String("A"), String("b"): String("B")}');
     }
 
     #[test]
     fn diff_map() {
-        let a = map([('a', 'A'), ('b', 'B')]);
-        let b = map([('b', 'B')]);
+        let a = map(('a', 'A'), ('b', 'B'));
+        let b = map(('b', 'B'));
         let c = a - b;
         assertEq(c.toString(), '{String("a"): String("A")}');
     }
 
     #[test]
     fn diff_vec() {
-        let a = map([('a', 'A'), ('b', 'B')]);
+        let a = map(('a', 'A'), ('b', 'B'));
         let b = ['b'];
         let c = a - b;
         assertEq(c.toString(), '{String("a"): String("A")}');
@@ -236,15 +236,15 @@ set_operations: {
 
     #[test]
     fn intersect_map() {
-        let a = map([('a', 'A'), ('b', 'B'), ('c', 'C')]);
-        let b = map([('c', 'C'), ('d', 'D'), ('e', 'E')]);
+        let a = map(('a', 'A'), ('b', 'B'), ('c', 'C'));
+        let b = map(('c', 'C'), ('d', 'D'), ('e', 'E'));
         let c = a * b;
         assertEq(c.toString(), '{String("c"): String("C")}');
     }
 
     #[test]
     fn intersect_vec() {
-        let a = map([('a', 'A'), ('b', 'B'), ('c', 'C')]);
+        let a = map(('a', 'A'), ('b', 'B'), ('c', 'C'));
         let b = vec('c', 'd', 'e');
         let c = a * b;
         assertEq(c.toString(), '{String("c"): String("C")}');
@@ -260,8 +260,8 @@ set_operations: {
 
     #[test]
     fn symmetric_difference() {
-        let a = map([('a', 'A'), ('b', 'B'), ('c', 'C')]);
-        let b = map([('c', 'C'), ('d', 'D'), ('e', 'E')]);
+        let a = map(('a', 'A'), ('b', 'B'), ('c', 'C'));
+        let b = map(('c', 'C'), ('d', 'D'), ('e', 'E'));
         let c = a % b;
         assertEq(c.toString(), '{String("a"): String("A"), String("b"): String("B"), String("d"): String("D"), String("e"): String("E")}');
     }

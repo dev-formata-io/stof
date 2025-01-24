@@ -1777,15 +1777,6 @@ impl SVal {
             },
             Self::Map(mut map) => {
                 match other {
-                    Self::Tuple(mut tup) => {
-                        if tup.len() == 2 {
-                            let value = tup.pop().unwrap();
-                            let key = tup.pop().unwrap();
-                            map.insert(key, value);
-                            return Ok(SVal::Map(map));
-                        }
-                        Err(SError::val(pid, &doc, "add", "tuple must have two values in order to be added to a map (key, value)"))
-                    },
                     Self::Map(omap) => {
                         for (k, v) in omap {
                             if let Some(existing_val) = map.get_mut(&k) {
