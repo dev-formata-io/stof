@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use serde::{Deserialize, Serialize};
 use crate::{lang::{CustomType, ErrorType, SError}, IntoNodeRef, SFunc, SGraph, SNodeRef};
 
@@ -35,6 +35,45 @@ impl CustomTypes {
                     type_vec.push(ty.clone());
                 }
             }
+        }
+    }
+
+    /// Drop types for an associated node, removing all types defined at or under it.
+    pub fn drop_types_for(&mut self, node: &SNodeRef, graph: &SGraph) {
+        let mut children = graph.all_children(node).into_iter().collect::<HashSet<SNodeRef>>();
+        children.insert(node.clone());
+        let mut to_remove = Vec::new();
+        for (name, custom_types) in &mut self.types {
+            custom_types.retain(|ctype| !children.contains(&SNodeRef::new(&ctype.decid)));
+            if custom_types.len() < 1 {
+                to_remove.push(name.clone());
+            }
+        }
+        for name in to_remove {
+            self.types.remove(&name);
+        }
+    }
+
+    /// Get all types associated with a node, either defined by it or under it (all children).
+    pub fn declared_types_for(&self, node: &SNodeRef, graph: &SGraph) -> Self {
+        let mut children = graph.all_children(node).into_iter().collect::<HashSet<SNodeRef>>();
+        children.insert(node.clone());
+        let mut new_types = BTreeMap::new();
+        for (name, custom_types) in &self.types {
+            let mut new_custom_types = Vec::new();
+
+            for ctype in custom_types {
+                if children.contains(&SNodeRef::new(&ctype.decid)) {
+                    new_custom_types.push(ctype.clone());
+                }
+            }
+
+            if new_custom_types.len() > 0 {
+                new_types.insert(name.clone(), new_custom_types);
+            }
+        }
+        Self {
+            types: new_types,
         }
     }
 

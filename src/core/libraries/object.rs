@@ -370,6 +370,7 @@ impl ObjectLibrary {
                         if remove_obj && field.value.is_object() {
                             match field.value.clone().unbox() {
                                 SVal::Object(nref) => {
+                                    doc.types.drop_types_for(&nref, &doc.graph);
                                     doc.graph.remove_node(nref);
                                 },
                                 _ => {}

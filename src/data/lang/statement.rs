@@ -178,6 +178,7 @@ impl Statements {
                                 if !doc.perms.can_write_scope(&doc.graph, &nref, doc.self_ptr(pid).as_ref()) {
                                     doc.add_variable(pid, &name, dropped_val);
                                 } else {
+                                    doc.types.drop_types_for(&nref, &doc.graph);
                                     doc.graph.remove_node(nref);
                                 }
                             },
@@ -200,12 +201,14 @@ impl Statements {
                                 field.remove(&mut doc.graph, None);
                                 match &field.value {
                                     SVal::Object(nref) => {
+                                        doc.types.drop_types_for(&nref, &doc.graph);
                                         doc.graph.remove_node(nref);
                                     },
                                     SVal::Array(vec) => {
                                         for val in vec {
                                             match val {
                                                 SVal::Object(nref) => {
+                                                    doc.types.drop_types_for(&nref, &doc.graph);
                                                     doc.graph.remove_node(nref);
                                                 },
                                                 _ => {}
@@ -221,6 +224,7 @@ impl Statements {
                             }
                         } else if let Some(node) = doc.graph.node_ref(&name.replace(".", "/"), None) {
                             if doc.perms.can_write_scope(&doc.graph, &node, doc.self_ptr(pid).as_ref()) {
+                                doc.types.drop_types_for(&node, &doc.graph);
                                 doc.graph.remove_node(&node);
                             }
                         } else {
@@ -263,6 +267,7 @@ impl Statements {
                                                 field.remove(&mut doc.graph, None);
                                             }
                                         }
+                                        doc.types.drop_types_for(&context, &doc.graph);
                                         doc.graph.remove_node(&context);
                                     }
                                 } else if let Some(field) = SField::field(&doc.graph, &context_path, '.', Some(&context)) {
@@ -270,12 +275,14 @@ impl Statements {
                                         field.remove(&mut doc.graph, None);
                                         match &field.value {
                                             SVal::Object(nref) => {
+                                                doc.types.drop_types_for(&nref, &doc.graph);
                                                 doc.graph.remove_node(nref);
                                             },
                                             SVal::Array(vec) => {
                                                 for val in vec {
                                                     match val {
                                                         SVal::Object(nref) => {
+                                                            doc.types.drop_types_for(&nref, &doc.graph);
                                                             doc.graph.remove_node(nref);
                                                         },
                                                         _ => {}

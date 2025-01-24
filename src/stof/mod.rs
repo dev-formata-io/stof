@@ -22,7 +22,7 @@ use bytes::Bytes;
 pub mod env;
 pub use env::*;
 
-use crate::{lang::SError, Format, SDoc, SGraph};
+use crate::{lang::SError, Format, SDoc, SGraph, SNodeRef};
 
 #[cfg(test)]
 mod tests;
@@ -82,10 +82,47 @@ impl Format for BSTOF {
     }
 
     /// Header import.
-    fn header_import(&self, _pid: &str, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, _as_name: &str) -> Result<(), SError> {
+    fn header_import(&self, pid: &str, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<(), SError> {
         let mut new_doc = BSTOF::parse(&bytes)?;
 
-        // Before we merge the types, we have to re-link the decids with the collisions that happened
+        if doc.graph.roots.len() < 1 {
+            doc.graph.insert_root("root");
+        }
+        if new_doc.graph.roots.len() < 1 {
+            new_doc.graph.insert_root("root");
+        }
+        // as name is used to re-arrange the main root of this new graph into a particular region of the existing graph
+        if as_name.len() > 0 && as_name != "root" {
+            let mut new_graph = SGraph::default();
+            new_graph.insert_root("root");
+            
+            let location;
+            if as_name.starts_with("self") || as_name.starts_with("super") {
+                let path = format!("{}.{}", doc.self_ptr(pid).unwrap_or(doc.graph.main_root().unwrap()).path(&doc.graph), as_name);
+                location = new_graph.ensure_nodes(&path, '.', true, None);
+            } else {
+                location = new_graph.ensure_nodes(as_name, '.', true, None);
+            }
+
+            let mut absorbed = false;
+            if let Some(node) = new_doc.graph.main_root() {
+                if let Some(node) = node.node(&new_doc.graph) {
+                    new_graph.absorb_external_node(&new_doc.graph, node, &location);
+                    absorbed = true;
+                }
+            }
+            if absorbed {
+                // We've absorbed the main root under a new graph location, now insert all other roots...
+                for root_index in 1..new_doc.graph.roots.len() {
+                    if let Some(node) = new_doc.graph.roots[root_index].node(&new_doc.graph) {
+                        new_graph.insert_external_node(&new_doc.graph, node, None, None); // keep as root and keep name
+                    }
+                }
+                new_doc.graph = new_graph;
+            }
+        }
+
+        // Before we merge the types, we have to re-link the decids with the collisions that will happen
         let collisions = doc.graph.get_collisions(&new_doc.graph);
         for (_, nodes) in &collisions.0 {
             let mut other_nodes = Vec::new();
@@ -124,8 +161,25 @@ impl Format for BSTOF {
     }
 
     /// Export to binary form.
-    fn export_bytes(&self, pid: &str, doc: &SDoc, _node: Option<&crate::SNodeRef>) -> Result<Bytes, SError> {
-        BSTOF::doc_to_bytes(pid, doc)
+    fn export_bytes(&self, pid: &str, doc: &SDoc, node: Option<&SNodeRef>) -> Result<Bytes, SError> {
+        if let Some(node) = node {
+            let mut partial_doc = SDoc::default();
+            
+            // Create a new graph, inserting 'node' as the new 'root' object, interfaces and all.
+            // Nodes keep their IDs and such, so references from these nodes to elsewhere in or under this node will stay valid.
+            // Keep in mind, that references to other roots or nodes/interfaces above will be broken!
+            if let Some(node) = node.node(&doc.graph) {
+                let mut graph = SGraph::default();
+                graph.insert_external_node(&doc.graph, node, None, Some("root".into()));
+                partial_doc.graph = graph;
+            }
+            
+            partial_doc.types = doc.types.declared_types_for(node, &doc.graph);
+            partial_doc.perms.merge(&doc.perms);
+            BSTOF::doc_to_bytes(pid, &partial_doc)
+        } else {
+            BSTOF::doc_to_bytes(pid, doc)
+        }
     }
 }
 

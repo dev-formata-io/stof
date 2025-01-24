@@ -123,6 +123,7 @@ import './formats/xml' as Formats.XML;
 import './formats/text' as Formats.TEXT;
 import './formats/bytes' as Formats.BYTES;
 import './formats/url' as Formats.URL;
+import './formats/bstof' as Formats.BSTOF;
 
 
 /**
