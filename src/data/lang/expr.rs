@@ -233,16 +233,33 @@ impl Expr {
                 }
                 return Ok(value.cast(target, pid, doc)?);
             },
-            Expr::TypeOf(expr) => {
+            Expr::TypeOf(expr) => {  // always generic type (ex. float, int, obj), but can be boxed
                 let value = expr.exec(pid, doc)?;
-                let value_type = value.stype(&doc.graph);
-                if value_type.is_object() { // No custom object types here
+                
+                if value.is_number() {
+                    if value.is_int() {
+                        if value.is_boxed() {
+                            return Ok(SVal::String("Box<int>".to_string()));
+                        }
+                        return Ok(SVal::String("int".to_string()));
+                    } else {
+                        if value.is_boxed() {
+                            return Ok(SVal::String("Box<float>".to_string()));
+                        }
+                        return Ok(SVal::String("float".to_string()));
+                    }
+                }
+                if value.is_object() {
+                    if value.is_boxed() {
+                        return Ok(SVal::String("Box<obj>".to_string()));
+                    }
                     return Ok(SVal::String("obj".to_string()));
                 }
-                let type_of = value_type.type_of();
-                Ok(SVal::String(type_of))
+
+                let value_type = value.stype(&doc.graph);
+                Ok(SVal::String(value_type.type_of()))
             },
-            Expr::TypeName(expr) => {
+            Expr::TypeName(expr) => { // never boxed, always explicit type name (ex. units, custom object type)
                 let value = expr.exec(pid, doc)?;
                 Ok(SVal::String(value.type_name(&doc.graph)))
             },

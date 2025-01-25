@@ -1,0 +1,150 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+#[test]
+fn string() {
+    assertEq(typeof 'hello', 'str');
+    assertEq(typename 'hello', 'str');
+}
+
+#[test]
+fn boxed_string() {
+    assertEq(typeof box('hello'), 'Box<str>');
+    assertEq(typename box('hello'), 'str');
+}
+
+#[test]
+fn float() {
+    assertEq(typeof 32.2, 'float');
+    assertEq(typename 32.2, 'float');
+}
+
+#[test]
+fn boxed_float() {
+    assertEq(typeof box(32.2), 'Box<float>');
+    assertEq(typename box(34.3), 'float');
+}
+
+#[test]
+fn units() {
+    assertEq(typeof 32km, 'float'); // generic types for typeof
+    assertEq(typename 32km, 'km');
+}
+
+#[test]
+fn boxed_units() {
+    assertEq(typeof box(32km), 'Box<float>');
+    assertEq(typename box(32km), 'km');
+}
+
+#[test]
+fn int() {
+    assertEq(typeof 32, 'int');
+    assertEq(typename 32, 'int');
+}
+
+#[test]
+fn boxed_int() {
+    assertEq(typeof box(34), 'Box<int>');
+    assertEq(typename box(32), 'int');
+}
+
+#[test]
+fn bool() {
+    assertEq(typeof true, 'bool');
+    assertEq(typename true, 'bool');
+}
+
+#[test]
+fn boxed_bool() {
+    assertEq(typeof box(true), 'Box<bool>');
+    assertEq(typename box(true), 'bool');
+}
+
+#[test]
+fn map() {
+    assertEq(typeof map(), 'map');
+    assertEq(typename map(), 'map');
+}
+
+#[test]
+fn boxed_map() {
+    assertEq(typeof box(map()), 'Box<map>');
+    assertEq(typename box(map()), 'map');
+}
+
+#[test]
+fn set() {
+    assertEq(typeof set(), 'set');
+    assertEq(typename set(), 'set');
+}
+
+#[test]
+fn boxed_set() {
+    assertEq(typeof box(set()), 'Box<set>');
+    assertEq(typename box(set()), 'set');
+}
+
+#[test]
+fn blob() {
+    assertEq(typeof ('hi' as blob), 'blob');
+    assertEq(typename ('hi' as blob), 'blob');
+}
+
+#[test]
+fn boxed_blob() {
+    assertEq(typeof box('hi' as blob), 'Box<blob>');
+    assertEq(typename box('hi' as blob), 'blob');
+}
+
+#[test]
+fn vec() {
+    assertEq(typeof [1, 2], 'vec');
+    assertEq(typename [1, 2], 'vec');
+}
+
+#[test]
+fn boxed_vec() {
+    assertEq(typeof box([1, 2]), 'Box<vec>');
+    assertEq(typename box([1, 2]), 'vec');
+}
+
+#[test]
+fn func() {
+    assertEq(typeof () => {}, 'fn');
+    assertEq(typename () => {}, 'fn');
+}
+
+#[test]
+fn boxed_func() {
+    assertEq(typeof box(() => {}), 'Box<fn>');
+    assertEq(typename box(() => {}), 'fn');
+}
+
+type TypeOfTestType {}
+TypeOfTestType object: {}
+
+#[test]
+fn obj() {
+    assertEq(typeof self.object, 'obj');
+    assertEq(typename self.object, 'TypeOfTestType');
+}
+
+#[test]
+fn boxed_obj() {
+    assertEq(typeof box(self.object), 'Box<obj>');
+    assertEq(typename box(self.object), 'TypeOfTestType');
+}

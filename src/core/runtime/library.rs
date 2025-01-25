@@ -446,7 +446,7 @@ impl Library for StdLibrary {
             },
 
             /*****************************************************************************
-             * Or helpers.
+             * Value helpers.
              *****************************************************************************/
             // Return the first non-empty value.
             "or" => {
@@ -456,6 +456,77 @@ impl Library for StdLibrary {
                     }
                 }
                 Ok(SVal::Null)
+            },
+            // Is the value a number type (boxed or unboxed int, float or units)?
+            "isNumber" => {
+                if parameters.len() != 1 {
+                    return Err(SError::std(pid, &doc, "isNumber", "expecting one value argument to test that it is a number"));
+                }
+                Ok(SVal::Bool(parameters[0].is_number()))
+            },
+            // Is the value an object (boxed or unboxed)?
+            "isObject" => {
+                if parameters.len() != 1 {
+                    return Err(SError::std(pid, &doc, "isObject", "expecting one value argument to test that it is an object"));
+                }
+                Ok(SVal::Bool(parameters[0].is_object()))
+            },
+            "isEmpty" |
+            "isNull" => {
+                if parameters.len() != 1 {
+                    return Err(SError::std(pid, &doc, "isNull", "expecting one value argument to test that it is null/empty"));
+                }
+                Ok(SVal::Bool(parameters[0].is_empty()))
+            },
+            "isString" => {
+                if parameters.len() != 1 {
+                    return Err(SError::std(pid, &doc, "isString", "expecting one value argument to test that it is a string"));
+                }
+                Ok(SVal::Bool(parameters[0].is_string()))
+            },
+            "isBool" => {
+                if parameters.len() != 1 {
+                    return Err(SError::std(pid, &doc, "isBool", "expecting one value argument to test that it is a bool"));
+                }
+                Ok(SVal::Bool(parameters[0].is_bool()))
+            },
+            "isMap" => {
+                if parameters.len() != 1 {
+                    return Err(SError::std(pid, &doc, "isMap", "expecting one value argument to test that it is a map"));
+                }
+                Ok(SVal::Bool(parameters[0].is_map()))
+            },
+            "isSet" => {
+                if parameters.len() != 1 {
+                    return Err(SError::std(pid, &doc, "isSet", "expecting one value argument to test that it is a set"));
+                }
+                Ok(SVal::Bool(parameters[0].is_set()))
+            },
+            "isBlob" => {
+                if parameters.len() != 1 {
+                    return Err(SError::std(pid, &doc, "isBlob", "expecting one value argument to test that it is a blob"));
+                }
+                Ok(SVal::Bool(parameters[0].is_blob()))
+            },
+            "isVec" |
+            "isArray" => {
+                if parameters.len() != 1 {
+                    return Err(SError::std(pid, &doc, "isVec", "expecting one value argument to test that it is a vector"));
+                }
+                Ok(SVal::Bool(parameters[0].is_array()))
+            },
+            "isFunc" => {
+                if parameters.len() != 1 {
+                    return Err(SError::std(pid, &doc, "isFunc", "expecting one value argument to test that it is a function"));
+                }
+                Ok(SVal::Bool(parameters[0].is_func()))
+            },
+            "isBoxed" |
+            "isBox" => {
+                if parameters.len() != 1 {
+                    return Err(SError::std(pid, &doc, "isBox", "expecting one value argument to test that it is a boxed value"));
+                }
+                Ok(SVal::Bool(parameters[0].is_boxed()))
             },
 
             /*****************************************************************************

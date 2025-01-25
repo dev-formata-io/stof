@@ -627,6 +627,50 @@ impl SVal {
         }
     }
 
+    /// Is string?
+    pub fn is_string(&self) -> bool {
+        match self {
+            Self::String(_) => true,
+            Self::Boxed(val) => {
+                val.lock().unwrap().is_string()
+            },
+            _ => false,
+        }
+    }
+
+    /// Is bool?
+    pub fn is_bool(&self) -> bool {
+        match self {
+            Self::Bool(_) => true,
+            Self::Boxed(val) => {
+                val.lock().unwrap().is_bool()
+            },
+            _ => false,
+        }
+    }
+
+    /// Is blob?
+    pub fn is_blob(&self) -> bool {
+        match self {
+            Self::Blob(_) => true,
+            Self::Boxed(val) => {
+                val.lock().unwrap().is_blob()
+            },
+            _ => false,
+        }
+    }
+
+    /// Is function?
+    pub fn is_func(&self) -> bool {
+        match self {
+            Self::FnPtr(_) => true,
+            Self::Boxed(val) => {
+                val.lock().unwrap().is_func()
+            },
+            _ => false,
+        }
+    }
+
     /// Is object?
     pub fn is_object(&self) -> bool {
         match self {
@@ -666,6 +710,39 @@ impl SVal {
             Self::Number(_) => true,
             Self::Boxed(val) => {
                 val.lock().unwrap().is_number()
+            },
+            _ => false,
+        }
+    }
+
+    /// Is float?
+    pub fn is_float(&self) -> bool {
+        match self {
+            Self::Number(snum) => {
+                match snum {
+                    SNum::Units(_, _) |
+                    SNum::F64(_) => true,
+                    _ => false,
+                }
+            },
+            Self::Boxed(val) => {
+                val.lock().unwrap().is_float()
+            },
+            _ => false,
+        }
+    }
+
+    /// Is int?
+    pub fn is_int(&self) -> bool {
+        match self {
+            Self::Number(snum) => {
+                match snum {
+                    SNum::I64(_) => true,
+                    _ => false,
+                }
+            },
+            Self::Boxed(val) => {
+                val.lock().unwrap().is_int()
             },
             _ => false,
         }

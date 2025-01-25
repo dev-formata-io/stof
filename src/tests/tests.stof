@@ -106,6 +106,7 @@ import './language/drop' as Language.Drop;
 import './language/ranges' as Language.Ranges;
 import './language/trace' as Language.Trace;
 import './language/ternary' as Language.Ternary;
+import './language/typeof' as Language.TypeOf;
 
 
 /**
@@ -336,5 +337,91 @@ stdlib: {
     #[errors]
     fn assert_neq_errors() {
         assertNeq(4, 4);
+    }
+
+    #[test]
+    fn is_number() {
+        assert(isNumber(32));
+        assert(isNumber(32.23));
+        assert(isNumber(32km));
+        assert(isNumber(box(32)));
+        assert(isNumber(box(32.2)));
+        assert(isNumber(box(32km)));
+        assertNot(isNumber(true));
+    }
+
+    #[test]
+    fn is_object() {
+        let object = new {};
+        assert(isObject(object));
+        assert(isObject(box(object)));
+        assertNot(isObject(true));
+    }
+
+    #[test]
+    fn is_null() {
+        assert(isNull(null));
+        assertNot(isNull(32));
+    }
+
+    #[test]
+    fn is_string() {
+        assert(isString('hi'));
+        assert(isString(box('hi')));
+        assertNot(isString(32));
+    }
+
+    #[test]
+    fn is_bool() {
+        assert(isBool(true));
+        assert(isBool(false));
+        assert(isBool(box(true)));
+        assertNot(isBool(32));
+    }
+
+    #[test]
+    fn isMap() {
+        assert(isMap(map()));
+        assert(isMap(box(map())));
+        assertNot(isMap(32));
+    }
+
+    #[test]
+    fn is_set() {
+        assert(isSet(set()));
+        assert(isSet(box(set())));
+        assertNot(isSet(32));
+    }
+
+    #[test]
+    fn is_blob() {
+        let b = 'hi' as blob;
+        assert(isBlob(b));
+        assert(isBlob(box(b)));
+        assertNot(isBlob(32));
+    }
+
+    #[test]
+    fn is_vec() {
+        assert(isVec([1, 2]));
+        assert(isVec(box([1, 2])));
+        assert(isArray([1, 2]));
+        assert(isArray(box([1, 2])));
+        assertNot(isVec('hi'));
+    }
+
+    #[test]
+    fn is_func() {
+        assert(isFunc(() => {}));
+        assert(isFunc(box(() => {})));
+        assertNot(isFunc(32));
+    }
+
+    #[test]
+    fn is_boxed() {
+        assert(isBox(box(32)));
+        assert(isBoxed(box(32)));
+        assertNot(isBox(32));
+        assertNot(isBoxed(32));
     }
 }
