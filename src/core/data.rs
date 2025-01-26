@@ -31,6 +31,14 @@ pub const DATA_DIRTY_NODES: &str = "nodes";
 #[typetag::serde]
 pub trait Data: AsDynAny + std::fmt::Debug + DataClone {}
 
+/// String data.
+#[typetag::serde(name = "_String")]
+impl Data for String {}
+
+/// Empty data.
+#[typetag::serde(name = "_None")]
+impl Data for () {}
+
 /// Blanket Clone implementation for any struct that implements Clone + Data
 pub trait DataClone {
     fn clone_data(&self) -> Box<dyn Data>;

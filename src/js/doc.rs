@@ -19,8 +19,8 @@ use bytes::Bytes;
 use js_sys::{Function, Uint8Array};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
-use crate::{json::JSON, SDataRef, SDoc, SNodeRef};
-use super::{StofData, StofField, StofFunc, StofLibFunc, StofNode, StofLib};
+use crate::{json::JSON, SDataRef, SDoc, SNodeRef, SVal};
+use super::{StofData, StofLibFunc, StofNode, StofLib};
 
 
 /// JS Stof Document Interface.
@@ -298,49 +298,18 @@ impl StofDoc {
         JsValue::undefined()
     }
 
-    /// Find a field in this document with a path from the roots.
-    /// Path is dot separated indicating object names, with the field being the last name in the path.
-    /// Path will search down first (children) then up (parent). If root, will traverse into other roots.
-    ///
-    /// Ex. Field named 'message' on a root node: `fieldFromRoot('message')`
-    ///
-    /// Ex. Field named 'message' on the 'root' root node: `fieldFromRoot('root.message')`
-    ///
-    /// Ex. Field named 'message' on the child node at path 'root.child': `fieldFromRoot('root.child.message')`
-    #[wasm_bindgen(js_name = fieldFromRoot)]
-    pub fn field_from_root(&self, path: &str) -> Option<StofField> {
-        StofField::field_from_root(self, path)
-    }
-
-    /// Find a field in this document starting at a node.
-    /// Path is dot separated indicating object names, with the field being the last name in the path.
-    /// Path will search down first (children) then up (parent). If root, will traverse into other roots.
-    pub fn field(&self, path: &str, node: &StofNode) -> Option<StofField> {
-        StofField::get_field(self, path, node)
-    }
-
-    /// Find a function in this document with a path from the roots.
-    /// Path is dot separated indicating object names, with the func being the last name in the path.
-    /// Path will search down first (children) then up (parent). If root, will traverse into other roots.
-    #[wasm_bindgen(js_name = funcFromRoot)]
-    pub fn func_from_root(&self, path: &str) -> Option<StofFunc> {
-        StofFunc::func_from_root(self, path)
-    }
-
-    /// Find a function in this document starting at a node.
-    /// Path is dot separated indicating object names, with the func being the last name in the path.
-    /// Path will search down first (children) then up (parent). If root, will traverse into other roots.
-    pub fn func(&self, path: &str, node: &StofNode) -> Option<StofFunc> {
-        StofFunc::get_func(self, path, node)
-    }
-
     /// Call a function in this document at the given path.
     #[wasm_bindgen(js_name = callFunc)]
     pub fn call_func(&mut self, path: &str, params: Vec<JsValue>) -> Result<JsValue, String> {
-        if let Some(func) = self.func_from_root(path) {
-            return func.call(self, params);
+        let params = params.into_iter().map(|p| SVal::from((p, &self.doc))).collect();
+        match self.doc.call_func(path, None, params) {
+            Ok(result) => {
+                Ok(JsValue::from(result))
+            },
+            Err(error) => {
+                Err(format!("{}", error.to_string(&self.doc.graph)))
+            }
         }
-        Err(format!("Did not find a function at the given path"))
     }
 
     /// Run this document, calling all #[main] functions.
