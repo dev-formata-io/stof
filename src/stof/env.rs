@@ -38,7 +38,7 @@ pub struct StofEnv {
     pub assign_type_stack: Vec<HashMap<String, SType>>,
 
     /// Init functions to execute (in order) after parse is complete.
-    pub init_funcs: Vec<(SDataRef, SFunc, Vec<SVal>)>,
+    pub init_funcs: Vec<(SDataRef, Vec<SVal>)>,
 
     /// "Compile" time field names per node.
     /// Used for collision handling.
@@ -164,8 +164,8 @@ impl StofEnv {
 
     /// Call init functions with the document.
     pub fn call_init_functions(&self, doc: &mut SDoc) {
-        for (dref, func, params) in &self.init_funcs {
-            func.call(dref, &self.pid, doc, params.clone(), true).expect(&format!("Failed to call init function: {:?}", func));
+        for (dref, params) in &self.init_funcs {
+            SFunc::call(dref, &self.pid, doc, params.clone(), true).expect(&format!("Failed to call init function: {:?}", SData::get::<SFunc>(&doc.graph, dref)));
         }
     }
 }

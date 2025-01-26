@@ -320,9 +320,12 @@ impl ArrayLibrary {
                 }
                 match &parameters[0] {
                     SVal::FnPtr(dref) => {
-                        if let Some(func) = SData::get::<SFunc>(&doc.graph, dref).cloned() {
+                        if let Some(func) = SData::get::<SFunc>(&doc.graph, dref) {
+                            let rtype = func.rtype.clone();
+                            let statements = func.statements.clone();
+                            let params = func.params.clone();
                             for val in array {
-                                let res = func.call(dref, pid, doc, vec![val.clone()], true)?;
+                                let res = SFunc::call_internal(dref, pid, doc, vec![val.clone()], true, &params, &statements, &rtype)?;
                                 if !res.is_empty() {
                                     *val = res;
                                 }
@@ -340,9 +343,12 @@ impl ArrayLibrary {
                 }
                 match &parameters[0] {
                     SVal::FnPtr(dref) => {
-                        if let Some(func) = SData::get::<SFunc>(&doc.graph, dref).cloned() {
+                        if let Some(func) = SData::get::<SFunc>(&doc.graph, dref) {
+                            let rtype = func.rtype.clone();
+                            let statements = func.statements.clone();
+                            let params = func.params.clone();
                             array.retain(|val| -> bool {
-                                let res = func.call(dref, pid, doc, vec![val.clone()], true).unwrap_or(SVal::Null);
+                                let res = SFunc::call_internal(dref, pid, doc, vec![val.clone()], true, &params, &statements, &rtype).unwrap_or(SVal::Null);
                                 res.truthy()
                             });
                         }
@@ -376,9 +382,12 @@ impl ArrayLibrary {
                 } else {
                     match &parameters[0] {
                         SVal::FnPtr(dref) => {
-                            if let Some(func) = SData::get::<SFunc>(&doc.graph, dref).cloned() {
+                            if let Some(func) = SData::get::<SFunc>(&doc.graph, dref) {
+                                let rtype = func.rtype.clone();
+                                let statements = func.statements.clone();
+                                let params = func.params.clone();
                                 array.sort_by(|a, b| {
-                                    let res = func.call(dref, pid, doc, vec![a.clone(), b.clone()], true).unwrap_or(SVal::Number(SNum::I64(0)));
+                                    let res = SFunc::call_internal(dref, pid, doc, vec![a.clone(), b.clone()], true, &params, &statements, &rtype).unwrap_or(SVal::Number(SNum::I64(0)));
                                     match res {
                                         SVal::Number(num) => {
                                             let int = num.int();

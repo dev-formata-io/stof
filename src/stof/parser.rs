@@ -229,7 +229,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                     func.name = format!("decfn_{}", nanoid!(7));
                                     if let Some(func_ref) = SData::insert_new(&mut doc.graph, &scope, Box::new(func)) {
                                         // Call the decorator function with the func as the parameter
-                                        if let Ok(res_val) = decorator.call(&dref, &env.pid, doc, vec![SVal::FnPtr(func_ref.clone())], true) {
+                                        if let Ok(res_val) = SFunc::call_internal(&dref, &env.pid, doc, vec![SVal::FnPtr(func_ref.clone())], true, &decorator.params, &decorator.statements, &decorator.rtype) {
                                             match res_val {
                                                 SVal::FnPtr(res_ref) => {
                                                     if let Some(res_func) = SData::get::<SFunc>(&mut doc.graph, res_ref) {
@@ -261,12 +261,12 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                     }
                 } else {
                     // Is an init function?
-                    let mut init_func = None;
+                    let mut init_params = None;
                     if let Some(init_param_val) = func.attributes.get("init") {
                         if init_param_val.is_empty() { // null or void
-                            init_func = Some((func.clone(), vec![]));
+                            init_params = Some(vec![]);
                         } else {
-                            init_func = Some((func.clone(), vec![init_param_val.clone()]));
+                            init_params = Some(vec![init_param_val.clone()]);
                         }
                     }
 
@@ -281,8 +281,8 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
 
                     if let Some(func_ref) = SData::insert_new(&mut doc.graph, &scope, Box::new(func)) {
                         // Is this func an init func?
-                        if let Some(init_func) = init_func {
-                            env.init_funcs.push((func_ref.clone(), init_func.0, init_func.1));
+                        if let Some(init_params) = init_params {
+                            env.init_funcs.push((func_ref.clone(), init_params));
                         }
 
                         // Is a field also?
@@ -445,7 +445,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                                 func.name = format!("decfn_{}", nanoid!(7));
                                                 if let Some(func_ref) = SData::insert_new(&mut doc.graph, &scope, Box::new(func)) {
                                                     // Call the decorator function with the func as the parameter
-                                                    if let Ok(res_val) = decorator.call(&dref, &env.pid, doc, vec![SVal::FnPtr(func_ref.clone())], true) {
+                                                    if let Ok(res_val) = SFunc::call_internal(&dref, &env.pid, doc, vec![SVal::FnPtr(func_ref.clone())], true, &decorator.params, &decorator.statements, &decorator.rtype) {
                                                         match res_val {
                                                             SVal::FnPtr(res_ref) => {
                                                                 if let Some(res_func) = SData::get::<SFunc>(&mut doc.graph, res_ref) {

@@ -80,8 +80,7 @@ impl FunctionLibrary {
             },
             // Call this function.
             "call" => {
-                let func: SFunc = dref.data(&doc.graph).unwrap().get_data::<SFunc>().unwrap().clone();
-                func.call(dref, pid, doc, parameters.drain(..).collect(), true)
+                SFunc::call(dref, pid, doc, parameters.drain(..).collect(), true)
             },
             _ => {
                 Err(SError::func(pid, &doc, "NotFound", &format!("{} is not a function in the Function Library", name)))

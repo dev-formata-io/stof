@@ -199,18 +199,19 @@ impl MapLibrary {
                 }
                 match &parameters[0] {
                     SVal::FnPtr(dref) => {
-                        if let Some(func) = SData::get::<SFunc>(&doc.graph, dref).cloned() {
+                        if let Some(func) = SData::get::<SFunc>(&doc.graph, dref) {
+                            let rtype = func.rtype.clone();
+                            let statements = func.statements.clone();
+                            let params = func.params.clone();
                             map.retain(|k, v| {
-                                if let Ok(res) = func.call(dref, pid, doc, vec![k.clone(), v.clone()], true) {
+                                if let Ok(res) = SFunc::call_internal(dref, pid, doc, vec![k.clone(), v.clone()], true, &params, &statements, &rtype) {
                                     res.truthy()
                                 } else {
                                     false
                                 }
                             });
-                            Ok(SVal::Void)
-                        } else {
-                            Err(SError::map(pid, &doc, "retain", "predicate not found"))
                         }
+                        Ok(SVal::Void)
                     },
                     _ => {
                         Err(SError::map(pid, &doc, "retain", "predicate not found"))

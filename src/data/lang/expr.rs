@@ -128,7 +128,7 @@ impl Expr {
                 // Look for a field first
                 if let Some(field_ref) = SField::field_ref(&doc.graph, &context_path, '.', context.as_ref()) {
                     if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
-                        if doc.perms.can_read_field(&doc.graph, &field_ref, &field, doc.self_ptr(pid).as_ref()) {
+                        if doc.perms.can_read_field(&doc.graph, &field_ref, doc.self_ptr(pid).as_ref()) {
                             return Ok(field.value.clone());
                         }
                     }
@@ -146,10 +146,8 @@ impl Expr {
 
                 // Look for a function in the graph
                 if let Some(func_ref) = SFunc::func_ref(&doc.graph, &context_path, '.', context.as_ref()) {
-                    if let Some(func) = SData::get::<SFunc>(&doc.graph, &func_ref) {
-                        if doc.perms.can_read_func(&doc.graph, &func_ref, &func, doc.self_ptr(pid).as_ref()) {
-                            return Ok(SVal::FnPtr(func_ref));
-                        }
+                    if doc.perms.can_read_func(&doc.graph, &func_ref, doc.self_ptr(pid).as_ref()) {
+                        return Ok(SVal::FnPtr(func_ref));
                     }
                     return Ok(SVal::Null);
                 }
@@ -281,19 +279,17 @@ impl Expr {
                     SVal::Object(nref) => {
                         // Look for a function on the object itself first! Always higher priority than a prototype
                         if let Some(func_ref) = SFunc::func_ref(&doc.graph, name, '.', Some(&nref)) {
-                            if let Some(func) = SData::get::<SFunc>(&doc.graph, &func_ref).cloned() {
-                                let mut func_params = Vec::new();
-                                for expr in params {
-                                    let val = expr.exec(pid, doc)?;
-                                    if !val.is_void() {
-                                        func_params.push(val);
-                                    }
+                            let mut func_params = Vec::new();
+                            for expr in params {
+                                let val = expr.exec(pid, doc)?;
+                                if !val.is_void() {
+                                    func_params.push(val);
                                 }
-                                let current_symbol_table = doc.new_table(pid);
-                                let res = func.call(&func_ref, pid, doc, func_params, true)?;
-                                doc.set_table(pid, current_symbol_table);
-                                return Ok(res);
                             }
+                            let current_symbol_table = doc.new_table(pid);
+                            let res = SFunc::call(&func_ref, pid, doc, func_params, true)?;
+                            doc.set_table(pid, current_symbol_table);
+                            return Ok(res);
                         }
 
                         // Look for a prototype on this object next
@@ -336,22 +332,20 @@ impl Expr {
 
                             while current.is_some() {
                                 if let Some(func_ref) = SFunc::func_ref(&doc.graph, &func_name, '.', current.as_ref()) {
-                                    if let Some(func) = SData::get::<SFunc>(&doc.graph, &func_ref).cloned() {
-                                        let mut func_params = Vec::new();
-                                        for expr in params {
-                                            let val = expr.exec(pid, doc)?;
-                                            if !val.is_void() {
-                                                func_params.push(val);
-                                            }
+                                    let mut func_params = Vec::new();
+                                    for expr in params {
+                                        let val = expr.exec(pid, doc)?;
+                                        if !val.is_void() {
+                                            func_params.push(val);
                                         }
-                                        let current_symbol_table = doc.new_table(pid);
-                                        // Set self to the object still...
-                                        doc.push_self(pid, nref.clone());
-                                        let res = func.call(&func_ref, pid, doc, func_params, false)?;
-                                        doc.pop_self(pid);
-                                        doc.set_table(pid, current_symbol_table);
-                                        return Ok(res);
                                     }
+                                    let current_symbol_table = doc.new_table(pid);
+                                    // Set self to the object still...
+                                    doc.push_self(pid, nref.clone());
+                                    let res = SFunc::call(&func_ref, pid, doc, func_params, false)?;
+                                    doc.pop_self(pid);
+                                    doc.set_table(pid, current_symbol_table);
+                                    return Ok(res);
                                 }
                                 if let Some(node) = current.unwrap().node(&doc.graph) {
                                     if let Some(parent_ref) = &node.parent {

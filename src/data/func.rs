@@ -49,36 +49,12 @@ impl SFunc {
     /// Get all functions in a graph.
     pub fn all_funcs(graph: &SGraph) -> HashSet<SDataRef> {
         let mut funcs = HashSet::new();
-        for root in &graph.roots {
-            for dref in Self::recursive_func_refs(graph, root) {
-                funcs.insert(dref);
+        for (_, node) in &graph.nodes.store {
+            for func in node.data_refs::<Self>(graph) {
+                funcs.insert(func);
             }
         }
         funcs
-    }
-
-    /// Get all function refs on a node recursively.
-    pub fn recursive_func_refs(graph: &SGraph, node: &SNodeRef) -> HashSet<SDataRef> {
-        let mut res = Self::func_refs(graph, node);
-        if let Some(node) = node.node(graph) {
-            for child in &node.children {
-                for dref in Self::recursive_func_refs(graph, child) {
-                    res.insert(dref);
-                }
-            }
-        }
-        res
-    }
-
-    /// Get all functions on a node.
-    pub fn funcs<'a>(graph: &'a SGraph, node: &SNodeRef) -> Vec<&'a Self> {
-        let mut res = Vec::new();
-        if let Some(node) = node.node(graph) {
-            for func in node.data::<Self>(graph) {
-                res.push(func);
-            }
-        }
-        res
     }
 
     /// Get all function references on a node.
@@ -92,43 +68,17 @@ impl SFunc {
         res
     }
 
-    /// Get a func from a path with the given separator.
-    /// Last name in the path is the func name.
-    /// If path is only the func, will search on start if any or search each root in the graph.
-    pub fn func<'a>(graph: &'a SGraph, path: &str, sep: char, start: Option<&SNodeRef>) -> Option<&'a Self> {
-        let mut items: Vec<&str> = path.split(sep).collect();
-
-        let func_name = items.pop().unwrap();
-        if items.len() > 0 {
-            if let Some(node) = graph.node_from(&items.join("/"), start) {
-                for func in node.data::<Self>(graph) {
-                    if func.name == func_name {
-                        return Some(func);
-                    }
-                }
-            }
-        } else {
-            if let Some(start) = start {
-                if let Some(node) = start.node(graph) {
-                    for func in node.data::<Self>(graph) {
-                        if func.name == func_name {
-                            return Some(func);
-                        }
-                    }
-                }
-            } else {
-                for root_ref in &graph.roots {
-                    if let Some(node) = root_ref.node(graph) {
-                        for func in node.data::<Self>(graph) {
-                            if func.name == func_name {
-                                return Some(func);
-                            }
-                        }
-                    }
+    /// Get all function refs on a node recursively.
+    pub fn recursive_func_refs(graph: &SGraph, node: &SNodeRef) -> HashSet<SDataRef> {
+        let mut res = Self::func_refs(graph, node);
+        if let Some(node) = node.node(graph) {
+            for child in &node.children {
+                for dref in Self::recursive_func_refs(graph, child) {
+                    res.insert(dref);
                 }
             }
         }
-        None
+        res
     }
 
     /// Get a func ref from a path with the given separator.
@@ -176,14 +126,28 @@ impl SFunc {
         None
     }
 
-    /// Call this function with the given doc.
-    /// Parameters get put onto the doc stack, and statements get executed.
-    pub fn call(&self, dref: &SDataRef, pid: &str, doc: &mut SDoc, mut parameters: Vec<SVal>, add_self: bool) -> Result<SVal, SError> {
+    /// Call this function.
+    pub fn call(dref: &SDataRef, pid: &str, doc: &mut SDoc, parameters: Vec<SVal>, add_self: bool) -> Result<SVal, SError> {
+        let params;
+        let statements;
+        let rtype;
+        if let Some(func) = SData::get::<Self>(&doc.graph, dref) {
+            params = func.params.clone();
+            statements = func.statements.clone();
+            rtype = func.rtype.clone();
+        } else {
+            return Err(SError::call(pid, &doc, "data reference given was not a function"));
+        }
+        Self::call_internal(dref, pid, doc, parameters, add_self, &params, &statements, &rtype)
+    }
+
+    /// Internal call with this data reference.
+    pub fn call_internal(dref: &SDataRef, pid: &str, doc: &mut SDoc, mut parameters: Vec<SVal>, add_self: bool, params: &Vec<SParam>, statements: &Statements, rtype: &SType) -> Result<SVal, SError> {
         // Validate the number of parameters required to call this function
-        if self.params.len() != parameters.len() {
+        if params.len() != parameters.len() {
             let mut index = parameters.len();
-            while index < self.params.len() {
-                let param = &self.params[index];
+            while index < params.len() {
+                let param = &params[index];
                 if let Some(default) = &param.default {
                     let value = default.exec(pid, doc)?;
                     parameters.push(value);
@@ -193,11 +157,39 @@ impl SFunc {
                 index += 1;
             }
         }
-        if self.params.len() != parameters.len() {
+        if params.len() != parameters.len() {
             doc.push_call_stack(pid, dref);
-            let error = SError::call(pid, &doc, &format!("received incorrect parameters for function call, expecting ({:?})", &self.params));
+            let error = SError::call(pid, &doc, &format!("received incorrect parameters for function call, expecting ({:?})", &params));
             doc.pop_call_stack(pid);
             return Err(error);
+        }
+
+        // Validate the types of parameters given as we push them to the doc stack
+        let mut added = Vec::new();
+        parameters.reverse();
+        for i in 0..parameters.len() {
+            let mut arg_val = parameters.pop().unwrap();
+            let mut arg_type = arg_val.stype(&doc.graph);
+            let param = &params[i];
+
+            if arg_type != param.ptype {
+                arg_val = arg_val.cast(param.ptype.clone(), pid, doc)?;
+                arg_type = param.ptype.clone(); // for null, etc..
+            }
+
+            if arg_type == param.ptype {
+                let name = &param.name;
+                added.push(name.clone());
+                doc.add_variable(pid, name, arg_val);
+            } else {
+                for name in added {
+                    doc.drop(pid, &name);
+                }
+                doc.push_call_stack(pid, dref);
+                let error = SError::call(pid, &doc, &format!("arguments do not match expected parameter types and cannot be converted, expecting ({:?})", &params));
+                doc.pop_call_stack(pid);
+                return Err(error);
+            }
         }
 
         // Add self to doc self stack
@@ -223,38 +215,10 @@ impl SFunc {
             }
         }
 
-        // Validate the types of parameters given as we push them to the doc stack
-        let mut added = Vec::new();
-        parameters.reverse();
-        for i in 0..parameters.len() {
-            let mut arg_val = parameters.pop().unwrap();
-            let mut arg_type = arg_val.stype(&doc.graph);
-            let param = &self.params[i];
-
-            if arg_type != param.ptype {
-                arg_val = arg_val.cast(param.ptype.clone(), pid, doc)?;
-                arg_type = param.ptype.clone(); // for null, etc..
-            }
-
-            if arg_type == param.ptype {
-                let name = &param.name;
-                added.push(name.clone());
-                doc.add_variable(pid, name, arg_val);
-            } else {
-                for name in added {
-                    doc.drop(pid, &name);
-                }
-                doc.push_call_stack(pid, dref);
-                let error = SError::call(pid, &doc, &format!("arguments do not match expected parameter types and cannot be converted, expecting ({:?})", &self.params));
-                doc.pop_call_stack(pid);
-                return Err(error);
-            }
-        }
-
         // Execute all of the statements with this doc in a scope (block)
         doc.push_call_stack(pid, dref);
         doc.new_scope(pid);
-        let statements_res = self.statements.exec(pid, doc);
+        let statements_res = statements.exec(pid, doc);
         doc.end_scope(pid);
         doc.pop_call_stack(pid);
 
@@ -278,27 +242,27 @@ impl SFunc {
                 return Err(error);
             }
         }
-        if self.rtype.is_void() && res.is_none() {
+        if rtype.is_void() && res.is_none() {
             return Ok(SVal::Void);
         } else if res.is_some() {
             let mut res = res.unwrap();
             let mut res_type = res.stype(&doc.graph);
 
             // Try casting result to our return type if needed
-            if res_type != self.rtype {
-                if let Ok(new_res) = res.cast(self.rtype.clone(), pid, doc) {
+            if res_type != *rtype {
+                if let Ok(new_res) = res.cast(rtype.clone(), pid, doc) {
                     res = new_res;
-                    res_type = self.rtype.clone();
+                    res_type = rtype.clone();
                 }
             }
 
-            if res_type == self.rtype {
+            if res_type == *rtype {
                 return Ok(res);
             }
-            let error = SError::call(pid, &doc, &format!("return type ({:?}) does not match the expected type ({:?})", res_type, self.rtype));
+            let error = SError::call(pid, &doc, &format!("return type ({:?}) does not match the expected type ({:?})", res_type, rtype));
             return Err(error);
         }
-        Err(SError::call(pid, &doc, &format!("return value ({:?}) does not match the expected type ({:?})", res, self.rtype)))
+        Err(SError::call(pid, &doc, &format!("return value ({:?}) does not match the expected type ({:?})", res, rtype)))
     }
 }
 

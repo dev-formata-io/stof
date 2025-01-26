@@ -321,17 +321,17 @@ impl SDoc {
         if let Some(field) = self.field(path, start) {
             return Some(field.value.clone());
         } else if let Some(func_ref) = self.func(path, start) {
-            if let Some(func) = SData::get::<SFunc>(&self.graph, &func_ref).cloned() {
-                let mut parameters = Vec::new();
+            let mut parameters = Vec::new();
+            if let Some(func) = SData::get::<SFunc>(&self.graph, &func_ref) {
                 if let Some(params) = func.attributes.get("get") {
                     parameters.push(params.clone());
                 }
-                if let Ok(res) = func.call(&func_ref, "main", self, parameters, true) {
-                    self.clean("main");
-                    return Some(res);
-                }
-                self.clean("main");
             }
+            if let Ok(res) = SFunc::call(&func_ref, "main", self, parameters, true) {
+                self.clean("main");
+                return Some(res);
+            }
+            self.clean("main");
         }
         None
     }
@@ -401,9 +401,9 @@ impl SDoc {
                 if let Some(attr_val) = func.attributes.get("main") {
                     let result;
                     if attr_val.is_empty() {
-                        result = func.call(&func_ref, "main", self, vec![], true);
+                        result = SFunc::call_internal(&func_ref, "main", self, vec![], true, &func.params, &func.statements, &func.rtype);
                     } else {
-                        result = func.call(&func_ref, "main", self, vec![attr_val.clone()], true);
+                        result = SFunc::call_internal(&func_ref, "main", self, vec![attr_val.clone()], true, &func.params, &func.statements, &func.rtype);
                     }
                     self.clean("main");
                     match result {
@@ -444,12 +444,10 @@ impl SDoc {
 
     /// Call a function in this document with a path.
     pub fn call_func(&mut self, path: &str, start: Option<&SNodeRef>, params: Vec<SVal>) -> Result<SVal, SError> {
-        if let Some(func_ref) = self.func(path, start) {
-            if let Some(func) = SData::get::<SFunc>(&self.graph, &func_ref).cloned() {
-                let res = func.call(&func_ref, "main", self, params, true);
-                self.clean("main");
-                return res;
-            }
+        if let Some(func_ref) = SFunc::func_ref(&self.graph, path, '.', start) {
+            let res = SFunc::call(&func_ref, "main", self, params, true);
+            self.clean("main");
+            return res;
         }
         Err(SError::call("main", &self, &format!("did not find a function at the path '{}' to call", path)))
     }
@@ -543,7 +541,7 @@ impl SDoc {
             if let Some(func) = SData::get::<SFunc>(&self.graph, &func_ref).cloned() {
                 if let Some(res_test_val) = func.attributes.get("test") {
                     let silent = func.attributes.contains_key("silent");
-                    let mut result = func.call(&func_ref, "main", self, vec![], true);
+                    let mut result = SFunc::call_internal(&func_ref, "main", self, vec![], true, &func.params, &func.statements, &func.rtype);
                     self.clean("main");
 
                     let func_nodes = func_ref.nodes(&self.graph);
@@ -590,7 +588,7 @@ impl SDoc {
 
                                         let profile_start = SystemTime::now();
                                         for _ in 0..iterations {
-                                            let _ = func.call(&func_ref, "main", self, vec![], true);
+                                            let _ = SFunc::call_internal(&func_ref, "main", self, vec![], true, &func.params, &func.statements, &func.rtype);
                                             self.clean("main");
                                         }
                                         let total_duration = profile_start.elapsed().unwrap();

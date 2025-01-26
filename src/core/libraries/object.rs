@@ -149,10 +149,12 @@ impl ObjectLibrary {
                                 attrs.insert(SVal::String(key.clone()), value.clone());
                             }
                             return Ok(SVal::Map(attrs));
-                        } else if let Some(func) = SFunc::func(&doc.graph, &index, '.', Some(obj)) {
+                        } else if let Some(func_ref) = SFunc::func_ref(&doc.graph, &index, '.', Some(obj)) {
                             let mut attrs = BTreeMap::new();
-                            for (key, value) in &func.attributes {
-                                attrs.insert(SVal::String(key.clone()), value.clone());
+                            if let Some(func) = SData::get::<SFunc>(&doc.graph, &func_ref) {
+                                for (key, value) in &func.attributes {
+                                    attrs.insert(SVal::String(key.clone()), value.clone());
+                                }
                             }
                             return Ok(SVal::Map(attrs));
                         }
@@ -169,10 +171,12 @@ impl ObjectLibrary {
                                         attrs.insert(SVal::String(key.clone()), value.clone());
                                     }
                                     return Ok(SVal::Map(attrs));
-                                } else if let Some(func) = SFunc::func(&doc.graph, &index, '.', Some(obj)) {
+                                } else if let Some(func_ref) = SFunc::func_ref(&doc.graph, &index, '.', Some(obj)) {
                                     let mut attrs = BTreeMap::new();
-                                    for (key, value) in &func.attributes {
-                                        attrs.insert(SVal::String(key.clone()), value.clone());
+                                    if let Some(func) = SData::get::<SFunc>(&doc.graph, &func_ref) {
+                                        for (key, value) in &func.attributes {
+                                            attrs.insert(SVal::String(key.clone()), value.clone());
+                                        }
                                     }
                                     return Ok(SVal::Map(attrs));
                                 }
@@ -224,10 +228,8 @@ impl ObjectLibrary {
 
                     // Check for an existing field at this location
                     if let Some(field_ref) = SField::field_ref(&doc.graph, &name, '.', Some(obj)) {
-                        if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
-                            if !doc.perms.can_write_field(&doc.graph, &field_ref, &field, Some(obj)) {
-                                return Ok(SVal::Bool(false));
-                            }
+                        if !doc.perms.can_write_field(&doc.graph, &field_ref, Some(obj)) {
+                            return Ok(SVal::Bool(false));
                         }
                         if let Some(field) = SData::get_mut::<SField>(&mut doc.graph, &field_ref) {
                             field.value = value;
@@ -305,10 +307,8 @@ impl ObjectLibrary {
                 let source = parameters.pop().unwrap().to_string();
 
                 if let Some(field_ref) = SField::field_ref(&doc.graph, &source, '.', Some(obj)) {
-                    if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
-                        if !doc.perms.can_write_field(&doc.graph, &field_ref, &field, Some(obj)) {
-                            return Ok(SVal::Bool(false));
-                        }
+                    if !doc.perms.can_write_field(&doc.graph, &field_ref, Some(obj)) {
+                        return Ok(SVal::Bool(false));
                     }
 
                     // union the destination field if one already exists...
@@ -399,11 +399,10 @@ impl ObjectLibrary {
                 let path = parameters.pop().unwrap().to_string();
 
                 if let Some(field_ref) = SField::field_ref(&doc.graph, &path, '.', Some(obj)) {
+                    if !doc.perms.can_write_field(&doc.graph, &field_ref, Some(obj)) {
+                        return Ok(SVal::Bool(false));
+                    }
                     if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
-                        if !doc.perms.can_write_field(&doc.graph, &field_ref, field, Some(obj)) {
-                            return Ok(SVal::Bool(false));
-                        }
-
                         if remove_obj && field.value.is_object() {
                             match field.value.clone().unbox() {
                                 SVal::Object(nref) => {
@@ -435,12 +434,9 @@ impl ObjectLibrary {
                 let path = parameters.pop().unwrap().to_string();
 
                 if let Some(func_ref) = SFunc::func_ref(&doc.graph, &path, '.', Some(obj)) {
-                    if let Some(func) = SData::get::<SFunc>(&doc.graph, &func_ref) {
-                        if !doc.perms.can_write_func(&doc.graph, &func_ref, func, Some(obj)) {
-                            return Ok(SVal::Bool(false));
-                        }
+                    if !doc.perms.can_write_func(&doc.graph, &func_ref, Some(obj)) {
+                        return Ok(SVal::Bool(false));
                     }
-
                     if path.contains('.') {
                         doc.graph.remove_data(func_ref, None);
                     } else {
@@ -672,8 +668,8 @@ impl ObjectLibrary {
 
                 if !obj_ignore_set.contains(&obj.id) {
                     if let Some(field_ref) = SField::field_ref(&doc.graph, &field_name, '.', Some(obj)) {
-                        if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
-                            if doc.perms.can_read_field(&doc.graph, &field_ref, &field, Some(obj)) {
+                        if doc.perms.can_read_field(&doc.graph, &field_ref, Some(obj)) {
+                            if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
                                 return Ok(SVal::Tuple(vec![field.value.clone(), SVal::Number(SNum::I64(0))]));
                             }
                         }
@@ -777,7 +773,7 @@ impl ObjectLibrary {
                         }
                     }
                     if let Some(parent_ref) = parent_field_ref {
-                        if doc.perms.can_read_field(&doc.graph, &parent_ref, &field, Some(obj)) {
+                        if doc.perms.can_read_field(&doc.graph, &parent_ref, Some(obj)) {
                             return Ok(SVal::Tuple(vec![field.value.clone(), SVal::Number(SNum::I64(parent_distance))]));
                         }
                     }
@@ -826,7 +822,7 @@ impl ObjectLibrary {
                 if !obj_ignore_set.contains(&obj.id) {
                     if let Some(field_ref) = SField::field_ref(&doc.graph, &field_name, '.', Some(obj)) {
                         if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
-                            if doc.perms.can_read_field(&doc.graph, &field_ref, &field, Some(obj)) {
+                            if doc.perms.can_read_field(&doc.graph, &field_ref, Some(obj)) {
                                 return Ok(SVal::Tuple(vec![field.value.clone(), SVal::Number(SNum::I64(current_distance))]));
                             }
                         }

@@ -87,13 +87,7 @@ impl Statements {
                     if !set_var && name.contains('.') && !name.ends_with('.') && !name.starts_with('.') {
                         // Try assigning via an absolute path to a field first
                         if let Some(field_ref) = SField::field_ref(&doc.graph, &name, '.', None) {
-                            let mut allowed = true;
-                            if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
-                                if !doc.perms.can_write_field(&doc.graph, &field_ref, field, doc.self_ptr(pid).as_ref()) {
-                                    allowed = false;
-                                }
-                            }
-                            if allowed {
+                            if doc.perms.can_write_field(&doc.graph, &field_ref, doc.self_ptr(pid).as_ref()) {
                                 if let Some(field) = SData::get_mut::<SField>(&mut doc.graph, &field_ref) {
                                     field.value = val;
                                 }
@@ -120,13 +114,7 @@ impl Statements {
                             if let Some(mut context) = context {
                                 // Already defined field?
                                 if let Some(field_ref) = SField::field_ref(&doc.graph, &context_path, '.', Some(&context)) {
-                                    let mut allowed = true;
-                                    if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
-                                        if !doc.perms.can_write_field(&doc.graph, &field_ref, field, doc.self_ptr(pid).as_ref()) {
-                                            allowed = false;
-                                        }
-                                    }
-                                    if allowed {
+                                    if doc.perms.can_write_field(&doc.graph, &field_ref, doc.self_ptr(pid).as_ref()) {
                                         if let Some(field) = SData::get_mut::<SField>(&mut doc.graph, &field_ref) {
                                             field.value = val;
                                         }
@@ -193,13 +181,7 @@ impl Statements {
                                 }
                             },
                             SVal::FnPtr(dref) => {
-                                let mut remove = true;
-                                if let Some(func) = SData::get::<SFunc>(&doc.graph, dref) {
-                                    if !doc.perms.can_write_func(&doc.graph, dref, func, doc.self_ptr(pid).as_ref()) {
-                                        remove = false;
-                                    }
-                                }
-                                if remove {
+                                if doc.perms.can_write_func(&doc.graph, dref, doc.self_ptr(pid).as_ref()) {
                                     doc.graph.remove_data(dref, None);
                                 } else {
                                     doc.add_variable(pid, &name, dropped_val);
@@ -215,7 +197,7 @@ impl Statements {
                             let mut remove = true;
                             let mut remove_objects = Vec::new();
                             if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
-                                if !doc.perms.can_write_field(&doc.graph, &field_ref, &field, doc.self_ptr(pid).as_ref()) {
+                                if !doc.perms.can_write_field(&doc.graph, &field_ref, doc.self_ptr(pid).as_ref()) {
                                     remove = false;
                                 } else {
                                     match &field.value {
@@ -264,13 +246,7 @@ impl Statements {
                                 }
                             }
                         } else if let Some(func_ref) = SFunc::func_ref(&doc.graph, &name, '.', None) {
-                            let mut remove = true;
-                            if let Some(func) = SData::get::<SFunc>(&doc.graph, &func_ref) {
-                                if !doc.perms.can_write_func(&doc.graph, &func_ref, &func, doc.self_ptr(pid).as_ref()) {
-                                    remove = false;
-                                }
-                            }
-                            if remove {
+                            if doc.perms.can_write_func(&doc.graph, &func_ref, doc.self_ptr(pid).as_ref()) {
                                 doc.graph.remove_data(&func_ref, None);
                             }
                         } else if let Some(node) = doc.graph.node_ref(&name.replace(".", "/"), None) {
@@ -325,7 +301,7 @@ impl Statements {
                                     let mut remove = true;
                                     let mut remove_objects = Vec::new();
                                     if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
-                                        if !doc.perms.can_write_field(&doc.graph, &field_ref, &field, doc.self_ptr(pid).as_ref()) {
+                                        if !doc.perms.can_write_field(&doc.graph, &field_ref, doc.self_ptr(pid).as_ref()) {
                                             remove = false;
                                         } else {
                                             match &field.value {
@@ -374,13 +350,7 @@ impl Statements {
                                         }
                                     }
                                 } else if let Some(func_ref) = SFunc::func_ref(&doc.graph, &context_path, '.', Some(&context)) {
-                                    let mut remove = true;
-                                    if let Some(func) = SData::get::<SFunc>(&doc.graph, &func_ref) {
-                                        if !doc.perms.can_write_func(&doc.graph, &func_ref, &func, doc.self_ptr(pid).as_ref()) {
-                                            remove = false;
-                                        }
-                                    }
-                                    if remove {
+                                    if doc.perms.can_write_func(&doc.graph, &func_ref, doc.self_ptr(pid).as_ref()) {
                                         doc.graph.remove_data(&func_ref, None);
                                     }
                                 }
