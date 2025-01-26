@@ -29,7 +29,7 @@ pub const DATA_DIRTY_NODES: &str = "nodes";
 
 /// Data trait that allows for dynamically typed data in Stof.
 #[typetag::serde]
-pub trait Data: AsDynAny + std::fmt::Debug + DataClone {}
+pub trait Data: AsDynAny + std::fmt::Debug + DataClone + Send + Sync {}
 
 /// String data.
 #[typetag::serde(name = "_String")]
