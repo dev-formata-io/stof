@@ -87,13 +87,13 @@ impl ObjectLibrary {
                 if parameters.len() == 1 {
                     let field_path = parameters[0].to_string();
                     if let Some(field_ref) = SField::field_ref(&doc.graph, &field_path, '.', Some(obj)) {
-                        if let Some(field) = field_ref.get_data::<SField>(&doc.graph) {
+                        if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
                             self.operate(pid, doc, "removeField", obj, &mut vec![SVal::String(field.name.clone())])?;
                         }
                         SData::attach_existing(&mut doc.graph, obj, field_ref);
                         return Ok(SVal::Bool(true));
                     } else if let Some(field_ref) = SField::field_ref(&doc.graph, &field_path, '.', None) {
-                        if let Some(field) = field_ref.get_data::<SField>(&doc.graph) {
+                        if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
                             self.operate(pid, doc, "removeField", obj, &mut vec![SVal::String(field.name.clone())])?;
                         }
                         SData::attach_existing(&mut doc.graph, obj, field_ref);
@@ -111,7 +111,7 @@ impl ObjectLibrary {
                         SVal::Object(context) => {
                             let field_path = parameters[1].to_string();
                             if let Some(field_ref) = SField::field_ref(&doc.graph, &field_path, '.', Some(&context)) {
-                                if let Some(field) = field_ref.get_data::<SField>(&doc.graph) {
+                                if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
                                     self.operate(pid, doc, "removeField", obj, &mut vec![SVal::String(field.name.clone())])?;
                                 }
                                 SData::attach_existing(&mut doc.graph, obj, field_ref);
@@ -193,7 +193,7 @@ impl ObjectLibrary {
                 let funcs = SFunc::func_refs(&doc.graph, obj);
                 let mut map = BTreeMap::new();
                 for func_ref in funcs {
-                    if let Some(func) = func_ref.get_data::<SFunc>(&doc.graph) {
+                    if let Some(func) = SData::get::<SFunc>(&doc.graph, &func_ref) {
                         let value = SVal::FnPtr(func_ref);
                         let key = SVal::String(func.name.clone());
                         map.insert(key, value);

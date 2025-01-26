@@ -16,7 +16,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 use serde::{Deserialize, Serialize};
-use crate::{Payload, SData, SDataRef, SDoc, SGraph, SNodeRef};
+use crate::{Data, SData, SDataRef, SDoc, SGraph, SNodeRef};
 use super::{lang::{Expr, SError, Statements, StatementsRes}, SType, SVal};
 
 
@@ -31,7 +31,7 @@ pub struct SFunc {
 }
 
 #[typetag::serde(name = "_SFunc")]
-impl Payload for SFunc {}
+impl Data for SFunc {}
 
 impl SFunc {
     /// New function.

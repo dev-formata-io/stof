@@ -14,10 +14,10 @@
 // limitations under the License.
 //
 
-use std::{any::Any, collections::HashSet, fmt::Display, mem::swap};
+use std::{collections::HashSet, fmt::Display, mem::swap};
 use serde::{Deserialize, Serialize};
-use crate::{IntoSVal, SField, SUnits, SVal};
-use super::{Payload, SData, SGraph, SNode, Store};
+use crate::{SField, SVal};
+use super::{SData, SGraph, SNode, Store};
 
 
 /// Stof Ref Trait.
@@ -263,32 +263,6 @@ impl SNodeRef {
         }
         Vec::new()
     }
-
-    /// Get a field on this node if it exists (dot separated path).
-    pub fn dot_field<'a>(&self, graph: &'a SGraph, path: &str) -> Option<&'a SField> {
-        self.field(graph, path, '.')
-    }
-
-    /// Get a field on this node if it exists (slash separated path).
-    pub fn slash_field<'a>(&self, graph: &'a SGraph, path: &str) -> Option<&'a SField> {
-        self.field(graph, path, '/')
-    }
-    
-    /// Get a field on this node if it exists.
-    pub fn field<'a>(&self, graph: &'a SGraph, path: &str, sep: char) -> Option<&'a SField> {
-        SField::field(graph, path, sep, Some(&self))
-    }
-
-    /// Get all fields on this node.
-    pub fn fields<'a>(&self, graph: &'a SGraph) -> Vec<&'a SField> {
-        SField::fields(graph, self)
-    }
-
-    /// Create a new field on this node.
-    pub fn new_field(&self, graph: &mut SGraph, name: &str, value: impl IntoSVal) -> Option<SDataRef> {
-        let field = SField::new(name, value);
-        SData::insert_new(graph, self, Box::new(field))
-    }
     
     /// Distance to another node in the graph.
     /// If same node, distance is 0.
@@ -464,53 +438,6 @@ impl SNodeRef {
         seen.insert(current.id.clone());
         Some(current.node_ref())
     }
-
-
-    /*****************************************************************************
-     * Field creation helpers.
-     *****************************************************************************/
-    
-    /// New object field on this object.
-    #[inline]
-    pub fn new_object(&self, graph: &mut SGraph, name: &str) -> Self {
-        SField::new_object(graph, name, &self)
-    }
-
-    /// Insert an array field on this object.
-    #[inline]
-    pub fn new_array(&self, graph: &mut SGraph, name: &str, vals: Vec<SVal>) -> Option<SDataRef> {
-        SField::new_array(graph, name, vals, &self)
-    }
-
-    /// Insert a new string field on this object.
-    #[inline]
-    pub fn new_string(&self, graph: &mut SGraph, name: &str, value: &str) -> Option<SDataRef> {
-        SField::new_string(graph, name, value, &self)
-    }
-
-    /// Insert a new boolean field on this object.
-    #[inline]
-    pub fn new_bool(&self, graph: &mut SGraph, name: &str, value: bool) -> Option<SDataRef> {
-        SField::new_bool(graph, name, value, &self)
-    }
-
-    /// New integer field on this object.
-    #[inline]
-    pub fn new_int(&self, graph: &mut SGraph, name: &str, value: i64) -> Option<SDataRef> {
-        SField::new_int(graph, name, value, &self)
-    }
-
-    /// New float field on this object.
-    #[inline]
-    pub fn new_float(&self, graph: &mut SGraph, name: &str, value: f64) -> Option<SDataRef> {
-        SField::new_float(graph, name, value, &self)
-    }
-
-    /// New float units field on this object.
-    #[inline]
-    pub fn new_units(&self, graph: &mut SGraph, name: &str, value: f64, units: SUnits) -> Option<SDataRef> {
-        SField::new_units(graph, name, value, units, &self)
-    }
 }
 
 
@@ -654,15 +581,5 @@ impl SDataRef {
             return data.validate_val();
         }
         false
-    }
-
-    /// Set the data of this Stof data.
-    pub fn set_data(&self, graph: &mut SGraph, data: Box<dyn Payload>) -> bool {
-        SData::set(graph, self, data)
-    }
-
-    /// Get the data value on this data.
-    pub fn get_data<'a, T: Any>(&self, graph: &'a SGraph) -> Option<&'a T> {
-        SData::get::<T>(graph, self)
     }
 }

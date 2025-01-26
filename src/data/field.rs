@@ -16,7 +16,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 use serde::{Deserialize, Serialize};
-use crate::{Payload, SData, SDataRef, SGraph, SNodeRef};
+use crate::{Data, SData, SDataRef, SGraph, SNodeRef};
 use super::{SNum, SUnits, SVal};
 
 
@@ -29,7 +29,7 @@ pub struct SField {
 }
 
 #[typetag::serde(name = "_SField")]
-impl Payload for SField {}
+impl Data for SField {}
 
 impl PartialOrd for SField {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {

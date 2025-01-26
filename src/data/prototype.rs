@@ -16,7 +16,7 @@
 
 use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
-use crate::{IntoNodeRef, Payload, SData, SDataRef, SDoc, SGraph, SNodeRef};
+use crate::{IntoNodeRef, Data, SData, SDataRef, SDoc, SGraph, SNodeRef};
 use super::{lang::CustomType, SField, SVal};
 
 
@@ -28,7 +28,7 @@ pub struct SPrototype {
 }
 
 #[typetag::serde(name = "_SProto")]
-impl Payload for SPrototype {}
+impl Data for SPrototype {}
 
 impl IntoNodeRef for SPrototype {
     fn node_ref(&self) -> SNodeRef {

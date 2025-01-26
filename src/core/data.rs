@@ -27,30 +27,31 @@ pub const DATA_DIRTY_VAL: &str = "value";
 pub const DATA_DIRTY_NODES: &str = "nodes";
 
 
+/// Data trait that allows for dynamically typed data in Stof.
 #[typetag::serde]
-pub trait Payload: AsDynAny + std::fmt::Debug + PayloadClone {}
+pub trait Data: AsDynAny + std::fmt::Debug + DataClone {}
 
-/// Blanket Clone implementation for any struct that implements Clone + Payload
-pub trait PayloadClone {
-    fn clone_payload(&self) -> Box<dyn Payload>;
+/// Blanket Clone implementation for any struct that implements Clone + Data
+pub trait DataClone {
+    fn clone_data(&self) -> Box<dyn Data>;
 }
-impl<T: Payload + Clone + 'static> PayloadClone for T {
-    fn clone_payload(&self) -> Box<dyn Payload> {
+impl<T: Data + Clone + 'static> DataClone for T {
+    fn clone_data(&self) -> Box<dyn Data> {
         Box::new(self.clone())
     }
 }
-impl Clone for Box<dyn Payload> {
-    fn clone(&self) -> Box<dyn Payload> {
-        self.clone_payload()
+impl Clone for Box<dyn Data> {
+    fn clone(&self) -> Box<dyn Data> {
+        self.clone_data()
     }
 }
 
-/// Blanket manual upcast to dyn Any for payloads to be worked with as dynamic types.
+/// Blanket manual upcast to dyn Any for Data.
 pub trait AsDynAny {
     fn as_dyn_any(&self) -> &dyn Any;
     fn as_mut_dyn_any(&mut self) -> &mut dyn Any;
 }
-impl<T: Payload + Any> AsDynAny for T {
+impl<T: Data + Any> AsDynAny for T {
     fn as_dyn_any(&self) -> &dyn Any {
         self
     }
@@ -59,21 +60,20 @@ impl<T: Payload + Any> AsDynAny for T {
     }
 }
 
-#[typetag::serde(name = "empty")]
-impl Payload for () {}
 
 /// Stof Data.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SData {
     pub id: String,
     pub nodes: Vec<SNodeRef>,
+    pub data: Box<dyn Data>,
+
     #[serde(skip)]
     pub dirty: HashSet<String>,
-    pub data: Box<dyn Payload>,
 }
 impl SData {
     /// Create a new SData with an ID.
-    pub fn new_id(id: &str, data: Box<dyn Payload>) -> Self {
+    pub fn new_id(id: &str, data: Box<dyn Data>) -> Self {
         Self {
             id: id.to_owned(),
             nodes: Default::default(),
@@ -83,7 +83,7 @@ impl SData {
     }
 
     /// Create a new SData without an ID.
-    pub fn new(data: Box<dyn Payload>) -> Self {
+    pub fn new(data: Box<dyn Data>) -> Self {
         Self {
             id: format!("dta{}", nanoid!()),
             nodes: Default::default(),
@@ -111,6 +111,11 @@ impl SData {
         self.nodes.len()
     }
 
+    
+    /*****************************************************************************
+     * Invalidate/Validate.
+     *****************************************************************************/
+    
     /// Invalidate this data with a symbol.
     pub fn invalidate(&mut self, symbol: &str) {
         self.dirty.insert(symbol.to_owned());
@@ -146,14 +151,19 @@ impl SData {
         self.dirty.len() > 0
     }
 
+
+    /*****************************************************************************
+     * Insert Data into Stof.
+     *****************************************************************************/
+    
     /// Create a new data and insert it into a graph, using the specified data ID.
-    pub fn insert_new_id(graph: &mut SGraph, node: impl IntoNodeRef, data: Box<dyn Payload>, id: &str) -> Option<SDataRef> {
+    pub fn insert_new_id(graph: &mut SGraph, node: impl IntoNodeRef, data: Box<dyn Data>, id: &str) -> Option<SDataRef> {
         let dta = Self::new_id(id, data);
         dta.insert(graph, node)
     }
 
     /// Create a new data and insert it into a graph.
-    pub fn insert_new(graph: &mut SGraph, node: impl IntoNodeRef, data: Box<dyn Payload>) -> Option<SDataRef> {
+    pub fn insert_new(graph: &mut SGraph, node: impl IntoNodeRef, data: Box<dyn Data>) -> Option<SDataRef> {
         let dta = Self::new(data);
         dta.insert(graph, node)
     }
@@ -164,6 +174,11 @@ impl SData {
         graph.put_data(node, self)
     }
 
+
+    /*****************************************************************************
+     * Attach existing to additional nodes.
+     *****************************************************************************/
+    
     /// Attach an existing data reference to a node.
     /// Returns true if the data was present and newly attached to the node.
     pub fn attach_existing(graph: &mut SGraph, node: impl IntoNodeRef, data: impl IntoDataRef) -> bool {
@@ -184,6 +199,11 @@ impl SData {
         false
     }
     
+
+    /*****************************************************************************
+     * Type check for this data.
+     *****************************************************************************/
+    
     /// Is data a type of?
     /// Compares the unboxed data type to T.
     pub fn is_type_of<T: Any>(&self) -> bool {
@@ -201,14 +221,19 @@ impl SData {
         false
     }
 
+
+    /*****************************************************************************
+     * Set data.
+     *****************************************************************************/
+
     /// Set data.
-    pub fn set_data(&mut self, data: Box<dyn Payload>) {
+    pub fn set_data(&mut self, data: Box<dyn Data>) {
         self.data = data;
         self.invalidate_val();
     }
 
     /// Set data from the outside.
-    pub fn set(graph: &mut SGraph, dref: impl IntoDataRef, data: Box<dyn Payload>) -> bool {
+    pub fn set(graph: &mut SGraph, dref: impl IntoDataRef, data: Box<dyn Data>) -> bool {
         if let Some(sdata) = dref.data_ref().data_mut(graph) {
             sdata.set_data(data);
             return true;
@@ -216,6 +241,11 @@ impl SData {
         false
     }
 
+
+    /*****************************************************************************
+     * Get data.
+     *****************************************************************************/
+    
     /// Get a reference to our data in the type we would like if able.
     pub fn get_data<T: Any>(&self) -> Option<&T> {
         let any = self.data.as_dyn_any();
@@ -252,59 +282,3 @@ impl SData {
         None
     }
 }
-
-
-// Generic Data.
-// Implement this trait to get helpers for attaching, setting, and removing data from an Stof Graph.
-// Also indexes this type of data for creating selections based on "kind".
-/*pub trait Data: Serialize + DeserializeOwned + Clone + IntoDataRef {
-    /// Set data ref.
-    fn set_ref(&mut self, to_ref: impl IntoDataRef);
-
-    /// Kind of this data.
-    /// This will be the ID prefix of this data when attached in the graph.
-    /// Allows for quick finding of different types of data.
-    fn kind(&self) -> String {
-        return "dta".to_string();
-    }
-
-    /// Exists in the graph?
-    fn exists(&self, graph: &SGraph) -> bool {
-        self.data_ref().exists(graph)
-    }
-
-    /// Attach this data to a node.
-    /// Doesn't have to already be in the graph.
-    fn attach(&mut self, node: &SNodeRef, graph: &mut SGraph) {
-        if self.exists(graph) {
-            graph.put_data_ref(node, &self.data_ref());
-        } else {
-            let mut id = self.data_ref().id;
-            if id.len() < 1 {
-                id = format!("{}_{}", self.kind(), nanoid!());
-                self.set_ref(&id);
-            }
-
-            let data = SData::new_id(&id, &self);
-            graph.put_data(node, data);
-        }
-    }
-
-    /// Set the value of this data in the graph.
-    /// Invalidates the data in the graph.
-    fn set(&mut self, graph: &mut SGraph) {
-        if let Some(data) = self.data_ref().data_mut(graph) {
-            data.set_value(&self);
-        }
-    }
-
-    /// Remove this data from Stof.
-    /// If a node is not given, the data will be removed completely.
-    /// If a node is specified, the data will be reomved only from that node.
-    /// If the data only exists on that node, the data is removed completely.
-    ///
-    /// To undo this, just call 'attach' again.
-    fn remove(&self, graph: &mut SGraph, node: Option<&SNodeRef>) {
-        graph.remove_data(&self.data_ref(), node.clone());
-    }
-}*/

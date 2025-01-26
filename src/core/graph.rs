@@ -813,7 +813,7 @@ impl SGraph {
 #[cfg(test)]
 mod tests {
     use serde::{Deserialize, Serialize};
-    use crate::{Payload, SData, SVersion};
+    use crate::{Data, SData, SVersion};
     use super::SGraph;
 
     #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -821,7 +821,7 @@ mod tests {
         name: String,
     }
     #[typetag::serde(name = "Test::MyData")]
-    impl Payload for MyData {}
+    impl Data for MyData {}
 
     #[test]
     fn default_constructor() {
