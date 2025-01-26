@@ -29,7 +29,7 @@ pub(crate) fn json_value_from_node(graph: &SGraph, node_ref: &SNodeRef) -> Value
             }
         }
         if do_export {
-            map.insert(field.name, json_value(graph, field.value));
+            map.insert(field.name.clone(), json_value(graph, field.value.clone()));
         }
     }
     Value::Object(map)

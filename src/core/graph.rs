@@ -18,8 +18,8 @@ use std::{collections::{HashMap, HashSet}, ops::{Index, IndexMut}};
 use anyhow::Result;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{lang::SError, SField, FKIND};
-use super::{Data, IntoDataRef, IntoNodeRef, SData, SDataRef, SDataSelection, SDataStore, SNode, SNodeRef, SNodeStore, SRef, Store, DATA_DIRTY_NODES};
+use crate::{lang::SError, SField};
+use super::{IntoDataRef, IntoNodeRef, SData, SDataRef, SDataSelection, SDataStore, SNode, SNodeRef, SNodeStore, SRef, Store, DATA_DIRTY_NODES};
 
 
 /// Stof graph versions.
@@ -752,10 +752,13 @@ impl SGraph {
                     if let Some(node) = nref.node(other) {
                         for dref in &node.data {
                             data.insert(dref);
+
+                            if SData::type_of::<SField>(&other, dref) {
+                                other_fields.push(dref.clone());
+                            }
                         }
                         children.append(&mut node.children.iter().cloned().collect());
                     }
-                    other_fields.append(&mut SField::fields(&other, nref));
                 } else {
                     graph_nodes.push(nref.clone());
                 }
@@ -764,17 +767,7 @@ impl SGraph {
             // Add children and data to graph nodes
             for graph_node in graph_nodes {
                 // Union both sets of fields, then insert/set them on this graph node
-                let mut field_ids = HashSet::new();
-                let mut graph_fields = SField::fields(graph, &graph_node);
-                SField::union_fields(&mut graph_fields, &other_fields);
-                for mut field in graph_fields {
-                    field_ids.insert(field.id.clone());
-                    if graph.data.contains(&field.id) {
-                        field.set(graph);
-                    } else {
-                        field.attach(&graph_node, graph);
-                    }
-                }
+                SField::union_fields(graph, &graph_node, &other, &other_fields);
 
                 // Add children to this node
                 if let Some(node) = graph_node.node_mut(graph) {
@@ -785,7 +778,7 @@ impl SGraph {
 
                 // Add all data onto this graph
                 for dref in &data {
-                    if !field_ids.contains(&dref.id) && !dref.id.starts_with(FKIND) {
+                    if !SData::type_of::<SField>(&other, dref) {
                         if let Some(data) = dref.data(other) {
                             graph.put_data(&graph_node, data.clone());
                         }
@@ -820,13 +813,15 @@ impl SGraph {
 #[cfg(test)]
 mod tests {
     use serde::{Deserialize, Serialize};
-    use crate::{SData, SVersion};
+    use crate::{Payload, SData, SVersion};
     use super::SGraph;
 
-    #[derive(Deserialize, Serialize, Debug)]
+    #[derive(Deserialize, Serialize, Debug, Clone)]
     struct MyData {
         name: String,
     }
+    #[typetag::serde(name = "Test::MyData")]
+    impl Payload for MyData {}
 
     #[test]
     fn default_constructor() {
@@ -848,19 +843,19 @@ mod tests {
         {
             let base= graph.insert_node("base", Some(&root));
             {
-                cj = graph.put_data(&base, SData::new(MyData { name: "CJ".to_owned() }));
+                cj = graph.put_data(&base, SData::new(Box::new(MyData { name: "CJ".to_owned() })));
             }
             let top = graph.insert_node("top", Some(&root));
             {
-                amelia = graph.put_data(&top, SData::new(MyData { name: "Amelia".to_owned() }));
+                amelia = graph.put_data(&top, SData::new(Box::new(MyData { name: "Amelia".to_owned() })));
             }
         }
 
         let binary = bincode::serialize(&graph).unwrap();
         let gph = bincode::deserialize::<SGraph>(&binary).unwrap();
 
-        let cj = SData::data::<MyData>(&gph, &cj).unwrap();
-        let amelia = SData::data::<MyData>(&gph, &amelia).unwrap();
+        let cj = SData::get::<MyData>(&gph, &cj).unwrap();
+        let amelia = SData::get::<MyData>(&gph, &amelia).unwrap();
         assert_eq!(cj.name, "CJ");
         assert_eq!(amelia.name, "Amelia");
     }
@@ -874,21 +869,34 @@ mod tests {
         {
             let base= graph.insert_node("base", Some(&root));
             {
-                cj = graph.put_data(&base, SData::new(MyData { name: "CJ".to_owned() }));
+                cj = graph.put_data(&base, SData::new(Box::new(MyData { name: "CJ".to_owned() })));
             }
             let top = graph.insert_node("top", Some(&root));
             {
-                amelia = graph.put_data(&top, SData::new(MyData { name: "Amelia".to_owned() }));
+                amelia = graph.put_data(&top, SData::new(Box::new(MyData { name: "Amelia".to_owned() })));
             }
         }
 
         let binary = bincode::serialize(&graph).unwrap();
-        let gph = bincode::deserialize::<SGraph>(&binary).unwrap();
+        let mut gph = bincode::deserialize::<SGraph>(&binary).unwrap();
 
-        let cj = SData::data::<MyData>(&gph, &cj).unwrap();
-        let amelia = SData::data::<MyData>(&gph, &amelia).unwrap();
-        assert_eq!(cj.name, "CJ");
-        assert_eq!(amelia.name, "Amelia");
+        {
+            let cj = SData::get::<MyData>(&gph, &cj).unwrap();
+            let amelia = SData::get::<MyData>(&gph, &amelia).unwrap();
+            assert_eq!(cj.name, "CJ");
+            assert_eq!(amelia.name, "Amelia");
+        }
+
+        if let Some(mut_cj) = SData::get_mut::<MyData>(&mut gph, &cj) {
+            mut_cj.name = "DUDE".to_string();
+        }
+
+        {
+            let cj = SData::get::<MyData>(&gph, &cj).unwrap();
+            let amelia = SData::get::<MyData>(&gph, &amelia).unwrap();
+            assert_eq!(cj.name, "DUDE");
+            assert_eq!(amelia.name, "Amelia");
+        }
     }
 
     #[test]

@@ -17,7 +17,7 @@
 use core::str;
 use std::{cmp::Ordering, collections::{BTreeMap, BTreeSet, HashSet}, hash::{Hash, Hasher}, ops::{Deref, DerefMut}, sync::{Arc, Mutex}};
 use serde::{Deserialize, Serialize};
-use crate::{Data, SDataRef, SDoc, SGraph, SNodeRef};
+use crate::{SData, SDataRef, SDoc, SGraph, SNodeRef};
 use super::{lang::SError, SField, SNumType, SPrototype, SType, SUnits};
 
 #[cfg(feature = "json")]
@@ -1331,39 +1331,48 @@ impl SVal {
                             // Have to move typefields out of the borrow...
                             typefields = custom_type.fields.clone();
 
-                            if let Some(mut prototype) = SPrototype::get(&doc.graph, nref) {
-                                prototype.prototype = custom_type.locid.clone();
-                                prototype.set(&mut doc.graph);
+                            if let Some(prototype_ref) = SPrototype::get_ref(&doc.graph, nref) {
+                                if let Some(prototype) = SData::get_mut::<SPrototype>(&mut doc.graph, &prototype_ref) {
+                                    prototype.prototype = custom_type.locid.clone();
+                                }
                             } else {
-                                let mut prototype = custom_type.prototype();
-                                prototype.attach(nref, &mut doc.graph);
+                                let prototype = custom_type.prototype();
+                                SData::insert_new(&mut doc.graph, nref, Box::new(prototype));
                             }
                             success = true;
                         }
                         if success {
                             // Check for fields on this object in the correct type, otherwise create with the defaults from the custom type
                             for typefield in typefields {
-                                if let Some(mut field) = SField::field(&doc.graph, &typefield.name, '.', Some(nref)) {
-                                    let mut set = false;
-                                    let existing_type = field.value.stype(&doc.graph);
-                                    if existing_type != typefield.ptype {
-                                        field.value = field.value.cast(typefield.ptype, pid, doc)?.unbox();
-                                        set = true;
-                                    }
-                                    for (name, value) in typefield.attributes {
-                                        if !field.attributes.contains_key(&name) {
-                                            set = true;
-                                            field.attributes.insert(name, value);
+                                if let Some(field_ref) = SField::field_ref(&doc.graph, &typefield.name, '.', Some(nref)) {
+                                    let mut cast_type = None;
+                                    if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
+                                        let existing_type = field.value.stype(&doc.graph);
+                                        if existing_type != typefield.ptype {
+                                            cast_type = Some((field.value.clone(), typefield.ptype));
                                         }
                                     }
-                                    if set {
-                                        field.set(&mut doc.graph);
+
+                                    let mut cast_value = None;
+                                    if let Some(cast_type) = cast_type {
+                                        cast_value = Some(cast_type.0.cast(cast_type.1, pid, doc)?);
+                                    }
+
+                                    if let Some(field) = SData::get_mut::<SField>(&mut doc.graph, &field_ref) {
+                                        if let Some(new_val) = cast_value {
+                                            field.value = new_val;
+                                        }
+                                        for (name, value) in typefield.attributes {
+                                            if !field.attributes.contains_key(&name) {
+                                                field.attributes.insert(name, value);
+                                            }
+                                        }
                                     }
                                 } else if let Some(default) = &typefield.default {
                                     let default_value = default.exec(pid, doc)?;
-                                    let mut field = SField::new(&typefield.name, default_value.unbox());
+                                    let mut field = SField::new(&typefield.name, default_value);
                                     field.attributes = typefield.attributes;
-                                    field.attach(nref, &mut doc.graph);
+                                    SData::insert_new(&mut doc.graph, nref, Box::new(field));
                                 } else {
                                     return Err(SError::val(pid, &doc, "cast", &format!("Could not find or create the field '{}' while casting object into '{}'", typefield.name, typepath)));
                                 }

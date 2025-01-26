@@ -14,45 +14,23 @@
 // limitations under the License.
 //
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use serde::{Deserialize, Serialize};
-use crate::{Data, IntoDataRef, SData, SDataRef, SGraph, SNodeRef};
+use crate::{Payload, SData, SDataRef, SGraph, SNodeRef};
 use super::{SNum, SUnits, SVal};
-
-
-/// Stof field kind.
-pub const FKIND: &str = "fld";
 
 
 /// Stof field.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SField {
-    /// ID of this field.
-    /// This will also be the SDataRef ID.
-    pub id: String,
-
-    /// Name of this field.
     pub name: String,
-
-    /// Value of this field.
     pub value: SVal,
-
-    /// Attributes.
     pub attributes: BTreeMap<String, SVal>,
 }
-impl IntoDataRef for SField {
-    fn data_ref(&self) -> SDataRef {
-        SDataRef::from(&self.id)
-    }
-}
-impl Data for SField {
-    fn kind(&self) -> String {
-        FKIND.to_string()
-    }
-    fn set_ref(&mut self, to_ref: impl IntoDataRef) {
-        self.id = to_ref.data_ref().id;
-    }
-}
+
+#[typetag::serde(name = "_SField")]
+impl Payload for SField {}
+
 impl PartialOrd for SField {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.name.partial_cmp(&other.name)
@@ -80,86 +58,6 @@ impl SField {
         self.name == other.name && self.value.schema_eq(&other.value, graph)
     }
 
-    /// Is null field?
-    pub fn is_null(&self) -> bool {
-        match &self.value {
-            SVal::Null => { true }
-            _ => { false }
-        }
-    }
-
-    /// Is boolean field?
-    pub fn is_bool(&self) -> bool {
-        match &self.value {
-            SVal::Bool(_) => { true }
-            _ => { false }
-        }
-    }
-
-    /// Get boolean value for this field.
-    pub fn bool(&self) -> bool {
-        match &self.value {
-            SVal::Bool(val) => { *val }
-            _ => { false }
-        }
-    }
-
-    /// Is a number field?
-    pub fn is_number(&self) -> bool {
-        match &self.value {
-            SVal::Number(_) => { true }
-            _ => { false }
-        }
-    }
-
-    /// Get the number value from this field.
-    pub fn number(&self) -> SNum {
-        match &self.value {
-            SVal::Number(val) => { val.clone() }
-            _ => { 0.into() }
-        }
-    }
-
-    /// Integer representation of this number.
-    pub fn integer(&self) -> i64 {
-        match &self.value {
-            SVal::Number(val) => { val.int() }
-            _ => { 0.into() }
-        }
-    }
-
-    /// Get number float value from this field.
-    pub fn float(&self) -> f64 {
-        match &self.value {
-            SVal::Number(val) => { val.float() }
-            _ => 0.
-        }
-    }
-
-    /// Float with units.
-    pub fn float_with_units(&self, units: SUnits) -> f64 {
-        match &self.value {
-            SVal::Number(val) => val.float_with_units(units),
-            _ => 0.
-        }
-    }
-
-    /// Is a string?
-    pub fn is_string(&self) -> bool {
-        match &self.value {
-            SVal::String(_) => { true }
-            _ => { false }
-        }
-    }
-
-    /// Get string value from this field.
-    pub fn string(&self) -> String {
-        match &self.value {
-            SVal::String(val) => { val.clone() }
-            _ => { Default::default() }
-        }
-    }
-
     /// To string.
     pub fn to_string(&self) -> String {
         self.value.to_string()
@@ -170,93 +68,75 @@ impl SField {
         self.value.is_object()
     }
 
-    /// Get object value from this field.
-    pub fn object(&self) -> Option<SNodeRef> {
-        match &self.value {
-            SVal::Object(val) => { Some(val.clone()) }
-            _ => { None }
-        }
-    }
-
-    /// Is an array?
-    pub fn is_array(&self) -> bool {
-        match &self.value {
-            SVal::Array(_) => { true }
-            _ => { false }
-        }
-    }
-
-    /// Get array value from this field.
-    pub fn array(&self) -> Vec<SVal> {
-        match &self.value {
-            SVal::Array(vals) => { vals.clone() }
-            _ => { vec![] }
-        }
-    }
-
-    /// Get all fields on a node.
-    pub fn fields(graph: &SGraph, node: &SNodeRef) -> Vec<Self> {
-        let mut res = Vec::new();
+    /// Get references to all fields on a node.
+    pub fn fields<'a>(graph: &'a SGraph, node: &SNodeRef) -> Vec<&'a Self> {
         if let Some(node) = node.node(graph) {
-            for dref in node.prefix_selection(FKIND) {
-                if let Ok(field) = SData::data::<SField>(graph, dref) {
-                    res.push(field);
-                }
-            }
+            return node.data::<Self>(graph);
         }
-        res
+        vec![]
     }
 
-    /// Get all fields on a node as a hashmap.
-    pub fn fields_map(graph: &SGraph, node: &SNodeRef) -> HashMap<String, Self> {
-        let mut res = HashMap::new();
+    /// Get field data refs to all fields on a node.
+    pub fn field_refs(graph: &SGraph, node: &SNodeRef) -> Vec<SDataRef> {
         if let Some(node) = node.node(graph) {
-            for dref in node.prefix_selection(FKIND) {
-                if let Ok(field) = SData::data::<SField>(graph, dref) {
-                    res.insert(field.name.clone(), field);
-                }
-            }
+            return node.data_refs::<Self>(graph);
         }
-        res
-    }
-
-    /// Get an adjacent field to this field.
-    pub fn adjacent(&self, graph: &SGraph, path: &str, sep: char) -> Option<Self> {
-        if let Some(data) = self.data_ref().data(graph) {
-            for node_ref in &data.nodes {
-                let field = Self::field(graph, path, sep, Some(node_ref));
-                if field.is_some() {
-                    return field;
-                }
-            }
-        }
-        None
-    }
-
-    /// Get the first field that matches a path given.
-    pub fn first_match(graph: &SGraph, paths: Vec<&str>, sep: char, start: Option<&SNodeRef>) -> Option<Self> {
-        for path in paths {
-            let field = Self::field(graph, path, sep, start);
-            if field.is_some() {
-                return field;
-            }
-        }
-        None
+        vec![]
     }
 
     /// Get a field from a path with the given separator.
     /// Last name in the path is the field name.
     /// If path is only the field, will search on start if any or search each root in the graph.
-    pub fn field(graph: &SGraph, path: &str, sep: char, start: Option<&SNodeRef>) -> Option<Self> {
+    pub fn field<'a>(graph: &'a SGraph, path: &str, sep: char, start: Option<&SNodeRef>) -> Option<&'a Self> {
         let mut items: Vec<&str> = path.split(sep).collect();
 
         let field_name = items.pop().unwrap();
         if items.len() > 0 {
             if let Some(node) = graph.node_from(&items.join("/"), start) {
-                for dref in node.prefix_selection(FKIND) {
-                    if let Ok(field) = SData::data::<SField>(graph, dref) {
+                for field in node.data::<Self>(graph) {
+                    if field.name == field_name {
+                        return Some(field);
+                    }
+                }
+            }
+        } else {
+            if let Some(start) = start {
+                if let Some(node) = start.node(graph) {
+                    for field in node.data::<Self>(graph) {
                         if field.name == field_name {
                             return Some(field);
+                        }
+                    }
+                }
+            } else {
+                for root_ref in &graph.roots {
+                    if let Some(node) = root_ref.node(graph) {
+                        for field in node.data::<Self>(graph) {
+                            if field.name == field_name {
+                                return Some(field);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
+
+    /// Get a field data reference from a path with the given separator.
+    /// Last name in the path is the field name.
+    /// If path is only the field, will search on start if any or search each root in the graph.
+    pub fn field_ref(graph: &SGraph, path: &str, sep: char, start: Option<&SNodeRef>) -> Option<SDataRef> {
+        let mut items: Vec<&str> = path.split(sep).collect();
+
+        let field_name = items.pop().unwrap();
+        if items.len() > 0 {
+            if let Some(node) = graph.node_from(&items.join("/"), start) {
+                for dref in &node.data {
+                    if let Some(field) = SData::get::<Self>(graph, dref) {
+                        if field.name == field_name {
+                            return Some(dref.clone());
                         }
                     }
                 }
@@ -264,10 +144,10 @@ impl SField {
         } else {
             if let Some(start) = start {
                 if let Some(node) = start.node(graph) {
-                    for dref in node.prefix_selection(FKIND) {
-                        if let Ok(field) = SData::data::<SField>(graph, dref) {
+                    for dref in &node.data {
+                        if let Some(field) = SData::get::<Self>(graph, dref) {
                             if field.name == field_name {
-                                return Some(field);
+                                return Some(dref.clone());
                             }
                         }
                     }
@@ -275,10 +155,10 @@ impl SField {
             } else {
                 for root_ref in &graph.roots {
                     if let Some(node) = root_ref.node(graph) {
-                        for dref in node.prefix_selection(FKIND) {
-                            if let Ok(field) = SData::data::<SField>(graph, dref) {
+                        for dref in &node.data {
+                            if let Some(field) = SData::get::<Self>(graph, dref) {
                                 if field.name == field_name {
-                                    return Some(field);
+                                    return Some(dref.clone());
                                 }
                             }
                         }
@@ -300,57 +180,51 @@ impl SField {
     #[inline]
     pub fn new_object(graph: &mut SGraph, name: &str, parent: &SNodeRef) -> SNodeRef {
         let nref = graph.insert_node(name, Some(parent));
-        let mut field = Self::new(name.into(), SVal::Object(nref.clone()));
-        field.attach(parent, graph);
+        let field = Self::new(name.into(), SVal::Object(nref.clone()));
+        SData::insert_new(graph, parent, Box::new(field));
         nref
     }
 
     /// Insert an array field.
     #[inline]
-    pub fn new_array(graph: &mut SGraph, name: &str, vals: Vec<SVal>, node: &SNodeRef) -> Self {
-        let mut field = Self::new(name.into(), SVal::Array(vals));
-        field.attach(node, graph);
-        field
+    pub fn new_array(graph: &mut SGraph, name: &str, vals: Vec<SVal>, node: &SNodeRef) -> Option<SDataRef> {
+        let field = Self::new(name.into(), SVal::Array(vals));
+        SData::insert_new(graph, node, Box::new(field))
     }
 
     /// Insert a new string field.
     #[inline]
-    pub fn new_string(graph: &mut SGraph, name: &str, value: &str, node: &SNodeRef) -> Self {
-        let mut field = Self::new(name.into(), SVal::String(value.into()));
-        field.attach(node, graph);
-        field
+    pub fn new_string(graph: &mut SGraph, name: &str, value: &str, node: &SNodeRef) -> Option<SDataRef> {
+        let field = Self::new(name.into(), SVal::String(value.into()));
+        SData::insert_new(graph, node, Box::new(field))
     }
 
     /// Insert a new boolean field.
     #[inline]
-    pub fn new_bool(graph: &mut SGraph, name: &str, value: bool, node: &SNodeRef) -> Self {
-        let mut field = Self::new(name.into(), SVal::Bool(value));
-        field.attach(node, graph);
-        field
+    pub fn new_bool(graph: &mut SGraph, name: &str, value: bool, node: &SNodeRef) -> Option<SDataRef> {
+        let field = Self::new(name.into(), SVal::Bool(value));
+        SData::insert_new(graph, node, Box::new(field))
     }
 
     /// New integer field.
     #[inline]
-    pub fn new_int(graph: &mut SGraph, name: &str, value: i64, node: &SNodeRef) -> Self {
-        let mut field = Self::new(name.into(), SVal::Number(SNum::I64(value)));
-        field.attach(node, graph);
-        field
+    pub fn new_int(graph: &mut SGraph, name: &str, value: i64, node: &SNodeRef) -> Option<SDataRef> {
+        let field = Self::new(name.into(), SVal::Number(SNum::I64(value)));
+        SData::insert_new(graph, node, Box::new(field))
     }
 
     /// New float field.
     #[inline]
-    pub fn new_float(graph: &mut SGraph, name: &str, value: f64, node: &SNodeRef) -> Self {
-        let mut field = Self::new(name.into(), SVal::Number(SNum::F64(value)));
-        field.attach(node, graph);
-        field
+    pub fn new_float(graph: &mut SGraph, name: &str, value: f64, node: &SNodeRef) -> Option<SDataRef> {
+        let field = Self::new(name.into(), SVal::Number(SNum::F64(value)));
+        SData::insert_new(graph, node, Box::new(field))
     }
 
     /// New float units field.
     #[inline]
-    pub fn new_units(graph: &mut SGraph, name: &str, value: f64, units: SUnits, node: &SNodeRef) -> Self {
-        let mut field = Self::new(name.into(), SVal::Number(SNum::Units(value, units)));
-        field.attach(node, graph);
-        field
+    pub fn new_units(graph: &mut SGraph, name: &str, value: f64, units: SUnits, node: &SNodeRef) -> Option<SDataRef> {
+        let field = Self::new(name.into(), SVal::Number(SNum::Units(value, units)));
+        SData::insert_new(graph, node, Box::new(field))
     }
 
 
@@ -359,23 +233,31 @@ impl SField {
      *****************************************************************************/
 
     /// Union two sets of fields together by name, manipulating the first set of fields
-    pub(crate) fn union_fields(fields: &mut Vec<Self>, other_fields: &Vec<Self>) {
+    pub(crate) fn union_fields(graph: &mut SGraph, node: &SNodeRef, other: &SGraph, other_fields: &Vec<SDataRef>) {
         let mut other_handled = HashSet::new();
-        for field in &mut *fields {
-            for other in other_fields {
-                if field.name == other.name {
-                    if field == other {
-                        // Do nothing... other is already taken care of
-                    } else {
-                        field.union(other);
+        let fields = Self::field_refs(graph, node);
+        for field_ref in fields {
+            if let Some(field) = SData::get_mut::<SField>(graph, field_ref) {
+                for other_ref in other_fields {
+                    if let Some(other) = SData::get::<SField>(other, other_ref) {
+                        if field.name == other.name {
+                            if field == other {
+                                // do nothing...
+                            } else {
+                                field.union(other);
+                            }
+                            other_handled.insert(other_ref.clone());
+                        }
                     }
-                    other_handled.insert(other.id.clone());
                 }
             }
         }
-        for other in other_fields {
-            if !other_handled.contains(&other.id) {
-                fields.push(other.clone()); // in other_fields, but wasn't in fields
+        for other_ref in other_fields {
+            if !other_handled.contains(other_ref) {
+                if let Some(other) = SData::get::<SField>(other, other_ref) {
+                    let cloned = other.clone();
+                    SData::insert_new_id(graph, node, Box::new(cloned), &other_ref.id);
+                }
             }
         }
     }

@@ -320,9 +320,9 @@ impl ArrayLibrary {
                 }
                 match &parameters[0] {
                     SVal::FnPtr(dref) => {
-                        if let Ok(func) = SData::data::<SFunc>(&doc.graph, dref) {
+                        if let Some(func) = SData::get::<SFunc>(&doc.graph, dref).cloned() {
                             for val in array {
-                                let res = func.call(pid, doc, vec![val.clone()], true)?;
+                                let res = func.call(dref, pid, doc, vec![val.clone()], true)?;
                                 if !res.is_empty() {
                                     *val = res;
                                 }
@@ -340,9 +340,9 @@ impl ArrayLibrary {
                 }
                 match &parameters[0] {
                     SVal::FnPtr(dref) => {
-                        if let Ok(func) = SData::data::<SFunc>(&doc.graph, dref) {
+                        if let Some(func) = SData::get::<SFunc>(&doc.graph, dref).cloned() {
                             array.retain(|val| -> bool {
-                                let res = func.call(pid, doc, vec![val.clone()], true).unwrap_or(SVal::Null);
+                                let res = func.call(dref, pid, doc, vec![val.clone()], true).unwrap_or(SVal::Null);
                                 res.truthy()
                             });
                         }
@@ -376,9 +376,9 @@ impl ArrayLibrary {
                 } else {
                     match &parameters[0] {
                         SVal::FnPtr(dref) => {
-                            if let Ok(func) = SData::data::<SFunc>(&doc.graph, dref) {
+                            if let Some(func) = SData::get::<SFunc>(&doc.graph, dref).cloned() {
                                 array.sort_by(|a, b| {
-                                    let res = func.call(pid, doc, vec![a.clone(), b.clone()], true).unwrap_or(SVal::Number(SNum::I64(0)));
+                                    let res = func.call(dref, pid, doc, vec![a.clone(), b.clone()], true).unwrap_or(SVal::Number(SNum::I64(0)));
                                     match res {
                                         SVal::Number(num) => {
                                             let int = num.int();

@@ -29,7 +29,7 @@ pub(crate) fn toml_value_from_node(graph: &SGraph, node_ref: &SNodeRef) -> Table
             }
         }
         if do_export {
-            map.insert(field.name, toml_value(graph, field.value));
+            map.insert(field.name.clone(), toml_value(graph, field.value.clone()));
         }
     }
     map

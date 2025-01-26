@@ -17,7 +17,7 @@
 use std::collections::{BTreeMap, HashSet};
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{Data, SField, SFunc, SGraph, SNodeRef, SPrototype, SType, SVal};
+use crate::{SData, SField, SFunc, SGraph, SNodeRef, SPrototype, SType, SVal};
 use super::Expr;
 
 
@@ -68,11 +68,6 @@ impl CustomType {
         names
     }
 
-    /// Get functions.
-    pub fn get_functions(&self, graph: &SGraph) -> Vec<SFunc> {
-        SFunc::funcs(graph, &SNodeRef::new(&self.locid))
-    }
-
     /// Typepath for this type.
     pub fn typepath(&self, graph: &SGraph) -> String {
         let typepath = SNodeRef::new(&self.decid).path(&graph).replace('/', ".");
@@ -80,7 +75,7 @@ impl CustomType {
     }
 
     /// Insert this custom type into the graph.
-    pub fn insert(&mut self, graph: &mut SGraph, location: &str, functions: &mut Vec<SFunc>) {
+    pub fn insert(&mut self, graph: &mut SGraph, location: &str, functions: Vec<SFunc>) {
         let nref = graph.ensure_nodes(location, '/', true, None);
         
         // Set the location of this custom type so it is not lost
@@ -88,22 +83,24 @@ impl CustomType {
 
         // Insert functions into the graph
         for f in functions {
-            f.attach(&nref, graph);
+            SData::insert_new(graph, &nref, Box::new(f));
         }
 
         // Insert typename into the graph
-        if let Some(mut typename_field) = SField::field(graph, "typename", '.', Some(&nref)) {
-            typename_field.value = SVal::String(self.name.clone());
-            typename_field.set(graph);
+        if let Some(typename_field_ref) = SField::field_ref(graph, "typename", '.', Some(&nref)) {
+            if let Some(field) = SData::get_mut::<SField>(graph, &typename_field_ref) {
+                field.value = SVal::String(self.name.clone());
+            }
         } else {
             SField::new_string(graph, "typename", &self.name, &nref);
         }
 
         // Insert typepath into the graph, which includes the declaration path
         let typepath = SNodeRef::new(&self.decid).path(&graph).replace('/', ".");
-        if let Some(mut typepath_field) = SField::field(graph, "typepath", '.', Some(&nref)) {
-            typepath_field.value = SVal::String(format!("{}.{}", typepath, self.name));
-            typepath_field.set(graph);
+        if let Some(typepath_field_ref) = SField::field_ref(graph, "typepath", '.', Some(&nref)) {
+            if let Some(field) = SData::get_mut::<SField>(graph, &typepath_field_ref) {
+                field.value = SVal::String(format!("{}.{}", typepath, self.name));
+            }
         } else {
             SField::new_string(graph, "typepath", &format!("{}.{}", typepath, self.name), &nref);
         }

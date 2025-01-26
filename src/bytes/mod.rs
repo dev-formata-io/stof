@@ -16,7 +16,7 @@
 
 use core::str;
 use bytes::Bytes;
-use crate::{lang::SError, Data, Format, IntoNodeRef, SDoc, SField, SGraph, SVal};
+use crate::{lang::SError, Format, IntoNodeRef, SData, SDoc, SField, SGraph, SVal};
 
 
 /// Stof BYTES interface.
@@ -31,16 +31,16 @@ impl BYTES {
     pub fn parse(bytes: &Bytes) -> SGraph {
         let mut graph = SGraph::default();
         let root = graph.insert_root("root");
-        let mut field = SField::new("bytes", SVal::Blob(bytes.to_vec()));
-        field.attach(&root, &mut graph);
+        let field = SField::new("bytes", SVal::Blob(bytes.to_vec()));
+        SData::insert_new(&mut graph, &root, Box::new(field));
         graph
     }
 
     /// To bytes.
     pub fn to_bytes(pid: &str, doc: &SDoc) -> Result<Bytes, SError> {
         if let Some(field) = SField::field(&doc.graph, "bytes", '.', doc.graph.main_root().as_ref()) {
-            match field.value {
-                SVal::Blob(bytes) => return Ok(Bytes::from(bytes)),
+            match &field.value {
+                SVal::Blob(bytes) => return Ok(Bytes::from(bytes.clone())),
                 _ => {}
             }
         }
@@ -50,8 +50,8 @@ impl BYTES {
     /// Node to bytes.
     pub fn node_to_bytes(pid: &str, doc: &SDoc, node: impl IntoNodeRef) -> Result<Bytes, SError> {
         if let Some(field) = SField::field(&doc.graph, "bytes", '.', Some(&node.node_ref())) {
-            match field.value {
-                SVal::Blob(bytes) => return Ok(Bytes::from(bytes)),
+            match &field.value {
+                SVal::Blob(bytes) => return Ok(Bytes::from(bytes.clone())),
                 _ => {}
             }
         }

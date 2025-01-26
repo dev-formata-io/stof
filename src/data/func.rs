@@ -14,46 +14,25 @@
 // limitations under the License.
 //
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashSet};
 use serde::{Deserialize, Serialize};
-use crate::{Data, IntoDataRef, SData, SDataRef, SDoc, SGraph, SNodeRef};
+use crate::{Payload, SData, SDataRef, SDoc, SGraph, SNodeRef};
 use super::{lang::{Expr, SError, Statements, StatementsRes}, SType, SVal};
-
-
-/// Stof function kind.
-pub const FUNC_KIND: &str = "fnc";
 
 
 /// Stof function.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SFunc {
-    /// ID of this function.
-    /// This will also be the SDataRef ID.
-    pub id: String,
-
     pub name: String,
     pub params: Vec<SParam>,
     pub statements: Statements,
-    
-    /// Return type.
     pub rtype: SType,
-
-    /// Attributes.
     pub attributes: BTreeMap<String, SVal>,
 }
-impl IntoDataRef for SFunc {
-    fn data_ref(&self) -> SDataRef {
-        SDataRef::from(&self.id)
-    }
-}
-impl Data for SFunc {
-    fn kind(&self) -> String {
-        FUNC_KIND.to_string()
-    }
-    fn set_ref(&mut self, to_ref: impl IntoDataRef) {
-        self.id = to_ref.data_ref().id;
-    }
-}
+
+#[typetag::serde(name = "_SFunc")]
+impl Payload for SFunc {}
+
 impl SFunc {
     /// New function.
     /// AFunction::new("myFunc", vec![("name", SType::string()).into()], SType::string(), vec![].into());
@@ -63,27 +42,28 @@ impl SFunc {
             params,
             rtype,
             statements,
-            id: Default::default(),
             attributes: Default::default(),
         }
     }
 
     /// Get all functions in a graph.
-    pub fn all_funcs(graph: &SGraph) -> Vec<Self> {
-        let mut funcs = Vec::new();
+    pub fn all_funcs(graph: &SGraph) -> HashSet<SDataRef> {
+        let mut funcs = HashSet::new();
         for root in &graph.roots {
-            funcs.append(&mut Self::recursive_funcs(graph, root));
+            for dref in Self::recursive_func_refs(graph, root) {
+                funcs.insert(dref);
+            }
         }
         funcs
     }
 
-    /// Get all functions on a node recursively.
-    pub fn recursive_funcs(graph: &SGraph, node: &SNodeRef) -> Vec<Self> {
-        let mut res = Vec::new();
+    /// Get all function refs on a node recursively.
+    pub fn recursive_func_refs(graph: &SGraph, node: &SNodeRef) -> HashSet<SDataRef> {
+        let mut res = Self::func_refs(graph, node);
         if let Some(node) = node.node(graph) {
-            for dref in node.recursive_prefix_selection(graph, FUNC_KIND) {
-                if let Ok(func) = SData::data::<SFunc>(graph, dref) {
-                    res.push(func);
+            for child in &node.children {
+                for dref in Self::recursive_func_refs(graph, child) {
+                    res.insert(dref);
                 }
             }
         }
@@ -91,68 +71,79 @@ impl SFunc {
     }
 
     /// Get all functions on a node.
-    pub fn funcs(graph: &SGraph, node: &SNodeRef) -> Vec<Self> {
+    pub fn funcs<'a>(graph: &'a SGraph, node: &SNodeRef) -> Vec<&'a Self> {
         let mut res = Vec::new();
         if let Some(node) = node.node(graph) {
-            for dref in node.prefix_selection(FUNC_KIND) {
-                if let Ok(func) = SData::data::<SFunc>(graph, dref) {
-                    res.push(func);
-                }
+            for func in node.data::<Self>(graph) {
+                res.push(func);
             }
         }
         res
     }
 
-    /// Get all functions on a node as a hashmap.
-    pub fn func_map(graph: &SGraph, node: &SNodeRef) -> HashMap<String, Self> {
-        let mut res = HashMap::new();
+    /// Get all function references on a node.
+    pub fn func_refs(graph: &SGraph, node: &SNodeRef) -> HashSet<SDataRef> {
+        let mut res = HashSet::new();
         if let Some(node) = node.node(graph) {
-            for dref in node.prefix_selection(FUNC_KIND) {
-                if let Ok(func) = SData::data::<SFunc>(graph, dref) {
-                    res.insert(func.name.clone(), func);
-                }
+            for func in node.data_refs::<Self>(graph) {
+                res.insert(func);
             }
         }
         res
-    }
-
-    /// Get an adjacent func to this func.
-    pub fn adjacent(&self, graph: &SGraph, path: &str, sep: char) -> Option<Self> {
-        if let Some(data) = self.data_ref().data(graph) {
-            for node_ref in &data.nodes {
-                let func = Self::func(graph, path, sep, Some(node_ref));
-                if func.is_some() {
-                    return func;
-                }
-            }
-        }
-        None
-    }
-
-    /// Get the first func that matches a path given.
-    pub fn first_match(graph: &SGraph, paths: Vec<&str>, sep: char, start: Option<&SNodeRef>) -> Option<Self> {
-        for path in paths {
-            let func = Self::func(graph, path, sep, start);
-            if func.is_some() {
-                return func;
-            }
-        }
-        None
     }
 
     /// Get a func from a path with the given separator.
     /// Last name in the path is the func name.
     /// If path is only the func, will search on start if any or search each root in the graph.
-    pub fn func(graph: &SGraph, path: &str, sep: char, start: Option<&SNodeRef>) -> Option<Self> {
+    pub fn func<'a>(graph: &'a SGraph, path: &str, sep: char, start: Option<&SNodeRef>) -> Option<&'a Self> {
         let mut items: Vec<&str> = path.split(sep).collect();
 
         let func_name = items.pop().unwrap();
         if items.len() > 0 {
             if let Some(node) = graph.node_from(&items.join("/"), start) {
-                for dref in node.prefix_selection(FUNC_KIND) {
-                    if let Ok(func) = SData::data::<SFunc>(graph, dref) {
+                for func in node.data::<Self>(graph) {
+                    if func.name == func_name {
+                        return Some(func);
+                    }
+                }
+            }
+        } else {
+            if let Some(start) = start {
+                if let Some(node) = start.node(graph) {
+                    for func in node.data::<Self>(graph) {
                         if func.name == func_name {
                             return Some(func);
+                        }
+                    }
+                }
+            } else {
+                for root_ref in &graph.roots {
+                    if let Some(node) = root_ref.node(graph) {
+                        for func in node.data::<Self>(graph) {
+                            if func.name == func_name {
+                                return Some(func);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Get a func ref from a path with the given separator.
+    /// Last name in the path is the func name.
+    /// If path is only the func, will search on start if any or search each root in the graph.
+    pub fn func_ref(graph: &SGraph, path: &str, sep: char, start: Option<&SNodeRef>) -> Option<SDataRef> {
+        let mut items: Vec<&str> = path.split(sep).collect();
+
+        let func_name = items.pop().unwrap();
+        if items.len() > 0 {
+            if let Some(node) = graph.node_from(&items.join("/"), start) {
+                for dref in &node.data {
+                    if let Some(func) = SData::get::<Self>(graph, dref) {
+                        if func.name == func_name {
+                            return Some(dref.clone());
                         }
                     }
                 }
@@ -160,10 +151,10 @@ impl SFunc {
         } else {
             if let Some(start) = start {
                 if let Some(node) = start.node(graph) {
-                    for dref in node.prefix_selection(FUNC_KIND) {
-                        if let Ok(func) = SData::data::<SFunc>(graph, dref) {
+                    for dref in &node.data {
+                        if let Some(func) = SData::get::<Self>(graph, dref) {
                             if func.name == func_name {
-                                return Some(func);
+                                return Some(dref.clone());
                             }
                         }
                     }
@@ -171,10 +162,10 @@ impl SFunc {
             } else {
                 for root_ref in &graph.roots {
                     if let Some(node) = root_ref.node(graph) {
-                        for dref in node.prefix_selection(FUNC_KIND) {
-                            if let Ok(func) = SData::data::<SFunc>(graph, dref) {
+                        for dref in &node.data {
+                            if let Some(func) = SData::get::<Self>(graph, dref) {
                                 if func.name == func_name {
-                                    return Some(func);
+                                    return Some(dref.clone());
                                 }
                             }
                         }
@@ -187,7 +178,7 @@ impl SFunc {
 
     /// Call this function with the given doc.
     /// Parameters get put onto the doc stack, and statements get executed.
-    pub fn call(&self, pid: &str, doc: &mut SDoc, mut parameters: Vec<SVal>, add_self: bool) -> Result<SVal, SError> {
+    pub fn call(&self, dref: &SDataRef, pid: &str, doc: &mut SDoc, mut parameters: Vec<SVal>, add_self: bool) -> Result<SVal, SError> {
         // Validate the number of parameters required to call this function
         if self.params.len() != parameters.len() {
             let mut index = parameters.len();
@@ -203,7 +194,7 @@ impl SFunc {
             }
         }
         if self.params.len() != parameters.len() {
-            doc.push_call_stack(pid, self.data_ref());
+            doc.push_call_stack(pid, dref);
             let error = SError::call(pid, &doc, &format!("received incorrect parameters for function call, expecting ({:?})", &self.params));
             doc.pop_call_stack(pid);
             return Err(error);
@@ -211,7 +202,7 @@ impl SFunc {
 
         // Add self to doc self stack
         if add_self {
-            if let Some(data) = doc.graph.data_from_ref(&self.data_ref()) {
+            if let Some(data) = doc.graph.data_from_ref(dref) {
                 if let Some(nref) = data.nodes.last() {
                     doc.push_self(pid, nref.clone());
                 } else {
@@ -253,7 +244,7 @@ impl SFunc {
                 for name in added {
                     doc.drop(pid, &name);
                 }
-                doc.push_call_stack(pid, self.data_ref());
+                doc.push_call_stack(pid, dref);
                 let error = SError::call(pid, &doc, &format!("arguments do not match expected parameter types and cannot be converted, expecting ({:?})", &self.params));
                 doc.pop_call_stack(pid);
                 return Err(error);
@@ -261,7 +252,7 @@ impl SFunc {
         }
 
         // Execute all of the statements with this doc in a scope (block)
-        doc.push_call_stack(pid, self.data_ref());
+        doc.push_call_stack(pid, dref);
         doc.new_scope(pid);
         let statements_res = self.statements.exec(pid, doc);
         doc.end_scope(pid);

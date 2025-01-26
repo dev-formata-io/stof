@@ -15,7 +15,7 @@
 //
 
 use std::{cmp::Ordering, collections::{BTreeMap, HashSet}, ops::Deref};
-use crate::{lang::SError, Data, IntoDataRef, IntoNodeRef, Library, SDoc, SField, SFunc, SNodeRef, SNum, SPrototype, SVal, FKIND};
+use crate::{lang::SError, IntoNodeRef, Library, SData, SDoc, SField, SFunc, SNodeRef, SNum, SPrototype, SVal};
 
 
 #[derive(Default, Debug)]
@@ -26,7 +26,8 @@ impl ObjectLibrary {
         match name {
             "len" => {
                 if let Some(node) = obj.node(&doc.graph) {
-                    return Ok(SVal::Number(SNum::I64(node.prefix_selection(FKIND).data.len() as i64)));
+                    let refs = node.data_refs::<SField>(&doc.graph);
+                    return Ok(SVal::Number(SNum::I64(refs.len() as i64)));
                 }
                 Ok(SVal::Number(SNum::I64(0)))
             },
@@ -35,9 +36,9 @@ impl ObjectLibrary {
                     match &parameters[0] {
                         SVal::String(index) => {
                             if let Some(field) = SField::field(&doc.graph, &index, '.', Some(obj)) {
-                                return Ok(field.value);
-                            } else if let Some(func) = SFunc::func(&doc.graph, &index, '.', Some(obj)) {
-                                return Ok(SVal::FnPtr(func.data_ref()));
+                                return Ok(field.value.clone());
+                            } else if let Some(func) = SFunc::func_ref(&doc.graph, &index, '.', Some(obj)) {
+                                return Ok(SVal::FnPtr(func));
                             }
                             return Ok(SVal::Null); // Not found
                         },
@@ -46,8 +47,8 @@ impl ObjectLibrary {
                             let index = val.int() as usize;
                             if index < fields.len() {
                                 let field = fields.remove(index);
-                                let value = field.value;
-                                let key = SVal::String(field.name);
+                                let value = field.value.clone();
+                                let key = SVal::String(field.name.clone());
                                 return Ok(SVal::Tuple(vec![key, value]));
                             }
                         },
@@ -60,9 +61,9 @@ impl ObjectLibrary {
                         match param {
                             SVal::String(index) => {
                                 if let Some(field) = SField::field(&doc.graph, &index, '.', Some(obj)) {
-                                    array.push(field.value);
-                                } else if let Some(func) = SFunc::func(&doc.graph, &index, '.', Some(obj)) {
-                                    array.push(SVal::FnPtr(func.data_ref()));
+                                    array.push(field.value.clone());
+                                } else if let Some(func) = SFunc::func_ref(&doc.graph, &index, '.', Some(obj)) {
+                                    array.push(SVal::FnPtr(func));
                                 }
                             },
                             SVal::Number(val) => {
@@ -70,8 +71,8 @@ impl ObjectLibrary {
                                 let index = val.int() as usize;
                                 if index < fields.len() {
                                     let field = fields.remove(index);
-                                    let value = field.value;
-                                    let key = SVal::String(field.name);
+                                    let value = field.value.clone();
+                                    let key = SVal::String(field.name.clone());
                                     array.push(SVal::Tuple(vec![key, value]));
                                 }
                             },
@@ -85,19 +86,23 @@ impl ObjectLibrary {
             "reference" => {
                 if parameters.len() == 1 {
                     let field_path = parameters[0].to_string();
-                    if let Some(mut field) = SField::field(&doc.graph, &field_path, '.', Some(obj)) {
-                        self.operate(pid, doc, "removeField", obj, &mut vec![SVal::String(field.name.clone())])?;
-                        field.attach(obj, &mut doc.graph);
+                    if let Some(field_ref) = SField::field_ref(&doc.graph, &field_path, '.', Some(obj)) {
+                        if let Some(field) = field_ref.get_data::<SField>(&doc.graph) {
+                            self.operate(pid, doc, "removeField", obj, &mut vec![SVal::String(field.name.clone())])?;
+                        }
+                        SData::attach_existing(&mut doc.graph, obj, field_ref);
                         return Ok(SVal::Bool(true));
-                    } else if let Some(mut field) = SField::field(&doc.graph, &field_path, '.', None) {
-                        self.operate(pid, doc, "removeField", obj, &mut vec![SVal::String(field.name.clone())])?;
-                        field.attach(obj, &mut doc.graph);
+                    } else if let Some(field_ref) = SField::field_ref(&doc.graph, &field_path, '.', None) {
+                        if let Some(field) = field_ref.get_data::<SField>(&doc.graph) {
+                            self.operate(pid, doc, "removeField", obj, &mut vec![SVal::String(field.name.clone())])?;
+                        }
+                        SData::attach_existing(&mut doc.graph, obj, field_ref);
                         return Ok(SVal::Bool(true));
-                    } else if let Some(mut func) = SFunc::func(&doc.graph, &field_path, '.', Some(obj)) {
-                        func.attach(obj, &mut doc.graph);
+                    } else if let Some(func) = SFunc::func_ref(&doc.graph, &field_path, '.', Some(obj)) {
+                        SData::attach_existing(&mut doc.graph, obj, func);
                         return Ok(SVal::Bool(true));
-                    } else if let Some(mut func) = SFunc::func(&doc.graph, &field_path, '.', None) {
-                        func.attach(obj, &mut doc.graph);
+                    } else if let Some(func) = SFunc::func_ref(&doc.graph, &field_path, '.', None) {
+                        SData::attach_existing(&mut doc.graph, obj, func);
                         return Ok(SVal::Bool(true));
                     }
                     return Ok(SVal::Bool(false));
@@ -105,12 +110,14 @@ impl ObjectLibrary {
                     match &parameters[0] {
                         SVal::Object(context) => {
                             let field_path = parameters[1].to_string();
-                            if let Some(mut field) = SField::field(&doc.graph, &field_path, '.', Some(&context)) {
-                                self.operate(pid, doc, "removeField", obj, &mut vec![SVal::String(field.name.clone())])?;
-                                field.attach(obj, &mut doc.graph);
+                            if let Some(field_ref) = SField::field_ref(&doc.graph, &field_path, '.', Some(&context)) {
+                                if let Some(field) = field_ref.get_data::<SField>(&doc.graph) {
+                                    self.operate(pid, doc, "removeField", obj, &mut vec![SVal::String(field.name.clone())])?;
+                                }
+                                SData::attach_existing(&mut doc.graph, obj, field_ref);
                                 return Ok(SVal::Bool(true));
-                            } else if let Some(mut func) = SFunc::func(&doc.graph, &field_path, '.', Some(&context)) {
-                                func.attach(obj, &mut doc.graph);
+                            } else if let Some(func) = SFunc::func_ref(&doc.graph, &field_path, '.', Some(&context)) {
+                                SData::attach_existing(&mut doc.graph, obj, func);
                                 return Ok(SVal::Bool(true));
                             }
                             return Ok(SVal::Bool(false));
@@ -124,8 +131,8 @@ impl ObjectLibrary {
                 let fields = SField::fields(&doc.graph, obj);
                 let mut map = BTreeMap::new();
                 for field in fields {
-                    let value = field.value;
-                    let key = SVal::String(field.name);
+                    let value = field.value.clone();
+                    let key = SVal::String(field.name.clone());
                     map.insert(key, value);
                 }
                 Ok(SVal::Map(map))
@@ -183,12 +190,14 @@ impl ObjectLibrary {
             },
             "funcs" |
             "functions" => {
-                let funcs = SFunc::funcs(&doc.graph, obj);
+                let funcs = SFunc::func_refs(&doc.graph, obj);
                 let mut map = BTreeMap::new();
-                for func in funcs {
-                    let value = SVal::FnPtr(func.id.into());
-                    let key = SVal::String(func.name);
-                    map.insert(key, value);
+                for func_ref in funcs {
+                    if let Some(func) = func_ref.get_data::<SFunc>(&doc.graph) {
+                        let value = SVal::FnPtr(func_ref);
+                        let key = SVal::String(func.name.clone());
+                        map.insert(key, value);
+                    }
                 }
                 Ok(SVal::Map(map))
             },
@@ -196,7 +205,7 @@ impl ObjectLibrary {
                 let fields = SField::fields(&doc.graph, obj);
                 let mut array = Vec::new();
                 for field in fields {
-                    array.push(SVal::String(field.name));
+                    array.push(SVal::String(field.name.clone()));
                 }
                 Ok(SVal::Array(array))
             },
@@ -204,20 +213,24 @@ impl ObjectLibrary {
                 let fields = SField::fields(&doc.graph, obj);
                 let mut array = Vec::new();
                 for field in fields {
-                    array.push(field.value);
+                    array.push(field.value.clone());
                 }
                 Ok(SVal::Array(array))
             },
             "set" => {
                 if parameters.len() == 2 {
-                    let value = parameters.pop().unwrap().unbox();
+                    let value = parameters.pop().unwrap();
                     let name = parameters.pop().unwrap().to_string();
 
                     // Check for an existing field at this location
-                    if let Some(mut field) = SField::field(&doc.graph, &name, '.', Some(obj)) {
-                        if doc.perms.can_write_field(&doc.graph, &field, Some(obj)) {
+                    if let Some(field_ref) = SField::field_ref(&doc.graph, &name, '.', Some(obj)) {
+                        if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
+                            if !doc.perms.can_write_field(&doc.graph, &field_ref, &field, Some(obj)) {
+                                return Ok(SVal::Bool(false));
+                            }
+                        }
+                        if let Some(field) = SData::get_mut::<SField>(&mut doc.graph, &field_ref) {
                             field.value = value;
-                            field.set(&mut doc.graph);
                             return Ok(SVal::Bool(true));
                         }
                         return Ok(SVal::Bool(false));
@@ -234,8 +247,8 @@ impl ObjectLibrary {
                     }
 
                     // Create the field on fref
-                    let mut field = SField::new(&name, value);
-                    field.attach(&fref, &mut doc.graph);
+                    let field = SField::new(&name, value);
+                    SData::insert_new(&mut doc.graph, &fref, Box::new(field));
                     return Ok(SVal::Bool(true));
                 }
                 Err(SError::obj(pid, &doc, "set", "invalid arguments - requires a name and value to set a field"))
@@ -291,59 +304,85 @@ impl ObjectLibrary {
                 let dest = parameters.pop().unwrap().to_string();
                 let source = parameters.pop().unwrap().to_string();
 
-                if let Some(mut field) = SField::field(&doc.graph, &source, '.', Some(obj)) {
-                    if doc.perms.can_write_field(&doc.graph, &field, Some(obj)) {
-                        // union the destination field if one already exists...
-                        if let Some(mut existing) = SField::field(&doc.graph, &dest, '.', Some(obj)) {
-                            // remove this field from the graph (everywhere, I know... no way to be sure that field is on obj)
-                            field.remove(&mut doc.graph, None);
-                            field.id = String::default(); // force the graph to create a new ID for this field for deadpool purposes...
+                if let Some(field_ref) = SField::field_ref(&doc.graph, &source, '.', Some(obj)) {
+                    if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
+                        if !doc.perms.can_write_field(&doc.graph, &field_ref, &field, Some(obj)) {
+                            return Ok(SVal::Bool(false));
+                        }
+                    }
 
-                            existing.union(&field);
-                            existing.set(&mut doc.graph);
+                    // union the destination field if one already exists...
+                    if let Some(existing_ref) = SField::field_ref(&doc.graph, &dest, '.', Some(obj)) {
+                        // Clone the field
+                        let clone;
+                        if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
+                            clone = field.clone();
                         } else {
-                            // Get the new field name from the destination path
-                            let mut dest_path = dest.split('.').collect::<Vec<&str>>();
-                            let new_field_name = dest_path.pop().unwrap();
-                            field.name = new_field_name.to_owned();
+                            return Ok(SVal::Bool(false));
+                        }
 
-                            // If there is a new destination node, do that
-                            if dest_path.len() > 0 {
-                                // remove this field from the graph (everywhere, I know... no way to be sure that field is on obj)
-                                field.remove(&mut doc.graph, None);
-                                field.id = String::default(); // force the graph to create a new ID for this field for deadpool purposes...
+                        // remove this field from the graph (everywhere, I know... no way to be sure that field is on obj)
+                        doc.graph.remove_data(&field_ref, None);
 
-                                let dest_node_path = dest_path.join(".");
-                                let dest_ref = doc.graph.ensure_nodes(&dest_node_path, '.', true, Some(obj.clone()));
-                                field.attach(&dest_ref, &mut doc.graph);
+                        if let Some(existing) = SData::get_mut::<SField>(&mut doc.graph, existing_ref) {
+                            existing.union(&clone);
+                        }
+                    } else {
+                        // Get the new field name from the destination path
+                        let mut dest_path = dest.split('.').collect::<Vec<&str>>();
+                        let new_field_name = dest_path.pop().unwrap();
 
-                                // If field is an object, move the object to the destination also and rename
-                                match field.value {
-                                    SVal::Object(nref) => {
-                                        doc.graph.rename_node(&nref, new_field_name);
-
-                                        let id_path: HashSet<String> = HashSet::from_iter(nref.id_path(&doc.graph).into_iter());
-                                        if !id_path.contains(&dest_ref.id) && !dest_ref.is_child_of(&doc.graph, &nref) {
-                                            doc.graph.move_node(nref, dest_ref);
-                                        }
-                                    },
-                                    _ => {}
-                                }
+                        // If there is a new destination node, do that
+                        if dest_path.len() > 0 {
+                            // Clone the field
+                            let mut clone;
+                            if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
+                                clone = field.clone();
                             } else {
-                                // We've just renamed the field, so just set it
-                                field.set(&mut doc.graph);
+                                return Ok(SVal::Bool(false));
+                            }
+
+                            // remove this field from the graph (everywhere, I know... no way to be sure that field is on obj)
+                            doc.graph.remove_data(&field_ref, None);
+
+                            clone.name = new_field_name.to_owned();
+                            let dest_node_path = dest_path.join(".");
+                            let dest_ref = doc.graph.ensure_nodes(&dest_node_path, '.', true, Some(obj.clone()));
+
+                            // If field is an object, move the object to the destination also and rename
+                            match &clone.value {
+                                SVal::Object(nref) => {
+                                    doc.graph.rename_node(nref, new_field_name);
+
+                                    let id_path: HashSet<String> = HashSet::from_iter(nref.id_path(&doc.graph).into_iter());
+                                    if !id_path.contains(&dest_ref.id) && !dest_ref.is_child_of(&doc.graph, &nref) {
+                                        doc.graph.move_node(nref, &dest_ref);
+                                    }
+                                },
+                                _ => {}
+                            }
+
+                            SData::insert_new_id(&mut doc.graph, &dest_ref, Box::new(clone), &field_ref.id); // keep same id
+                        } else {
+                            // We've only renamed the field, so do that only
+                            let mut rename_node = None;
+                            if let Some(field) = SData::get_mut::<SField>(&mut doc.graph, field_ref) {
+                                field.name = new_field_name.to_owned();
 
                                 // If field is an object, rename
-                                match field.value {
+                                match &field.value {
                                     SVal::Object(nref) => {
-                                        doc.graph.rename_node(&nref, new_field_name);
+                                        rename_node = Some(nref.clone());
                                     },
                                     _ => {}
                                 }
                             }
+                            if let Some(rename_node) = rename_node {
+                                doc.graph.rename_node(&rename_node, new_field_name);
+                            }
                         }
-                        return Ok(SVal::Bool(true));
                     }
+                    return Ok(SVal::Bool(true));
                 }
                 Ok(SVal::Bool(false))
             },
@@ -359,14 +398,12 @@ impl ObjectLibrary {
                 }
                 let path = parameters.pop().unwrap().to_string();
 
-                if let Some(field) = SField::field(&doc.graph, &path, '.', Some(obj)) {
-                    if doc.perms.can_write_field(&doc.graph, &field, Some(obj)) {
-                        if path.contains('.') {
-                            field.remove(&mut doc.graph, None);
-                        } else {
-                            field.remove(&mut doc.graph, Some(obj));
+                if let Some(field_ref) = SField::field_ref(&doc.graph, &path, '.', Some(obj)) {
+                    if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
+                        if !doc.perms.can_write_field(&doc.graph, &field_ref, field, Some(obj)) {
+                            return Ok(SVal::Bool(false));
                         }
-                        
+
                         if remove_obj && field.value.is_object() {
                             match field.value.clone().unbox() {
                                 SVal::Object(nref) => {
@@ -376,9 +413,16 @@ impl ObjectLibrary {
                                 _ => {}
                             }
                         }
-
-                        return Ok(SVal::Bool(true));
                     }
+
+                    if path.contains('.') {
+                        // remove from everywhere
+                        doc.graph.remove_data(field_ref, None);
+                    } else {
+                        // remove only from this node (potentially everywhere)
+                        doc.graph.remove_data(field_ref, Some(obj));
+                    }
+                    return Ok(SVal::Bool(true));
                 }
                 Ok(SVal::Bool(false))
             },
@@ -390,15 +434,19 @@ impl ObjectLibrary {
                 }
                 let path = parameters.pop().unwrap().to_string();
 
-                if let Some(func) = SFunc::func(&doc.graph, &path, '.', Some(obj)) {
-                    if doc.perms.can_write_func(&doc.graph, &func, Some(obj)) {
-                        if path.contains('.') {
-                            func.remove(&mut doc.graph, None);
-                        } else {
-                            func.remove(&mut doc.graph, Some(obj));
+                if let Some(func_ref) = SFunc::func_ref(&doc.graph, &path, '.', Some(obj)) {
+                    if let Some(func) = SData::get::<SFunc>(&doc.graph, &func_ref) {
+                        if !doc.perms.can_write_func(&doc.graph, &func_ref, func, Some(obj)) {
+                            return Ok(SVal::Bool(false));
                         }
-                        return Ok(SVal::Bool(true));
                     }
+
+                    if path.contains('.') {
+                        doc.graph.remove_data(func_ref, None);
+                    } else {
+                        doc.graph.remove_data(func_ref, Some(obj));
+                    }
+                    return Ok(SVal::Bool(true));
                 }
                 Ok(SVal::Bool(false))
             },
@@ -433,12 +481,13 @@ impl ObjectLibrary {
                 }
                 match &parameters[0] {
                     SVal::Object(nref) => {
-                        if let Some(mut prototype) = SPrototype::get(&doc.graph, obj) {
-                            prototype.prototype = nref.id.clone();
-                            prototype.set(&mut doc.graph);
+                        if let Some(prototype_ref) = SPrototype::get_ref(&doc.graph, obj) {
+                            if let Some(prototype) = SData::get_mut::<SPrototype>(&mut doc.graph, prototype_ref) {
+                                prototype.prototype = nref.id.clone();
+                            }
                         } else {
-                            let mut prototype = SPrototype::new(nref);
-                            prototype.attach(obj, &mut doc.graph);
+                            let prototype = SPrototype::new(nref);
+                            SData::insert_new(&mut doc.graph, obj, Box::new(prototype));
                         }
                         return Ok(SVal::Void);
                     },
@@ -447,12 +496,13 @@ impl ObjectLibrary {
                         let val = val.deref();
                         match val {
                             SVal::Object(nref) => {
-                                if let Some(mut prototype) = SPrototype::get(&doc.graph, obj) {
-                                    prototype.prototype = nref.id.clone();
-                                    prototype.set(&mut doc.graph);
+                                if let Some(prototype_ref) = SPrototype::get_ref(&doc.graph, obj) {
+                                    if let Some(prototype) = SData::get_mut::<SPrototype>(&mut doc.graph, prototype_ref) {
+                                        prototype.prototype = nref.id.clone();
+                                    }
                                 } else {
-                                    let mut prototype = SPrototype::new(nref);
-                                    prototype.attach(obj, &mut doc.graph);
+                                    let prototype = SPrototype::new(nref);
+                                    SData::insert_new(&mut doc.graph, obj, Box::new(prototype));
                                 }
                                 return Ok(SVal::Void);
                             },
@@ -520,16 +570,23 @@ impl ObjectLibrary {
                 Ok(SVal::Bool(iof))
             },
             "upcast" => {
-                if let Some(mut prototype) = SPrototype::get(&doc.graph, obj) {
-                    if let Some(node) = prototype.node_ref().node(&doc.graph) {
-                        if let Some(parent_ref) = &node.parent {
-                            if let Some(parent) = parent_ref.node(&doc.graph) {
-                                if parent.name != "__stof__" && parent.name != "prototypes" {
-                                    prototype.prototype = parent.id.clone();
-                                    prototype.set(&mut doc.graph);
-                                    return Ok(SVal::Bool(true));
+                if let Some(prototype_ref) = SPrototype::get_ref(&doc.graph, obj) {
+                    let mut parent_id = String::default();
+                    if let Some(prototype) = SData::get::<SPrototype>(&doc.graph, &prototype_ref) {
+                        if let Some(node) = prototype.node_ref().node(&doc.graph) {
+                            if let Some(parent_ref) = &node.parent {
+                                if let Some(parent) = parent_ref.node(&doc.graph) {
+                                    if parent.name != "__stof__" && parent.name != "prototypes" {
+                                        parent_id = parent.id.clone();
+                                    }
                                 }
                             }
+                        }
+                    }
+                    if parent_id.len() > 0 {
+                        if let Some(prototype) = SData::get_mut::<SPrototype>(&mut doc.graph, prototype_ref) {
+                            prototype.prototype = parent_id;
+                            return Ok(SVal::Bool(true));
                         }
                     }
                 }
@@ -537,8 +594,8 @@ impl ObjectLibrary {
             },
             // Remove the prototype for this object if any, returning whether one was removed or not.
             "removePrototype" => {
-                if let Some(prototype) = SPrototype::get(&doc.graph, obj) {
-                    prototype.remove(&mut doc.graph, Some(obj));
+                if let Some(prototype) = SPrototype::get_ref(&doc.graph, obj) {
+                    doc.graph.remove_data(prototype, Some(obj));
                     return Ok(SVal::Bool(true));
                 }
                 Ok(SVal::Bool(false))
@@ -614,9 +671,11 @@ impl ObjectLibrary {
                 let field_name = parameters[0].to_string();
 
                 if !obj_ignore_set.contains(&obj.id) {
-                    if let Some(field) = SField::field(&doc.graph, &field_name, '.', Some(obj)) {
-                        if doc.perms.can_read_field(&doc.graph, &field, Some(obj)) {
-                            return Ok(SVal::Tuple(vec![field.value, SVal::Number(SNum::I64(0))]));
+                    if let Some(field_ref) = SField::field_ref(&doc.graph, &field_name, '.', Some(obj)) {
+                        if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
+                            if doc.perms.can_read_field(&doc.graph, &field_ref, &field, Some(obj)) {
+                                return Ok(SVal::Tuple(vec![field.value.clone(), SVal::Number(SNum::I64(0))]));
+                            }
                         }
                     }
                 }
@@ -631,6 +690,7 @@ impl ObjectLibrary {
 
                 let mut parent = None;
                 let mut parent_field = None;
+                let mut parent_field_ref = None;
                 if let Some(node) = obj.node(&doc.graph) {
                     parent = node.parent.clone();
                 }
@@ -638,8 +698,11 @@ impl ObjectLibrary {
                 while parent.is_some() {
                     if let Some(parent) = &parent {
                         if !obj_ignore_set.contains(&parent.id) {
-                            if let Some(field) = SField::field(&doc.graph, &field_name, '.', Some(parent)) {
-                                parent_field = Some(field);
+                            if let Some(field_ref) = SField::field_ref(&doc.graph, &field_name, '.', Some(parent)) {
+                                if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
+                                    parent_field = Some(field);
+                                }
+                                parent_field_ref = Some(field_ref);
                                 break;
                             }
                             obj_ignore_set.insert(parent.id.clone()); // just searched this parent
@@ -713,8 +776,10 @@ impl ObjectLibrary {
                             return Ok(first_child);
                         }
                     }
-                    if doc.perms.can_read_field(&doc.graph, &field, Some(obj)) {
-                        return Ok(SVal::Tuple(vec![field.value, SVal::Number(SNum::I64(parent_distance))]));
+                    if let Some(parent_ref) = parent_field_ref {
+                        if doc.perms.can_read_field(&doc.graph, &parent_ref, &field, Some(obj)) {
+                            return Ok(SVal::Tuple(vec![field.value.clone(), SVal::Number(SNum::I64(parent_distance))]));
+                        }
                     }
                 } else if child_finds.len() > 0 {
                     return Ok(child_finds.remove(0));
@@ -759,9 +824,11 @@ impl ObjectLibrary {
                 let field_name = parameters[0].to_string();
 
                 if !obj_ignore_set.contains(&obj.id) {
-                    if let Some(field) = SField::field(&doc.graph, &field_name, '.', Some(obj)) {
-                        if doc.perms.can_read_field(&doc.graph, &field, Some(obj)) {
-                            return Ok(SVal::Tuple(vec![field.value, SVal::Number(SNum::I64(current_distance))]));
+                    if let Some(field_ref) = SField::field_ref(&doc.graph, &field_name, '.', Some(obj)) {
+                        if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
+                            if doc.perms.can_read_field(&doc.graph, &field_ref, &field, Some(obj)) {
+                                return Ok(SVal::Tuple(vec![field.value.clone(), SVal::Number(SNum::I64(current_distance))]));
+                            }
                         }
                     }
                 }
@@ -866,9 +933,13 @@ impl ObjectLibrary {
                 }
                 match &parameters[0] {
                     SVal::Object(to_copy) => {
-                        for mut field in SField::fields(&doc.graph, to_copy) {
+                        let mut fields = Vec::new();
+                        for field in SField::fields(&doc.graph, to_copy) {
+                            fields.push(field.clone());
+                        }
+                        for field in fields {
                             if field.is_object() {
-                                match field.value.unbox() {
+                                match field.value.clone().unbox() {
                                     SVal::Object(nref) => {
                                         let deep_copy = SField::new_object(&mut doc.graph, &field.name, obj);
                                         let to_copy = SVal::Object(nref);
@@ -877,8 +948,7 @@ impl ObjectLibrary {
                                     _ => {}
                                 }
                             } else {
-                                field.id = String::default(); // new data in the graph, already cloned
-                                field.attach(obj, &mut doc.graph);
+                                SData::insert_new(&mut doc.graph, obj, Box::new(field));
                             }
                         }
                         Ok(SVal::Void)
@@ -888,9 +958,13 @@ impl ObjectLibrary {
                         let val = val.deref();
                         match val {
                             SVal::Object(to_copy) => {
-                                for mut field in SField::fields(&doc.graph, to_copy) {
+                                let mut fields = Vec::new();
+                                for field in SField::fields(&doc.graph, to_copy) {
+                                    fields.push(field.clone());
+                                }
+                                for field in fields {
                                     if field.is_object() {
-                                        match field.value.unbox() {
+                                        match field.value.clone().unbox() {
                                             SVal::Object(nref) => {
                                                 let deep_copy = SField::new_object(&mut doc.graph, &field.name, obj);
                                                 let to_copy = SVal::Object(nref);
@@ -899,8 +973,7 @@ impl ObjectLibrary {
                                             _ => {}
                                         }
                                     } else {
-                                        field.id = String::default(); // new data in the graph, already cloned
-                                        field.attach(obj, &mut doc.graph);
+                                        SData::insert_new(&mut doc.graph, obj, Box::new(field));
                                     }
                                 }
                                 Ok(SVal::Void)

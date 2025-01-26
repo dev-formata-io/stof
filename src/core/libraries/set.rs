@@ -193,9 +193,9 @@ impl SetLibrary {
                 }
                 match &parameters[0] {
                     SVal::FnPtr(dref) => {
-                        if let Ok(func) = SData::data::<SFunc>(&doc.graph, dref) {
+                        if let Some(func) = SData::get::<SFunc>(&doc.graph, dref).cloned() {
                             set.retain(|v| {
-                                if let Ok(res) = func.call(pid, doc, vec![v.clone()], true) {
+                                if let Ok(res) = func.call(dref, pid, doc, vec![v.clone()], true) {
                                     res.truthy()
                                 } else {
                                     false
