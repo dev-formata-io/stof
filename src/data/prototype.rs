@@ -15,59 +15,50 @@
 //
 
 use std::collections::BTreeMap;
-
 use serde::{Deserialize, Serialize};
-use crate::{Data, IntoDataRef, IntoNodeRef, SData, SDataRef, SDoc, SGraph, SNodeRef};
+use crate::{IntoNodeRef, Data, SData, SDataRef, SDoc, SGraph, SNodeRef};
 use super::{lang::CustomType, SField, SVal};
-
-
-/// Stof prototype kind.
-pub const PKIND: &str = "pro";
 
 
 /// Stof prototype.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SPrototype {
-    /// ID of this data.
-    pub id: String,
-
-    /// ID of the prototype.
-    /// This is the Node ID of the prototype.
+    /// This is the Node ID (Ref) of the prototype.
     pub prototype: String,
 }
-impl IntoDataRef for SPrototype {
-    fn data_ref(&self) -> SDataRef {
-        SDataRef::from(&self.id)
-    }
-}
+
+#[typetag::serde(name = "_SProto")]
+impl Data for SPrototype {}
+
 impl IntoNodeRef for SPrototype {
     fn node_ref(&self) -> SNodeRef {
         SNodeRef::from(&self.prototype)
-    }
-}
-impl Data for SPrototype {
-    fn kind(&self) -> String {
-        PKIND.to_string()
-    }
-    fn set_ref(&mut self, to_ref: impl IntoDataRef) {
-        self.id = to_ref.data_ref().id;
     }
 }
 impl SPrototype {
     /// Create a new prototype.
     pub fn new(node: impl IntoNodeRef) -> Self {
         Self {
-            id: String::default(),
             prototype: node.node_ref().id,
         }
     }
 
     /// Get a nodes prototype (if any).
-    pub fn get(graph: &SGraph, node: impl IntoNodeRef) -> Option<Self> {
+    pub fn get(graph: &SGraph, node: impl IntoNodeRef) -> Option<&Self> {
         if let Some(node) = node.node_ref().node(graph) {
-            for dref in node.prefix_selection(PKIND) {
-                if let Ok(proto) = SData::data::<SPrototype>(graph, dref) {
-                    return Some(proto);
+            for proto in node.data::<Self>(graph) {
+                return Some(proto);
+            }
+        }
+        None
+    }
+
+    /// Get a nodes prototype ref (if any).
+    pub fn get_ref(graph: &SGraph, node: impl IntoNodeRef) -> Option<SDataRef> {
+        if let Some(node) = node.node_ref().node(graph) {
+            for dref in &node.data {
+                if let Some(_proto) = SData::get::<SPrototype>(graph, dref) {
+                    return Some(dref.clone());
                 }
             }
         }

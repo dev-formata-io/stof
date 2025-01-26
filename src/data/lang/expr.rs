@@ -16,7 +16,7 @@
 
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{IntoDataRef, IntoNodeRef, SDoc, SField, SFunc, SPrototype, SType, SVal};
+use crate::{IntoNodeRef, SData, SDoc, SField, SFunc, SPrototype, SType, SVal};
 use super::{SError, Statement, Statements, StatementsRes};
 
 
@@ -126,9 +126,11 @@ impl Expr {
                 }
 
                 // Look for a field first
-                if let Some(field) = SField::field(&doc.graph, &context_path, '.', context.as_ref()) {
-                    if doc.perms.can_read_field(&doc.graph, &field, doc.self_ptr(pid).as_ref()) {
-                        return Ok(field.value);
+                if let Some(field_ref) = SField::field_ref(&doc.graph, &context_path, '.', context.as_ref()) {
+                    if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
+                        if doc.perms.can_read_field(&doc.graph, &field_ref, doc.self_ptr(pid).as_ref()) {
+                            return Ok(field.value.clone());
+                        }
                     }
                     return Ok(SVal::Null);
                 }
@@ -143,9 +145,9 @@ impl Expr {
                 }
 
                 // Look for a function in the graph
-                if let Some(func) = SFunc::func(&doc.graph, &context_path, '.', context.as_ref()) {
-                    if doc.perms.can_read_func(&doc.graph, &func, doc.self_ptr(pid).as_ref()) {
-                        return Ok(SVal::FnPtr(func.data_ref()));
+                if let Some(func_ref) = SFunc::func_ref(&doc.graph, &context_path, '.', context.as_ref()) {
+                    if doc.perms.can_read_func(&doc.graph, &func_ref, doc.self_ptr(pid).as_ref()) {
+                        return Ok(SVal::FnPtr(func_ref));
                     }
                     return Ok(SVal::Null);
                 }
@@ -276,7 +278,7 @@ impl Expr {
                 match &variable_value {
                     SVal::Object(nref) => {
                         // Look for a function on the object itself first! Always higher priority than a prototype
-                        if let Some(func) = SFunc::func(&doc.graph, name, '.', Some(&nref)) {
+                        if let Some(func_ref) = SFunc::func_ref(&doc.graph, name, '.', Some(&nref)) {
                             let mut func_params = Vec::new();
                             for expr in params {
                                 let val = expr.exec(pid, doc)?;
@@ -285,7 +287,7 @@ impl Expr {
                                 }
                             }
                             let current_symbol_table = doc.new_table(pid);
-                            let res = func.call(pid, doc, func_params, true)?;
+                            let res = SFunc::call(&func_ref, pid, doc, func_params, true)?;
                             doc.set_table(pid, current_symbol_table);
                             return Ok(res);
                         }
@@ -329,7 +331,7 @@ impl Expr {
                             }
 
                             while current.is_some() {
-                                if let Some(func) = SFunc::func(&doc.graph, &func_name, '.', current.as_ref()) {
+                                if let Some(func_ref) = SFunc::func_ref(&doc.graph, &func_name, '.', current.as_ref()) {
                                     let mut func_params = Vec::new();
                                     for expr in params {
                                         let val = expr.exec(pid, doc)?;
@@ -340,7 +342,7 @@ impl Expr {
                                     let current_symbol_table = doc.new_table(pid);
                                     // Set self to the object still...
                                     doc.push_self(pid, nref.clone());
-                                    let res = func.call(pid, doc, func_params, false)?;
+                                    let res = SFunc::call(&func_ref, pid, doc, func_params, false)?;
                                     doc.pop_self(pid);
                                     doc.set_table(pid, current_symbol_table);
                                     return Ok(res);

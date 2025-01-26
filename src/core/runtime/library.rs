@@ -409,7 +409,7 @@ impl Library for StdLibrary {
                 let mut res = String::default();
                 if let Some(process) = doc.processes.get(pid) {
                     for dref in &process.call_stack {
-                        if let Ok(func) = SData::data::<SFunc>(&doc.graph, dref) {
+                        if let Some(func) = SData::get::<SFunc>(&doc.graph, dref) {
                             let func_nodes = dref.nodes(&doc.graph);
                             let func_path;
                             if func_nodes.len() > 0 {
@@ -623,8 +623,11 @@ impl Library for StdLibrary {
                                 }
                             },
                             SVal::Object(nref) => {
-                                // this one is kinda cool...
+                                let mut to_insert = Vec::new();
                                 for field in SField::fields(&doc.graph, nref) {
+                                    to_insert.push(field.clone());
+                                }
+                                for field in to_insert {
                                     let k = SVal::String(field.name);
                                     let mut v = field.value;
 

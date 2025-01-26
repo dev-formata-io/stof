@@ -15,7 +15,7 @@
 //
 
 use std::collections::{HashMap, HashSet};
-use crate::{Data, IntoNodeRef, SData, SDoc, SField, SFunc, SNodeRef, SType, SVal};
+use crate::{IntoNodeRef, SData, SDataRef, SDoc, SField, SFunc, SNodeRef, SType, SVal};
 
 
 /// Stof parse environment.
@@ -38,12 +38,12 @@ pub struct StofEnv {
     pub assign_type_stack: Vec<HashMap<String, SType>>,
 
     /// Init functions to execute (in order) after parse is complete.
-    pub init_funcs: Vec<(SFunc, Vec<SVal>)>,
+    pub init_funcs: Vec<(SDataRef, Vec<SVal>)>,
 
     /// "Compile" time field names per node.
     /// Used for collision handling.
-    /// NodeRef->(FieldName->FieldId)
-    node_field_collisions: HashMap<String, HashMap<String, String>>,
+    /// NodeRef->(FieldName->FieldDataRef)
+    node_field_collisions: HashMap<String, HashMap<String, SDataRef>>,
 }
 impl StofEnv {
     /// Construct a new Stof env from a document.
@@ -84,33 +84,31 @@ impl StofEnv {
 
     /// Insert a field onto a node.
     /// Check for field collisions on the node, merging fields if necessary.
-    pub(crate) fn insert_field(&mut self, doc: &mut SDoc, node: impl IntoNodeRef, field: &mut SField) {
+    pub(crate) fn insert_field(&mut self, doc: &mut SDoc, node: impl IntoNodeRef, field: SField) {
         let node_ref = node.node_ref();
         if !self.node_field_collisions.contains_key(&node_ref.id) {
-            let existing_fields = SField::fields(&doc.graph, &node_ref);
             let mut map = HashMap::new();
-            for field in existing_fields {
-                map.insert(field.name, field.id);
+            for existing_ref in SField::field_refs(&doc.graph, &node_ref) {
+                if let Some(field) = SData::get::<SField>(&doc.graph, &existing_ref) {
+                    map.insert(field.name.clone(), existing_ref);
+                }
             }
             self.node_field_collisions.insert(node_ref.id.clone(), map);
         }
-        let mut merged = false;
         if let Some(existing) = self.node_field_collisions.get_mut(&node_ref.id) {
             if existing.contains_key(&field.name) {
                 // This field collides with an existing one on this node!
                 // Union the existing field with the new field, and set the existing back into the graph
-                if let Ok(mut existing_field) = SData::data::<SField>(&doc.graph, existing.get(&field.name).unwrap()) {
-                    existing_field.union(field);
-                    existing_field.set(&mut doc.graph);
-                    merged = true;
+                if let Some(existing_field) = SData::get_mut::<SField>(&mut doc.graph, existing.get(&field.name).unwrap()) {
+                    existing_field.union(&field);
                 }
             } else {
                 // We have not collided with any field names on this node, so insert the field into the collisions
-                existing.insert(field.name.clone(), field.id.clone());
+                let name = field.name.clone();
+                if let Some(dref) = SData::insert_new(&mut doc.graph, &node_ref, Box::new(field)) {
+                    existing.insert(name, dref);
+                }
             }
-        }
-        if !merged {
-            field.attach(&node_ref, &mut doc.graph);
         }
     }
 
@@ -166,8 +164,8 @@ impl StofEnv {
 
     /// Call init functions with the document.
     pub fn call_init_functions(&self, doc: &mut SDoc) {
-        for (func, params) in &self.init_funcs {
-            func.call(&self.pid, doc, params.clone(), true).expect(&format!("Failed to call init function: {:?}", func));
+        for (dref, params) in &self.init_funcs {
+            SFunc::call(dref, &self.pid, doc, params.clone(), true).expect(&format!("Failed to call init function: {:?}", SData::get::<SFunc>(&doc.graph, dref)));
         }
     }
 }

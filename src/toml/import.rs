@@ -16,14 +16,14 @@
 
 use nanoid::nanoid;
 use toml::{Table, Value};
-use crate::{Data, SField, SGraph, SNodeRef, SNum, SVal};
+use crate::{SData, SField, SGraph, SNodeRef, SNum, SVal};
 
 
 /// Parse a serde_json Object value into the graph.
 pub(crate) fn parse_object_value(graph: &mut SGraph, node: &SNodeRef, table: Table) {
     for (field, val) in table {
-        let mut tf = parse_field_value(graph, node, val, &field);
-        tf.attach(node, graph);
+        let tf = parse_field_value(graph, node, val, &field);
+        SData::insert_new(graph, node, Box::new(tf));
     }
 }
 

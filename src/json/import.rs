@@ -16,7 +16,7 @@
 
 use nanoid::nanoid;
 use serde_json::Value;
-use crate::{Data, IntoSVal, SField, SGraph, SNodeRef, SVal};
+use crate::{IntoSVal, SData, SField, SGraph, SNodeRef, SVal};
 
 
 /// Parse a serde_json Object value into the graph.
@@ -24,8 +24,8 @@ pub(crate) fn parse_object_value(graph: &mut SGraph, node: &SNodeRef, value: Val
     match value {
         Value::Object(map) => {
             for (field, val) in map {
-                let mut jf = parse_field_value(graph, node, val, &field);
-                jf.attach(node, graph);
+                let jf = parse_field_value(graph, node, val, &field);
+                SData::insert_new(graph, node, Box::new(jf));
             }
         },
         _ => {}

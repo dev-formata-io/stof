@@ -16,7 +16,7 @@
 
 use wasm_bindgen::prelude::*;
 use crate::{SNode, SNodeRef, Store};
-use super::{StofData, StofDoc, StofField};
+use super::{StofData, StofDoc};
 
 
 /// Stof Node.
@@ -212,18 +212,6 @@ impl StofNode {
         data
     }
 
-    /// All data on all children nodes.
-    #[wasm_bindgen(js_name = allData)]
-    pub fn all_data(&self, doc: &StofDoc) -> Vec<StofData> {
-        let mut data = Vec::new();
-        if let Some(node) = self.node(doc) {
-            for dref in node.recursive_selection(&doc.doc().graph) {
-                data.push(StofData::new(&dref.id));
-            }
-        }
-        data
-    }
-
     /// Has data?
     #[wasm_bindgen(js_name = hasData)]
     pub fn has_data(&self, doc: &StofDoc, data: &StofData) -> bool {
@@ -233,42 +221,10 @@ impl StofNode {
         false
     }
 
-    /// Data on this node with an ID that has the prefix 'prefix'.
-    #[wasm_bindgen(js_name = prefixData)]
-    pub fn prefix_data(&self, doc: &StofDoc, prefix: &str) -> Vec<StofData> {
-        let mut data = Vec::new();
-        if let Some(node) = self.node(doc) {
-            for dref in node.prefix_selection(prefix) {
-                data.push(StofData::new(&dref.id));
-            }
-        }
-        data
-    }
-
-    /// All data on all children nodes with an ID that has the prefix 'prefix'.
-    #[wasm_bindgen(js_name = allPrefixData)]
-    pub fn all_prefix_data(&self, doc: &StofDoc, prefix: &str) -> Vec<StofData> {
-        let mut data = Vec::new();
-        if let Some(node) = self.node(doc) {
-            for dref in node.recursive_prefix_selection(&doc.doc().graph, prefix) {
-                data.push(StofData::new(&dref.id));
-            }
-        }
-        data
-    }
-
     /// Create some abstract data on this node.
     #[wasm_bindgen(js_name = createData)]
     pub fn create_data(&self, doc: &mut StofDoc, value: JsValue) -> Result<StofData, String> {
         StofData::construct(doc, self, value)
-    }
-
-    /// Create a new field on this node.
-    #[wasm_bindgen(js_name = createField)]
-    pub fn create_field(&self, doc: &mut StofDoc, name: &str, value: JsValue) -> StofField {
-        let mut field = StofField::new(&doc, name, value);
-        field.attach(doc, self);
-        field
     }
 
     /// JSON value of this node as a whole.

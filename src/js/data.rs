@@ -49,7 +49,7 @@ impl StofData {
     pub fn construct(doc: &mut StofDoc, node: &StofNode, value: JsValue) -> Result<Self, String> {
         if let Ok(value) = serde_wasm_bindgen::from_value::<serde_json::Value>(value) {
             if let Ok(json) = serde_json::to_string(&value) {
-                let data = SData::new(json);
+                let data = SData::new(Box::new(json));
                 if let Some(dref) = doc.doc_mut().graph.put_data(&node.node_ref(), data) {
                     return Ok(Self::new(&dref.id));
                 }
@@ -63,7 +63,7 @@ impl StofData {
     pub fn construct_with_id(doc: &mut StofDoc, node: &StofNode, id: &str, value: JsValue) -> Result<Self, String> {
         if let Ok(value) = serde_wasm_bindgen::from_value::<serde_json::Value>(value) {
             if let Ok(json) = serde_json::to_string(&value) {
-                let data = SData::new_id(id, json);
+                let data = SData::new_id(id, Box::new(json));
                 if let Some(dref) = doc.doc_mut().graph.put_data(&node.node_ref(), data) {
                     return Ok(Self::new(&dref.id));
                 }
@@ -167,7 +167,7 @@ impl StofData {
     #[wasm_bindgen(js_name = getValue)]
     pub fn get_value(&self, doc: &StofDoc) -> Result<JsValue, String> {
         if let Some(data) = self.data(doc) {
-            if let Ok(json) = data.get_value::<String>() {
+            if let Some(json) = data.get_data::<String>() {
                 if let Ok(value) = serde_json::from_str::<serde_json::Value>(&json) {
                     if let Ok(jsval) = serde_wasm_bindgen::to_value(&value) {
                         return Ok(jsval);
@@ -184,7 +184,7 @@ impl StofData {
         if let Some(data) = self.data_mut(doc) {
             if let Ok(value) = serde_wasm_bindgen::from_value::<serde_json::Value>(value) {
                 if let Ok(json) = serde_json::to_string(&value) {
-                    data.set_value(json);
+                    data.set_data(Box::new(json));
                     return true;
                 }
             }

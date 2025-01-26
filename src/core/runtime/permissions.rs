@@ -16,7 +16,7 @@
 
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
-use crate::{IntoDataRef, SField, SFunc, SGraph, SNodeRef};
+use crate::{SData, SDataRef, SField, SFunc, SGraph, SNodeRef};
 
 
 /// Access.
@@ -61,9 +61,14 @@ impl DocPermissions {
     }
 
     /// Can read field?
-    pub fn can_read_field(&self, graph: &SGraph, field: &SField, from: Option<&SNodeRef>) -> bool {
-        let private_field = field.attributes.contains_key("private");
-        if let Some(data) = field.data_ref().data(graph) {
+    pub fn can_read_field(&self, graph: &SGraph, dref: &SDataRef, from: Option<&SNodeRef>) -> bool {
+        let private_field;
+        if let Some(field) = SData::get::<SField>(graph, dref) {
+            private_field = field.attributes.contains_key("private");
+        } else {
+            return false;
+        }
+        if let Some(data) = dref.data(graph) {
             for nref in &data.nodes {
                 if self.can_read_scope(graph, nref, from) {
                     if let Some(from_ref) = from {
@@ -82,9 +87,14 @@ impl DocPermissions {
     }
 
     /// Can read func?
-    pub fn can_read_func(&self, graph: &SGraph, func: &SFunc, from: Option<&SNodeRef>) -> bool {
-        let private_func = func.attributes.contains_key("private");
-        if let Some(data) = func.data_ref().data(graph) {
+    pub fn can_read_func(&self, graph: &SGraph, dref: &SDataRef, from: Option<&SNodeRef>) -> bool {
+        let private_func;
+        if let Some(func) = SData::get::<SFunc>(graph, dref) {
+            private_func = func.attributes.contains_key("private");
+        } else {
+            return false;
+        }
+        if let Some(data) = dref.data(graph) {
             for nref in &data.nodes {
                 if self.can_read_scope(graph, nref, from) {
                     if let Some(from_ref) = from {
@@ -103,14 +113,19 @@ impl DocPermissions {
     }
 
     /// Can write field?
-    pub fn can_write_field(&self, graph: &SGraph, field: &SField, from: Option<&SNodeRef>) -> bool {
-        if let Some(read_only_val) = field.attributes.get("readonly") {
-            if read_only_val.is_empty() || read_only_val.truthy() {
-                return false;
+    pub fn can_write_field(&self, graph: &SGraph, dref: &SDataRef, from: Option<&SNodeRef>) -> bool {
+        let private_field;
+        if let Some(field) = SData::get::<SField>(graph, dref) {
+            if let Some(read_only_val) = field.attributes.get("readonly") {
+                if read_only_val.is_empty() || read_only_val.truthy() {
+                    return false;
+                }
             }
+            private_field = field.attributes.contains_key("private");
+        } else {
+            return false;
         }
-        let private_field = field.attributes.contains_key("private");
-        if let Some(data) = field.data_ref().data(graph) {
+        if let Some(data) = dref.data(graph) {
             for nref in &data.nodes {
                 if self.can_write_scope(graph, nref, from) {
                     if let Some(from_ref) = from {
@@ -129,9 +144,14 @@ impl DocPermissions {
     }
 
     /// Can write function?
-    pub fn can_write_func(&self, graph: &SGraph, func: &SFunc, from: Option<&SNodeRef>) -> bool {
-        let private_func = func.attributes.contains_key("private");
-        if let Some(data) = func.data_ref().data(graph) {
+    pub fn can_write_func(&self, graph: &SGraph, dref: &SDataRef, from: Option<&SNodeRef>) -> bool {
+        let private_func;
+        if let Some(func) = SData::get::<SFunc>(graph, dref) {
+            private_func = func.attributes.contains_key("private");
+        } else {
+            return false;
+        }
+        if let Some(data) = dref.data(graph) {
             for nref in &data.nodes {
                 if self.can_write_scope(graph, nref, from) {
                     if let Some(from_ref) = from {

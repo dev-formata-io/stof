@@ -66,11 +66,28 @@ field_types: {
     field: 44 as Box<int>
 
     #[test]
-    fn no_boxed_fields() {
-        assertEq(typeof self.field, 'int');
+    fn boxed_fields() {
+        assertEq(typeof self.field, 'Box<int>');
         self.field = self.field as Box<int>;
-        assertEq(typeof self.field, 'int');
+        assertEq(typeof self.field, 'Box<int>');
+
         assertEq(self.field, 44);
+        let tmp = self.field;
+        tmp = 55;
+        assertEq(self.field, 55);
+
+        let cpy = unbox(tmp);
+        cpy = 11;
+
+        assertEq(cpy, 11);
+        assertEq(tmp, 55);
+        assertEq(self.field, 55);
+        tmp = 66;
+        assertEq(self.field, 66);
+
+        self.field = unbox(self.field);
+        tmp = 99;
+        assertEq(self.field, 66);
     }
 
     type CustomType {
@@ -79,8 +96,12 @@ field_types: {
     CustomType object: {}
 
     #[test]
-    fn no_boxed_object_fields() {
-        assertEq(typeof self.object.field, 'int');
+    fn boxed_object_fields() {
+        assertEq(typeof self.object.field, 'Box<int>');
         assertEq(self.object.field, 42);
+
+        let tmp = self.object.field;
+        tmp = 66;
+        assertEq(self.object.field, 66);
     }
 }

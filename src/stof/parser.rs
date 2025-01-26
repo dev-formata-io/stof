@@ -19,7 +19,7 @@ use lazy_static::lazy_static;
 use nanoid::nanoid;
 use pest_derive::Parser;
 use pest::{iterators::{Pair, Pairs}, pratt_parser::PrattParser, Parser};
-use crate::{lang::{CustomType, CustomTypeField, Expr, SError, Statement, Statements}, Data, IntoDataRef, SData, SDoc, SField, SFunc, SNum, SNumType, SParam, SType, SUnits, SVal};
+use crate::{lang::{CustomType, CustomTypeField, Expr, SError, Statement, Statements}, SData, SDoc, SField, SFunc, SNum, SNumType, SParam, SType, SUnits, SVal};
 use super::StofEnv;
 
 
@@ -219,7 +219,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                     let mut success = false;
                     match dec_val {
                         SVal::FnPtr(dref) => {
-                            if let Ok(decorator) = SData::data::<SFunc>(&doc.graph, dref) {
+                            if let Some(decorator) = SData::get::<SFunc>(&doc.graph, &dref).cloned() {
                                 if decorator.params.len() == 1 && decorator.params[0].ptype == SType::FnPtr && decorator.rtype == SType::FnPtr {
                                     // Make func a random name and attach to the graph
                                     let funcparamname = decorator.params[0].name.clone();
@@ -227,26 +227,26 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                     let attributes = func.attributes;
                                     func.attributes = BTreeMap::new();
                                     func.name = format!("decfn_{}", nanoid!(7));
-                                    func.attach(&scope, &mut doc.graph);
+                                    if let Some(func_ref) = SData::insert_new(&mut doc.graph, &scope, Box::new(func)) {
+                                        // Call the decorator function with the func as the parameter
+                                        if let Ok(res_val) = SFunc::call_internal(&dref, &env.pid, doc, vec![SVal::FnPtr(func_ref.clone())], true, &decorator.params, &decorator.statements, &decorator.rtype) {
+                                            match res_val {
+                                                SVal::FnPtr(res_ref) => {
+                                                    if let Some(res_func) = SData::get::<SFunc>(&mut doc.graph, res_ref) {
+                                                        let mut new_func = res_func.clone();
+                                                        new_func.name = funcname;
+                                                        new_func.attributes = attributes;
+                                                        
+                                                        let old_statments = new_func.statements.clone();
+                                                        new_func.statements = Statements::from(vec![Statement::Declare(funcparamname, Expr::Literal(SVal::FnPtr(func_ref)))]);
+                                                        new_func.statements.absorb(old_statments);
 
-                                    // Call the decorator function with the func as the parameter
-                                    if let Ok(res_val) = decorator.call(&env.pid, doc, vec![SVal::FnPtr(func.data_ref())], true) {
-                                        match res_val {
-                                            SVal::FnPtr(res_ref) => {
-                                                if let Ok(mut res_func) = SData::data::<SFunc>(&doc.graph, res_ref) {
-                                                    res_func.name = funcname;
-                                                    res_func.id = String::default(); // forces the function to be copied into the new location on "attach"
-                                                    res_func.attributes = attributes;
-                                                    
-                                                    let old_statments = res_func.statements.clone();
-                                                    res_func.statements = Statements::from(vec![Statement::Declare(funcparamname, Expr::Literal(SVal::FnPtr(func.data_ref())))]);
-                                                    res_func.statements.absorb(old_statments);
-
-                                                    res_func.attach(&scope, &mut doc.graph); // Make sure it's in the current scope too
-                                                    success = true;
-                                                }
-                                            },
-                                            _ => {}
+                                                        SData::insert_new(&mut doc.graph, &scope, Box::new(new_func)); // make sure it's in the new scope
+                                                        success = true;
+                                                    }
+                                                },
+                                                _ => {}
+                                            }
                                         }
                                     }
                                 }
@@ -260,24 +260,37 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                         return Err(SError::parse(&env.pid, &doc, "cannot decorate a function with any value other than another function"));
                     }
                 } else {
-                    func.attach(&scope, &mut doc.graph);
-
                     // Is an init function?
+                    let mut init_params = None;
                     if let Some(init_param_val) = func.attributes.get("init") {
                         if init_param_val.is_empty() { // null or void
-                            env.init_funcs.push((func.clone(), vec![]));
+                            init_params = Some(vec![]);
                         } else {
-                            env.init_funcs.push((func.clone(), vec![init_param_val.clone()]));
+                            init_params = Some(vec![init_param_val.clone()]);
                         }
                     }
 
                     // Is a field also?
+                    let mut field_name = None;
                     if let Some(field_val) = func.attributes.get("field") {
                         let add = field_val.is_empty() || field_val.truthy();
                         if add {
-                            let mut field = SField::new(&func.name, SVal::FnPtr(func.data_ref()));
+                            field_name = Some(func.name.clone());
+                        }
+                    }
+
+                    if let Some(func_ref) = SData::insert_new(&mut doc.graph, &scope, Box::new(func)) {
+                        // Is this func an init func?
+                        if let Some(init_params) = init_params {
+                            env.init_funcs.push((func_ref.clone(), init_params));
+                        }
+
+                        // Is a field also?
+                        if let Some(field_name) = field_name {
+                            let mut field = SField::new(&field_name, SVal::FnPtr(func_ref));
                             field.attributes.insert("export".to_owned(), SVal::Bool(false));
-                            field.attach(&env.scope(doc), &mut doc.graph);
+                            let scope = env.scope(&doc);
+                            SData::insert_new(&mut doc.graph, &scope, Box::new(field));
                         }
                     }
                 }
@@ -299,14 +312,18 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                         _ => return Err(SError::parse(&env.pid, &doc, "unrecognized ref_field rule"))
                     }
                 }
-                if let Some(mut field) = SField::field(&doc.graph, &field_path, '.', Some(&env.scope(doc))) {
-                    field.attach(&env.scope(doc), &mut doc.graph);
-                } else if let Some(mut field) = SField::field(&doc.graph, &field_path, '.', None) {
-                    field.attach(&env.scope(doc), &mut doc.graph);
-                } else if let Some(mut func) = SFunc::func(&doc.graph, &field_path, '.', Some(&env.scope(doc))) {
-                    func.attach(&env.scope(doc), &mut doc.graph);
-                } else if let Some(mut func) = SFunc::func(&doc.graph, &field_path, '.', None) {
-                    func.attach(&env.scope(doc), &mut doc.graph);
+                if let Some(field) = SField::field_ref(&doc.graph, &field_path, '.', Some(&env.scope(doc))) {
+                    let scope = env.scope(&doc);
+                    SData::attach_existing(&mut doc.graph, &scope, &field);
+                } else if let Some(field) = SField::field_ref(&doc.graph, &field_path, '.', None) {
+                    let scope = env.scope(&doc);
+                    SData::attach_existing(&mut doc.graph, &scope, &field);
+                } else if let Some(func) = SFunc::func_ref(&doc.graph, &field_path, '.', Some(&env.scope(doc))) {
+                    let scope = env.scope(&doc);
+                    SData::attach_existing(&mut doc.graph, &scope, &func);
+                } else if let Some(func) = SFunc::func_ref(&doc.graph, &field_path, '.', None) {
+                    let scope = env.scope(&doc);
+                    SData::attach_existing(&mut doc.graph, &scope, &func);
                 }
             },
             Rule::typed_field |
@@ -418,7 +435,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                 let mut success = false;
                                 match dec_val {
                                     SVal::FnPtr(dref) => {
-                                        if let Ok(decorator) = SData::data::<SFunc>(&doc.graph, dref) {
+                                        if let Some(decorator) = SData::get::<SFunc>(&doc.graph, &dref).cloned() {
                                             if decorator.params.len() == 1 && decorator.params[0].ptype == SType::FnPtr && decorator.rtype == SType::FnPtr {
                                                 // Make func a random name and attach to the graph
                                                 let funcparamname = decorator.params[0].name.clone();
@@ -426,27 +443,27 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                                 let attributes = func.attributes;
                                                 func.attributes = BTreeMap::new();
                                                 func.name = format!("decfn_{}", nanoid!(7));
-                                                func.attach(&scope, &mut doc.graph);
-
-                                                // Call the decorator function with the func as the parameter
-                                                if let Ok(res_val) = decorator.call(&env.pid, doc, vec![SVal::FnPtr(func.data_ref())], true) {
-                                                    match res_val {
-                                                        SVal::FnPtr(res_ref) => {
-                                                            if let Ok(mut res_func) = SData::data::<SFunc>(&doc.graph, res_ref) {
-                                                                res_func.name = funcname;
-                                                                res_func.id = String::default(); // forces the function to be copied into the new location on "attach"
-                                                                res_func.attributes = attributes;
-                                                                
-                                                                let old_statments = res_func.statements.clone();
-                                                                res_func.statements = Statements::from(vec![Statement::Declare(funcparamname, Expr::Literal(SVal::FnPtr(func.data_ref())))]);
-                                                                res_func.statements.absorb(old_statments);
-
-                                                                //res_func.attach(&scope, &mut doc.graph); // Make sure it's in the current scope too
-                                                                functions.push(res_func);
-                                                                success = true;
-                                                            }
-                                                        },
-                                                        _ => {}
+                                                if let Some(func_ref) = SData::insert_new(&mut doc.graph, &scope, Box::new(func)) {
+                                                    // Call the decorator function with the func as the parameter
+                                                    if let Ok(res_val) = SFunc::call_internal(&dref, &env.pid, doc, vec![SVal::FnPtr(func_ref.clone())], true, &decorator.params, &decorator.statements, &decorator.rtype) {
+                                                        match res_val {
+                                                            SVal::FnPtr(res_ref) => {
+                                                                if let Some(res_func) = SData::get::<SFunc>(&mut doc.graph, res_ref) {
+                                                                    let mut new_func = res_func.clone();
+                                                                    new_func.name = funcname;
+                                                                    new_func.attributes = attributes;
+                                                                    
+                                                                    let old_statments = new_func.statements.clone();
+                                                                    new_func.statements = Statements::from(vec![Statement::Declare(funcparamname, Expr::Literal(SVal::FnPtr(func_ref)))]);
+                                                                    new_func.statements.absorb(old_statments);
+            
+                                                                    //SData::insert_new(&mut doc.graph, &scope, Box::new(new_func)); // make sure it's in the new scope
+                                                                    functions.push(new_func);
+                                                                    success = true;
+                                                                }
+                                                            },
+                                                            _ => {}
+                                                        }
                                                     }
                                                 }
                                             }
@@ -469,7 +486,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                 if ident.len() > 0 {
                     let mut ctype = CustomType::new(&env.scope(doc).id, &ident, params);
                     ctype.attributes = attributes;
-                    doc.types.declare(ctype, &mut doc.graph, &extends, &mut functions)?;
+                    doc.types.declare(ctype, &mut doc.graph, &extends, functions)?;
                 }
             },
             Rule::EOI => {
@@ -581,9 +598,9 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
                 let list: Vec<&str> = field_name.split('.').collect();
                 let last = list.last().unwrap().to_string();
 
-                let mut field = SField::new(&last, field_value.unbox());
+                let mut field = SField::new(&last, field_value);
                 field.attributes = attributes.clone();
-                env.insert_field(doc, &env.scope(&doc), &mut field);
+                env.insert_field(doc, &env.scope(&doc), field);
             } else if field_name.len() > 0 && object_declaration && attributes.len() > 0 {
                 // Check for a field for this object and make sure the attributes exist on it!
                 match field_value {
@@ -595,11 +612,12 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
                             node_name = node.name.clone();
                         }
                         if let Some(parent) = parent {
-                            if let Some(mut field) = SField::field(&doc.graph, &node_name, '.', Some(&parent)) {
-                                for (key, value) in attributes {
-                                    field.attributes.insert(key.clone(), value.clone());
+                            if let Some(field_ref) = SField::field_ref(&doc.graph, &node_name, '.', Some(&parent)) {
+                                if let Some(field) = SData::get_mut::<SField>(&mut doc.graph, &field_ref) {
+                                    for (key, value) in attributes {
+                                        field.attributes.insert(key.clone(), value.clone());
+                                    }
                                 }
-                                field.set(&mut doc.graph);
                             }
                         }
                     },
@@ -639,7 +657,7 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
 
                 // Check to see if this object collides with an existing field in the current scope
                 // If so, it will be added to an array... so the name should be unique and fields shouldn't be created for it
-                let collision_field = SField::field(&doc.graph, &path, '/', None);
+                let collision_field = SField::field_ref(&doc.graph, &path, '/', None);
                 if collision_field.is_some() {
                     fields = false;
                     let name = format!("_a_obj{}", nanoid!(7));
@@ -653,10 +671,11 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                 let created = env.push_scope(doc, &path, '/', fields);
 
                 // If there was a collision field, union that field with the newly created object
-                if let Some(mut collision_field) = collision_field {
-                    let new_field = SField::new(&collision_field.name, SVal::Object(created));
-                    collision_field.union(&new_field);
-                    collision_field.set(&mut doc.graph);
+                if let Some(collision_field_ref) = collision_field {
+                    if let Some(collision_field) = SData::get_mut::<SField>(&mut doc.graph, collision_field_ref) {
+                        let new_field = SField::new(&collision_field.name, SVal::Object(created));
+                        collision_field.union(&new_field);
+                    }
                 }
 
                 // Set the field value to the newly created scope
@@ -1806,10 +1825,9 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
             
             // Declare the function in the current scope
             let scope = env.scope(doc);
-            function.attach(&scope, &mut doc.graph);
-
-            // Return a function pointer literal
-            res = Expr::Literal(SVal::FnPtr(function.data_ref()));
+            if let Some(dref) = SData::insert_new(&mut doc.graph, &scope, Box::new(function)) {
+                res = Expr::Literal(SVal::FnPtr(dref)); // return a function pointer literal
+            }
         },
         Rule::stof_type_constructor => {
             let mut cast_object_type = None;

@@ -16,7 +16,7 @@
 
 use std::collections::VecDeque;
 use serde_json::{Map, Number, Value};
-use crate::{json::JSON, SData, SField, SGraph, SNode, SNodeRef, SVal, FKIND};
+use crate::{json::JSON, SData, SField, SGraph, SNode, SNodeRef, SVal};
 
 /// URL encode struct.
 pub struct URLEncode;
@@ -52,11 +52,11 @@ impl URLEncode {
 
 /// Encode a graph node.
 fn encode_node(graph: &SGraph, node: &SNode, results: &mut Vec<String>, path: &mut Vec<String>) {
-    for dref in node.prefix_selection(FKIND) {
-        if let Ok(field) = SData::data::<SField>(graph, &dref.id) {
+    for dref in node.data_refs::<SField>(graph) {
+        if let Some(field) = SData::get::<SField>(graph, &dref.id) {
             match &field.value {
                 SVal::Array(vals) => {
-                    path.push(field.name);
+                    path.push(field.name.clone());
                     for i in 0..vals.len() {
                         path.push(i.to_string());
                         let val = &vals[i];
@@ -67,7 +67,7 @@ fn encode_node(graph: &SGraph, node: &SNode, results: &mut Vec<String>, path: &m
                 },
                 SVal::Object(nref) => {
                     if let Some(child) = nref.node(graph) {
-                        path.push(field.name);
+                        path.push(field.name.clone());
                         encode_node(graph, child, results, path);
                         path.pop();
                     }

@@ -196,7 +196,7 @@ impl SError {
     pub fn to_string(&self, graph: &SGraph) -> String {
         let mut res = String::default();
         for dref in &self.call_stack {
-            if let Ok(func) = SData::data::<SFunc>(&graph, dref) {
+            if let Some(func) = SData::get::<SFunc>(&graph, dref) {
                 let func_nodes = dref.nodes(&graph);
                 let func_path;
                 if func_nodes.len() > 0 {

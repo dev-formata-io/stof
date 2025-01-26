@@ -27,12 +27,12 @@ impl FunctionLibrary {
         match name {
             // Get the name of this function.
             "name" => {
-                let func: SFunc = dref.data(&doc.graph).unwrap().get_value().unwrap();
-                Ok(SVal::String(func.name))
+                let func: &SFunc = dref.data(&doc.graph).unwrap().get_data().unwrap();
+                Ok(SVal::String(func.name.clone()))
             },
             // Get the parameters on this function.
             "parameters" => {
-                let func: SFunc = dref.data(&doc.graph).unwrap().get_value().unwrap();
+                let func: &SFunc = dref.data(&doc.graph).unwrap().get_data().unwrap();
                 let mut params = Vec::new();
                 for param in &func.params {
                     params.push(SVal::Tuple(vec![SVal::String(param.name.clone()), SVal::String(param.ptype.type_of())]));
@@ -41,7 +41,7 @@ impl FunctionLibrary {
             },
             // Get the return type of this function.
             "returnType" => {
-                let func: SFunc = dref.data(&doc.graph).unwrap().get_value().unwrap();
+                let func: &SFunc = dref.data(&doc.graph).unwrap().get_data().unwrap();
                 Ok(SVal::String(func.rtype.type_of()))
             },
             // Has the given attribute on this function?
@@ -49,12 +49,12 @@ impl FunctionLibrary {
                 if parameters.len() < 1 {
                     return Err(SError::func(pid, &doc, "hasAttribute", "attribute str argument not found"));
                 }
-                let func: SFunc = dref.data(&doc.graph).unwrap().get_value().unwrap();
+                let func: &SFunc = dref.data(&doc.graph).unwrap().get_data().unwrap();
                 Ok(SVal::Bool(func.attributes.contains_key(&parameters[0].to_string())))
             },
             // Attributes on this function.
             "attributes" => {
-                let func: SFunc = dref.data(&doc.graph).unwrap().get_value().unwrap();
+                let func: &SFunc = dref.data(&doc.graph).unwrap().get_data().unwrap();
                 let mut attrs = BTreeMap::new();
                 for (key, value) in &func.attributes {
                     attrs.insert(SVal::String(key.clone()), value.clone());
@@ -80,8 +80,7 @@ impl FunctionLibrary {
             },
             // Call this function.
             "call" => {
-                let func: SFunc = dref.data(&doc.graph).unwrap().get_value().unwrap();
-                func.call(pid, doc, parameters.drain(..).collect(), true)
+                SFunc::call(dref, pid, doc, parameters.drain(..).collect(), true)
             },
             _ => {
                 Err(SError::func(pid, &doc, "NotFound", &format!("{} is not a function in the Function Library", name)))

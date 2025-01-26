@@ -14,11 +14,11 @@
 // limitations under the License.
 //
 
-use std::collections::BTreeSet;
+use std::{any::Any, collections::BTreeSet};
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{SField, SFunc, FKIND, FUNC_KIND};
-use super::{IntoDataRef, IntoNodeRef, SDataRef, SDataSelection, SGraph, SNodeRef};
+use crate::{SField, SFunc};
+use super::{IntoDataRef, IntoNodeRef, SData, SDataRef, SGraph, SNodeRef};
 
 
 /// Stof node.
@@ -128,45 +128,53 @@ impl SNode {
 
 
     /*****************************************************************************
-     * Selection.
+     * Data access helpers.
      *****************************************************************************/
-
-    /// Selection.
-    pub fn selection(&self) -> SDataSelection {
-        SDataSelection::from(self)
-    }
-
-    /// Recursive selection.
-    pub fn recursive_selection(&self, graph: &SGraph) -> SDataSelection {
-        let mut selection = self.selection();
-        for child_ref in &self.children {
-            if let Some(child) = child_ref.node(graph) {
-                selection.merge(&child.recursive_selection(graph));
-            }
-        }
-        selection
-    }
-
-    /// Prefix selection.
-    pub fn prefix_selection(&self, prefix: &str) -> SDataSelection {
-        let mut selection = SDataSelection::default();
+    
+    /// Get all data on this node of a certain type (references).
+    pub fn data<'a, T: Any>(&self, graph: &'a SGraph) -> Vec<&'a T> {
+        let mut res = Vec::new();
         for dref in &self.data {
-            if dref.id.starts_with(prefix) {
-                selection.insert(&dref.id);
+            if let Some(data) = SData::get::<T>(graph, dref) {
+                res.push(data);
             }
         }
-        selection
+        res
     }
 
-    /// Recursive prefix selection.
-    pub fn recursive_prefix_selection(&self, graph: &SGraph, prefix: &str) -> SDataSelection {
-        let mut selection = self.prefix_selection(prefix);
-        for child_ref in &self.children {
-            if let Some(child) = child_ref.node(graph) {
-                selection.merge(&child.recursive_prefix_selection(graph, prefix));
+    /// Recursive data references of a certain type.
+    pub fn data_recursive<'a, T: Any>(&self, graph: &'a SGraph) -> Vec<&'a T> {
+        let mut res = self.data::<T>(graph);
+        for child in &self.children {
+            if let Some(child) = child.node(graph) {
+                res.append(&mut child.data_recursive::<T>(graph));
             }
         }
-        selection
+        res
+    }
+
+    /// Get all data refs on this node of a certain type.
+    pub fn data_refs<T: Any>(&self, graph: &SGraph) -> Vec<SDataRef> {
+        let mut res = Vec::new();
+        for dref in &self.data {
+            if let Some(data) = dref.data(graph) {
+                if data.is_type_of::<T>() {
+                    res.push(dref.clone());
+                }
+            }
+        }
+        res
+    }
+
+    /// Recursive get all data refs of a certain type.
+    pub fn data_refs_recursive<T: Any>(&self, graph: &SGraph) -> Vec<SDataRef> {
+        let mut res = self.data_refs::<T>(graph);
+        for child in &self.children {
+            if let Some(child) = child.node(graph) {
+                res.append(&mut child.data_refs_recursive::<T>(graph));
+            }
+        }
+        res
     }
 
 
@@ -196,10 +204,10 @@ impl SNode {
             for data_ref in &self.data {
                 if let Some(data) = data_ref.data(graph) {
                     res.push_str(&format!("{}data ({}) {{", &ident, &data.id));
-                    if data.id.starts_with(FUNC_KIND) {
-                        res.push_str(&format!("{}{:?}", &iident, data.get_value::<SFunc>().unwrap()));
-                    } else if data.id.starts_with(FKIND) {
-                        res.push_str(&format!("{}{:?}", &iident, data.get_value::<SField>().unwrap()));
+                    if let Some(field) = data.get_data::<SField>() {
+                        res.push_str(&format!("{}{:?}", &iident, field));
+                    } else if let Some(func) = data.get_data::<SFunc>() {
+                        res.push_str(&format!("{}{:?}", &iident, func));
                     }
                     res.push_str(&format!("{}}}", &ident));
                 }

@@ -19,7 +19,7 @@ use bytes::Bytes;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use crate::{bytes::BYTES, lang::SError, text::TEXT, SData, SField, SFunc, SVal, BSTOF, STOF};
-use super::{runtime::{DocPermissions, Library, Symbol, SymbolTable}, ArrayLibrary, BlobLibrary, BoolLibrary, CustomTypes, Format, FunctionLibrary, IntoDataRef, IntoNodeRef, MapLibrary, NumberLibrary, ObjectLibrary, SFormats, SGraph, SLibraries, SNodeRef, SProcesses, SetLibrary, StdLibrary, StringLibrary, TupleLibrary};
+use super::{runtime::{DocPermissions, Library, Symbol, SymbolTable}, ArrayLibrary, BlobLibrary, BoolLibrary, CustomTypes, Format, FunctionLibrary, IntoDataRef, IntoNodeRef, MapLibrary, NumberLibrary, ObjectLibrary, SDataRef, SFormats, SGraph, SLibraries, SNodeRef, SProcesses, SetLibrary, StdLibrary, StringLibrary, TupleLibrary};
 
 #[cfg(not(feature = "wasm"))]
 use super::FileSystemLibrary;
@@ -319,13 +319,15 @@ impl SDoc {
     /// If the path points to a function, it will be called.
     pub fn get(&mut self, path: &str, start: Option<&SNodeRef>) -> Option<SVal> {
         if let Some(field) = self.field(path, start) {
-            return Some(field.value);
-        } else if let Some(func) = self.func(path, start) {
+            return Some(field.value.clone());
+        } else if let Some(func_ref) = self.func(path, start) {
             let mut parameters = Vec::new();
-            if let Some(params) = func.attributes.get("get") {
-                parameters.push(params.clone());
+            if let Some(func) = SData::get::<SFunc>(&self.graph, &func_ref) {
+                if let Some(params) = func.attributes.get("get") {
+                    parameters.push(params.clone());
+                }
             }
-            if let Ok(res) = func.call("main", self, parameters, true) {
+            if let Ok(res) = SFunc::call(&func_ref, "main", self, parameters, true) {
                 self.clean("main");
                 return Some(res);
             }
@@ -341,7 +343,7 @@ impl SDoc {
     
     /// Find a field in this document with a path.
     /// Path is dot '.' separated.
-    pub fn field(&self, path: &str, start: Option<&SNodeRef>) -> Option<SField> {
+    pub fn field(&self, path: &str, start: Option<&SNodeRef>) -> Option<&SField> {
         SField::field(&self.graph, path, '.', start)
     }
 
@@ -389,35 +391,37 @@ impl SDoc {
     pub fn run(&mut self, context: Option<&SNodeRef>) -> Result<(), String> {
         let functions;
         if context.is_some() {
-            functions = SFunc::recursive_funcs(&self.graph, context.unwrap());
+            functions = SFunc::recursive_func_refs(&self.graph, context.unwrap());
         } else {
             functions = SFunc::all_funcs(&self.graph);
         }
         let mut errors = Vec::new();
-        for func in functions {
-            if let Some(attr_val) = func.attributes.get("main") {
-                let result;
-                if attr_val.is_empty() {
-                    result = func.call("main", self, vec![], true);
-                } else {
-                    result = func.call("main", self, vec![attr_val.clone()], true);
-                }
-                self.clean("main");
-                match result {
-                    Ok(_) => {
-                        // Nada... keep going!
-                    },
-                    Err(error) => {
-                        let func_nodes = func.data_ref().nodes(&self.graph);
-                        let func_path;
-                        if func_nodes.len() > 0 {
-                            func_path = func_nodes.first().unwrap().path(&self.graph);
-                        } else {
-                            func_path = String::from("<unknown>");
-                        }
+        for func_ref in functions {
+            if let Some(func) = SData::get::<SFunc>(&self.graph, &func_ref).cloned() {
+                if let Some(attr_val) = func.attributes.get("main") {
+                    let result;
+                    if attr_val.is_empty() {
+                        result = SFunc::call_internal(&func_ref, "main", self, vec![], true, &func.params, &func.statements, &func.rtype);
+                    } else {
+                        result = SFunc::call_internal(&func_ref, "main", self, vec![attr_val.clone()], true, &func.params, &func.statements, &func.rtype);
+                    }
+                    self.clean("main");
+                    match result {
+                        Ok(_) => {
+                            // Nada... keep going!
+                        },
+                        Err(error) => {
+                            let func_nodes = func_ref.nodes(&self.graph);
+                            let func_path;
+                            if func_nodes.len() > 0 {
+                                func_path = func_nodes.first().unwrap().path(&self.graph);
+                            } else {
+                                func_path = String::from("<unknown>");
+                            }
 
-                        errors.push(format!("{} {} ...\n{}", func_path.italic().dimmed(), func.name.blue(), error.to_string(&self.graph)));
-                    },
+                            errors.push(format!("{} {} ...\n{}", func_path.italic().dimmed(), func.name.blue(), error.to_string(&self.graph)));
+                        },
+                    }
                 }
             }
         }
@@ -434,26 +438,18 @@ impl SDoc {
     
     /// Find a function in this document with a path.
     /// Path is dot '.' separated.
-    pub fn func(&self, path: &str, start: Option<&SNodeRef>) -> Option<SFunc> {
-        SFunc::func(&self.graph, path, '.', start)
+    pub fn func(&self, path: &str, start: Option<&SNodeRef>) -> Option<SDataRef> {
+        SFunc::func_ref(&self.graph, path, '.', start)
     }
 
     /// Call a function in this document with a path.
     pub fn call_func(&mut self, path: &str, start: Option<&SNodeRef>, params: Vec<SVal>) -> Result<SVal, SError> {
-        if let Some(func) = self.func(path, start) {
-            let res = func.call("main", self, params, true);
+        if let Some(func_ref) = SFunc::func_ref(&self.graph, path, '.', start) {
+            let res = SFunc::call(&func_ref, "main", self, params, true);
             self.clean("main");
             return res;
         }
         Err(SError::call("main", &self, &format!("did not find a function at the path '{}' to call", path)))
-    }
-    
-    /// Call a function on this document.
-    /// Function does not have to be contained within this document.
-    pub fn call(&mut self, func: &SFunc, params: Vec<SVal>) -> Result<SVal, SError> {
-        let res = func.call("main", self, params, true);
-        self.clean("main");
-        res
     }
 
     /// Test some Stof in a file.
@@ -524,26 +520,31 @@ impl SDoc {
     pub fn run_tests(&mut self, throw: bool, context: Option<&SNodeRef>) -> Result<String, String> {
         let mut functions;
         if context.is_some() {
-            functions = SFunc::recursive_funcs(&self.graph, context.unwrap());
+            functions = SFunc::recursive_func_refs(&self.graph, context.unwrap());
         } else {
             functions = SFunc::all_funcs(&self.graph);
         }
-        functions.retain(|f| f.attributes.contains_key("test"));
-        let fn_ids = functions.into_iter().map(|f| f.id).collect::<Vec<String>>();
+        functions.retain(|f| {
+            if let Some(func) = SData::get::<SFunc>(&self.graph, f) {
+                func.attributes.contains_key("test")
+            } else {
+                false
+            }
+        });
 
-        let total = fn_ids.len();
+        let total = functions.len();
         println!("{} {} {}", "running".bold(), total, "Stof tests".bold());
         let mut failures = Vec::new();
         let mut profiles = Vec::new();
         let start = SystemTime::now();
-        for func_id in fn_ids {
-            if let Ok(func) = SData::data::<SFunc>(&self.graph, func_id) {
+        for func_ref in functions {
+            if let Some(func) = SData::get::<SFunc>(&self.graph, &func_ref).cloned() {
                 if let Some(res_test_val) = func.attributes.get("test") {
                     let silent = func.attributes.contains_key("silent");
-                    let mut result = func.call("main", self, vec![], true);
+                    let mut result = SFunc::call_internal(&func_ref, "main", self, vec![], true, &func.params, &func.statements, &func.rtype);
                     self.clean("main");
 
-                    let func_nodes = func.data_ref().nodes(&self.graph);
+                    let func_nodes = func_ref.nodes(&self.graph);
                     let func_path;
                     if func_nodes.len() > 0 {
                         func_path = func_nodes.first().unwrap().path(&self.graph);
@@ -587,7 +588,7 @@ impl SDoc {
 
                                         let profile_start = SystemTime::now();
                                         for _ in 0..iterations {
-                                            let _ = func.call("main", self, vec![], true);
+                                            let _ = SFunc::call_internal(&func_ref, "main", self, vec![], true, &func.params, &func.statements, &func.rtype);
                                             self.clean("main");
                                         }
                                         let total_duration = profile_start.elapsed().unwrap();

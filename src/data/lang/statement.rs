@@ -14,9 +14,9 @@
 // limitations under the License.
 //
 
-use std::collections::{BTreeMap, HashMap};
+use std::{collections::{BTreeMap, HashMap}, ops::Deref};
 use serde::{Deserialize, Serialize};
-use crate::{Data, SDoc, SField, SFunc, SType, SVal};
+use crate::{SData, SDoc, SField, SFunc, SType, SVal};
 use super::{Expr, SError};
 
 
@@ -72,7 +72,7 @@ impl Statements {
                 },
                 Statement::Assign(name, rhs) => {
                     // Eval rhs, which is the value of the variable!
-                    let mut val = rhs.exec(pid, doc)?;
+                    let val = rhs.exec(pid, doc)?;
                     if val.is_void() {
                         let error = SError::custom(pid, &doc, "AssignError", "cannot assign a void value");
                         return Err(error);
@@ -84,68 +84,66 @@ impl Statements {
                         set_var = true;
                     }
 
-                    // Unbox the val if needed! No fields hold boxed values...
-                    val = val.unbox();
-
                     if !set_var && name.contains('.') && !name.ends_with('.') && !name.starts_with('.') {
                         // Try assigning via an absolute path to a field first
-                        if let Some(mut field) = SField::field(&doc.graph, &name, '.', None) {
-                            if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr(pid).as_ref()) {
-                                field.value = val;
-                                field.set(&mut doc.graph);
-                            }
-                            return Ok(StatementsRes::None); // Go no further!
-                        }
-
-                        // Look for a variable that is the first token in the path next
-                        let mut path = name.split('.').collect::<Vec<&str>>();
-                        let mut context = None;
-                        let mut context_path = name.clone();
-                        if let Some(symbol) = doc.get_symbol(pid, path.remove(0)) {
-                            match symbol.var() {
-                                SVal::Object(nref) => {
-                                    context = Some(nref);
-                                    context_path = path.join(".");
-                                },
-                                _ => {}
-                            }
-                        }
-                        // If no variable matches, try setting self scope
-                        else if name.starts_with("self") || name.starts_with("super") {
-                            context = doc.self_ptr(pid);
-                        }
-
-                        if let Some(mut context) = context {
-                            // Already defined field?
-                            if let Some(mut field) = SField::field(&doc.graph, &context_path, '.', Some(&context)) {
-                                if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr(pid).as_ref()) {
-                                    field.value = val.clone();
-                                    field.set(&mut doc.graph);
-                                }
-                            }
-                            // Creating a new field
-                            else {
-                                if doc.perms.can_write_scope(&doc.graph, &context, doc.self_ptr(pid).as_ref()) {
-                                    let mut new_field_path = context_path.split('.').collect::<Vec<&str>>();
-
-                                    let field_name = new_field_path.pop().unwrap();
-                                    if new_field_path.len() > 0 {
-                                        context = doc.graph.ensure_nodes(&new_field_path.join("/"), '/', true, Some(context.clone()));
-                                    }
-
-                                    let mut field = SField::new(field_name, val.clone());
-                                    field.attach(&context, &mut doc.graph);
+                        if let Some(field_ref) = SField::field_ref(&doc.graph, &name, '.', None) {
+                            if doc.perms.can_write_field(&doc.graph, &field_ref, doc.self_ptr(pid).as_ref()) {
+                                if let Some(field) = SData::get_mut::<SField>(&mut doc.graph, &field_ref) {
+                                    field.value = val;
                                 }
                             }
                         } else {
-                            // Create a new object and add a field to it
-                            let mut obj_path = name.split(".").collect::<Vec<&str>>();
-                            let backup_name = obj_path.pop().unwrap();
-                            if obj_path.len() > 0 {
-                                let nref = doc.graph.ensure_nodes(&obj_path.join("/"), '/', true, None);
-                                if doc.perms.can_write_scope(&doc.graph, &nref, doc.self_ptr(pid).as_ref()) {
-                                    let mut field = SField::new(backup_name, val);
-                                    field.attach(&nref, &mut doc.graph); // attach new field to self
+                            // Look for a variable that is the first token in the path next
+                            let mut path = name.split('.').collect::<Vec<&str>>();
+                            let mut context = None;
+                            let mut context_path = name.clone();
+                            if let Some(symbol) = doc.get_symbol(pid, path.remove(0)) {
+                                match symbol.var() {
+                                    SVal::Object(nref) => {
+                                        context = Some(nref);
+                                        context_path = path.join(".");
+                                    },
+                                    _ => {}
+                                }
+                            }
+                            // If no variable matches, try setting self scope
+                            else if name.starts_with("self") || name.starts_with("super") {
+                                context = doc.self_ptr(pid);
+                            }
+
+                            if let Some(mut context) = context {
+                                // Already defined field?
+                                if let Some(field_ref) = SField::field_ref(&doc.graph, &context_path, '.', Some(&context)) {
+                                    if doc.perms.can_write_field(&doc.graph, &field_ref, doc.self_ptr(pid).as_ref()) {
+                                        if let Some(field) = SData::get_mut::<SField>(&mut doc.graph, &field_ref) {
+                                            field.value = val;
+                                        }
+                                    }
+                                }
+                                // Creating a new field
+                                else {
+                                    if doc.perms.can_write_scope(&doc.graph, &context, doc.self_ptr(pid).as_ref()) {
+                                        let mut new_field_path = context_path.split('.').collect::<Vec<&str>>();
+
+                                        let field_name = new_field_path.pop().unwrap();
+                                        if new_field_path.len() > 0 {
+                                            context = doc.graph.ensure_nodes(&new_field_path.join("/"), '/', true, Some(context.clone()));
+                                        }
+
+                                        let field = SField::new(field_name, val);
+                                        SData::insert_new(&mut doc.graph, &context, Box::new(field));
+                                    }
+                                }
+                            } else {
+                                // Create a new object and add a field to it
+                                let mut obj_path = name.split(".").collect::<Vec<&str>>();
+                                let backup_name = obj_path.pop().unwrap();
+                                if obj_path.len() > 0 {
+                                    let nref = doc.graph.ensure_nodes(&obj_path.join("/"), '/', true, None);
+                                    if doc.perms.can_write_scope(&doc.graph, &nref, doc.self_ptr(pid).as_ref()) {
+                                        let field = SField::new(backup_name, val);
+                                        SData::insert_new(&mut doc.graph, &nref, Box::new(field)); // attach new field to self
+                                    }
                                 }
                             }
                         }
@@ -183,11 +181,10 @@ impl Statements {
                                 }
                             },
                             SVal::FnPtr(dref) => {
-                                let func: SFunc = dref.data(&doc.graph).unwrap().get_value().unwrap();
-                                if !doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr(pid).as_ref()) {
-                                    doc.add_variable(pid, &name, dropped_val);
+                                if doc.perms.can_write_func(&doc.graph, dref, doc.self_ptr(pid).as_ref()) {
+                                    doc.graph.remove_data(dref, None);
                                 } else {
-                                    func.remove(&mut doc.graph, None);
+                                    doc.add_variable(pid, &name, dropped_val);
                                 }
                             },
                             _ => {}
@@ -196,31 +193,61 @@ impl Statements {
                     }
 
                     if !dropped_var {
-                        if let Some(field) = SField::field(&doc.graph, &name, '.', None) {
-                            if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr(pid).as_ref()) {
-                                field.remove(&mut doc.graph, None);
-                                match &field.value {
-                                    SVal::Object(nref) => {
-                                        doc.types.drop_types_for(&nref, &doc.graph);
-                                        doc.graph.remove_node(nref);
-                                    },
-                                    SVal::Array(vec) => {
-                                        for val in vec {
+                        if let Some(field_ref) = SField::field_ref(&doc.graph, &name, '.', None) {
+                            let mut remove = true;
+                            let mut remove_objects = Vec::new();
+                            if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
+                                if !doc.perms.can_write_field(&doc.graph, &field_ref, doc.self_ptr(pid).as_ref()) {
+                                    remove = false;
+                                } else {
+                                    match &field.value {
+                                        SVal::Object(nref) => {
+                                            remove_objects.push(nref.clone());
+                                        },
+                                        SVal::Array(vec) => {
+                                            for val in vec {
+                                                match val {
+                                                    SVal::Object(nref) => {
+                                                        remove_objects.push(nref.clone());
+                                                    },
+                                                    _ => {}
+                                                }
+                                            }
+                                        },
+                                        SVal::Boxed(val) => {
+                                            let val = val.lock().unwrap();
+                                            let val = val.deref();
                                             match val {
                                                 SVal::Object(nref) => {
-                                                    doc.types.drop_types_for(&nref, &doc.graph);
-                                                    doc.graph.remove_node(nref);
+                                                    remove_objects.push(nref.clone());
+                                                },
+                                                SVal::Array(vec) => {
+                                                    for val in vec {
+                                                        match val {
+                                                            SVal::Object(nref) => {
+                                                                remove_objects.push(nref.clone());
+                                                            },
+                                                            _ => {}
+                                                        }
+                                                    }
                                                 },
                                                 _ => {}
                                             }
-                                        }
-                                    },
-                                    _ => {}
+                                        },
+                                        _ => {}
+                                    }
                                 }
                             }
-                        } else if let Some(func) = SFunc::func(&doc.graph, &name, '.', None) {
-                            if doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr(pid).as_ref()) {
-                                func.remove(&mut doc.graph, None);
+                            if remove {
+                                doc.graph.remove_data(&field_ref, None);
+                                for obj in remove_objects {
+                                    doc.types.drop_types_for(&obj, &doc.graph);
+                                    doc.graph.remove_node(&obj);
+                                }
+                            }
+                        } else if let Some(func_ref) = SFunc::func_ref(&doc.graph, &name, '.', None) {
+                            if doc.perms.can_write_func(&doc.graph, &func_ref, doc.self_ptr(pid).as_ref()) {
+                                doc.graph.remove_data(&func_ref, None);
                             }
                         } else if let Some(node) = doc.graph.node_ref(&name.replace(".", "/"), None) {
                             if doc.perms.can_write_scope(&doc.graph, &node, doc.self_ptr(pid).as_ref()) {
@@ -263,38 +290,68 @@ impl Statements {
                                             object_name = context_node.name.clone();
                                         }
                                         if object_name.len() > 0 {
-                                            if let Some(field) = SField::field(&doc.graph, &format!("super.{}", object_name), '.', Some(&context)) {
-                                                field.remove(&mut doc.graph, None);
+                                            if let Some(field) = SField::field_ref(&doc.graph, &format!("super.{}", object_name), '.', Some(&context)) {
+                                                doc.graph.remove_data(&field, None);
                                             }
                                         }
                                         doc.types.drop_types_for(&context, &doc.graph);
                                         doc.graph.remove_node(&context);
                                     }
-                                } else if let Some(field) = SField::field(&doc.graph, &context_path, '.', Some(&context)) {
-                                    if doc.perms.can_write_field(&doc.graph, &field, doc.self_ptr(pid).as_ref()) {
-                                        field.remove(&mut doc.graph, None);
-                                        match &field.value {
-                                            SVal::Object(nref) => {
-                                                doc.types.drop_types_for(&nref, &doc.graph);
-                                                doc.graph.remove_node(nref);
-                                            },
-                                            SVal::Array(vec) => {
-                                                for val in vec {
+                                } else if let Some(field_ref) = SField::field_ref(&doc.graph, &context_path, '.', Some(&context)) {
+                                    let mut remove = true;
+                                    let mut remove_objects = Vec::new();
+                                    if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
+                                        if !doc.perms.can_write_field(&doc.graph, &field_ref, doc.self_ptr(pid).as_ref()) {
+                                            remove = false;
+                                        } else {
+                                            match &field.value {
+                                                SVal::Object(nref) => {
+                                                    remove_objects.push(nref.clone());
+                                                },
+                                                SVal::Array(vec) => {
+                                                    for val in vec {
+                                                        match val {
+                                                            SVal::Object(nref) => {
+                                                                remove_objects.push(nref.clone());
+                                                            },
+                                                            _ => {}
+                                                        }
+                                                    }
+                                                },
+                                                SVal::Boxed(val) => {
+                                                    let val = val.lock().unwrap();
+                                                    let val = val.deref();
                                                     match val {
                                                         SVal::Object(nref) => {
-                                                            doc.types.drop_types_for(&nref, &doc.graph);
-                                                            doc.graph.remove_node(nref);
+                                                            remove_objects.push(nref.clone());
+                                                        },
+                                                        SVal::Array(vec) => {
+                                                            for val in vec {
+                                                                match val {
+                                                                    SVal::Object(nref) => {
+                                                                        remove_objects.push(nref.clone());
+                                                                    },
+                                                                    _ => {}
+                                                                }
+                                                            }
                                                         },
                                                         _ => {}
                                                     }
-                                                }
-                                            },
-                                            _ => {}
+                                                },
+                                                _ => {}
+                                            }
                                         }
                                     }
-                                } else if let Some(func) = SFunc::func(&doc.graph, &context_path, '.', Some(&context)) {
-                                    if doc.perms.can_write_func(&doc.graph, &func, doc.self_ptr(pid).as_ref()) {
-                                        func.remove(&mut doc.graph, None);
+                                    if remove {
+                                        doc.graph.remove_data(&field_ref, None);
+                                        for obj in remove_objects {
+                                            doc.types.drop_types_for(&obj, &doc.graph);
+                                            doc.graph.remove_node(&obj);
+                                        }
+                                    }
+                                } else if let Some(func_ref) = SFunc::func_ref(&doc.graph, &context_path, '.', Some(&context)) {
+                                    if doc.perms.can_write_func(&doc.graph, &func_ref, doc.self_ptr(pid).as_ref()) {
+                                        doc.graph.remove_data(&func_ref, None);
                                     }
                                 }
                             }

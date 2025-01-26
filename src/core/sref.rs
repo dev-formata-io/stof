@@ -15,11 +15,9 @@
 //
 
 use std::{collections::HashSet, fmt::Display, mem::swap};
-use bincode::{Error, ErrorKind};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use crate::{IntoSVal, SField, SUnits, SVal};
-
-use super::{Data, SData, SGraph, SNode, Store};
+use serde::{Deserialize, Serialize};
+use crate::{SField, SVal};
+use super::{SData, SGraph, SNode, Store};
 
 
 /// Stof Ref Trait.
@@ -265,38 +263,6 @@ impl SNodeRef {
         }
         Vec::new()
     }
-
-    /// Get a field on this node if it exists (dot separated path).
-    pub fn dot_field(&self, graph: &SGraph, path: &str) -> Option<SField> {
-        self.field(graph, path, '.')
-    }
-
-    /// Get a field on this node if it exists (slash separated path).
-    pub fn slash_field(&self, graph: &SGraph, path: &str) -> Option<SField> {
-        self.field(graph, path, '/')
-    }
-    
-    /// Get a field on this node if it exists.
-    pub fn field(&self, graph: &SGraph, path: &str, sep: char) -> Option<SField> {
-        SField::field(graph, path, sep, Some(&self))
-    }
-
-    /// Get the first field that matches a given path.
-    pub fn first_field_match(&self, graph: &SGraph, paths: Vec<&str>, sep: char) -> Option<SField> {
-        SField::first_match(graph, paths, sep, Some(&self))
-    }
-
-    /// Get all fields on this node.
-    pub fn fields(&self, graph: &SGraph) -> Vec<SField> {
-        SField::fields(graph, self)
-    }
-
-    /// Create a new field on this node.
-    pub fn new_field(&self, graph: &mut SGraph, name: &str, value: impl IntoSVal) -> SField {
-        let mut field = SField::new(name, value);
-        field.attach(&self, graph);
-        field
-    }
     
     /// Distance to another node in the graph.
     /// If same node, distance is 0.
@@ -451,7 +417,7 @@ impl SNodeRef {
 
             // Is it a field in the current node that is an object?
             if let Some(field) = SField::field(graph, next, '/', Some(&current.node_ref())) {
-                match field.value {
+                match &field.value {
                     SVal::Object(nref) => {
                         if let Some(node) = nref.node(graph) {
                             return Self::path_constructor(graph, node, names, seen);
@@ -471,53 +437,6 @@ impl SNodeRef {
         }
         seen.insert(current.id.clone());
         Some(current.node_ref())
-    }
-
-
-    /*****************************************************************************
-     * Field creation helpers.
-     *****************************************************************************/
-    
-    /// New object field on this object.
-    #[inline]
-    pub fn new_object(&self, graph: &mut SGraph, name: &str) -> Self {
-        SField::new_object(graph, name, &self)
-    }
-
-    /// Insert an array field on this object.
-    #[inline]
-    pub fn new_array(&self, graph: &mut SGraph, name: &str, vals: Vec<SVal>) -> SField {
-        SField::new_array(graph, name, vals, &self)
-    }
-
-    /// Insert a new string field on this object.
-    #[inline]
-    pub fn new_string(&self, graph: &mut SGraph, name: &str, value: &str) -> SField {
-        SField::new_string(graph, name, value, &self)
-    }
-
-    /// Insert a new boolean field on this object.
-    #[inline]
-    pub fn new_bool(&self, graph: &mut SGraph, name: &str, value: bool) -> SField {
-        SField::new_bool(graph, name, value, &self)
-    }
-
-    /// New integer field on this object.
-    #[inline]
-    pub fn new_int(&self, graph: &mut SGraph, name: &str, value: i64) -> SField {
-        SField::new_int(graph, name, value, &self)
-    }
-
-    /// New float field on this object.
-    #[inline]
-    pub fn new_float(&self, graph: &mut SGraph, name: &str, value: f64) -> SField {
-        SField::new_float(graph, name, value, &self)
-    }
-
-    /// New float units field on this object.
-    #[inline]
-    pub fn new_units(&self, graph: &mut SGraph, name: &str, value: f64, units: SUnits) -> SField {
-        SField::new_units(graph, name, value, units, &self)
     }
 }
 
@@ -662,22 +581,5 @@ impl SDataRef {
             return data.validate_val();
         }
         false
-    }
-
-    /// Set the value of this data.
-    pub fn set_value(&self, graph: &mut SGraph, value: impl Serialize) -> bool {
-        if let Some(data) = self.data_mut(graph) {
-            data.set_value(value);
-            return true;
-        }
-        false
-    }
-
-    /// Get the value of this data.
-    pub fn get_value<T>(&self, graph: &SGraph) -> Result<T, Error> where T: DeserializeOwned {
-        if let Some(data) = self.data(graph) {
-            return data.get_value();
-        }
-        Err(Box::new(ErrorKind::Custom("SDataRef Error: Data not found while attempting to get value".to_owned())))
     }
 }
