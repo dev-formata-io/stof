@@ -15,6 +15,8 @@
 //
 
 pub mod parser;
+use std::collections::HashMap;
+
 pub use parser::*;
 
 use bytes::Bytes;
@@ -91,6 +93,10 @@ impl Format for BSTOF {
         if new_doc.graph.roots.len() < 1 {
             new_doc.graph.insert_root("root");
         }
+
+        // Map of IDs on new_doc (other graph) -> self IDs for mapping new types
+        let mut decid_map = HashMap::new();
+
         // as name is used to re-arrange the main root of this new graph into a particular region of the existing graph
         if as_name.len() > 0 && as_name != "root" {
             let mut new_graph = SGraph::default();
@@ -98,17 +104,19 @@ impl Format for BSTOF {
             
             let location;
             if as_name.starts_with("self") || as_name.starts_with("super") {
-                let path = format!("{}.{}", doc.self_ptr(pid).unwrap_or(doc.graph.main_root().unwrap()).path(&doc.graph), as_name);
-                location = new_graph.ensure_nodes(&path, '.', true, None);
+                let path = format!("{}/{}", doc.self_ptr(pid).unwrap_or(doc.graph.main_root().unwrap()).path(&doc.graph), as_name.replace('.', "/"));
+                location = new_graph.ensure_nodes(&path, '/', true, None);
             } else {
-                location = new_graph.ensure_nodes(as_name, '.', true, None);
+                location = new_graph.ensure_nodes(&as_name.replace('.', "/"), '/', true, None);
             }
 
             let mut absorbed = false;
-            if let Some(node) = new_doc.graph.main_root() {
-                if let Some(node) = node.node(&new_doc.graph) {
+            if let Some(node_ref) = new_doc.graph.main_root() {
+                if let Some(node) = node_ref.node(&new_doc.graph) {
                     new_graph.absorb_external_node(&new_doc.graph, node, &location);
                     absorbed = true;
+                    // need to map any old types defined on the old root to the new root
+                    decid_map.insert(node_ref.id, location.id);
                 }
             }
             if absorbed {
@@ -124,26 +132,18 @@ impl Format for BSTOF {
 
         // Before we merge the types, we have to re-link the decids with the collisions that will happen
         let collisions = doc.graph.get_collisions(&new_doc.graph);
-        for (_, nodes) in &collisions.0 {
-            let mut other_nodes = Vec::new();
-            let mut self_nodes = Vec::new();
-            for node in nodes {
-                if node.exists(&new_doc.graph) { other_nodes.push(node.clone()); }
-                else { self_nodes.push(node.clone()); }
+        for index in 0..collisions.0.len() {
+            if index < collisions.1.len() {
+                decid_map.insert(collisions.1[index].id.clone(), collisions.0[index].id.clone());
             }
-            if self_nodes.len() > 0 {
-                let link_id = self_nodes.first().unwrap().id.clone();
-                for other_node in other_nodes {
-                    // Any decids on types in the new_doc have to be re-linked with a self_node...
-                    for (_name, ctypes) in &mut new_doc.types.types {
-                        for ctype in ctypes {
-                            if ctype.decid == other_node.id {
-                                // This type was defined on a node that collides with a node already defined in doc
-                                // In order for this type to still work, we need to re-point it as defined in a valid node
-                                ctype.decid = link_id.clone();
-                            }
-                        }
-                    }
+        }
+        // Any decids on types in the new_doc have to be re-linked with a self_node...
+        for (_name, ctypes) in &mut new_doc.types.types {
+            for ctype in ctypes {
+                if let Some(new_id) = decid_map.get(&ctype.decid) {
+                    // This type was defined on a node that collides with a node already defined in doc
+                    // In order for this type to still work, we need to re-point it as defined in a valid node
+                    ctype.decid = new_id.clone();
                 }
             }
         }

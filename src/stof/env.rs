@@ -15,7 +15,7 @@
 //
 
 use std::collections::{HashMap, HashSet};
-use crate::{IntoNodeRef, SData, SDataRef, SDoc, SField, SFunc, SNodeRef, SType, SVal};
+use crate::{lang::SError, IntoNodeRef, SData, SDataRef, SDoc, SField, SFunc, SNodeRef, SType, SVal};
 
 
 /// Stof parse environment.
@@ -84,7 +84,7 @@ impl StofEnv {
 
     /// Insert a field onto a node.
     /// Check for field collisions on the node, merging fields if necessary.
-    pub(crate) fn insert_field(&mut self, doc: &mut SDoc, node: impl IntoNodeRef, field: SField) {
+    pub(crate) fn insert_field(&mut self, doc: &mut SDoc, node: impl IntoNodeRef, field: SField) -> Result<(), SError> {
         let node_ref = node.node_ref();
         if !self.node_field_collisions.contains_key(&node_ref.id) {
             let mut map = HashMap::new();
@@ -100,7 +100,7 @@ impl StofEnv {
                 // This field collides with an existing one on this node!
                 // Union the existing field with the new field, and set the existing back into the graph
                 if let Some(existing_field) = SData::get_mut::<SField>(&mut doc.graph, existing.get(&field.name).unwrap()) {
-                    existing_field.union(&field);
+                    existing_field.merge(&field)?;
                 }
             } else {
                 // We have not collided with any field names on this node, so insert the field into the collisions
@@ -110,6 +110,7 @@ impl StofEnv {
                 }
             }
         }
+        Ok(())
     }
 
     /// Before parse.

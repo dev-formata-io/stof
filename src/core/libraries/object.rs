@@ -325,7 +325,7 @@ impl ObjectLibrary {
                         doc.graph.remove_data(&field_ref, None);
 
                         if let Some(existing) = SData::get_mut::<SField>(&mut doc.graph, existing_ref) {
-                            existing.union(&clone);
+                            existing.merge(&clone)?;
                         }
                     } else {
                         // Get the new field name from the destination path
@@ -595,6 +595,15 @@ impl ObjectLibrary {
                     return Ok(SVal::Bool(true));
                 }
                 Ok(SVal::Bool(false))
+            },
+
+            // dump this object (testing)
+            "dbg_dump" => {
+                if let Some(node) = obj.node(&doc.graph) {
+                    let dump = node.dump(&doc.graph, 0, true);
+                    println!("{dump}");
+                }
+                Ok(SVal::Void)
             },
 
             /*****************************************************************************

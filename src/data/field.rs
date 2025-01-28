@@ -17,7 +17,7 @@
 use std::collections::{BTreeMap, HashSet};
 use serde::{Deserialize, Serialize};
 use crate::{Data, SData, SDataRef, SGraph, SNodeRef};
-use super::{SNum, SUnits, SVal};
+use super::{lang::{ErrorType, SError}, SNum, SUnits, SVal};
 
 
 /// Stof field.
@@ -233,7 +233,7 @@ impl SField {
      *****************************************************************************/
 
     /// Union two sets of fields together by name, manipulating the first set of fields
-    pub(crate) fn union_fields(graph: &mut SGraph, node: &SNodeRef, other: &SGraph, other_fields: &Vec<SDataRef>) {
+    pub(crate) fn merge_fields(graph: &mut SGraph, node: &SNodeRef, other: &SGraph, other_fields: &Vec<SDataRef>) -> Result<(), SError> {
         let mut other_handled = HashSet::new();
         let fields = Self::field_refs(graph, node);
         for field_ref in fields {
@@ -244,7 +244,7 @@ impl SField {
                             if field == other {
                                 // do nothing...
                             } else {
-                                field.union(other);
+                                field.merge(other)?;
                             }
                             other_handled.insert(other_ref.clone());
                         }
@@ -260,15 +260,60 @@ impl SField {
                 }
             }
         }
+        Ok(())
     }
 
     /// Union two fields together, manipulating self with the new unioned value.
-    pub(crate) fn union(&mut self, other: &Self) {
+    /// no attribute | #[merge] | #[merge('default')] - default merge is performed
+    /// #[merge('none')] - ignore any merging - value is unchanged
+    /// #[merge('override')] - other value is accepted INSTEAD of current value
+    /// #[merge('error')] - throw an error if the value needs to be merged
+    /// TODO #[merge(fn)] - custom merge handler function with the two values
+    pub(crate) fn merge(&mut self, other: &Self) -> Result<(), SError> {
         for (attr, val) in &other.attributes {
             if !self.attributes.contains_key(attr.as_str()) {
                 self.attributes.insert(attr.clone(), val.clone());
             }
         }
-        self.value.union(&other.value);
+
+        if let Some(attr_val) = self.attributes.get("merge") {
+            if attr_val.is_empty() {
+                self.value.merge(&other.value);
+            } else {
+                match attr_val {
+                    SVal::String(merge_type) => {
+                        match merge_type.as_str() {
+                            "none" => {
+                                // don't do any merging!
+                            },
+                            "override" => {
+                                // take the other value instead of our current value
+                                self.value = other.value.clone();
+                            },
+                            "error" => {
+                                return Err(SError {
+                                    pid: "main".to_string(),
+                                    error_type: ErrorType::Custom("MergeError".into()),
+                                    message: format!("user instructed merge error between two fields, both named {}'", &self.name),
+                                    call_stack: Default::default(),
+                                });
+                            },
+                            _ => { // default merge
+                                self.value.merge(&other.value);
+                            }
+                        }
+                    },
+                    //SVal::FnPtr(func_ref) => {
+                        // TODO
+                    //},
+                    _ => {
+                        self.value.merge(&other.value);
+                    }
+                }
+            }
+        } else {
+            self.value.merge(&other.value);
+        }
+        Ok(())
     }
 }

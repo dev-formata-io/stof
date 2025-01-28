@@ -600,7 +600,7 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
 
                 let mut field = SField::new(&last, field_value);
                 field.attributes = attributes.clone();
-                env.insert_field(doc, &env.scope(&doc), field);
+                env.insert_field(doc, &env.scope(&doc), field)?;
             } else if field_name.len() > 0 && object_declaration && attributes.len() > 0 {
                 // Check for a field for this object and make sure the attributes exist on it!
                 match field_value {
@@ -674,7 +674,7 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                 if let Some(collision_field_ref) = collision_field {
                     if let Some(collision_field) = SData::get_mut::<SField>(&mut doc.graph, collision_field_ref) {
                         let new_field = SField::new(&collision_field.name, SVal::Object(created));
-                        collision_field.union(&new_field);
+                        collision_field.merge(&new_field)?;
                     }
                 }
 

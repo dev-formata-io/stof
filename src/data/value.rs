@@ -946,14 +946,14 @@ impl SVal {
         stype.type_of()
     }
 
-    /// Union this value with another, manipulating this value as the result.
-    pub fn union(&mut self, other: &Self) {
+    /// Merge this value with another, manipulating this value as the result.
+    pub fn merge(&mut self, other: &Self) {
         if other.is_boxed() {
             match other {
                 SVal::Boxed(oval) => {
                     let lock = oval.lock().unwrap();
                     let other = lock.deref();
-                    return self.union(other);
+                    return self.merge(other);
                 },
                 _ => {}
             }
@@ -1008,7 +1008,7 @@ impl SVal {
                     SVal::Map(omap) => {
                         for (k, v) in omap {
                             if let Some(existing_val) = map.get_mut(k) {
-                                existing_val.union(v);
+                                existing_val.merge(v);
                             } else {
                                 map.insert(k.clone(), v.clone());
                             }
@@ -1020,7 +1020,7 @@ impl SVal {
                 }
             },
             Self::Boxed(val) => {
-                val.lock().unwrap().union(other)
+                val.lock().unwrap().merge(other)
             },
         }
     }
@@ -1866,7 +1866,7 @@ impl SVal {
                     Self::Map(omap) => {
                         for (k, v) in omap {
                             if let Some(existing_val) = map.get_mut(&k) {
-                                existing_val.union(&v);
+                                existing_val.merge(&v);
                             } else {
                                 map.insert(k.clone(), v.clone());
                             }

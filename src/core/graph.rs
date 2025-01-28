@@ -19,7 +19,7 @@ use anyhow::Result;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use crate::{lang::SError, SField};
-use super::{IntoDataRef, IntoNodeRef, SData, SDataRef, SDataSelection, SDataStore, SNode, SNodeRef, SNodeStore, SRef, Store, DATA_DIRTY_NODES};
+use super::{IntoDataRef, IntoNodeRef, SData, SDataRef, SDataStore, SNode, SNodeRef, SNodeStore, SRef, Store, DATA_DIRTY_NODES};
 
 
 /// Stof graph versions.
@@ -663,45 +663,76 @@ impl SGraph {
         }
     }
 
-    /// Get collisions between this graph and another graph.
-    pub fn get_collisions(&self, other: &Self) -> (HashMap<String, HashSet<SNodeRef>>, HashSet<SNodeRef>) {
-        let mut node_collisions: HashMap<String, HashSet<SNodeRef>> = HashMap::new();
-        let mut node_additions = HashSet::new();
-        for (_, other_node) in &other.nodes.store {
-            let other_ref = other_node.node_ref();
-            let other_path = other_ref.path(&other);
+    /// Get node collisions.
+    /// These two nodes collide in path, so get all collisions under them, recursively!
+    fn get_node_collisions(&self, node: &SNodeRef, other: &Self, other_node: &SNodeRef) -> (Vec<SNodeRef>, Vec<SNodeRef>) {
+        let mut node_collisions = Vec::new();
+        let mut other_collisions = Vec::new();
 
-            let res_nodes = self.node_refs(&other_path);
-            if res_nodes.len() > 0 {
-                if let Some(set) = node_collisions.get_mut(&other_path) {
-                    for nref in res_nodes {
-                        set.insert(nref);
+        if let Some(node) = node.node(&self) {
+            if let Some(other_node) = other_node.node(&other) {
+                for child_ref in &node.children {
+                    if let Some(child) = child_ref.node(&self) {
+                        for other_child_ref in &other_node.children {
+                            if let Some(other_child) = other_child_ref.node(&other) {
+                                if child.name == other_child.name {
+                                    node_collisions.push(child_ref.clone());
+                                    other_collisions.push(other_child_ref.clone());
+                                    
+                                    let (mut nodes, mut others) = self.get_node_collisions(child_ref, other, other_child_ref);
+                                    node_collisions.append(&mut nodes);
+                                    other_collisions.append(&mut others);
+                                }
+                            }
+                        }
                     }
-                    set.insert(other_ref);
-                } else {
-                    let mut set = HashSet::new();
-                    for nref in res_nodes {
-                        set.insert(nref);
-                    }
-                    set.insert(other_ref);
-                    node_collisions.insert(other_path, set);
                 }
-            } else {
-                node_additions.insert(other_ref);
             }
         }
-        return (node_collisions, node_additions);
+        return (node_collisions, other_collisions);
+    }
+
+    /// Get collisions between this graph and another graph.
+    /// Returns all of the nodes that collided, and the nodes on other that collided in a separate set.
+    pub fn get_collisions(&self, other: &Self) -> (Vec<SNodeRef>, Vec<SNodeRef>) {
+        let mut node_collisions = Vec::new();
+        let mut other_collisions = Vec::new();
+        for root_ref in &self.roots {
+            if let Some(root) = root_ref.node(&self) {
+                for other_root_ref in &other.roots {
+                    if let Some(other_root) = other_root_ref.node(&other) {
+                        if root.name == other_root.name {
+                            node_collisions.push(root_ref.clone());
+                            other_collisions.push(other_root_ref.clone());
+                            
+                            let (mut nodes, mut others) = self.get_node_collisions(root_ref, other, other_root_ref);
+                            node_collisions.append(&mut nodes);
+                            other_collisions.append(&mut others);
+                        }
+                    }
+                }
+            }
+        }
+        return (node_collisions, other_collisions);
     }
 
     /// Absorb another graph and merge it with this one.
     pub fn absorb_merge(&mut self, mut other: Self, add_unique_other: bool,
-        mut collision_handler: impl FnMut(&mut Self, &mut Self, &mut HashSet<SNodeRef>),
-        mut unique_self_handler: impl FnMut(&mut Self, &SNodeRef)) {
+        mut collision_handler: impl FnMut(&mut Self, &mut Self, &mut (SNodeRef, SNodeRef)) -> Result<(), SError>,
+        mut unique_self_handler: impl FnMut(&mut Self, &SNodeRef) -> Result<(), SError>) -> Result<(), SError> {
         let collisions = self.get_collisions(&other);
 
+        for index in 0..collisions.0.len() {
+            if index < collisions.1.len() {
+                let mut collide = (collisions.0[index].clone(), collisions.1[index].clone());
+                collision_handler(self, &mut other, &mut collide)?;
+            }
+        }
+
         if add_unique_other {
-            for add_ref in collisions.1 {
-                if let Some(node) = other.nodes.store.remove(&add_ref.id) {
+            let other_collided: HashSet<SNodeRef> = collisions.1.iter().cloned().collect();
+            for (_, node) in other.nodes.store {
+                if !other_collided.contains(&node.node_ref()) {
                     // Transfer data over
                     for dref in &node.data {
                         if let Some(data) = other.data.store.remove(&dref.id) {
@@ -716,24 +747,18 @@ impl SGraph {
                 }
             }
         }
-        
-        let mut seen = HashSet::new();
-        for (_, mut set) in collisions.0 {
-            for nr in &set {
-                seen.insert(nr.clone());
-            }
-            collision_handler(self, &mut other, &mut set);
-        }
+
+        let self_collided: HashSet<SNodeRef> = collisions.0.iter().cloned().collect();
         let mut unique_self = Vec::new();
         for (_, node) in &self.nodes.store {
-            let r = node.node_ref();
-            if !seen.contains(&r) {
-                unique_self.push(r);
+            if !self_collided.contains(&node.node_ref()) {
+                unique_self.push(node.node_ref());
             }
         }
         for unique_ref in unique_self {
-            unique_self_handler(self, &unique_ref);
+            unique_self_handler(self, &unique_ref)?;
         }
+        Ok(())
     }
 
     /// Default version of absorb merge.
@@ -742,53 +767,45 @@ impl SGraph {
         self.absorb_merge(other, true,
         |graph, other, nodes| {
             // Move all data from these nodes to the first node on 'graph' at this path
-            let mut data = SDataSelection::default();
+            let mut data = HashSet::new();
 
-            let mut graph_nodes = Vec::new();
             let mut children = Vec::new(); // children nodes of all others
             let mut other_fields = Vec::new();
-            for nref in nodes.iter() {
-                if nref.exists(other) {
-                    if let Some(node) = nref.node(other) {
-                        for dref in &node.data {
-                            data.insert(dref);
+            if let Some(node) = nodes.1.node(other) {
+                for dref in &node.data {
+                    data.insert(dref.clone());
 
-                            if SData::type_of::<SField>(&other, dref) {
-                                other_fields.push(dref.clone());
-                            }
-                        }
-                        children.append(&mut node.children.iter().cloned().collect());
+                    if SData::type_of::<SField>(&other, dref) {
+                        other_fields.push(dref.clone());
                     }
-                } else {
-                    graph_nodes.push(nref.clone());
+                }
+                children.append(&mut node.children.iter().cloned().collect());
+            }
+            
+            // Merge both sets of fields, then insert/set them on this graph node
+            SField::merge_fields(graph, &nodes.0, &other, &other_fields)?;
+
+            // Add children to this node
+            if let Some(node) = nodes.0.node_mut(graph) {
+                for child in &children {
+                    node.put_child(child);
                 }
             }
 
-            // Add children and data to graph nodes
-            for graph_node in graph_nodes {
-                // Union both sets of fields, then insert/set them on this graph node
-                SField::union_fields(graph, &graph_node, &other, &other_fields);
-
-                // Add children to this node
-                if let Some(node) = graph_node.node_mut(graph) {
-                    for child in &children {
-                        node.put_child(child);
-                    }
-                }
-
-                // Add all data onto this graph
-                for dref in &data {
-                    if !SData::type_of::<SField>(&other, dref) {
-                        if let Some(data) = dref.data(other) {
-                            graph.put_data(&graph_node, data.clone());
-                        }
+            // Add all data onto this graph
+            for dref in &data {
+                if !SData::type_of::<SField>(&other, dref) {
+                    if let Some(data) = dref.data(other) {
+                        graph.put_data(&nodes.0, data.clone());
                     }
                 }
             }
+            Ok(())
         },
         |_graph, _node| {
             // We like unique selfs
-        });
+            Ok(())
+        })?;
         Ok(())
     }
 

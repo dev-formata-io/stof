@@ -386,10 +386,6 @@ impl Library for StdLibrary {
                 }
                 Err(SError::std(pid, &doc, "assertNeq", "must give 2 arguments to assert they do not equal each other"))
             },
-            /*"dump" => {
-                doc.graph.dump(true);
-                Ok(SVal::Void)
-            },*/
 
             /*****************************************************************************
              * Tracing & Debugging.
@@ -616,7 +612,7 @@ impl Library for StdLibrary {
                             SVal::Map(omap) => {
                                 for (k, v) in omap {
                                     if let Some(existing_val) = map.get_mut(k) {
-                                        existing_val.union(v);
+                                        existing_val.merge(v);
                                     } else {
                                         map.insert(k.clone(), v.clone());
                                     }
@@ -637,7 +633,7 @@ impl Library for StdLibrary {
                                     }
 
                                     if let Some(existing_val) = map.get_mut(&k) {
-                                        existing_val.union(&v);
+                                        existing_val.merge(&v);
                                     } else {
                                         map.insert(k.clone(), v);
                                     }

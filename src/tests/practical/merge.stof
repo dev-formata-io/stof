@@ -140,3 +140,63 @@ objects: {
         }
     }
 }
+
+override: {
+    #[merge('override')]
+    value: 10
+    other: 10
+
+    #[test]
+    fn value_overridden() {
+        let stof = 'value: 42';
+        parse(stof, 'stof', 'self');
+        assertEq(self.value, 42);
+    }
+
+    #[test]
+    fn other_overridden() {
+        let stof = '#[merge("override")] other: 42';
+        parse(stof, 'stof', 'self');
+        assertEq(self.other, 42);
+    }
+}
+
+none: {
+    #[merge('none')]
+    value: 10
+    other: 10
+
+    #[test]
+    fn value_overridden() {
+        let stof = 'value: 42';
+        parse(stof, 'stof', 'self');
+        assertEq(self.value, 10);
+    }
+
+    #[test]
+    fn other_overridden() {
+        let stof = '#[merge("none")] other: 42';
+        parse(stof, 'stof', 'self');
+        assertEq(self.other, 10);
+    }
+}
+
+errors: {
+    #[merge('error')]
+    value: 10
+    other: 10
+
+    #[test]
+    #[errors]
+    fn value_overridde_error() {
+        let stof = 'value: 42';
+        parse(stof, 'stof', 'self');
+    }
+
+    #[test]
+    #[errors]
+    fn other_overridde_error() {
+        let stof = '#[merge("error")] other: 42';
+        parse(stof, 'stof', 'self');
+    }
+}
