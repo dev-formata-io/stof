@@ -185,6 +185,69 @@ rename_move: {
     }
 }
 
+box_fields: {
+    value: 42
+    another: 1
+
+    #[test]
+    fn box_field() {
+        assert(self.box('value'));
+        
+        let v = self.value;
+        v = 100;
+
+        assertEq(self.value, 100);
+    }
+
+    #[test]
+    fn box_set_value() {
+        assert(self.box('another', 10));
+        assertEq(self.another, 10);
+
+        let v = self.another;
+        v = 44;
+
+        assertEq(self.another, 44);
+    }
+
+    #[test]
+    fn box_null_value() {
+        assert(self.box('dude', 'hi'));
+        assertEq(self.dude, 'hi');
+
+        let v = self.dude;
+        v = 'hello';
+
+        assertEq(self.dude, 'hello');
+    }
+}
+
+unbox_fields: {
+    value: box(32)
+
+    #[test]
+    fn unbox_value() {
+        let v = self.value;
+        v = 10;
+        assertEq(self.value, 10);
+
+        assert(self.unbox('value'));
+        v = 100;
+        assertEq(self.value, 10);
+    }
+
+    #[test]
+    fn unbox_set() {
+        assertNot(self.unbox('dne')); // won't set without a given value...
+        assert(self.unbox('another', box(20)));
+        assertEq(self.another, 20);
+        
+        let v = self.another;
+        v = 100;
+        assertEq(self.another, 20);
+    }
+}
+
 remove_fields_funcs: {
     some_obj: {}
     field: 'field'

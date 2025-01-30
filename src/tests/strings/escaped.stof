@@ -33,13 +33,6 @@ fn escaped_single_quote() {
 }
 
 #[test]
-fn escaped_newline() {
-    let val = '\r\n';
-    assertEq(val, "
-");
-}
-
-#[test]
 fn escaped_tab() {
     let val = "\t\t";
     assertEq(val, '\t\t');

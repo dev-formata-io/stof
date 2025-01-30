@@ -221,6 +221,97 @@ impl ObjectLibrary {
                 }
                 Ok(SVal::Array(array))
             },
+            // Unbox a field without an assign operation.
+            // Can be used like "set", but with an unbox operation in the middle.
+            "unbox" => {
+                if parameters.len() < 1 {
+                    return Err(SError::obj(pid, &doc, "unbox", "invalid arguments - expecing a string path to a field that should be unboxed on this object"));
+                }
+                let path = parameters[0].to_string();
+                let mut value = None;
+                if parameters.len() > 1 {
+                    value = Some(parameters.pop().unwrap());
+                }
+
+                // Look for an existing field to unbox
+                if let Some(field_ref) = SField::field_ref(&doc.graph, &path, '.', Some(obj)) {
+                    if !doc.perms.can_write_field(&doc.graph, &field_ref, Some(obj)) {
+                        return Ok(SVal::Bool(false));
+                    }
+                    if let Some(field) = SData::get_mut::<SField>(&mut doc.graph, &field_ref) {
+                        if let Some(value) = value {
+                            field.value = value.unbox();
+                        } else {
+                            field.value.unbox_ref();
+                        }
+                        return Ok(SVal::Bool(true));
+                    }
+                    return Ok(SVal::Bool(false));
+                }
+                if let Some(value) = value {
+                    // val is a dot separated path!
+                    let mut path = path.split('.').collect::<Vec<&str>>();
+                    let name = path.pop().unwrap().to_string();
+
+                    // Ensure the path exists if we need to add objects
+                    let mut fref = obj.clone();
+                    if path.len() > 0 {
+                        fref = doc.graph.ensure_nodes(&path.join("/"), '/', true, Some(obj.clone()));
+                    }
+
+                    // Create the field on fref with the unboxed value
+                    let field = SField::new(&name, value.unbox());
+                    SData::insert_new(&mut doc.graph, &fref, Box::new(field));
+                    return Ok(SVal::Bool(true));
+                }
+                Ok(SVal::Bool(false))
+            },
+            // Box a field without an assign operation.
+            // Can be used like "set", but with a box operation in the middle.
+            "box" => {
+                if parameters.len() < 1 {
+                    return Err(SError::obj(pid, &doc, "box", "invalid arguments - expecing a string path to a field that should be boxed on this object"));
+                }
+                let path = parameters[0].to_string();
+                let mut value = None;
+                if parameters.len() > 1 {
+                    value = Some(parameters.pop().unwrap());
+                }
+
+                // Look for an existing field to box
+                if let Some(field_ref) = SField::field_ref(&doc.graph, &path, '.', Some(obj)) {
+                    if !doc.perms.can_write_field(&doc.graph, &field_ref, Some(obj)) {
+                        return Ok(SVal::Bool(false));
+                    }
+                    if let Some(field) = SData::get_mut::<SField>(&mut doc.graph, &field_ref) {
+                        if let Some(value) = value {
+                            field.value = value.to_box();
+                        } else {
+                            field.value.to_box_ref();
+                        }
+                        return Ok(SVal::Bool(true));
+                    }
+                    return Ok(SVal::Bool(false));
+                }
+
+                // val is a dot separated path!
+                let mut path = path.split('.').collect::<Vec<&str>>();
+                let name = path.pop().unwrap().to_string();
+
+                // Ensure the path exists if we need to add objects
+                let mut fref = obj.clone();
+                if path.len() > 0 {
+                    fref = doc.graph.ensure_nodes(&path.join("/"), '/', true, Some(obj.clone()));
+                }
+
+                // Create the field on fref
+                let mut field = SField::new(&name, SVal::Null.to_box());
+                if let Some(value) = value {
+                    field.value = value.to_box();
+                }
+                SData::insert_new(&mut doc.graph, &fref, Box::new(field));
+                Ok(SVal::Bool(true))
+            },
             "set" => {
                 if parameters.len() == 2 {
                     let value = parameters.pop().unwrap();
