@@ -218,6 +218,7 @@ box_fields: {
         let v = self.dude;
         v = 'hello';
 
+        assert(isBoxed(self.dude));
         assertEq(self.dude, 'hello');
     }
 }

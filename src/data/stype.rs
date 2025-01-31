@@ -16,7 +16,7 @@
 
 use std::ops::Deref;
 use serde::{Deserialize, Serialize};
-use crate::SUnits;
+use crate::{parse_type, SUnits};
 
 
 /// Stof Value Types.
@@ -254,6 +254,22 @@ impl SType {
         Self::Number(SNumType::Units(units))
     }
 
+    /// Is a root object type?
+    pub fn is_root_object(&self) -> bool {
+        match self {
+            Self::Object(val) => val == "root",
+            _ => false,
+        }
+    }
+
+    /// Is a base object type?
+    pub fn is_base_object(&self) -> bool {
+        match self {
+            Self::Object(val) => val == "obj",
+            _ => false,
+        }
+    }
+
     /// Std Library Name.
     pub fn std_libname(&self) -> String {
         match self {
@@ -317,48 +333,7 @@ impl SType {
 }
 impl From<&str> for SType {
     fn from(value: &str) -> Self {
-        if value.starts_with("(") && value.ends_with(")") {
-            let mut v = value.replace("(", "");
-            v = v.replace(")", "");
-            let vals: Vec<&str> = v.split(",").collect();
-            let mut types: Vec<SType> = Vec::new();
-            for val in vals {
-                let mut v = val.replace(" ", "");
-                v = v.replace("\n", "");
-                v = v.replace("\t", "");
-                let val = v.as_str();
-                let tt = SType::from(val);
-                types.push(tt);
-            }
-            return Self::tuple(types);
-        }
-        if value.starts_with("Box<") && value.ends_with(">") {
-            let val = value.trim_start_matches("Box<").trim_end_matches(">").trim();
-            return Self::Boxed(Box::new(SType::from(val)));
-        }
-        match value {
-            "int" => Self::Number(SNumType::I64),
-            "float" => Self::Number(SNumType::F64),
-            "str" => Self::String,
-            "blob" => Self::Blob,
-            "bool" => Self::Bool,
-            "null" => Self::Null,
-            "void" => Self::Void,
-            "vec" => Self::Array,
-            "map" => Self::Map,
-            "set" => Self::Set,
-            "obj" => Self::Object("obj".to_string()),
-            "fn" => Self::FnPtr,
-            "unknown" => Self::Unknown,
-            _ => {
-                let units = SUnits::from(value);
-                if units.has_units() && !units.is_undefined() {
-                    Self::Number(SNumType::Units(units))
-                } else {
-                    Self::Object(value.to_string())
-                }
-            }
-        }
+        parse_type(value).expect("failed to parse stof type string into an SType")
     }
 }
 
@@ -407,5 +382,29 @@ impl SNumType {
             Self::I64 => "int".into(),
             Self::Units(units) => units.to_string(),
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::SType;
+
+    #[test]
+    fn parse_int_type() {
+        let stype = SType::from("int");
+        assert_eq!(stype, SType::Number(crate::SNumType::I64));
+    }
+
+    #[test]
+    fn parse_tuple_type() {
+        let stype = SType::from("(str, str)");
+        assert_eq!(stype, SType::Tuple(vec![SType::String, SType::String]));
+    }
+
+    #[test]
+    fn parse_sub_tuple_type() {
+        let stype = SType::from("(str, ((str, ((str, str), str)), str))");
+        assert_eq!(stype, SType::Tuple(vec![SType::String, SType::Tuple(vec![SType::Tuple(vec![SType::String, SType::Tuple(vec![SType::Tuple(vec![SType::String, SType::String]), SType::String])]), SType::String])]));
     }
 }

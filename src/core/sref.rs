@@ -574,6 +574,16 @@ impl SDataRef {
         vec![]
     }
 
+    /// First available path.
+    pub fn first_path(&self, graph: &SGraph) -> String {
+        if let Some(data) = self.data(graph) {
+            for node in &data.nodes {
+                return node.path(graph);
+            }
+        }
+        String::default()
+    }
+
     /// Validate value.
     /// Returns whether the data was invalid.
     pub fn validate_val(&self, graph: &mut SGraph) -> bool {

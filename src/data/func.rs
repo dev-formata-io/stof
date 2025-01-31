@@ -289,13 +289,3 @@ impl From<(&str, SType)> for SParam {
         Self::new(name, atype, None)
     }
 }
-impl From<(&str, &str)> for SParam {
-    fn from((name, atype): (&str, &str)) -> Self {
-        Self::new(name, SType::from(atype), None)
-    }
-}
-impl From<(&str, &str, SVal)> for SParam {
-    fn from((name, atype, default): (&str, &str, SVal)) -> Self {
-        Self::new(name, SType::from(atype), Some(Expr::Literal(default)))
-    }
-}

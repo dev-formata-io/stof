@@ -19,7 +19,7 @@ use lazy_static::lazy_static;
 use nanoid::nanoid;
 use pest_derive::Parser;
 use pest::{iterators::{Pair, Pairs}, pratt_parser::PrattParser, Parser};
-use crate::{lang::{CustomType, CustomTypeField, Expr, SError, Statement, Statements}, SData, SDoc, SField, SFunc, SNum, SNumType, SParam, SType, SUnits, SVal};
+use crate::{lang::{CustomType, CustomTypeField, ErrorType, Expr, SError, Statement, Statements}, SData, SDoc, SField, SFunc, SNum, SNumType, SParam, SType, SUnits, SVal};
 use super::StofEnv;
 
 
@@ -117,6 +117,94 @@ pub fn parse_internal(src: &str, doc: &mut SDoc, env: &mut StofEnv) -> Result<()
         }
     }
     Ok(())
+}
+
+
+/// Parse type only.
+pub fn parse_type(src: &str) -> Result<SType, SError> {
+    let res = StofParser::parse(Rule::atype, src);
+    match res {
+        Ok(pairs) => {
+            for pair in pairs {
+                match pair.as_rule() {
+                    Rule::atype => {
+                        return Ok(parse_atype(pair));
+                    },
+                    _ => {}
+                }
+            }
+            Err(SError {
+                pid: "main".into(),
+                error_type: ErrorType::Custom("ParseTypeError".into()),
+                message: "failed to parse a string into a stof type".into(),
+                call_stack: Default::default(),
+            })
+        },
+        Err(_error) => {
+            Err(SError {
+                pid: "main".into(),
+                error_type: ErrorType::Custom("ParseTypeError".into()),
+                message: "failed to parse a string into a stof type".into(),
+                call_stack: Default::default(),
+            })
+        }
+    }
+}
+
+
+/// Parse atype.
+fn parse_atype(pair: Pair<Rule>) -> SType {
+    let mut atype = SType::Null;
+    for pair in pair.into_inner() {
+        match pair.as_rule() {
+            Rule::ident => {
+                atype = match pair.as_str() {
+                    "int" => SType::Number(SNumType::I64),
+                    "float" => SType::Number(SNumType::F64),
+                    "str" => SType::String,
+                    "blob" => SType::Blob,
+                    "bool" => SType::Bool,
+                    "null" => SType::Null,
+                    "void" => SType::Void,
+                    "vec" => SType::Array,
+                    "map" => SType::Map,
+                    "set" => SType::Set,
+                    "obj" => SType::Object("obj".to_string()),
+                    "fn" => SType::FnPtr,
+                    "unknown" => SType::Unknown,
+                    _ => {
+                        let units = SUnits::from(pair.as_str());
+                        if units.has_units() && !units.is_undefined() {
+                            SType::Number(SNumType::Units(units))
+                        } else {
+                            SType::Object(pair.as_str().to_string())
+                        }
+                    }
+                };
+            },
+            Rule::boxed => {
+                let mut inner_type = SType::Null;
+                for pair in pair.into_inner() {
+                    match pair.as_rule() {
+                        Rule::atype => {
+                            inner_type = parse_atype(pair);
+                        },
+                        _ => {}
+                    }
+                }
+                atype = SType::Boxed(Box::new(inner_type));
+            },
+            Rule::tuple => {
+                let mut types = Vec::new();
+                for pair in pair.into_inner() {
+                    types.push(parse_atype(pair));
+                }
+                atype = SType::Tuple(types);
+            },
+            _ => {}
+        }
+    }
+    atype
 }
 
 
@@ -326,10 +414,9 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                     SData::attach_existing(&mut doc.graph, &scope, &func);
                 }
             },
-            Rule::typed_field |
             Rule::field => {
                 let mut attributes = BTreeMap::new();
-                parse_field(doc, env, pair, "", &mut attributes)?;
+                parse_field(doc, env, pair, &mut attributes)?;
             },
             Rule::json_fields => {
                 parse_statements(doc, env, pair.into_inner())?;
@@ -387,7 +474,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                         field_name = pair.as_str().to_owned();
                                     },
                                     Rule::atype => {
-                                        stype = SType::from(pair.as_str());
+                                        stype = parse_atype(pair);
                                     },
                                     Rule::expr => {
                                         default = Some(parse_expression(doc, env, pair)?);
@@ -502,53 +589,13 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
 
 
 /// Parse a field.
-fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: &str, attributes: &mut BTreeMap<String, SVal>) -> Result<(), SError> {
+fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, attributes: &mut BTreeMap<String, SVal>) -> Result<(), SError> {
     match pair.as_rule() {
-        Rule::typed_field => {
-            let mut stype = String::default();
-            for pair in pair.into_inner() {
-                match pair.as_rule() {
-                    Rule::field_attribute => {
-                        let mut key = String::default();
-                        let mut value = SVal::Null;
-                        for pair in pair.into_inner() {
-                            match pair.as_rule() {
-                                Rule::ident => {
-                                    key = pair.as_str().to_string();
-                                },
-                                Rule::expr => {
-                                    let value_expr = parse_expression(doc, env, pair)?;
-                                    let result = value_expr.exec(&env.pid, doc);
-                                    match result {
-                                        Ok(sval) => {
-                                            value = sval;
-                                        },
-                                        Err(message) => {
-                                            return Err(SError::parse(&env.pid, &doc, &format!("unable to execute attribute expression: {}", message.message)));
-                                        }
-                                    }
-                                },
-                                _ => {
-                                    return Err(SError::parse(&env.pid, &doc, "unrecognized rule for field attribute"));
-                                }
-                            }
-                        }
-                        attributes.insert(key, value);
-                    },
-                    Rule::atype => {
-                        stype = pair.as_str().to_owned();
-                    },
-                    Rule::field => {
-                        parse_field(doc, env, pair, &stype, attributes)?;
-                    },
-                    _ => {}
-                }
-            }
-        },
         Rule::field => {
             let mut field_name = String::default();
             let mut field_value = SVal::Null;
             let mut object_declaration = false;
+            let mut stype = SType::Void;
             for pair in pair.into_inner() {
                 match pair.as_rule() {
                     Rule::field_attribute => {
@@ -578,6 +625,9 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
                         }
                         attributes.insert(key, value);
                     },
+                    Rule::atype => {
+                        stype = parse_atype(pair);
+                    },
                     Rule::string => {
                         field_name = pair.as_str().to_owned();
                         field_name = field_name.trim_start_matches('"').to_owned();
@@ -589,7 +639,7 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
                         field_name = pair.as_str().to_owned();
                     },
                     Rule::value => {
-                        (field_value, object_declaration) = parse_value(field_type, &field_name, doc, env, pair)?;
+                        (field_value, object_declaration) = parse_value(stype.clone(), &field_name, doc, env, pair)?;
                     },
                     _ => return Err(SError::parse(&env.pid, &doc, "unrecognized rule for field"))
                 }
@@ -632,7 +682,7 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, field_type: 
 
 
 /// Parse value.
-fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<(SVal, bool), SError> {
+fn parse_value(field_type: SType, field_name: &str, doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<(SVal, bool), SError> {
     let mut field_value = SVal::Null;
     let mut object_declaration = false;
     for pair in pair.into_inner() {
@@ -641,7 +691,7 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                 let list: Vec<&str> = field_name.split('.').collect();
                 let mut path;
                 let mut fields = true;
-                if field_type.len() > 0 && field_type.to_lowercase() == "root" {
+                if field_type.is_root_object() {
                     path = list.join("/");
                     fields = false; // no fields for root nodes
                 } else {
@@ -686,11 +736,10 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                 parse_statements(doc, env, pair.into_inner())?;
 
                 // Cast this expression to another type (if possible)!
-                if field_type.len() > 0 {
-                    let stype = SType::from(field_type);
-                    if stype.is_object() && field_type != "obj" && field_type != "root" {
-                        field_value = field_value.cast(stype, &env.pid, doc)?;
-                    } else if !stype.is_object() {
+                if !field_type.is_void() {
+                    if field_type.is_object() && !field_type.is_base_object() && !field_type.is_root_object() {
+                        field_value = field_value.cast(field_type.clone(), &env.pid, doc)?;
+                    } else if !field_type.is_object() {
                         return Err(SError::parse(&env.pid, &doc, "cannot cast an object to a non-object type"));
                     }
                 }
@@ -704,7 +753,7 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
                     match pair.as_rule() {
                         Rule::value => {
                             let name = format!("_a_obj{}", nanoid!(7));
-                            array.push(parse_value("",&name, doc, env, pair)?.0);
+                            array.push(parse_value(SType::Void,&name, doc, env, pair)?.0);
                         },
                         _ => {}
                     }
@@ -713,17 +762,14 @@ fn parse_value(field_type: &str, field_name: &str, doc: &mut SDoc, env: &mut Sto
             },
             Rule::expr => {
                 let mut expr = parse_expression(doc, env, pair)?;
-
-                if field_type.len() > 0 {
-                    let stype = SType::from(field_type);
-                    expr = Expr::Cast(stype, Box::new(expr));
+                if !field_type.is_void() {
+                    expr = Expr::Cast(field_type.clone(), Box::new(expr));
                 }
-
                 field_value = expr.exec(&env.pid, doc)?;
             },
             Rule::atype => {
                 // Try casting the value to the type given here...
-                let target = SType::from(pair.as_str());
+                let target = parse_atype(pair);
                 field_value = field_value.cast(target, &env.pid, doc)?;
             },
             _ => return Err(SError::parse(&env.pid, &doc, "unrecognized rule for parse value"))
@@ -782,7 +828,7 @@ fn parse_function(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result
                             id = pair.as_str().to_owned();
                         },
                         Rule::atype => {
-                            atype = pair.as_str().into();
+                            atype = parse_atype(pair);
                         },
                         Rule::expr => {
                             default = Some(parse_expression(doc, env, pair)?);
@@ -795,7 +841,7 @@ fn parse_function(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result
                 params.push(SParam::new(&id, atype, default));
             },
             Rule::atype => {
-                rtype = pair.as_str().into();
+                rtype = parse_atype(pair);
             },
             Rule::block => {
                 statements = parse_block(doc, env, pair)?;
@@ -854,11 +900,11 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
             Rule::for_in_loop => { // iterable must have a "len" lib function and an "at" lib function
                 let mut inner_statements = Statements::default();
                 let mut iterable_expr = Expr::Literal(SVal::Null);
-                let mut atype_str = String::default();
+                let mut atype = SType::Void;
                 for pair in pair.into_inner() {
                     match pair.as_rule() {
                         Rule::atype => {
-                            atype_str = pair.as_str().to_owned();
+                            atype = parse_atype(pair);
                         },
                         Rule::ident => {
                             // Set the expression to declare with
@@ -869,9 +915,8 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                             };
 
                             // Cast this expression to another type (if possible and required)!
-                            if atype_str.len() > 0 {
-                                let stype = SType::from(atype_str.as_str());
-                                dec_expr = Expr::Cast(stype, Box::new(dec_expr));
+                            if atype != SType::Void {
+                                dec_expr = Expr::Cast(atype.clone(), Box::new(dec_expr));
                             }
 
                             let var_name = pair.as_str().to_owned();
@@ -975,7 +1020,7 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                                         catch_error_var_name = pair.as_str().to_owned();
                                     },
                                     Rule::atype => {
-                                        catch_error_type = SType::from(pair.as_str());
+                                        catch_error_type = parse_atype(pair);
                                     },
                                     _ => {}
                                 }
@@ -1170,7 +1215,7 @@ fn parse_declare(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<
                 ident = pair.as_str().to_owned();
             },
             Rule::atype => {
-                atype = SType::from(pair.as_str());
+                atype = parse_atype(pair);
             },
             Rule::expr => {
                 expr = parse_expression(doc, env, pair)?;
@@ -1354,7 +1399,7 @@ fn parse_expression(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
         match pair.as_rule() {
             Rule::atype => {
                 // Cast this expression to another type (if possible)!
-                let stype = SType::from(pair.as_str());
+                let stype = parse_atype(pair);
                 res = Expr::Cast(stype, Box::new(res));
             },
             _ => {

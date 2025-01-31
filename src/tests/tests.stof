@@ -49,6 +49,12 @@ import './arrays/fields' as Arrays.Fields;
 
 
 /**
+ * Tuple Tests.
+ */
+import './tuples/casting' as Tuples.Casting;
+
+
+/**
  * Map Tests.
  */
 import './maps/lib' as Maps.StdLib;

@@ -531,6 +531,10 @@ impl SDoc {
                 false
             }
         });
+        let mut functions: Vec<SDataRef> = functions.into_iter().collect();
+        functions.sort_by(|a, b| {
+            a.first_path(&self.graph).cmp(&b.first_path(&self.graph))
+        });
 
         let total = functions.len();
         println!("{} {} {}", "running".bold(), total, "Stof tests".bold());

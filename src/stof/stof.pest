@@ -49,7 +49,7 @@ boxed = { "Box" ~ "<" ~ atype ~ ">" }
 atype = { boxed | tuple | ident }
 
 // Document statements
-doc_statement = _{ line_comment | block_comment | NEWLINE | stof_type_declaration | import | function | field | typed_field | ref_field | json_fields }
+doc_statement = _{ line_comment | block_comment | NEWLINE | stof_type_declaration | import | function | field | ref_field | json_fields }
 line_comment  = _{ "//" ~ (!NEWLINE ~ ANY)* }
 block_comment = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 import        =  { "import" ~ import_format? ~ path ~ ("as" ~ ident)? ~ (";" | ",")? }
@@ -66,8 +66,7 @@ field_attribute = { "#" ~ "[" ~ ident ~ ("(" ~ expr ~ ")")? ~ "]" }
 // Fields in the document
 json_fields  = { "{" ~ doc_statement* ~ "}" }
 ref_field    = { "ref" ~ (string | ident) ~ ("," | ";")? }
-typed_field  = { field_attribute* ~ atype ~ field }
-field        = { field_attribute* ~ (string | ident) ~ ":" ~ value ~ ("," | ";")? }
+field        = { field_attribute* ~ (atype ~ (string | ident) | (string | ident)) ~ ":" ~ value ~ ("," | ";")? }
 value        = { (object_value | array_value | expr) ~ ("as" ~ atype)? }
 object_value = { "{" ~ doc_statement* ~ "}" }
 array_value  = {
