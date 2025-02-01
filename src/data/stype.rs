@@ -149,6 +149,7 @@ impl SType {
     pub fn is_object(&self) -> bool {
         match self {
             SType::Object(_) => true,
+            SType::Boxed(stype) => stype.is_object(),
             _ =>  false
         }
     }
@@ -174,6 +175,7 @@ impl SType {
     pub fn is_string(&self) -> bool {
         match self {
             SType::String => true,
+            SType::Boxed(stype) => stype.is_string(),
             _ => false,
         }
     }

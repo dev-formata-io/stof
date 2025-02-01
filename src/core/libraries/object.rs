@@ -14,8 +14,8 @@
 // limitations under the License.
 //
 
-use std::{cmp::Ordering, collections::{BTreeMap, HashSet}, ops::Deref};
-use crate::{lang::SError, IntoNodeRef, Library, SData, SDoc, SField, SFunc, SNodeRef, SNum, SPrototype, SVal};
+use std::{cmp::Ordering, collections::{BTreeMap, HashMap, HashSet}, ops::Deref, sync::Arc};
+use crate::{lang::SError, IntoNodeRef, Library, SData, SDoc, SField, SFunc, SMutex, SNodeRef, SNum, SPrototype, SVal};
 
 
 #[derive(Default, Debug)]
@@ -973,6 +973,89 @@ impl ObjectLibrary {
             },
 
             /*****************************************************************************
+             * Schemafy another object with this object (as a schema).
+             *****************************************************************************/
+            // Use fields defined on this object with the #[schema(..)] attribute to control the same
+            // fields on a target object.
+            // Signature: Object.schemafy(schema: obj, target: obj, remove_invalid_fields: bool = true, remove_undefined: bool = false): bool
+            "schemafy" => {
+                if parameters.len() < 1 {
+                    return Err(SError::obj(pid, &doc, "schemafy", "invalid arguments - expecting a target object to apply this schema on"));
+                }
+
+                let target;
+                match &parameters[0] {
+                    SVal::Object(nref) => target = nref.clone(),
+                    SVal::Boxed(val) => {
+                        let val = val.lock().unwrap();
+                        let val = val.deref();
+                        match val {
+                            SVal::Object(nref) => target = nref.clone(),
+                            _ => {
+                                return Err(SError::obj(pid, &doc, "schemafy", "invalid arguments - expecting a target object to apply this schema on"));
+                            }
+                        }
+                    },
+                    _ => {
+                        return Err(SError::obj(pid, &doc, "schemafy", "invalid arguments - expecting a target object to apply this schema on"));
+                    }
+                }
+
+                let mut remove_invalid_fields = true;
+                if parameters.len() > 1 {
+                    remove_invalid_fields = parameters[1].truthy();
+                }
+
+                let mut remove_undefined_fields = false;
+                if parameters.len() > 2 {
+                    remove_undefined_fields = parameters[2].truthy();
+                }
+
+                // Get all of the fields on this schema to apply on the target object
+                // Field name -> #[schema] attribute value
+                let mut schema_fields: HashMap<String, SVal> = HashMap::new();
+                let mut schema_field_names = HashSet::new();
+                for schema_field in SField::fields(&doc.graph, obj) {
+                    if let Some(schema_val) = schema_field.attributes.get("schema") {
+                        schema_fields.insert(schema_field.name.clone(), schema_val.clone());
+                    }
+                    if remove_undefined_fields {
+                        schema_field_names.insert(schema_field.name.clone());
+                    }
+                }
+
+                // Iterate over all schema fields, applying them to the target object as needed
+                let mut valid = true;
+                for (field, value) in schema_fields {
+                    if !self.schemafy_field(doc, pid, &obj, &target, &field, value, remove_invalid_fields, remove_undefined_fields) {
+                        valid = false;
+                        if remove_invalid_fields {
+                            // remove this field, removing the object as well if present
+                            self.operate(pid, doc, "removeField", &target, &mut vec![SVal::String(field), SVal::Bool(true)])?;
+                        }
+                    }
+                }
+
+                // Remove all fields on the target that are not defined in the schema fields
+                // Make sure to do this after all validations of course...
+                if remove_undefined_fields {
+                    let mut to_remove = Vec::new();
+                    for field_ref in SField::field_refs(&doc.graph, &target) {
+                        if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
+                            if !schema_field_names.contains(&field.name) {
+                                to_remove.push(field.name.clone());
+                            }
+                        }
+                    }
+                    for field_name in to_remove {
+                        // remove this field, removing the object as well if present
+                        self.operate(pid, doc, "removeField", &target, &mut vec![SVal::String(field_name), SVal::Bool(true)])?;
+                    }
+                }
+                Ok(SVal::Bool(valid))
+            },
+
+            /*****************************************************************************
              * Copy object helpers.
              *****************************************************************************/
             // Make this object a shallow copy of the referenced object by attaching all of its fields.
@@ -1087,6 +1170,199 @@ impl ObjectLibrary {
             _ => {
                 Err(SError::obj(pid, &doc, "NotFound", &format!("{} is not a function in the Object Library", name)))
             }
+        }
+    }
+
+    /// Schemafy an individual field on a target object.
+    fn schemafy_field(&self, doc: &mut SDoc, pid: &str, schema: &SNodeRef, target: &SNodeRef, field: &str, value: SVal, remove_invalid: bool, remove_undefined: bool) -> bool {
+        match value {
+            SVal::Void |
+            SVal::Null => {
+                // if the field is an object on the schema and on the target, use the object to "schemafy" with
+                let mut schema_field_object = None;
+                let mut target_field_object = None;
+                if let Some(field) = SField::field(&doc.graph, field, '.', Some(schema)) {
+                    match &field.value {
+                        SVal::Object(nref) => {
+                            schema_field_object = Some(nref.clone());
+                        },
+                        SVal::Boxed(val) => {
+                            let val = val.lock().unwrap();
+                            let val = val.deref();
+                            match val {
+                                SVal::Object(nref) => {
+                                    schema_field_object = Some(nref.clone());
+                                },
+                                _ => {}
+                            }
+                        },
+                        _ => {}
+                    }
+                }
+                if let Some(field) = SField::field(&doc.graph, field, '.', Some(target)) {
+                    match &field.value {
+                        SVal::Object(nref) => {
+                            target_field_object = Some(nref.clone());
+                        },
+                        SVal::Boxed(val) => {
+                            let val = val.lock().unwrap();
+                            let val = val.deref();
+                            match val {
+                                SVal::Object(nref) => {
+                                    target_field_object = Some(nref.clone());
+                                },
+                                _ => {}
+                            }
+                        },
+                        _ => {}
+                    }
+                }
+                if let Some(schema_object) = schema_field_object {
+                    if let Some(target_object) = target_field_object {
+                        if let Ok(res) = self.operate(pid, doc, "schemafy", &schema_object, &mut vec![SVal::Object(target_object), SVal::Bool(remove_invalid), SVal::Bool(remove_undefined)]) {
+                            return res.truthy();
+                        }
+                        return false;
+                    }
+                }
+                true
+            },
+            SVal::Object(another_schema) => {
+                let mut another_value = None;
+                if let Some(field) = SField::field(&doc.graph, field, '.', Some(&another_schema)) {
+                    if let Some(schema_val) = field.attributes.get("schema") {
+                        another_value = Some(schema_val.clone());
+                    }
+                }
+                if let Some(value) = another_value {
+                    return self.schemafy_field(doc, pid, &another_schema, target, field, value, remove_invalid, remove_undefined);
+                }
+                false // other schema does not implement/define this field as a schema
+            },
+            SVal::FnPtr(func_ref) => {
+                let mut parameters = Vec::new();
+                let mut valid_check = false; // func result treated as truthy valid or a value to set on the field..
+                let mut value_index = None;
+                let mut box_target_field_value = false;
+                let mut boxed_field_name = None;
+                
+                if let Some(func) = SData::get::<SFunc>(&doc.graph, &func_ref) {
+                    if func.rtype.is_bool() { valid_check = true; }
+
+                    let mut added_target = false;
+                    let mut added_schema = false;
+                    let mut added_field = false;
+                    let mut added_value = false;
+                    for param_index in 0..func.params.len() {
+                        let mut done = false;
+                        let param = &func.params[param_index];
+
+                        // First two objects in parameters are the target, then the schema
+                        if param.ptype.is_object() && param.name != "value" && (!added_target || !added_schema) {
+                            if param.name == "target" || (param.name != "schema" && !added_target) {
+                                added_target = true;
+                                parameters.push(SVal::Object(target.clone()));
+                            } else if param.name == "schema" || !added_schema {
+                                parameters.push(SVal::Object(schema.clone()));
+                                added_schema = true;
+                            }
+                            done = true;
+                        }
+
+                        // First string parameter is the field name
+                        if !done && !added_field && param.name != "value" && param.ptype.is_string() {
+                            if param.ptype.is_boxed() {
+                                let val = SVal::String(field.to_string());
+                                let boxed = SVal::Boxed(Arc::new(SMutex::new(val)));
+                                parameters.push(boxed.clone());
+                                boxed_field_name = Some(boxed);
+                            } else {
+                                parameters.push(SVal::String(field.to_string()));
+                            }
+                            added_field = true;
+                            done = true;
+                        }
+
+                        // Any other value is the target's current field value
+                        if !done && !added_value {
+                            value_index = Some(param_index);
+                            added_value = true;
+                            
+                            // If parameter is boxed, go ahead and box the target object's field
+                            if param.ptype.is_boxed() {
+                                box_target_field_value = true;    
+                            }
+                        }
+                    }
+                }
+                
+                // Add the target's field value if needed, boxing the field if specified
+                if let Some(value_index) = value_index {
+                    if let Some(field_ref) = SField::field_ref(&doc.graph, field, '.', Some(target)) {
+                        if let Some(field) = SData::get_mut::<SField>(&mut doc.graph, &field_ref) {
+                            if box_target_field_value {
+                                field.value.to_box_ref();
+                            }
+                            parameters.insert(value_index, field.value.clone());
+                        }
+                    } else {
+                        // no field, so insert null in place of it
+                        parameters.insert(value_index, SVal::Null);
+                    }
+                }
+                
+                if let Ok(res) = SFunc::call(&func_ref, pid, doc, parameters, true) {
+                    if let Some(field_ref) = SField::field_ref(&doc.graph, field, '.', Some(target)) {
+                        if let Some(field) = SData::get_mut::<SField>(&mut doc.graph, &field_ref) {
+                            if let Some(new_name) = boxed_field_name {
+                                field.name = new_name.to_string();
+                            }
+                            if valid_check {
+                                return res.truthy();
+                            } else if !res.is_empty() {
+                                field.value = res;
+                            }
+                        }
+                    } else if valid_check {
+                        return res.truthy();
+                    } else if !res.is_empty() {
+                        // create a new field since one doesn't exist, but we have a new value for it!
+                        let mut field = SField::new(field, res);
+                        if let Some(new_name) = boxed_field_name {
+                            field.name = new_name.to_string();
+                        }
+                        SData::insert_new(&mut doc.graph, target, Box::new(field));
+                    }
+                    return true;
+                }
+                false
+            },
+            SVal::Tuple(vals) |
+            SVal::Array(vals) => {
+                for val in vals {
+                    if !self.schemafy_field(doc, pid, schema, target, field, val, remove_invalid, remove_undefined) {
+                        return false;
+                    }
+                }
+                true
+            },
+            SVal::Set(set) => {
+                for val in set {
+                    if !self.schemafy_field(doc, pid, schema, target, field, val, remove_invalid, remove_undefined) {
+                        return false;
+                    }
+                }
+                true
+            },
+            SVal::Boxed(val) => {
+                let cloned;
+                {
+                    let val = val.lock().unwrap();
+                    cloned = val.deref().clone();
+                }
+                self.schemafy_field(doc, pid, schema, target, field, cloned, remove_invalid, remove_undefined)
+            },
+            _ => false, // no other value is valid as a schema attribute
         }
     }
 }
