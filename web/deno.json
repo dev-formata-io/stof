@@ -1,6 +1,6 @@
 {
     "name": "@formata/stof",
-    "version": "0.2.10",
+    "version": "0.3.4",
     "exports": "./doc.ts",
     "license": "Apache-2.0",
     "repository": {

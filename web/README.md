@@ -1,26 +1,35 @@
 # Stof
+[Stof](https://stof.dev) is efficient, governable, and accessible data that is much simpler to use, offering fine-grained control and sandboxed manipulation between computer systems without the need for additional application code, servers, and dependencies.
 
-[Stof](https://stof.dev) is a unified data interface and interchange format for creating, sharing, and manipulating data. As a data format, it can replace other interchange formats like JSON, TOML, YAML, etc... As a data interface and runtime, it can remove the fragile and cumbersome parts of combining and using data from your application.
-
-Stof documents are simple, scalable, portable, and efficient. By turning data into a sandboxed and embedded runtime, Stof is capable of performing logic and transformations with your data anywhere you need them, saving countless hours of development and headache. Read the [docs](https://docs.stof.dev) to learn more about what you can do with Stof.
-
-![alt text](./content/stof.gif)
-
-## Resources
 - [Docs](https://docs.stof.dev)
 - [Discord](https://discord.gg/Up5kxdeXZt)
 - [Contact Us](https://stof.dev/contact-us)
+- [Introduction & Design](https://docs.stof.dev/book/introduction-and-design)
 - [More Information](https://docs.stof.dev/resources-and-information)
 
-## Adding Stof to your Project
+<br/>
+
+![alt text](./content/stof.gif)
+
+## Why
+The logic and cost involved in deciphering, unifying, and validating data entering and leaving computer systems are growing exponentially, becoming a bottleneck and limiting factor for next-generation federated applications and AI.
+
+Stof drastically decreases the amount of application code it takes to do this by moving this logic into the data layer, creating a standard interface that can be used by all systems today for cheaper and higher-quality access to data, while improving application-level security, developer experience, and data governance.
+
+## Getting Started
+### CLI
+[CLI](https://docs.stof.dev/reference/cli) is a standalone way to use Stof outside of an embedded environment.
+```bash
+cargo install stof-cli
+```
 ### Rust
+The Stof [Rust Crate](https://crates.io/crates/stof) is the most fully-featured way to embed and work with Stof. However, we are adding as many languages as possible to this list.
 ```bash
 cargo add stof
 ```
 ### TypeScript (JSR)
+It is currently possible to use Stof from the browser and in JavaScript host environments through WebAssembly. In this context, Stof is not yet fully featured.
 [Stof JSR](https://jsr.io/@formata/stof)
-
-We're adding languages and ways to use Stof all the time - please reach out if interested.
 
 ## Example
 > For declaring data, Stof is a superset of JSON - valid JSON will always be valid Stof.
@@ -57,7 +66,7 @@ name = "Joe Schmo"
 ### Accessibility & Unification
 Simplify data access, making it more straightforward to interact with diverse data sources and destinations. Stof works with other data formats instead of competing, meaning no matter what data format or schema you're interfacing with, Stof can help.
 
-### Logic as Data
+### Code as Data
 Add custom logic to Stof documents, leveraging their data for a more capable and robust data interface. Offer a safe way to send logic over the network, tying systems together at the data layer.
 
 ### Validation
@@ -73,6 +82,8 @@ Stof is a logical layer between data sources and applications, capable of unific
 Take a look first at the Stof test suite in `src/tests/tests.stof`, this will give a good jumping off point, but there's a lot to do still overall. We'll update this section as the project progresses with more details on how you can specifically get involved.
 
 There are lots of opportunities to contribute and use Stof. If you have ideas or want to get involved, just reach out and we'll make it happen.
+
+Please also consider sponsoring and supporting this project as it's the only way we'll make strides towards our vision of a world where data is more secure, easily governed, and readily available - one with efficient and user-friendly access to high-quality data that is simple and native to the federated and decentralized world we are quickly moving towards.
 
 ## License
 Apache 2.0. See LICENSE for details.

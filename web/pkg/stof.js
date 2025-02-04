@@ -1,8 +1,82 @@
 let wasm;
 
+let WASM_VECTOR_LEN = 0;
+
+let cachedUint8ArrayMemory0 = null;
+
+function getUint8ArrayMemory0() {
+    if (cachedUint8ArrayMemory0 === null || cachedUint8ArrayMemory0.byteLength === 0) {
+        cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer);
+    }
+    return cachedUint8ArrayMemory0;
+}
+
+const cachedTextEncoder = (typeof TextEncoder !== 'undefined' ? new TextEncoder('utf-8') : { encode: () => { throw Error('TextEncoder not available') } } );
+
+const encodeString = (typeof cachedTextEncoder.encodeInto === 'function'
+    ? function (arg, view) {
+    return cachedTextEncoder.encodeInto(arg, view);
+}
+    : function (arg, view) {
+    const buf = cachedTextEncoder.encode(arg);
+    view.set(buf);
+    return {
+        read: arg.length,
+        written: buf.length
+    };
+});
+
+function passStringToWasm0(arg, malloc, realloc) {
+
+    if (realloc === undefined) {
+        const buf = cachedTextEncoder.encode(arg);
+        const ptr = malloc(buf.length, 1) >>> 0;
+        getUint8ArrayMemory0().subarray(ptr, ptr + buf.length).set(buf);
+        WASM_VECTOR_LEN = buf.length;
+        return ptr;
+    }
+
+    let len = arg.length;
+    let ptr = malloc(len, 1) >>> 0;
+
+    const mem = getUint8ArrayMemory0();
+
+    let offset = 0;
+
+    for (; offset < len; offset++) {
+        const code = arg.charCodeAt(offset);
+        if (code > 0x7F) break;
+        mem[ptr + offset] = code;
+    }
+
+    if (offset !== len) {
+        if (offset !== 0) {
+            arg = arg.slice(offset);
+        }
+        ptr = realloc(ptr, len, len = offset + arg.length * 3, 1) >>> 0;
+        const view = getUint8ArrayMemory0().subarray(ptr + offset, ptr + len);
+        const ret = encodeString(arg, view);
+
+        offset += ret.written;
+        ptr = realloc(ptr, len, offset, 1) >>> 0;
+    }
+
+    WASM_VECTOR_LEN = offset;
+    return ptr;
+}
+
+let cachedDataViewMemory0 = null;
+
+function getDataViewMemory0() {
+    if (cachedDataViewMemory0 === null || cachedDataViewMemory0.buffer.detached === true || (cachedDataViewMemory0.buffer.detached === undefined && cachedDataViewMemory0.buffer !== wasm.memory.buffer)) {
+        cachedDataViewMemory0 = new DataView(wasm.memory.buffer);
+    }
+    return cachedDataViewMemory0;
+}
+
 function addToExternrefTable0(obj) {
     const idx = wasm.__externref_table_alloc();
-    wasm.__wbindgen_export_2.set(idx, obj);
+    wasm.__wbindgen_export_4.set(idx, obj);
     return idx;
 }
 
@@ -19,15 +93,6 @@ const cachedTextDecoder = (typeof TextDecoder !== 'undefined' ? new TextDecoder(
 
 if (typeof TextDecoder !== 'undefined') { cachedTextDecoder.decode(); };
 
-let cachedUint8ArrayMemory0 = null;
-
-function getUint8ArrayMemory0() {
-    if (cachedUint8ArrayMemory0 === null || cachedUint8ArrayMemory0.byteLength === 0) {
-        cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer);
-    }
-    return cachedUint8ArrayMemory0;
-}
-
 function getStringFromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return cachedTextDecoder.decode(getUint8ArrayMemory0().subarray(ptr, ptr + len));
@@ -35,15 +100,6 @@ function getStringFromWasm0(ptr, len) {
 
 function isLikeNone(x) {
     return x === undefined || x === null;
-}
-
-let cachedDataViewMemory0 = null;
-
-function getDataViewMemory0() {
-    if (cachedDataViewMemory0 === null || cachedDataViewMemory0.buffer.detached === true || (cachedDataViewMemory0.buffer.detached === undefined && cachedDataViewMemory0.buffer !== wasm.memory.buffer)) {
-        cachedDataViewMemory0 = new DataView(wasm.memory.buffer);
-    }
-    return cachedDataViewMemory0;
 }
 
 function debugString(val) {
@@ -111,70 +167,8 @@ function debugString(val) {
     return className;
 }
 
-let WASM_VECTOR_LEN = 0;
-
-const cachedTextEncoder = (typeof TextEncoder !== 'undefined' ? new TextEncoder('utf-8') : { encode: () => { throw Error('TextEncoder not available') } } );
-
-const encodeString = (typeof cachedTextEncoder.encodeInto === 'function'
-    ? function (arg, view) {
-    return cachedTextEncoder.encodeInto(arg, view);
-}
-    : function (arg, view) {
-    const buf = cachedTextEncoder.encode(arg);
-    view.set(buf);
-    return {
-        read: arg.length,
-        written: buf.length
-    };
-});
-
-function passStringToWasm0(arg, malloc, realloc) {
-
-    if (realloc === undefined) {
-        const buf = cachedTextEncoder.encode(arg);
-        const ptr = malloc(buf.length, 1) >>> 0;
-        getUint8ArrayMemory0().subarray(ptr, ptr + buf.length).set(buf);
-        WASM_VECTOR_LEN = buf.length;
-        return ptr;
-    }
-
-    let len = arg.length;
-    let ptr = malloc(len, 1) >>> 0;
-
-    const mem = getUint8ArrayMemory0();
-
-    let offset = 0;
-
-    for (; offset < len; offset++) {
-        const code = arg.charCodeAt(offset);
-        if (code > 0x7F) break;
-        mem[ptr + offset] = code;
-    }
-
-    if (offset !== len) {
-        if (offset !== 0) {
-            arg = arg.slice(offset);
-        }
-        ptr = realloc(ptr, len, len = offset + arg.length * 3, 1) >>> 0;
-        const view = getUint8ArrayMemory0().subarray(ptr + offset, ptr + len);
-        const ret = encodeString(arg, view);
-
-        offset += ret.written;
-        ptr = realloc(ptr, len, offset, 1) >>> 0;
-    }
-
-    WASM_VECTOR_LEN = offset;
-    return ptr;
-}
-
-function _assertClass(instance, klass) {
-    if (!(instance instanceof klass)) {
-        throw new Error(`expected instance of ${klass.name}`);
-    }
-}
-
 function takeFromExternrefTable0(idx) {
-    const value = wasm.__wbindgen_export_2.get(idx);
+    const value = wasm.__wbindgen_export_4.get(idx);
     wasm.__externref_table_dealloc(idx);
     return value;
 }
@@ -184,10 +178,16 @@ function getArrayJsValueFromWasm0(ptr, len) {
     const mem = getDataViewMemory0();
     const result = [];
     for (let i = ptr; i < ptr + 4 * len; i += 4) {
-        result.push(wasm.__wbindgen_export_2.get(mem.getUint32(i, true)));
+        result.push(wasm.__wbindgen_export_4.get(mem.getUint32(i, true)));
     }
     wasm.__externref_drop_slice(ptr, len);
     return result;
+}
+
+function _assertClass(instance, klass) {
+    if (!(instance instanceof klass)) {
+        throw new Error(`expected instance of ${klass.name}`);
+    }
 }
 
 function passArrayJsValueToWasm0(array, malloc) {
@@ -859,68 +859,6 @@ export class StofDoc {
         return ret;
     }
     /**
-     * Find a field in this document with a path from the roots.
-     * Path is dot separated indicating object names, with the field being the last name in the path.
-     * Path will search down first (children) then up (parent). If root, will traverse into other roots.
-     *
-     * Ex. Field named 'message' on a root node: `fieldFromRoot('message')`
-     *
-     * Ex. Field named 'message' on the 'root' root node: `fieldFromRoot('root.message')`
-     *
-     * Ex. Field named 'message' on the child node at path 'root.child': `fieldFromRoot('root.child.message')`
-     * @param {string} path
-     * @returns {StofField | undefined}
-     */
-    fieldFromRoot(path) {
-        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.stofdoc_fieldFromRoot(this.__wbg_ptr, ptr0, len0);
-        return ret === 0 ? undefined : StofField.__wrap(ret);
-    }
-    /**
-     * Find a field in this document starting at a node.
-     * Path is dot separated indicating object names, with the field being the last name in the path.
-     * Path will search down first (children) then up (parent). If root, will traverse into other roots.
-     * @param {string} path
-     * @param {StofNode} node
-     * @returns {StofField | undefined}
-     */
-    field(path, node) {
-        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        _assertClass(node, StofNode);
-        const ret = wasm.stofdoc_field(this.__wbg_ptr, ptr0, len0, node.__wbg_ptr);
-        return ret === 0 ? undefined : StofField.__wrap(ret);
-    }
-    /**
-     * Find a function in this document with a path from the roots.
-     * Path is dot separated indicating object names, with the func being the last name in the path.
-     * Path will search down first (children) then up (parent). If root, will traverse into other roots.
-     * @param {string} path
-     * @returns {StofFunc | undefined}
-     */
-    funcFromRoot(path) {
-        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.stofdoc_funcFromRoot(this.__wbg_ptr, ptr0, len0);
-        return ret === 0 ? undefined : StofFunc.__wrap(ret);
-    }
-    /**
-     * Find a function in this document starting at a node.
-     * Path is dot separated indicating object names, with the func being the last name in the path.
-     * Path will search down first (children) then up (parent). If root, will traverse into other roots.
-     * @param {string} path
-     * @param {StofNode} node
-     * @returns {StofFunc | undefined}
-     */
-    func(path, node) {
-        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        _assertClass(node, StofNode);
-        const ret = wasm.stofdoc_func(this.__wbg_ptr, ptr0, len0, node.__wbg_ptr);
-        return ret === 0 ? undefined : StofFunc.__wrap(ret);
-    }
-    /**
      * Call a function in this document at the given path.
      * @param {string} path
      * @param {any[]} params
@@ -1183,455 +1121,6 @@ export class StofDoc {
     }
 }
 
-const StofFieldFinalization = (typeof FinalizationRegistry === 'undefined')
-    ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_stoffield_free(ptr >>> 0, 1));
-/**
- * JS Stof Field.
- */
-export class StofField {
-
-    static __wrap(ptr) {
-        ptr = ptr >>> 0;
-        const obj = Object.create(StofField.prototype);
-        obj.__wbg_ptr = ptr;
-        StofFieldFinalization.register(obj, obj.__wbg_ptr, obj);
-        return obj;
-    }
-
-    __destroy_into_raw() {
-        const ptr = this.__wbg_ptr;
-        this.__wbg_ptr = 0;
-        StofFieldFinalization.unregister(this);
-        return ptr;
-    }
-
-    free() {
-        const ptr = this.__destroy_into_raw();
-        wasm.__wbg_stoffield_free(ptr, 0);
-    }
-    /**
-     * New field.
-     * Does not insert into the document, but needs the document for JsValue -> SVal.
-     * @param {StofDoc} doc
-     * @param {string} name
-     * @param {any} value
-     */
-    constructor(doc, name, value) {
-        _assertClass(doc, StofDoc);
-        const ptr0 = passStringToWasm0(name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.stoffield_new(doc.__wbg_ptr, ptr0, len0, value);
-        this.__wbg_ptr = ret >>> 0;
-        StofFieldFinalization.register(this, this.__wbg_ptr, this);
-        return this;
-    }
-    /**
-     * From a data reference.
-     * @param {StofDoc} doc
-     * @param {StofData} data
-     * @returns {StofField}
-     */
-    static fromData(doc, data) {
-        _assertClass(doc, StofDoc);
-        _assertClass(data, StofData);
-        const ret = wasm.stoffield_fromData(doc.__wbg_ptr, data.__wbg_ptr);
-        if (ret[2]) {
-            throw takeFromExternrefTable0(ret[1]);
-        }
-        return StofField.__wrap(ret[0]);
-    }
-    /**
-     * Data reference.
-     * @returns {StofData}
-     */
-    data() {
-        const ret = wasm.stoffield_data(this.__wbg_ptr);
-        return StofData.__wrap(ret);
-    }
-    /**
-     * Name of this field.
-     * @returns {string}
-     */
-    name() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.stoffield_name(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
-    }
-    /**
-     * Value of this field.
-     * @returns {any}
-     */
-    value() {
-        const ret = wasm.stoffield_value(this.__wbg_ptr);
-        return ret;
-    }
-    /**
-     * Set the value of this field.
-     * If this field exists within the document, it will set the value in the document as well.
-     * @param {StofDoc} doc
-     * @param {any} value
-     */
-    setValue(doc, value) {
-        _assertClass(doc, StofDoc);
-        wasm.stoffield_setValue(this.__wbg_ptr, doc.__wbg_ptr, value);
-    }
-    /**
-     * Attach this field to a node within the document.
-     * @param {StofDoc} doc
-     * @param {StofNode} node
-     */
-    attach(doc, node) {
-        _assertClass(doc, StofDoc);
-        _assertClass(node, StofNode);
-        wasm.stoffield_attach(this.__wbg_ptr, doc.__wbg_ptr, node.__wbg_ptr);
-    }
-    /**
-     * Remove this field from the document everywhere.
-     * @param {StofDoc} doc
-     */
-    remove(doc) {
-        _assertClass(doc, StofDoc);
-        wasm.stoffield_remove(this.__wbg_ptr, doc.__wbg_ptr);
-    }
-    /**
-     * Remove this field from a specific node.
-     * If this node is the only one that references the field, the field will be removed from the doc.
-     * @param {StofDoc} doc
-     * @param {StofNode} node
-     */
-    removeFrom(doc, node) {
-        _assertClass(doc, StofDoc);
-        _assertClass(node, StofNode);
-        wasm.stoffield_removeFrom(this.__wbg_ptr, doc.__wbg_ptr, node.__wbg_ptr);
-    }
-    /**
-     * Get all fields on a node.
-     * @param {StofDoc} doc
-     * @param {StofNode} node
-     * @returns {(StofField)[]}
-     */
-    static fields(doc, node) {
-        _assertClass(doc, StofDoc);
-        _assertClass(node, StofNode);
-        const ret = wasm.stoffield_fields(doc.__wbg_ptr, node.__wbg_ptr);
-        var v1 = getArrayJsValueFromWasm0(ret[0], ret[1]).slice();
-        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
-        return v1;
-    }
-    /**
-     * Get an adjacent field to this field in the document from a dot separated path.
-     * @param {StofDoc} doc
-     * @param {string} path
-     * @returns {StofField | undefined}
-     */
-    adjacent(doc, path) {
-        _assertClass(doc, StofDoc);
-        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.stoffield_adjacent(this.__wbg_ptr, doc.__wbg_ptr, ptr0, len0);
-        return ret === 0 ? undefined : StofField.__wrap(ret);
-    }
-    /**
-     * Get a specific field from a dot separated path, starting at the root.
-     * @param {StofDoc} doc
-     * @param {string} path
-     * @returns {StofField | undefined}
-     */
-    static fieldFromRoot(doc, path) {
-        _assertClass(doc, StofDoc);
-        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.stoffield_fieldFromRoot(doc.__wbg_ptr, ptr0, len0);
-        return ret === 0 ? undefined : StofField.__wrap(ret);
-    }
-    /**
-     * Get a specific field from a dot separated path, starting at a node.
-     * @param {StofDoc} doc
-     * @param {string} path
-     * @param {StofNode} node
-     * @returns {StofField | undefined}
-     */
-    static field(doc, path, node) {
-        _assertClass(doc, StofDoc);
-        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        _assertClass(node, StofNode);
-        const ret = wasm.stoffield_field(doc.__wbg_ptr, ptr0, len0, node.__wbg_ptr);
-        return ret === 0 ? undefined : StofField.__wrap(ret);
-    }
-}
-
-const StofFuncFinalization = (typeof FinalizationRegistry === 'undefined')
-    ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_stoffunc_free(ptr >>> 0, 1));
-/**
- * JS Stof Func.
- */
-export class StofFunc {
-
-    static __wrap(ptr) {
-        ptr = ptr >>> 0;
-        const obj = Object.create(StofFunc.prototype);
-        obj.__wbg_ptr = ptr;
-        StofFuncFinalization.register(obj, obj.__wbg_ptr, obj);
-        return obj;
-    }
-
-    __destroy_into_raw() {
-        const ptr = this.__wbg_ptr;
-        this.__wbg_ptr = 0;
-        StofFuncFinalization.unregister(this);
-        return ptr;
-    }
-
-    free() {
-        const ptr = this.__destroy_into_raw();
-        wasm.__wbg_stoffunc_free(ptr, 0);
-    }
-    /**
-     * From a data reference.
-     * @param {StofDoc} doc
-     * @param {StofData} data
-     * @returns {StofFunc}
-     */
-    static fromData(doc, data) {
-        _assertClass(doc, StofDoc);
-        _assertClass(data, StofData);
-        const ret = wasm.stoffunc_fromData(doc.__wbg_ptr, data.__wbg_ptr);
-        if (ret[2]) {
-            throw takeFromExternrefTable0(ret[1]);
-        }
-        return StofFunc.__wrap(ret[0]);
-    }
-    /**
-     * Data reference.
-     * @returns {StofData}
-     */
-    data() {
-        const ret = wasm.stoffunc_data(this.__wbg_ptr);
-        return StofData.__wrap(ret);
-    }
-    /**
-     * Name of this func.
-     * @returns {string}
-     */
-    name() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.stoffunc_name(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
-    }
-    /**
-     * Return type of this func.
-     * @returns {string}
-     */
-    returnType() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.stoffunc_returnType(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
-    }
-    /**
-     * Parameters of this func.
-     * @returns {(StofFuncParam)[]}
-     */
-    parameters() {
-        const ret = wasm.stoffunc_parameters(this.__wbg_ptr);
-        var v1 = getArrayJsValueFromWasm0(ret[0], ret[1]).slice();
-        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
-        return v1;
-    }
-    /**
-     * Attach this func to a node within the document.
-     * @param {StofDoc} doc
-     * @param {StofNode} node
-     */
-    attach(doc, node) {
-        _assertClass(doc, StofDoc);
-        _assertClass(node, StofNode);
-        wasm.stoffunc_attach(this.__wbg_ptr, doc.__wbg_ptr, node.__wbg_ptr);
-    }
-    /**
-     * Remove this func from the document everywhere.
-     * @param {StofDoc} doc
-     */
-    remove(doc) {
-        _assertClass(doc, StofDoc);
-        wasm.stoffunc_remove(this.__wbg_ptr, doc.__wbg_ptr);
-    }
-    /**
-     * Remove this func from a specific node.
-     * If this node is the only one that references the func, the func will be removed from the doc.
-     * @param {StofDoc} doc
-     * @param {StofNode} node
-     */
-    removeFrom(doc, node) {
-        _assertClass(doc, StofDoc);
-        _assertClass(node, StofNode);
-        wasm.stoffunc_removeFrom(this.__wbg_ptr, doc.__wbg_ptr, node.__wbg_ptr);
-    }
-    /**
-     * Get all funcs on a node.
-     * @param {StofDoc} doc
-     * @param {StofNode} node
-     * @returns {(StofFunc)[]}
-     */
-    static funcs(doc, node) {
-        _assertClass(doc, StofDoc);
-        _assertClass(node, StofNode);
-        const ret = wasm.stoffunc_funcs(doc.__wbg_ptr, node.__wbg_ptr);
-        var v1 = getArrayJsValueFromWasm0(ret[0], ret[1]).slice();
-        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
-        return v1;
-    }
-    /**
-     * Get an adjacent func to this func in the document from a dot separated path.
-     * @param {StofDoc} doc
-     * @param {string} path
-     * @returns {StofFunc | undefined}
-     */
-    adjacent(doc, path) {
-        _assertClass(doc, StofDoc);
-        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.stoffunc_adjacent(this.__wbg_ptr, doc.__wbg_ptr, ptr0, len0);
-        return ret === 0 ? undefined : StofFunc.__wrap(ret);
-    }
-    /**
-     * Get a specific func from a dot separated path, starting at the root.
-     * @param {StofDoc} doc
-     * @param {string} path
-     * @returns {StofFunc | undefined}
-     */
-    static funcFromRoot(doc, path) {
-        _assertClass(doc, StofDoc);
-        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.stoffunc_funcFromRoot(doc.__wbg_ptr, ptr0, len0);
-        return ret === 0 ? undefined : StofFunc.__wrap(ret);
-    }
-    /**
-     * Get a specific func from a dot separated path, starting at a node.
-     * @param {StofDoc} doc
-     * @param {string} path
-     * @param {StofNode} node
-     * @returns {StofFunc | undefined}
-     */
-    static func(doc, path, node) {
-        _assertClass(doc, StofDoc);
-        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        _assertClass(node, StofNode);
-        const ret = wasm.stoffunc_func(doc.__wbg_ptr, ptr0, len0, node.__wbg_ptr);
-        return ret === 0 ? undefined : StofFunc.__wrap(ret);
-    }
-    /**
-     * Call this function.
-     * @param {StofDoc} doc
-     * @param {any[]} params
-     * @returns {any}
-     */
-    call(doc, params) {
-        _assertClass(doc, StofDoc);
-        const ptr0 = passArrayJsValueToWasm0(params, wasm.__wbindgen_malloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.stoffunc_call(this.__wbg_ptr, doc.__wbg_ptr, ptr0, len0);
-        if (ret[2]) {
-            throw takeFromExternrefTable0(ret[1]);
-        }
-        return takeFromExternrefTable0(ret[0]);
-    }
-}
-
-const StofFuncParamFinalization = (typeof FinalizationRegistry === 'undefined')
-    ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_stoffuncparam_free(ptr >>> 0, 1));
-/**
- * Stof Func param interface.
- */
-export class StofFuncParam {
-
-    static __wrap(ptr) {
-        ptr = ptr >>> 0;
-        const obj = Object.create(StofFuncParam.prototype);
-        obj.__wbg_ptr = ptr;
-        StofFuncParamFinalization.register(obj, obj.__wbg_ptr, obj);
-        return obj;
-    }
-
-    __destroy_into_raw() {
-        const ptr = this.__wbg_ptr;
-        this.__wbg_ptr = 0;
-        StofFuncParamFinalization.unregister(this);
-        return ptr;
-    }
-
-    free() {
-        const ptr = this.__destroy_into_raw();
-        wasm.__wbg_stoffuncparam_free(ptr, 0);
-    }
-    /**
-     * Name.
-     * @returns {string}
-     */
-    name() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.stoffuncparam_name(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
-    }
-    /**
-     * Type.
-     * @returns {string}
-     */
-    type() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.stoffuncparam_type(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
-    }
-    /**
-     * Has a default value?
-     * @returns {boolean}
-     */
-    hasDefault() {
-        const ret = wasm.stoffuncparam_hasDefault(this.__wbg_ptr);
-        return ret !== 0;
-    }
-}
-
 const StofLibFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_stoflib_free(ptr >>> 0, 1));
@@ -1727,7 +1216,7 @@ export class StofNode {
     constructor(id) {
         const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.stofdata_new(ptr0, len0);
+        const ret = wasm.stofnode_new(ptr0, len0);
         this.__wbg_ptr = ret >>> 0;
         StofNodeFinalization.register(this, this.__wbg_ptr, this);
         return this;
@@ -1985,18 +1474,6 @@ export class StofNode {
         return v1;
     }
     /**
-     * All data on all children nodes.
-     * @param {StofDoc} doc
-     * @returns {(StofData)[]}
-     */
-    allData(doc) {
-        _assertClass(doc, StofDoc);
-        const ret = wasm.stofnode_allData(this.__wbg_ptr, doc.__wbg_ptr);
-        var v1 = getArrayJsValueFromWasm0(ret[0], ret[1]).slice();
-        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
-        return v1;
-    }
-    /**
      * Has data?
      * @param {StofDoc} doc
      * @param {StofData} data
@@ -2007,36 +1484,6 @@ export class StofNode {
         _assertClass(data, StofData);
         const ret = wasm.stofnode_hasData(this.__wbg_ptr, doc.__wbg_ptr, data.__wbg_ptr);
         return ret !== 0;
-    }
-    /**
-     * Data on this node with an ID that has the prefix 'prefix'.
-     * @param {StofDoc} doc
-     * @param {string} prefix
-     * @returns {(StofData)[]}
-     */
-    prefixData(doc, prefix) {
-        _assertClass(doc, StofDoc);
-        const ptr0 = passStringToWasm0(prefix, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.stofnode_prefixData(this.__wbg_ptr, doc.__wbg_ptr, ptr0, len0);
-        var v2 = getArrayJsValueFromWasm0(ret[0], ret[1]).slice();
-        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
-        return v2;
-    }
-    /**
-     * All data on all children nodes with an ID that has the prefix 'prefix'.
-     * @param {StofDoc} doc
-     * @param {string} prefix
-     * @returns {(StofData)[]}
-     */
-    allPrefixData(doc, prefix) {
-        _assertClass(doc, StofDoc);
-        const ptr0 = passStringToWasm0(prefix, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.stofnode_allPrefixData(this.__wbg_ptr, doc.__wbg_ptr, ptr0, len0);
-        var v2 = getArrayJsValueFromWasm0(ret[0], ret[1]).slice();
-        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
-        return v2;
     }
     /**
      * Create some abstract data on this node.
@@ -2051,20 +1498,6 @@ export class StofNode {
             throw takeFromExternrefTable0(ret[1]);
         }
         return StofData.__wrap(ret[0]);
-    }
-    /**
-     * Create a new field on this node.
-     * @param {StofDoc} doc
-     * @param {string} name
-     * @param {any} value
-     * @returns {StofField}
-     */
-    createField(doc, name, value) {
-        _assertClass(doc, StofDoc);
-        const ptr0 = passStringToWasm0(name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.stofnode_createField(this.__wbg_ptr, doc.__wbg_ptr, ptr0, len0, value);
-        return StofField.__wrap(ret);
     }
     /**
      * JSON value of this node as a whole.
@@ -2125,6 +1558,13 @@ async function __wbg_load(module, imports) {
 function __wbg_get_imports() {
     const imports = {};
     imports.wbg = {};
+    imports.wbg.__wbg_String_8f0eb39a4a4c2f66 = function(arg0, arg1) {
+        const ret = String(arg1);
+        const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
+        getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
+    };
     imports.wbg.__wbg_add_0d9e99fb9c2d2cc5 = function(arg0, arg1) {
         const ret = arg0.add(arg1);
         return ret;
@@ -2149,6 +1589,10 @@ function __wbg_get_imports() {
         const ret = arg0.call(arg1);
         return ret;
     }, arguments) };
+    imports.wbg.__wbg_codePointAt_93f466f2352273c3 = function(arg0, arg1) {
+        const ret = arg0.codePointAt(arg1 >>> 0);
+        return ret;
+    };
     imports.wbg.__wbg_crypto_ed58b8e10a292839 = function(arg0) {
         const ret = arg0.crypto;
         return ret;
@@ -2161,6 +1605,10 @@ function __wbg_get_imports() {
         const ret = Object.entries(arg0);
         return ret;
     };
+    imports.wbg.__wbg_fromCodePoint_ef89154c4db48bdf = function() { return handleError(function (arg0) {
+        const ret = String.fromCodePoint(arg0 >>> 0);
+        return ret;
+    }, arguments) };
     imports.wbg.__wbg_from_d68eaa96dba25449 = function(arg0) {
         const ret = Array.from(arg0);
         return ret;
@@ -2220,6 +1668,10 @@ function __wbg_get_imports() {
     };
     imports.wbg.__wbg_iterator_23604bb983791576 = function() {
         const ret = Symbol.iterator;
+        return ret;
+    };
+    imports.wbg.__wbg_length_15aa023b16db5413 = function(arg0) {
+        const ret = arg0.length;
         return ret;
     };
     imports.wbg.__wbg_length_65d1cd11729ced11 = function(arg0) {
@@ -2326,18 +1778,6 @@ function __wbg_get_imports() {
         const ret = StofData.__wrap(arg0);
         return ret;
     };
-    imports.wbg.__wbg_stoffield_new = function(arg0) {
-        const ret = StofField.__wrap(arg0);
-        return ret;
-    };
-    imports.wbg.__wbg_stoffunc_new = function(arg0) {
-        const ret = StofFunc.__wrap(arg0);
-        return ret;
-    };
-    imports.wbg.__wbg_stoffuncparam_new = function(arg0) {
-        const ret = StofFuncParam.__wrap(arg0);
-        return ret;
-    };
     imports.wbg.__wbg_stofnode_new = function(arg0) {
         const ret = StofNode.__wrap(arg0);
         return ret;
@@ -2358,8 +1798,16 @@ function __wbg_get_imports() {
         const ret = +arg0;
         return ret;
     };
+    imports.wbg.__wbindgen_bigint_from_i128 = function(arg0, arg1) {
+        const ret = arg0 << BigInt(64) | BigInt.asUintN(64, arg1);
+        return ret;
+    };
     imports.wbg.__wbindgen_bigint_from_i64 = function(arg0) {
         const ret = arg0;
+        return ret;
+    };
+    imports.wbg.__wbindgen_bigint_from_u128 = function(arg0, arg1) {
+        const ret = BigInt.asUintN(64, arg0) << BigInt(64) | BigInt.asUintN(64, arg1);
         return ret;
     };
     imports.wbg.__wbindgen_bigint_from_u64 = function(arg0) {
@@ -2393,7 +1841,7 @@ function __wbg_get_imports() {
         return ret;
     };
     imports.wbg.__wbindgen_init_externref_table = function() {
-        const table = wasm.__wbindgen_export_2;
+        const table = wasm.__wbindgen_export_4;
         const offset = table.grow(4);
         table.set(0, undefined);
         table.set(offset + 0, undefined);
@@ -2451,6 +1899,10 @@ function __wbg_get_imports() {
     };
     imports.wbg.__wbindgen_number_new = function(arg0) {
         const ret = arg0;
+        return ret;
+    };
+    imports.wbg.__wbindgen_shr = function(arg0, arg1) {
+        const ret = arg0 >> arg1;
         return ret;
     };
     imports.wbg.__wbindgen_string_get = function(arg0, arg1) {
