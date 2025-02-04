@@ -15,7 +15,7 @@
 //
 
 // @deno-types="./pkg/stof.d.ts"
-import init, { type StofData, StofDoc, type StofField, type StofFunc, type StofNode } from './pkg/stof.js';
+import init, { type StofData, StofDoc, type StofNode } from './pkg/stof.js';
 
 
 /**
@@ -209,30 +209,6 @@ export class Stof {
      */
     get(path: string): unknown {
         return this.doc.get(path);
-    }
-
-
-    /**
-     * Get a field by path (dot separated) with an optional start.
-     * Without a starting node, Stof will look for a root with the first name in the path.
-     */
-    field(path: string, node?: StofNode): StofField | undefined {
-        if (node) {
-            return this.doc.field(path, node);
-        }
-        return this.doc.fieldFromRoot(path);
-    }
-
-
-    /**
-     * Get a function by path (dot separated) with an optional start.
-     * Without a starting node, Stof will look for a root with the first name in the path.
-     */
-    func(path: string, node?: StofNode): StofFunc | undefined {
-        if (node) {
-            return this.doc.func(path, node);
-        }
-        return this.doc.funcFromRoot(path);
     }
 
 
