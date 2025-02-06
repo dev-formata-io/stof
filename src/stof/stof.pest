@@ -22,11 +22,15 @@ WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 COMMENT    = _{ "//" ~ (!NEWLINE ~ ANY)* }
 
 // Numbers
-integer = @{ "+"? ~ "-"? ~ ASCII_DIGIT+ }
-decimal = @{ "+"? ~ "-"? ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
+integer = @{ "+"? ~ "-"? ~ (ASCII_DIGIT | "_")+ }
+decimal = @{ "+"? ~ "-"? ~ (ASCII_DIGIT | "_")+ ~ ("." ~ (ASCII_DIGIT | "_")+ ~ science? | science) }
+science = @{ "e" ~ "-"? ~ (ASCII_DIGIT | "_")+ }
 special =  { "/" | "^" }
 units   = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | special)* }
-number  = ${ (decimal | integer) ~ units? }
+hex     = @{ "0x" ~ (ASCII_HEX_DIGIT | "_")+ }
+oct     = @{ "0o" ~ (ASCII_OCT_DIGIT | "_")+ }
+bin     = @{ "0b" ~ (ASCII_BIN_DIGIT | "_")+ }
+number  = ${ hex | oct | bin | (decimal | integer) ~ units? }
 
 // Identifiers and strings
 ident         = @{ (ASCII_ALPHA | "_" | "@" | "-") ~ (ASCII_ALPHANUMERIC | "_" | "@" | "-")* ~ (("." | "::" | ":" | "-") ~ (ASCII_ALPHA | "_" | "@" | "-") ~ (ASCII_ALPHANUMERIC | "_" | "@" | "-")*)* }

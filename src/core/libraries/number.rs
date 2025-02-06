@@ -15,7 +15,7 @@
 //
 
 use std::ops::{Deref, DerefMut};
-use crate::{lang::SError, Library, SDoc, SNum, SUnits, SVal};
+use crate::{lang::SError, parse_number, Library, SDoc, SNum, SUnits, SVal};
 
 
 /// Number library.
@@ -41,6 +41,25 @@ impl Library for NumberLibrary {
                         }
                     }
                     return Ok(SVal::Null);
+                },
+                // parse a string into a number
+                "parse" => {
+                    return parse_number(&parameters[0].to_string());
+                },
+                "parseHex" => {
+                    let mut value = parameters[0].to_string();
+                    if !value.starts_with("0x") { value = format!("0x{}", value); }
+                    return parse_number(&value);
+                },
+                "parseOct" => {
+                    let mut value = parameters[0].to_string();
+                    if !value.starts_with("0o") { value = format!("0o{}", value); }
+                    return parse_number(&value);
+                },
+                "parseBin" => {
+                    let mut value = parameters[0].to_string();
+                    if !value.starts_with("0b") { value = format!("0b{}", value); }
+                    return parse_number(&value);
                 },
                 _ => {}
             }
@@ -257,6 +276,18 @@ impl NumberLibrary {
                         Err(SError::num(pid, &doc, "at", "non-numerical index not supported"))
                     }
                 }
+            },
+            "toHexString" => {
+                let int = nval.int();
+                Ok(SVal::String(format!("{:X}", int)))
+            },
+            "toBinString" => {
+                let int = nval.int();
+                Ok(SVal::String(format!("{:b}", int)))
+            },
+            "toOctString" => {
+                let int = nval.int();
+                Ok(SVal::String(format!("{:o}", int)))
             },
             _ => {
                 Err(SError::num(pid, &doc, "NotFound", &format!("{} is not a function in the Number Library", name)))

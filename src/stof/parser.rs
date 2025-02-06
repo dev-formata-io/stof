@@ -120,6 +120,109 @@ pub fn parse_internal(src: &str, doc: &mut SDoc, env: &mut StofEnv) -> Result<()
 }
 
 
+/// Parse number only.
+pub fn parse_number(src: &str) -> Result<SVal, SError> {
+    let res = StofParser::parse(Rule::number, src);
+    match res {
+        Ok(pairs) => {
+            for pair in pairs {
+                match pair.as_rule() {
+                    Rule::number => {
+                        let mut number = SNum::I64(0);
+                        for pair in pair.into_inner() {
+                            match pair.as_rule() {
+                                Rule::decimal => {
+                                    let val_str = pair.as_str().replace('+', "").replace("_", "");
+                                    let val = val_str.parse::<f64>().unwrap();
+                                    number = SNum::F64(val);
+                                },
+                                Rule::integer => {
+                                    let val_str = pair.as_str().replace('+', "").replace("_", "");
+                                    let val = val_str.parse::<i64>().unwrap();
+                                    number = SNum::I64(val);
+                                },
+                                Rule::hex => {
+                                    let val_str = pair.as_str().strip_prefix("0x").unwrap().replace("_", "");
+                                    let num = i64::from_str_radix(&val_str, 16);
+                                    if let Ok(num) = num {
+                                        number = SNum::I64(num);
+                                    } else {
+                                        return Err(SError {
+                                            pid: "main".into(),
+                                            error_type: ErrorType::Custom("ParseNumberError".into()),
+                                            message: "failed to parse a string into a stof number".into(),
+                                            call_stack: Default::default(),
+                                        });
+                                    }
+                                },
+                                Rule::oct => {
+                                    let val_str = pair.as_str().strip_prefix("0o").unwrap().replace("_", "");
+                                    let num = i64::from_str_radix(&val_str, 8);
+                                    if let Ok(num) = num {
+                                        number = SNum::I64(num);
+                                    } else {
+                                        return Err(SError {
+                                            pid: "main".into(),
+                                            error_type: ErrorType::Custom("ParseNumberError".into()),
+                                            message: "failed to parse a string into a stof number".into(),
+                                            call_stack: Default::default(),
+                                        });
+                                    }
+                                },
+                                Rule::bin => {
+                                    let val_str = pair.as_str().strip_prefix("0b").unwrap().replace("_", "");
+                                    let num = i64::from_str_radix(&val_str, 2);
+                                    if let Ok(num) = num {
+                                        number = SNum::I64(num);
+                                    } else {
+                                        return Err(SError {
+                                            pid: "main".into(),
+                                            error_type: ErrorType::Custom("ParseNumberError".into()),
+                                            message: "failed to parse a string into a stof number".into(),
+                                            call_stack: Default::default(),
+                                        });
+                                    }
+                                },
+                                Rule::units => {
+                                    let units = SUnits::from(pair.as_str());
+                                    if units.has_units() && !units.is_undefined() {
+                                        number = number.cast(SNumType::Units(units));
+                                    }
+                                },
+                                _ => {
+                                    return Err(SError {
+                                        pid: "main".into(),
+                                        error_type: ErrorType::Custom("ParseNumberError".into()),
+                                        message: "failed to parse a string into a stof number".into(),
+                                        call_stack: Default::default(),
+                                    });
+                                }
+                            }
+                        }
+                        return Ok(SVal::Number(number));
+                    },
+                    _ => {}
+                }
+            }
+            Err(SError {
+                pid: "main".into(),
+                error_type: ErrorType::Custom("ParseNumberError".into()),
+                message: "failed to parse a string into a stof number".into(),
+                call_stack: Default::default(),
+            })
+        },
+        Err(_error) => {
+            Err(SError {
+                pid: "main".into(),
+                error_type: ErrorType::Custom("ParseNumberError".into()),
+                message: "failed to parse a string into a stof number".into(),
+                call_stack: Default::default(),
+            })
+        }
+    }
+}
+
+
 /// Parse type only.
 pub fn parse_type(src: &str) -> Result<SType, SError> {
     let res = StofParser::parse(Rule::atype, src);
@@ -1488,7 +1591,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         for pair in pair.into_inner() {
                             match pair.as_rule() {
                                 Rule::decimal => {
-                                    let val_str = pair.as_str().replace('+', "");
+                                    let val_str = pair.as_str().replace('+', "").replace("_", "");
                                     let val = val_str.parse::<f64>().unwrap();
                                     let val = val as i32;
                                     if seen_first && seen_second {
@@ -1502,7 +1605,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                                     }
                                 },
                                 Rule::integer => {
-                                    let val_str = pair.as_str().replace('+', "");
+                                    let val_str = pair.as_str().replace('+', "").replace("_", "");
                                     let val = val_str.parse::<i64>().unwrap();
                                     let val = val as i32;
                                     if seen_first && seen_second {
@@ -1519,7 +1622,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                                     // Do nothing with units here...
                                 },
                                 _ => {
-                                    return Err(SError::parse(&env.pid, &doc, "unrecognized rule for number literal"));
+                                    return Err(SError::parse(&env.pid, &doc, "unrecognized rule for number literal in a range"));
                                 }
                             }
                         }
@@ -1806,14 +1909,41 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         for pair in pair.into_inner() {
                             match pair.as_rule() {
                                 Rule::decimal => {
-                                    let val_str = pair.as_str().replace('+', "");
+                                    let val_str = pair.as_str().replace('+', "").replace("_", "");
                                     let val = val_str.parse::<f64>().unwrap();
                                     number = SNum::F64(val);
                                 },
                                 Rule::integer => {
-                                    let val_str = pair.as_str().replace('+', "");
+                                    let val_str = pair.as_str().replace('+', "").replace("_", "");
                                     let val = val_str.parse::<i64>().unwrap();
                                     number = SNum::I64(val);
+                                },
+                                Rule::hex => {
+                                    let val_str = pair.as_str().strip_prefix("0x").unwrap().replace("_", "");
+                                    let num = i64::from_str_radix(&val_str, 16);
+                                    if let Ok(num) = num {
+                                        number = SNum::I64(num);
+                                    } else {
+                                        return Err(SError::parse(&env.pid, &doc, "error parsing hex literal into an integer"));
+                                    }
+                                },
+                                Rule::oct => {
+                                    let val_str = pair.as_str().strip_prefix("0o").unwrap().replace("_", "");
+                                    let num = i64::from_str_radix(&val_str, 8);
+                                    if let Ok(num) = num {
+                                        number = SNum::I64(num);
+                                    } else {
+                                        return Err(SError::parse(&env.pid, &doc, "error parsing octal literal into an integer"));
+                                    }
+                                },
+                                Rule::bin => {
+                                    let val_str = pair.as_str().strip_prefix("0b").unwrap().replace("_", "");
+                                    let num = i64::from_str_radix(&val_str, 2);
+                                    if let Ok(num) = num {
+                                        number = SNum::I64(num);
+                                    } else {
+                                        return Err(SError::parse(&env.pid, &doc, "error parsing binary literal into an integer"));
+                                    }
                                 },
                                 Rule::units => {
                                     let units = SUnits::from(pair.as_str());

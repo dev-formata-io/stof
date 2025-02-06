@@ -169,3 +169,123 @@ fn indexing() {
     assertEq(34.at(3), 3);
     assertEq(34.at(45), 34);
 }
+
+#[test]
+fn scientific_notation() {
+    let i = -1.21e2;
+    assertEq(i, -121);
+
+    i = 12e4;
+    assertEq(i, 120000);
+
+    i = 12_000_000e-6;
+    assertEq(i, 12);
+}
+
+#[test]
+fn clear_numbers() {
+    let i = +10_000_000;
+    assertEq(i, 1e7);
+
+    i = 1.21_32_32e_6;
+    assertEq(i, 1213232);
+}
+
+#[test]
+fn hex_literal() {
+    let i = 0xFf;
+    assertEq(i, 255);
+
+    i = 0x00_00_AA;
+    assertEq(i, 170);
+}
+
+#[test]
+fn oct_literal() {
+    let i = 0o00_55;
+    assertEq(i, 45);
+}
+
+#[test]
+fn bin_literal() {
+    let i = 0b0011;
+    assertEq(i, 3);
+
+    i = 0b1111;
+    assertEq(i, 15);
+}
+
+#[test]
+fn to_hex_string() {
+    let i = 0xAb_04_46_f8_c2;
+    let s = i.toHexString();
+    assertEq(s, 'AB0446F8C2'); // always caps
+}
+
+#[test]
+fn to_bin_string() {
+    let i = 15.7; // just takes integer values
+    assertEq(i.toBinString(), '1111');
+}
+
+#[test]
+fn to_oct_string() {
+    let i = 45;
+    assertEq(i.toOctString(), '55');
+}
+
+#[test]
+fn parse_integer() {
+    let i = Number.parse("+10_00");
+    assertEq(i, 1000);
+}
+
+#[test]
+fn parse_float() {
+    let i = Number.parse("+12_123e-3");
+    assertEq(i, 12.123);
+}
+
+#[test]
+fn parse_hex() {
+    let i = Number.parse("0xff");
+    assertEq(i, 255);
+
+    i = Number.parseHex("ff");
+    assertEq(i, 255);
+
+    i = Number.parseHex("0xFF");
+    assertEq(i, 255);
+}
+
+#[test]
+fn parse_oct() {
+    let i = Number.parse("0o55");
+    assertEq(i, 45);
+
+    i = Number.parseOct("55");
+    assertEq(i, 45);
+
+    i = Number.parseOct("0o55");
+    assertEq(i, 45);
+}
+
+#[test]
+fn parse_bin() {
+    let i = Number.parse("0b111");
+    assertEq(i, 7);
+
+    i = Number.parseBin("111");
+    assertEq(i, 7);
+
+    i = Number.parseBin("0b111");
+    assertEq(i, 7);
+}
+
+#[test]
+fn parse_together() {
+    let i = 1564;
+    assertEq(i, Number.parseHex(i.toHexString()));
+    assertEq(i, Number.parseOct(i.toOctString()));
+    assertEq(i, Number.parseBin(i.toBinString()));
+}
