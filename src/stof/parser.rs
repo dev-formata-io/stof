@@ -38,6 +38,8 @@ lazy_static! {
             .op(Op::infix(eq, Left) | Op::infix(neq, Left) | Op::infix(gte, Left) | Op::infix(lte, Left) | Op::infix(gt, Left) | Op::infix(lt, Left))
             .op(Op::infix(add, Left) | Op::infix(sub, Left))
             .op(Op::infix(mul, Left) | Op::infix(div, Left) | Op::infix(rem, Left))
+            .op(Op::infix(bit_and, Left) | Op::infix(bit_or, Left) | Op::infix(bit_xor, Left))
+            .op(Op::infix(bit_shl, Left) | Op::infix(bit_shr, Left))
             .op(Op::prefix(unary_minus))
     };
 }
@@ -74,6 +76,11 @@ impl MathExpr {
                     MathOp::Lte => Expr::Lte(Box::new(lhs), Box::new(rhs)),
                     MathOp::Gt => Expr::Gt(Box::new(lhs), Box::new(rhs)),
                     MathOp::Lt => Expr::Lt(Box::new(lhs), Box::new(rhs)),
+                    MathOp::BitAnd => Expr::BitAnd(Box::new(lhs), Box::new(rhs)),
+                    MathOp::BitOr => Expr::BitOr(Box::new(lhs), Box::new(rhs)),
+                    MathOp::BitXor => Expr::BitXor(Box::new(lhs), Box::new(rhs)),
+                    MathOp::BitShl => Expr::BitShl(Box::new(lhs), Box::new(rhs)),
+                    MathOp::BitShr => Expr::BitShr(Box::new(lhs), Box::new(rhs)),
                 }
             }
         }
@@ -93,6 +100,11 @@ enum MathOp {
     Lt,
     And,
     Or,
+    BitAnd,
+    BitOr,
+    BitXor,
+    BitShl,
+    BitShr,
 }
 
 
@@ -2106,6 +2118,11 @@ fn parse_math_pairs(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Ma
                 Rule::lte => MathOp::Lte,
                 Rule::gt => MathOp::Gt,
                 Rule::lt => MathOp::Lt,
+                Rule::bit_and => MathOp::BitAnd,
+                Rule::bit_or  => MathOp::BitOr,
+                Rule::bit_xor => MathOp::BitXor,
+                Rule::bit_shl => MathOp::BitShl,
+                Rule::bit_shr => MathOp::BitShr,
                 rule => unreachable!("Expr::parse_math expected infix operation, found {:?}", rule)
             };
             MathExpr::Op { lhs: Box::new(lhs), op, rhs: Box::new(rhs) }

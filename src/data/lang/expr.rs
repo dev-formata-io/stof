@@ -62,6 +62,12 @@ pub enum Expr {
     Lte(Box<Expr>, Box<Expr>),
     Gt(Box<Expr>, Box<Expr>),
     Lt(Box<Expr>, Box<Expr>),
+
+    BitAnd(Box<Expr>, Box<Expr>),
+    BitOr(Box<Expr>, Box<Expr>),
+    BitXor(Box<Expr>, Box<Expr>),
+    BitShl(Box<Expr>, Box<Expr>),
+    BitShr(Box<Expr>, Box<Expr>),
 }
 impl<T> From<T> for Expr where T: Into<SVal> {
     fn from(value: T) -> Self {
@@ -567,6 +573,31 @@ impl Expr {
                 let lhs = lhs.exec(pid, doc)?;
                 let rhs = rhs.exec(pid, doc)?;
                 Ok(lhs.lt(&rhs)?)
+            },
+            Expr::BitAnd(lhs, rhs) => {
+                let lhs = lhs.exec(pid, doc)?;
+                let rhs = rhs.exec(pid, doc)?;
+                Ok(lhs.bit_and(pid, rhs, doc)?)
+            },
+            Expr::BitOr(lhs, rhs) => {
+                let lhs = lhs.exec(pid, doc)?;
+                let rhs = rhs.exec(pid, doc)?;
+                Ok(lhs.bit_or(pid, rhs, doc)?)
+            },
+            Expr::BitXor(lhs, rhs) => {
+                let lhs = lhs.exec(pid, doc)?;
+                let rhs = rhs.exec(pid, doc)?;
+                Ok(lhs.bit_xor(pid, rhs, doc)?)
+            },
+            Expr::BitShl(lhs, rhs) => {
+                let lhs = lhs.exec(pid, doc)?;
+                let rhs = rhs.exec(pid, doc)?;
+                Ok(lhs.bit_shl(pid, rhs, doc)?)
+            },
+            Expr::BitShr(lhs, rhs) => {
+                let lhs = lhs.exec(pid, doc)?;
+                let rhs = rhs.exec(pid, doc)?;
+                Ok(lhs.bit_shr(pid, rhs, doc)?)
             },
         }
     }

@@ -88,10 +88,10 @@ fn switch_tuples() {
 fn switch_or() {
     let seen = false;
     switch ('hel') {
-        case 'h'    |
-        case 'he'   |
-        case 'hel'  |
-        case 'hell' |
+        case 'h'    or
+        case 'he'   or
+        case 'hel'  or
+        case 'hell' or
         case 'hello': seen = true;
     }
     assert(seen);

@@ -2677,6 +2677,91 @@ impl SVal {
             }
         }
     }
+
+
+    /*****************************************************************************
+     * Bitwise operations.
+     *****************************************************************************/
+    
+    /// Bitwise AND operation.
+    pub fn bit_and(self, pid: &str, other: Self, doc: &mut SDoc) -> Result<Self, SError> {
+        match self {
+            Self::Number(num) => {
+                match other {
+                    Self::Number(onum) => {
+                        return Ok(SVal::Number(num.bit_and(&onum)));
+                    },
+                    _ => {}
+                }
+            },
+            _ => {}
+        }
+        Err(SError::val(pid, &doc, "bit_and", "cannot perform a bitwise AND operation between non-number values"))
+    }
+
+    /// Bitwise OR operation.
+    pub fn bit_or(self, pid: &str, other: Self, doc: &mut SDoc) -> Result<Self, SError> {
+        match self {
+            Self::Number(num) => {
+                match other {
+                    Self::Number(onum) => {
+                        return Ok(SVal::Number(num.bit_or(&onum)));
+                    },
+                    _ => {}
+                }
+            },
+            _ => {}
+        }
+        Err(SError::val(pid, &doc, "bit_or", "cannot perform a bitwise OR operation between non-number values"))
+    }
+
+    /// Bitwise XOR operation.
+    pub fn bit_xor(self, pid: &str, other: Self, doc: &mut SDoc) -> Result<Self, SError> {
+        match self {
+            Self::Number(num) => {
+                match other {
+                    Self::Number(onum) => {
+                        return Ok(SVal::Number(num.bit_xor(&onum)));
+                    },
+                    _ => {}
+                }
+            },
+            _ => {}
+        }
+        Err(SError::val(pid, &doc, "bit_xor", "cannot perform a bitwise XOR operation between non-number values"))
+    }
+
+    /// Bitwise SHIFT LEFT operation.
+    pub fn bit_shl(self, pid: &str, other: Self, doc: &mut SDoc) -> Result<Self, SError> {
+        match self {
+            Self::Number(num) => {
+                match other {
+                    Self::Number(onum) => {
+                        return Ok(SVal::Number(num.bit_shl(&onum)));
+                    },
+                    _ => {}
+                }
+            },
+            _ => {}
+        }
+        Err(SError::val(pid, &doc, "bit_shl", "cannot perform a bitwise SHIFT LEFT operation between non-number values"))
+    }
+
+    /// Bitwise SHIFT RIGHT operation.
+    pub fn bit_shr(self, pid: &str, other: Self, doc: &mut SDoc) -> Result<Self, SError> {
+        match self {
+            Self::Number(num) => {
+                match other {
+                    Self::Number(onum) => {
+                        return Ok(SVal::Number(num.bit_shr(&onum)));
+                    },
+                    _ => {}
+                }
+            },
+            _ => {}
+        }
+        Err(SError::val(pid, &doc, "bit_shr", "cannot perform a bitwise SHIFT RIGHT operation between non-number values"))
+    }
 }
 
 
@@ -3679,6 +3764,145 @@ impl SNum {
                     }
                 }
             }
+        }
+    }
+
+    /*****************************************************************************
+     * Bitwise operations.
+     *****************************************************************************/
+    
+    /// Bitwise and operation.
+    pub fn bit_and(&self, other: &Self) -> Self {
+        match self {
+            Self::I64(val) => {
+                match other {
+                    Self::I64(oval) => Self::I64(*val & *oval),
+                    Self::F64(oval) => Self::I64(*val & *oval as i64),
+                    Self::Units(oval, _) => Self::I64(*val & *oval as i64),
+                }
+            },
+            Self::F64(val) => {
+                match other {
+                    Self::I64(oval) => Self::I64((*val as i64) & *oval),
+                    Self::F64(oval) => Self::I64((*val as i64) & *oval as i64),
+                    Self::Units(oval, _) => Self::I64((*val as i64) & *oval as i64),
+                }
+            },
+            Self::Units(val, units) => {
+                match other {
+                    Self::I64(oval) => Self::Units(((*val as i64) & *oval) as f64, *units),
+                    Self::F64(oval) => Self::Units(((*val as i64) & *oval as i64) as f64, *units),
+                    Self::Units(oval, _) => Self::Units(((*val as i64) & *oval as i64) as f64, *units),
+                }
+            },
+        }
+    }
+
+    /// Bitwise or operation.
+    pub fn bit_or(&self, other: &Self) -> Self {
+        match self {
+            Self::I64(val) => {
+                match other {
+                    Self::I64(oval) => Self::I64(*val | *oval),
+                    Self::F64(oval) => Self::I64(*val | *oval as i64),
+                    Self::Units(oval, _) => Self::I64(*val | *oval as i64),
+                }
+            },
+            Self::F64(val) => {
+                match other {
+                    Self::I64(oval) => Self::I64((*val as i64) | *oval),
+                    Self::F64(oval) => Self::I64((*val as i64) | *oval as i64),
+                    Self::Units(oval, _) => Self::I64((*val as i64) | *oval as i64),
+                }
+            },
+            Self::Units(val, units) => {
+                match other {
+                    Self::I64(oval) => Self::Units(((*val as i64) | *oval) as f64, *units),
+                    Self::F64(oval) => Self::Units(((*val as i64) | *oval as i64) as f64, *units),
+                    Self::Units(oval, _) => Self::Units(((*val as i64) | *oval as i64) as f64, *units),
+                }
+            },
+        }
+    }
+
+    /// Bitwise xor operation.
+    pub fn bit_xor(&self, other: &Self) -> Self {
+        match self {
+            Self::I64(val) => {
+                match other {
+                    Self::I64(oval) => Self::I64(*val ^ *oval),
+                    Self::F64(oval) => Self::I64(*val ^ *oval as i64),
+                    Self::Units(oval, _) => Self::I64(*val ^ *oval as i64),
+                }
+            },
+            Self::F64(val) => {
+                match other {
+                    Self::I64(oval) => Self::I64((*val as i64) ^ *oval),
+                    Self::F64(oval) => Self::I64((*val as i64) ^ *oval as i64),
+                    Self::Units(oval, _) => Self::I64((*val as i64) ^ *oval as i64),
+                }
+            },
+            Self::Units(val, units) => {
+                match other {
+                    Self::I64(oval) => Self::Units(((*val as i64) ^ *oval) as f64, *units),
+                    Self::F64(oval) => Self::Units(((*val as i64) ^ *oval as i64) as f64, *units),
+                    Self::Units(oval, _) => Self::Units(((*val as i64) ^ *oval as i64) as f64, *units),
+                }
+            },
+        }
+    }
+
+    /// Bitwise shift left operation.
+    pub fn bit_shl(&self, other: &Self) -> Self {
+        match self {
+            Self::I64(val) => {
+                match other {
+                    Self::I64(oval) => Self::I64(*val << *oval),
+                    Self::F64(oval) => Self::I64(*val << *oval as i64),
+                    Self::Units(oval, _) => Self::I64(*val << *oval as i64),
+                }
+            },
+            Self::F64(val) => {
+                match other {
+                    Self::I64(oval) => Self::I64((*val as i64) << *oval),
+                    Self::F64(oval) => Self::I64((*val as i64) << *oval as i64),
+                    Self::Units(oval, _) => Self::I64((*val as i64) << *oval as i64),
+                }
+            },
+            Self::Units(val, units) => {
+                match other {
+                    Self::I64(oval) => Self::Units(((*val as i64) << *oval) as f64, *units),
+                    Self::F64(oval) => Self::Units(((*val as i64) << *oval as i64) as f64, *units),
+                    Self::Units(oval, _) => Self::Units(((*val as i64) << *oval as i64) as f64, *units),
+                }
+            },
+        }
+    }
+
+    /// Bitwise shift right operation.
+    pub fn bit_shr(&self, other: &Self) -> Self {
+        match self {
+            Self::I64(val) => {
+                match other {
+                    Self::I64(oval) => Self::I64(*val >> *oval),
+                    Self::F64(oval) => Self::I64(*val >> *oval as i64),
+                    Self::Units(oval, _) => Self::I64(*val >> *oval as i64),
+                }
+            },
+            Self::F64(val) => {
+                match other {
+                    Self::I64(oval) => Self::I64((*val as i64) >> *oval),
+                    Self::F64(oval) => Self::I64((*val as i64) >> *oval as i64),
+                    Self::Units(oval, _) => Self::I64((*val as i64) >> *oval as i64),
+                }
+            },
+            Self::Units(val, units) => {
+                match other {
+                    Self::I64(oval) => Self::Units(((*val as i64) >> *oval) as f64, *units),
+                    Self::F64(oval) => Self::Units(((*val as i64) >> *oval as i64) as f64, *units),
+                    Self::Units(oval, _) => Self::Units(((*val as i64) >> *oval as i64) as f64, *units),
+                }
+            },
         }
     }
 }

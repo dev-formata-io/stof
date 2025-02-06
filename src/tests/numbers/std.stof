@@ -289,3 +289,41 @@ fn parse_together() {
     assertEq(i, Number.parseOct(i.toOctString()));
     assertEq(i, Number.parseBin(i.toBinString()));
 }
+
+bitwise: {
+    #[test]
+    fn and() {
+        let i = 0b0011 & 0b1001;
+        assertEq(i, 0b0001);
+    }
+
+    #[test]
+    fn or() {
+        let i = 0b0011 | 0b1001;
+        assertEq(i, 0b1011);
+    }
+
+    #[test]
+    fn xor() {
+        let i = 0b0011 ^ 0b1001;
+        assertEq(i, 0b1010);
+    }
+
+    #[test]
+    fn shift_left() {
+        let i = 0b0011 << 2;
+        assertEq(i, 0b1100);
+    }
+
+    #[test]
+    fn shift_right() {
+        let i = 0b1100 >> 3;
+        assertEq(i, 0b0001);
+    }
+
+    #[test]
+    fn shift_before_bitop() {
+        let i =  0b1001 ^ 0b1100 >> 2 & 0b0010 << 2;
+        assertEq(i, 0b1000);
+    }
+}
