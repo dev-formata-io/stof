@@ -44,20 +44,21 @@ impl Library for NumberLibrary {
                 },
                 // parse a string into a number
                 "parse" => {
-                    return parse_number(&parameters[0].to_string());
+                    let value = parameters[0].to_string();
+                    return parse_number(&value.trim());
                 },
                 "parseHex" => {
-                    let mut value = parameters[0].to_string();
+                    let mut value = parameters[0].to_string().trim().to_owned();
                     if !value.starts_with("0x") { value = format!("0x{}", value); }
                     return parse_number(&value);
                 },
                 "parseOct" => {
-                    let mut value = parameters[0].to_string();
+                    let mut value = parameters[0].to_string().trim().to_owned();
                     if !value.starts_with("0o") { value = format!("0o{}", value); }
                     return parse_number(&value);
                 },
                 "parseBin" => {
-                    let mut value = parameters[0].to_string();
+                    let mut value = parameters[0].to_string().trim().to_owned();
                     if !value.starts_with("0b") { value = format!("0b{}", value); }
                     return parse_number(&value);
                 },

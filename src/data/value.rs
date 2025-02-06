@@ -1196,19 +1196,19 @@ impl SVal {
                     SType::Number(ntype) => {
                         match ntype {
                             SNumType::I64 => {
-                                if let Ok(res) = val.replace('+', "").parse::<i64>() {
+                                if let Ok(res) = val.replace('+', "").replace("_", "").parse::<i64>() {
                                     return Ok(Self::Number(SNum::I64(res)));
                                 }
                                 Err(SError::val(pid, &doc, "cast", &format!("value '{}' is not an int", val)))
                             },
                             SNumType::F64 => {
-                                if let Ok(res) = val.replace('+', "").parse::<f64>() {
+                                if let Ok(res) = val.replace('+', "").replace("_", "").parse::<f64>() {
                                     return Ok(Self::Number(SNum::F64(res)));
                                 }
                                 Err(SError::val(pid, &doc, "cast", &format!("value '{}' is not a float", val)))
                             },
                             SNumType::Units(units) => {
-                                if let Ok(res) = val.replace('+', "").parse::<f64>() {
+                                if let Ok(res) = val.replace('+', "").replace("_", "").parse::<f64>() {
                                     return Ok(Self::Number(SNum::Units(res, units)));
                                 }
                                 Err(SError::val(pid, &doc, "cast", &format!("value '{}' is not a float (to units)", val)))
