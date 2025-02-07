@@ -544,6 +544,12 @@ impl Library for StdLibrary {
             /*****************************************************************************
              * STD Lib Constructors.
              *****************************************************************************/
+            "data" => {
+                if let Some(data_lib) = doc.libraries.get("Data") {
+                    return data_lib.call(pid, doc, "from", parameters);
+                }
+                Ok(SVal::Null)
+            },
             "vec" => {
                 let mut array = Vec::new();
                 if parameters.len() > 0 {

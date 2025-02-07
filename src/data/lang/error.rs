@@ -30,6 +30,7 @@ pub enum ErrorType {
     StdLibError(String),
     ArrayLibError(String),
     BlobLibError(String),
+    DataLibError(String),
     BoolLibError(String),
     FuncLibError(String),
     MapLibError(String),
@@ -109,6 +110,11 @@ impl SError {
     /// Blob library error.
     pub fn blob(pid: &str, doc: &SDoc, func: &str, message: &str) -> Self {
         Self::new(pid, doc, ErrorType::BlobLibError(func.to_owned()), message)
+    }
+
+    /// Data library error.
+    pub fn data(pid: &str, doc: &SDoc, func: &str, message: &str) -> Self {
+        Self::new(pid, doc, ErrorType::DataLibError(func.to_owned()), message)
     }
 
     /// Bool library error.

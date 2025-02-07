@@ -67,6 +67,7 @@ fn toml_value(graph: &SGraph, val: SVal) -> Value {
             Value::Array(array)
         },
         SVal::FnPtr(ptr) => Value::String(format!("fn({})", ptr.id)),
+        SVal::Data(ptr) => Value::String(format!("data({})", ptr.id)),
         SVal::Set(set) => value_from_array(graph, set.into_iter().collect()),
         SVal::Array(vals) => value_from_array(graph, vals),
         SVal::Tuple(vals) => value_from_array(graph, vals),

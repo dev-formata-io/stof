@@ -73,6 +73,12 @@ import './blobs/lib' as Blobs.StdLib;
 
 
 /**
+ * Opaque Data.
+ */
+import './data/lib' as OpaqueData.StdLib;
+
+
+/**
  * Object Tests.
  */
 import './objects/paths' as Objects.Paths;

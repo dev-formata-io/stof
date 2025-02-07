@@ -18,7 +18,7 @@ use core::str;
 use std::{cmp::Ordering, collections::{BTreeMap, BTreeSet, HashSet}, hash::{Hash, Hasher}, ops::{Deref, DerefMut}, sync::{Arc, Mutex}};
 use serde::{Deserialize, Serialize};
 use crate::{SData, SDataRef, SDoc, SGraph, SNodeRef};
-use super::{lang::SError, SField, SNumType, SPrototype, SType, SUnits};
+use super::{lang::SError, SField, SFunc, SNumType, SPrototype, SType, SUnits};
 
 #[cfg(feature = "json")]
 use crate::json::JSON;
@@ -200,6 +200,7 @@ pub enum SVal {
     String(String),
     Object(SNodeRef),
     FnPtr(SDataRef),
+    Data(SDataRef),
     Array(Vec<Self>),
     Tuple(Vec<Self>),
     Blob(Vec<u8>),
@@ -376,6 +377,27 @@ impl Ord for SVal {
                     Self::Tuple(_) |
                     Self::Set(_) |
                     Self::Blob(_) => Ordering::Greater,
+                    _ => Ordering::Less,
+                }
+            },
+            Self::Data(dref) => {
+                match other {
+                    Self::Data(odref) => dref.id.cmp(&odref.id),
+                    Self::Boxed(oval) => {
+                        self.cmp(oval.lock().unwrap().deref())
+                    },
+                    Self::Void |
+                    Self::Null |
+                    Self::Bool(_) |
+                    Self::Number(_) |
+                    Self::String(_) |
+                    Self::Object(_) |
+                    Self::FnPtr(_) |
+                    Self::Array(_) |
+                    Self::Tuple(_) |
+                    Self::Set(_) |
+                    Self::Map(_) |
+                    Self::Blob(_) => Ordering::Greater,
                 }
             },
         }
@@ -433,6 +455,15 @@ impl PartialEq for SVal {
             Self::Blob(vals) => {
                 match other {
                     Self::Blob(ovals) => vals == ovals,
+                    Self::Boxed(oval) => {
+                        self.eq(oval.lock().unwrap().deref())
+                    },
+                    _ => false,
+                }
+            },
+            Self::Data(dref) => {
+                match other {
+                    Self::Data(odref) => dref.id == odref.id,
                     Self::Boxed(oval) => {
                         self.eq(oval.lock().unwrap().deref())
                     },
@@ -671,6 +702,17 @@ impl SVal {
         }
     }
 
+    /// Is opaque data pointer?
+    pub fn is_data(&self) -> bool {
+        match self {
+            Self::Data(_) => true,
+            Self::Boxed(val) => {
+                val.lock().unwrap().is_data()
+            },
+            _ => false,
+        }
+    }
+
     /// Is object?
     pub fn is_object(&self) -> bool {
         match self {
@@ -794,6 +836,7 @@ impl SVal {
                 SType::Tuple(types)
             },
             Self::FnPtr(_) => SType::FnPtr,
+            Self::Data(_) => SType::Data,
             Self::Object(nref) => {
                 if let Some(prototype) = SPrototype::get(graph, nref) {
                     // Use the full typepath here, so taht we arrive at the correct type when casting, etc...
@@ -822,6 +865,7 @@ impl SVal {
             Self::Set(set) => { format!("{:?}", set) },
             Self::Object(nref) => { format!("{:?}", nref) },
             Self::FnPtr(dref) => { format!("fn({:?})", dref) },
+            Self::Data(dref) => { format!("data({:?})", dref) },
             Self::Null => { "null".to_string() },
             Self::Void => { "void".to_string() },
             Self::Tuple(tup) => { format!("tup({:?})", tup) },
@@ -843,6 +887,7 @@ impl SVal {
             Self::Set(set) => { format!("{:?}", set) },
             Self::Object(nref) => { format!("{:?}", nref) },
             Self::FnPtr(dref) => { format!("fn({:?})", dref) },
+            Self::Data(dref) => { format!("data({:?})", dref) },
             Self::Null => { "null".to_string() },
             Self::Void => { "void".to_string() },
             Self::Tuple(tup) => { format!("tup({:?})", tup) },
@@ -861,6 +906,7 @@ impl SVal {
             Self::Set(_) => true,
             Self::Bool(val) => *val,
             Self::FnPtr(_) => true,
+            Self::Data(_) => true,
             Self::Object(_) => true,
             Self::Null => false,
             Self::Number(val) => val.bool(),
@@ -968,6 +1014,7 @@ impl SVal {
             SVal::Number(_) |
             SVal::Blob(_) |
             SVal::FnPtr(_) |
+            SVal::Data(_) |
             SVal::String(_) |
             SVal::Bool(_) => {
                 if self != other {
@@ -1150,8 +1197,27 @@ impl SVal {
                     }
                 }
             },
-            Self::FnPtr(_) => {
+            Self::FnPtr(dref) => {
+                match target {
+                    SType::Data => {
+                        if let Some(_func) = SData::get::<SFunc>(&doc.graph, dref) {
+                            return Ok(SVal::Data(dref.clone()));
+                        }
+                    },
+                    _ => {}
+                }
                 Err(SError::val(pid, &doc, "cast", "cannot cast a fn pointer to anything"))
+            },
+            Self::Data(dref) => {
+                match target {
+                    SType::FnPtr => {
+                        if let Some(_func) = SData::get::<SFunc>(&doc.graph, dref) {
+                            return Ok(SVal::FnPtr(dref.clone()));
+                        }
+                    },
+                    _ => {}
+                }
+                Err(SError::val(pid, &doc, "cast", "cannot cast an opaque data pointer to any other value"))
             },
             Self::Null => {
                 // Null can be any type!
@@ -1431,6 +1497,9 @@ impl SVal {
             Self::FnPtr(dref) => {
                 format!("fn({})", dref.id)
             },
+            Self::Data(dref) => {
+                format!("data({:?})", dref.id)
+            },
             #[allow(unused)]
             Self::Object(nref) => {
                 #[cfg(feature = "json")]
@@ -1492,6 +1561,9 @@ impl SVal {
             Self::FnPtr(dref) => {
                 format!("Fn({})", dref.id)
             },
+            Self::Data(dref) => {
+                format!("data({:?})", dref.id)
+            },
             Self::Object(nref) => {
                 if let Some(node) = nref.node(&doc.graph) {
                     return node.dump(&doc.graph, 0, true);
@@ -1532,6 +1604,7 @@ impl SVal {
             Self::Tuple(_) => Ok(Self::Bool(false)),
             Self::Bool(_) => Ok(Self::Bool(false)),
             Self::FnPtr(_) => Ok(Self::Bool(false)),
+            Self::Data(_) => Ok(Self::Bool(false)),
             Self::Void |
             Self::Null => Ok(Self::Bool(false)),
             Self::Blob(blob) => {
@@ -1586,6 +1659,7 @@ impl SVal {
             Self::Tuple(_) => Ok(Self::Bool(false)),
             Self::Bool(_) => Ok(Self::Bool(false)),
             Self::FnPtr(_) => Ok(Self::Bool(false)),
+            Self::Data(_) => Ok(Self::Bool(false)),
             Self::Void |
             Self::Null => Ok(Self::Bool(false)),
             Self::Blob(blob) => {
@@ -1718,6 +1792,9 @@ impl SVal {
                     Self::FnPtr(_) => {
                         Err(SError::val(pid, &doc, "add", "cannot add a bool and a function ptr"))
                     },
+                    Self::Data(_) => {
+                        Err(SError::val(pid, &doc, "add", "cannot add a bool and an opaque data pointer"))
+                    },
                     Self::Blob(_) => {
                         Err(SError::val(pid, &doc, "add", "cannot add a bool and a blob"))
                     },
@@ -1753,6 +1830,9 @@ impl SVal {
                         Ok(Self::String(format!("{}{}", aval, other.print(doc))))
                     },
                     Self::FnPtr(_) => {
+                        Ok(Self::String(format!("{}{}", aval, other.print(doc))))
+                    },
+                    Self::Data(_) => {
                         Ok(Self::String(format!("{}{}", aval, other.print(doc))))
                     },
                     Self::Blob(_) => {
@@ -1797,6 +1877,9 @@ impl SVal {
                     Self::FnPtr(_) => {
                         Err(SError::val(pid, &doc, "add", "cannot add a number and a function ptr"))
                     },
+                    Self::Data(_) => {
+                        Err(SError::val(pid, &doc, "add", "cannot add a number and an opaque data pointer"))
+                    },
                     Self::Blob(_) => {
                         Err(SError::val(pid, &doc, "add", "cannot add a number and a blob"))
                     },
@@ -1840,6 +1923,10 @@ impl SVal {
                         vals.push(Self::FnPtr(dref));
                         Ok(Self::Array(vals))
                     },
+                    Self::Data(dref) => {
+                        vals.push(Self::Data(dref));
+                        Ok(Self::Array(vals))
+                    },
                     Self::Blob(_) => {
                         // PID here doesn't matter, because they only get used when casting with objects...
                         let arr_blob = Self::Array(vals).cast(SType::Blob, "main", doc)?;
@@ -1860,6 +1947,9 @@ impl SVal {
             },
             Self::FnPtr(_) => {
                 Err(SError::val(pid, &doc, "add", "cannot add a function pointer with anything"))
+            },
+            Self::Data(_) => {
+                Err(SError::val(pid, &doc, "add", "cannot add an opaque data pointer with anything"))
             },
             Self::Map(mut map) => {
                 match other {
@@ -1949,6 +2039,9 @@ impl SVal {
                     Self::FnPtr(_) => {
                         Err(SError::val(pid, &doc, "subtract", "cannot subtract a fn pointer from a bool"))
                     },
+                    Self::Data(_) => {
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract an opaque data pointer from a bool"))
+                    },
                     Self::Blob(_) => {
                         Err(SError::val(pid, &doc, "subtract", "cannot subtract a blob from a bool"))
                     },
@@ -1985,6 +2078,9 @@ impl SVal {
                     },
                     Self::FnPtr(_) => {
                         Err(SError::val(pid, &doc, "subtract", "cannot subtract a fn pointer from a string"))
+                    },
+                    Self::Data(_) => {
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract an opaque data pointer from a string"))
                     },
                     Self::Blob(_) => {
                         Err(SError::val(pid, &doc, "subtract", "cannot subtract a blob from a string"))
@@ -2029,6 +2125,9 @@ impl SVal {
                     Self::FnPtr(_) => {
                         Err(SError::val(pid, &doc, "subtract", "cannot subtract a fn pointer from a number"))
                     },
+                    Self::Data(_) => {
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract an opaque data pointer from a number"))
+                    },
                     Self::Blob(_) => {
                         Err(SError::val(pid, &doc, "subtract", "cannot subtract a blob from a number"))
                     },
@@ -2049,6 +2148,9 @@ impl SVal {
             },
             Self::FnPtr(_) => {
                 Err(SError::val(pid, &doc, "subtract", "cannot subtract anything from a function pointer"))
+            },
+            Self::Data(_) => {
+                Err(SError::val(pid, &doc, "subtract", "cannot subtract anything from an opaque data pointer"))
             },
             Self::Map(mut map) => {
                 match other {
@@ -2142,6 +2244,9 @@ impl SVal {
                     Self::FnPtr(_) => {
                         Err(SError::val(pid, &doc, "multiply", "cannot multiply a bool and a function pointer"))
                     },
+                    Self::Data(_) => {
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a bool and an opaque data pointer"))
+                    },
                     Self::Blob(_) => {
                         Err(SError::val(pid, &doc, "multiply", "cannot multiply a bool and a blob"))
                     },
@@ -2182,6 +2287,9 @@ impl SVal {
                     },
                     Self::FnPtr(_) => {
                         Err(SError::val(pid, &doc, "multiply", "cannot multiply a string and a function pointer"))
+                    },
+                    Self::Data(_) => {
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a string and an opaque data pointer"))
                     },
                     Self::Blob(_) => {
                         Err(SError::val(pid, &doc, "multiply", "cannot multiply a string and a blob"))
@@ -2224,6 +2332,9 @@ impl SVal {
                     Self::FnPtr(_) => {
                         Err(SError::val(pid, &doc, "multiply", "cannot multiply a number and a function pointer"))
                     },
+                    Self::Data(_) => {
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a number and an opaque data pointer"))
+                    },
                     Self::Blob(_) => {
                         Err(SError::val(pid, &doc, "multiply", "cannot multiply a number and a blob"))
                     },
@@ -2244,6 +2355,9 @@ impl SVal {
             },
             Self::FnPtr(_) => {
                 Err(SError::val(pid, &doc, "multiply", "cannot multiply a function"))
+            },
+            Self::Data(_) => {
+                Err(SError::val(pid, &doc, "multiply", "cannot multiply an opaque data pointer"))
             },
             Self::Set(set) => {
                 match other {
@@ -2364,6 +2478,9 @@ impl SVal {
                     Self::FnPtr(_) => {
                         Err(SError::val(pid, &doc, "divide", "cannot divide a bool with a function pointer"))
                     },
+                    Self::Data(_) => {
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a bool with an opaque data pointer"))
+                    },
                     Self::Blob(_) => {
                         Err(SError::val(pid, &doc, "divide", "cannot divide a bool with a blob"))
                     },
@@ -2406,6 +2523,9 @@ impl SVal {
                     Self::FnPtr(_) => {
                         Err(SError::val(pid, &doc, "divide", "cannot divide a string with a function pointer"))
                     },
+                    Self::Data(_) => {
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a string with an opaque data pointer"))
+                    },
                     Self::Blob(_) => {
                         Err(SError::val(pid, &doc, "divide", "cannot divide a string with a blob"))
                     },
@@ -2447,6 +2567,9 @@ impl SVal {
                     Self::FnPtr(_) => {
                         Err(SError::val(pid, &doc, "divide", "cannot divide a number with a function pointer"))
                     },
+                    Self::Data(_) => {
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a number with an opaque data pointer"))
+                    },
                     Self::Blob(_) => {
                         Err(SError::val(pid, &doc, "divide", "cannot divide a number with a blob"))
                     },
@@ -2467,6 +2590,9 @@ impl SVal {
             },
             Self::FnPtr(_) => {
                 Err(SError::val(pid, &doc, "divide", "cannot divide a function pointer"))
+            },
+            Self::Data(_) => {
+                Err(SError::val(pid, &doc, "divide", "cannot divide an opaque data pointer"))
             },
             Self::Map(_) => {
                 Err(SError::val(pid, &doc, "divide", "cannot divide a map"))
@@ -2529,6 +2655,9 @@ impl SVal {
                     Self::FnPtr(_) => {
                         Err(SError::val(pid, &doc, "modulo", "cannot divide a bool with a function pointer"))
                     },
+                    Self::Data(_) => {
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a bool with an opaque data pointer"))
+                    },
                     Self::Blob(_) => {
                         Err(SError::val(pid, &doc, "modulo", "cannot divide a bool with a blob"))
                     },
@@ -2571,6 +2700,9 @@ impl SVal {
                     Self::FnPtr(_) => {
                         Err(SError::val(pid, &doc, "modulo", "cannot divide a string with a function pointer"))
                     },
+                    Self::Data(_) => {
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a string with an opaque data pointer"))
+                    },
                     Self::Blob(_) => {
                         Err(SError::val(pid, &doc, "modulo", "cannot divide a string with a blob"))
                     },
@@ -2612,6 +2744,9 @@ impl SVal {
                     Self::FnPtr(_) => {
                         Err(SError::val(pid, &doc, "modulo", "cannot divide a number with a function pointer"))
                     },
+                    Self::Data(_) => {
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a number with an opaque data pointer"))
+                    },
                     Self::Blob(_) => {
                         Err(SError::val(pid, &doc, "modulo", "cannot divide a number with a blob"))
                     },
@@ -2632,6 +2767,9 @@ impl SVal {
             },
             Self::FnPtr(_) => {
                 Err(SError::val(pid, &doc, "modulo", "cannot divide a function pointer"))
+            },
+            Self::Data(_) => {
+                Err(SError::val(pid, &doc, "modulo", "cannot divide an opaque data pointer"))
             },
             Self::Set(set) => {
                 match other {

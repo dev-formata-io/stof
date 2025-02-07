@@ -30,6 +30,7 @@ pub enum SType {
     String,
     Object(String),
     FnPtr,
+    Data,
     Array,
     Map,
     Set,
@@ -69,6 +70,7 @@ impl PartialEq for SType {
                 }
             },
             Self::FnPtr => other.is_function_pointer(),
+            Self::Data => other.is_data(),
             Self::Array => other.is_array(),
             Self::Map => other.is_map(),
             Self::Set => other.is_set(),
@@ -236,6 +238,14 @@ impl SType {
         }
     }
 
+    /// Is opaque data ref?
+    pub fn is_data(&self) -> bool {
+        match self {
+            SType::Data => true,
+            _ => false
+        }
+    }
+
     /// Tuple type.
     pub fn tuple(types: Vec<SType>) -> Self {
         Self::Tuple(types)
@@ -282,6 +292,7 @@ impl SType {
             SType::Map => "Map".to_owned(),
             SType::Set => "Set".to_owned(),
             SType::FnPtr => "Function".to_owned(),
+            SType::Data => "Data".to_owned(),
             SType::String => "String".to_owned(),
             SType::Number(_) => "Number".to_owned(),
             SType::Bool => "Bool".to_owned(),
@@ -309,6 +320,7 @@ impl SType {
             Self::Bool => "bool".into(),
             Self::Blob => "blob".into(),
             Self::FnPtr => "fn".into(),
+            Self::Data => "data".into(),
             Self::Null => "null".into(),
             Self::Number(ntype) => {
                 ntype.type_of()

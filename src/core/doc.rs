@@ -19,7 +19,7 @@ use bytes::Bytes;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use crate::{bytes::BYTES, lang::SError, text::TEXT, SData, SField, SFunc, SVal, BSTOF, STOF};
-use super::{runtime::{DocPermissions, Library, Symbol, SymbolTable}, ArrayLibrary, BlobLibrary, BoolLibrary, CustomTypes, Format, FunctionLibrary, IntoDataRef, IntoNodeRef, MapLibrary, NumberLibrary, ObjectLibrary, SDataRef, SFormats, SGraph, SLibraries, SNodeRef, SProcesses, SetLibrary, StdLibrary, StringLibrary, TupleLibrary};
+use super::{runtime::{DocPermissions, Library, Symbol, SymbolTable}, ArrayLibrary, BlobLibrary, BoolLibrary, DataLibrary, CustomTypes, Format, FunctionLibrary, IntoDataRef, IntoNodeRef, MapLibrary, NumberLibrary, ObjectLibrary, SDataRef, SFormats, SGraph, SLibraries, SNodeRef, SProcesses, SetLibrary, StdLibrary, StringLibrary, TupleLibrary};
 
 #[cfg(not(feature = "wasm"))]
 use super::FileSystemLibrary;
@@ -248,6 +248,7 @@ impl SDoc {
         self.load_lib(Arc::new(TupleLibrary::default()));
         self.load_lib(Arc::new(BoolLibrary::default()));
         self.load_lib(Arc::new(BlobLibrary::default()));
+        self.load_lib(Arc::new(DataLibrary::default()));
     }
     
     /// Load a library into this document.

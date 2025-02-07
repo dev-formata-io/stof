@@ -286,6 +286,7 @@ fn parse_atype(pair: Pair<Rule>) -> SType {
                     "set" => SType::Set,
                     "obj" => SType::Object("obj".to_string()),
                     "fn" => SType::FnPtr,
+                    "data" => SType::Data,
                     "unknown" => SType::Unknown,
                     _ => {
                         let units = SUnits::from(pair.as_str());

@@ -57,6 +57,7 @@ fn json_value(graph: &SGraph, val: SVal) -> Value {
         SVal::Number(val) => Value::Number(Number::from(val)),
         SVal::Blob(blob) => Value::from_iter(blob.into_iter()),
         SVal::FnPtr(ptr) => Value::String(format!("fn({})", ptr.id)),
+        SVal::Data(ptr) => Value::String(format!("data({})", ptr.id)),
         SVal::Object(nref) => json_value_from_node(graph, &nref),
         SVal::Set(set) => value_from_array(graph, set.into_iter().collect()),
         SVal::Array(vals) => value_from_array(graph, vals),

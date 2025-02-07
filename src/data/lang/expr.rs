@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+use std::ops::Deref;
+
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use crate::{IntoNodeRef, SData, SDoc, SField, SFunc, SPrototype, SType, SVal};
@@ -124,6 +126,17 @@ impl Expr {
                                 SVal::Object(nref) => {
                                     context = Some(nref.clone());
                                     context_path = path.join(".");
+                                },
+                                SVal::Boxed(val) => {
+                                    let val = val.lock().unwrap();
+                                    let val = val.deref();
+                                    match val {
+                                        SVal::Object(nref) => {
+                                            context = Some(nref.clone());
+                                            context_path = path.join(".");
+                                        },
+                                        _ => {}
+                                    }
                                 },
                                 _ => {}
                             }

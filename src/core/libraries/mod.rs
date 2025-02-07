@@ -43,3 +43,6 @@ pub use bool::*;
 
 pub mod blob;
 pub use blob::*;
+
+pub mod data;
+pub use data::*;
