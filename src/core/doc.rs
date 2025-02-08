@@ -19,10 +19,13 @@ use bytes::Bytes;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use crate::{bytes::BYTES, lang::SError, text::TEXT, SData, SField, SFunc, SVal, BSTOF, STOF};
-use super::{runtime::{DocPermissions, Library, Symbol, SymbolTable}, ArrayLibrary, BlobLibrary, BoolLibrary, DataLibrary, CustomTypes, Format, FunctionLibrary, IntoDataRef, IntoNodeRef, MapLibrary, NumberLibrary, ObjectLibrary, SDataRef, SFormats, SGraph, SLibraries, SNodeRef, SProcesses, SetLibrary, StdLibrary, StringLibrary, TupleLibrary};
+use super::{runtime::{DocPermissions, Library, Symbol, SymbolTable}, ArrayLibrary, BlobLibrary, BoolLibrary, CustomTypes, DataLibrary, Format, FunctionLibrary, IntoDataRef, IntoNodeRef, MapLibrary, NumberLibrary, ObjectLibrary, SDataRef, SFormats, SGraph, SLibraries, SNodeRef, SProcesses, SetLibrary, StdLibrary, StringLibrary, TupleLibrary};
 
 #[cfg(not(feature = "wasm"))]
 use super::FileSystemLibrary;
+
+#[cfg(not(feature = "wasm"))]
+use super::TimeLibrary;
 
 #[cfg(feature = "wasm")]
 use crate::js::StofLibFunc;
@@ -236,6 +239,9 @@ impl SDoc {
     fn load_std_lib(&mut self) {
         #[cfg(not(feature = "wasm"))]
         self.load_lib(Arc::new(FileSystemLibrary::default()));
+
+        #[cfg(not(feature = "wasm"))]
+        self.load_lib(Arc::new(TimeLibrary::default()));
 
         self.load_lib(Arc::new(StdLibrary::default()));
         self.load_lib(Arc::new(ObjectLibrary::default()));

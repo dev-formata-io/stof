@@ -40,8 +40,9 @@ pub enum ErrorType {
     StringLibError(String),
     TupleLibError(String),
 
-    // Special FileSystem Library
+    // Special system libraries
     FileSystemLibError(String),
+    TimeLibError(String),
 
     FormatError(String),
     ThrownError(String), // error for when users call "throw"
@@ -160,6 +161,11 @@ impl SError {
     /// FileSystem library error.
     pub fn filesys(pid: &str, doc: &SDoc, func: &str, message: &str) -> Self {
         Self::new(pid, doc, ErrorType::FileSystemLibError(func.to_owned()), message)
+    }
+
+    /// Time library error.
+    pub fn time(pid: &str, doc: &SDoc, func: &str, message: &str) -> Self {
+        Self::new(pid, doc, ErrorType::TimeLibError(func.to_owned()), message)
     }
 
     /// User thrown error.

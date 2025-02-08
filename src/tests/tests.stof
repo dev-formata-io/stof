@@ -149,6 +149,12 @@ import './practical/docs' as Practical.Docs;
 
 
 /**
+ * System Library Tests.
+ */
+import './system/time' as System.Time;
+
+
+/**
  * Init test.
  * Functions with the 'init' attribute get executed at the end of everything being parsed.
  * If they have an expr, that expr will be executed and passed in as a parameter.

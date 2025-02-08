@@ -22,14 +22,14 @@ object: {
 
 #[test]
 fn field_data() {
-    let data = Data.from('self.field');
-    assertEq(data, Data.from('self.object.field'));
+    let dref = Data.from('self.field');
+    assertEq(dref, Data.from('self.object.field'));
 }
 
 #[test]
 fn exists() {
-    let data = Data.from('self.field');
-    assert(data.exists());
+    let dref = Data.from('self.field');
+    assert(dref.exists());
 
     let dne = Data.fromId('does_not_exist');
     assertNot(dne.exists());
@@ -37,14 +37,14 @@ fn exists() {
 
 #[test]
 fn objects() {
-    let data = Data.from('self.field');
-    assertEq(data.objects().len(), 2);
+    let dref = Data.from('self.field');
+    assertEq(dref.objects().len(), 2);
 }
 
 #[test]
 fn id() {
-    let data = Data.from('self.field');
-    assert(data.id().len() > 0);
+    let dref = Data.from('self.field');
+    assert(dref.id().len() > 0);
 }
 
 attach: {
@@ -53,11 +53,11 @@ attach: {
 
     #[test]
     fn to_object() {
-        let data = Data.from('self.field');
-        assertEq(data.objects().len(), 1);
+        let dref = Data.from('self.field');
+        assertEq(dref.objects().len(), 1);
         
-        data.attach(self.a); // does the same thing as 'Object.reference'
-        assertEq(data.objects().len(), 2);
+        dref.attach(self.a); // does the same thing as 'Object.reference'
+        assertEq(dref.objects().len(), 2);
         assertEq(self.a.field, 'hello');
     }
 
@@ -66,12 +66,12 @@ attach: {
 
     #[test]
     fn reference_test() {
-        let data = Data.from('self.another');
-        assertEq(data.objects().len(), 1);
+        let dref = Data.from('self.another');
+        assertEq(dref.objects().len(), 1);
 
         assert(self.b.reference('super.another'));
         assertEq(self.b.another, 42);
-        assertEq(data.objects().len(), 2);
+        assertEq(dref.objects().len(), 2);
     }
 }
 
@@ -86,16 +86,16 @@ drop: {
 
     #[test]
     fn from_object() {
-        let data: data = Data.from('self.field');
-        assertEq(data.objects().len(), 3);
-        data.drop(self.a); // drop the data from a
+        let dref: data = Data.from('self.field');
+        assertEq(dref.objects().len(), 3);
+        dref.drop(self.a); // drop the data from a
 
-        assertEq(data.objects().len(), 2);
+        assertEq(dref.objects().len(), 2);
         assertNull(self.a.field);
 
-        data.drop(); // drop from everywhere!
+        dref.drop(); // drop from everywhere!
         assertNull(self.field);
-        assertNot(data.exists());
+        assertNot(dref.exists());
     }
 }
 
@@ -106,9 +106,9 @@ fn pass_data(dref: data): bool {
 
 #[test]
 fn data_type() {
-    let data = data('self.field'); // STD Lib Data Constructor
-    assert(self.pass_data(data));
+    let dref = data('self.field'); // STD Lib Data Constructor
+    assert(self.pass_data(dref));
 
-    let new_data = Data.fromId(data.id());
+    let new_data = Data.fromId(dref.id());
     assert(self.pass_data(new_data));
 }
