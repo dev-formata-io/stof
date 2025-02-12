@@ -875,6 +875,9 @@ fn parse_value(field_type: SType, field_name: &str, doc: &mut SDoc, env: &mut St
                     }
                 }
                 field_value = SVal::Array(array);
+                if !field_type.is_void() && field_type != SType::Array {
+                    field_value = field_value.cast(field_type.clone(), &env.pid, doc)?;
+                }
             },
             Rule::expr => {
                 let mut expr = parse_expression(doc, env, pair)?;

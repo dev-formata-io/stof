@@ -84,6 +84,7 @@ import './data/lib' as OpaqueData.StdLib;
 import './objects/paths' as Objects.Paths;
 import './objects/lib' as Objects.StdLib;
 import './objects/schemafy' as Objects.Schemafy;
+import './objects/exec' as Objects.Exec;
 
 
 /**

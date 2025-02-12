@@ -15,7 +15,7 @@
 //
 
 use std::{cmp::Ordering, collections::{BTreeMap, HashMap, HashSet}, ops::Deref, sync::Arc};
-use crate::{lang::SError, IntoNodeRef, Library, SData, SDoc, SField, SFunc, SMutex, SNodeRef, SNum, SPrototype, SVal};
+use crate::{lang::SError, IntoNodeRef, Library, SData, SDataRef, SDoc, SField, SFunc, SMutex, SNodeRef, SNum, SPrototype, SVal};
 
 
 #[derive(Default, Debug)]
@@ -1053,6 +1053,94 @@ impl ObjectLibrary {
                     }
                 }
                 Ok(SVal::Bool(valid))
+            },
+
+            /*****************************************************************************
+             * Execute this object (declarative tasking).
+             *****************************************************************************/
+            // Exec calls all sub-objects and functions with a #[run] attribute.
+            // All functions are expected to not have any parameters.
+            //
+            // Each #[run] attribute can have a number value that will be the order of execution.
+            // By default (if no ordering is given), objects will run before functions.
+            //
+            // Signature: Object.exec(obj): void
+            "exec" => {
+                // order, object, ID (ref)
+                let mut tasks = Vec::new();
+                for field in SField::fields(&doc.graph, obj) {
+                    if let Some(attr) = field.attributes.get("run") {
+                        let mut order = -2;
+                        match &attr {
+                            SVal::Number(num) => {
+                                order = num.int();
+                            },
+                            SVal::Boxed(val) => {
+                                let val = val.lock().unwrap();
+                                let val = val.deref();
+                                match val {
+                                    SVal::Number(num) => {
+                                        order = num.int();
+                                    },
+                                    _ => {}
+                                }
+                            },
+                            _ => {}
+                        }
+                        match &field.value {
+                            SVal::Object(other) => {
+                                tasks.push((order, true, other.id.clone()));
+                            },
+                            SVal::Boxed(val) => {
+                                let val = val.lock().unwrap();
+                                let val = val.deref();
+                                match val {
+                                    SVal::Object(other) => {
+                                        tasks.push((order, true, other.id.clone()));
+                                    },
+                                    _ => {}
+                                }
+                            },
+                            _ => {}
+                        }
+                    }
+                }
+
+                for func_ref in SFunc::func_refs(&doc.graph, obj) {
+                    if let Some(func) = SData::get::<SFunc>(&doc.graph, &func_ref) {
+                        if let Some(attr) = func.attributes.get("run") {
+                            let mut order = -1;
+                            match &attr {
+                                SVal::Number(num) => {
+                                    order = num.int();
+                                },
+                                SVal::Boxed(val) => {
+                                    let val = val.lock().unwrap();
+                                    let val = val.deref();
+                                    match val {
+                                        SVal::Number(num) => {
+                                            order = num.int();
+                                        },
+                                        _ => {}
+                                    }
+                                },
+                                _ => {}
+                            }
+                            tasks.push((order, false, func_ref.id));
+                        }
+                    }
+                }
+
+                tasks.sort_by(|a, b| a.0.cmp(&b.0));
+                for task in tasks {
+                    if task.1 {
+                        self.operate(pid, doc, "exec", &SNodeRef::from(task.2), parameters)?;
+                    } else {
+                        SFunc::call(&SDataRef::from(task.2), pid, doc, vec![], true)?;
+                    }
+                }
+
+                Ok(SVal::Void)
             },
 
             /*****************************************************************************
