@@ -65,6 +65,35 @@ impl SPrototype {
         None
     }
 
+    /// Prototype stack.
+    pub fn get_stack(graph: &SGraph, node: impl IntoNodeRef) -> Vec<SNodeRef> {
+        let mut stack = Vec::new();
+        if let Some(node) = node.node_ref().node(graph) {
+            let mut current = None;
+            for proto in node.data::<Self>(graph) {
+                current = Some(proto.node_ref());
+            }
+            while let Some(proto) = current {
+                if let Some(node) = proto.node(graph) {
+                    if node.name != "__stof__" && node.name != "prototypes" {
+                        stack.push(proto);
+                    } else {
+                        break;
+                    }
+
+                    if let Some(parent_ref) = &node.parent {
+                        current = Some(parent_ref.clone());
+                    } else {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
+        }
+        stack
+    }
+
     /// Get this prototypes "typepath" field.
     pub fn typepath(&self, graph: &SGraph) -> Option<String> {
         if let Some(typepath) = SField::field(graph, "typepath", '.', Some(&self.node_ref())) {

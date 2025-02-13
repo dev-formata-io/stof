@@ -1106,8 +1106,10 @@ impl ObjectLibrary {
                     }
                 }
 
+                let mut func_names = HashSet::new();
                 for func_ref in SFunc::func_refs(&doc.graph, obj) {
                     if let Some(func) = SData::get::<SFunc>(&doc.graph, &func_ref) {
+                        func_names.insert(func.name.clone());
                         if let Some(attr) = func.attributes.get("run") {
                             let mut order = -1;
                             match &attr {
@@ -1130,15 +1132,46 @@ impl ObjectLibrary {
                         }
                     }
                 }
+                for nref in SPrototype::get_stack(&doc.graph, obj) {
+                    for func_ref in SFunc::func_refs(&doc.graph, &nref) {
+                        if let Some(func) = SData::get::<SFunc>(&doc.graph, &func_ref) {
+                            if !func_names.contains(&func.name) {
+                                func_names.insert(func.name.clone());
+                                if let Some(attr) = func.attributes.get("run") {
+                                    let mut order = -1;
+                                    match &attr {
+                                        SVal::Number(num) => {
+                                            order = num.int();
+                                        },
+                                        SVal::Boxed(val) => {
+                                            let val = val.lock().unwrap();
+                                            let val = val.deref();
+                                            match val {
+                                                SVal::Number(num) => {
+                                                    order = num.int();
+                                                },
+                                                _ => {}
+                                            }
+                                        },
+                                        _ => {}
+                                    }
+                                    tasks.push((order, false, func_ref.id));
+                                }
+                            }
+                        }
+                    }
+                }
 
                 tasks.sort_by(|a, b| a.0.cmp(&b.0));
+                doc.push_self(pid, obj.clone());
                 for task in tasks {
                     if task.1 {
                         self.operate(pid, doc, "exec", &SNodeRef::from(task.2), parameters)?;
                     } else {
-                        SFunc::call(&SDataRef::from(task.2), pid, doc, vec![], true)?;
+                        SFunc::call(&SDataRef::from(task.2), pid, doc, vec![], false)?;
                     }
                 }
+                doc.pop_self(pid);
 
                 Ok(SVal::Void)
             },

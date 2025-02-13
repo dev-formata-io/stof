@@ -131,3 +131,34 @@ nested: {
         assert(self.tested);
     }
 }
+
+types: {
+    type Base {
+        #[run]
+        fn do_something() {
+            self.shouldnt = true; // overridden, so shouldn't happen
+        }
+
+        #[run]
+        fn do_base_things() {
+            self.base = true;
+        }
+    }
+
+    type MyTask extends Base {
+        #[run]
+        fn do_something() {
+            self.did_something = true;
+        }
+    }
+
+    MyTask task: {}
+
+    #[test]
+    fn test() {
+        self.task.exec();
+        assert(self.task.base);
+        assert(self.task.did_something);
+        assertNull(self.task.shouldnt);
+    }
+}
