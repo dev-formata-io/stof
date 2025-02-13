@@ -1,4 +1,18 @@
-# Stof
+<p align="center"><img src="./content/stof.png" height="180"></p>
+<p align="center">
+    <a href="https://docs.stof.dev"><img src="https://img.shields.io/badge/docs-docs.stof.dev-purple?logo=gitbook&logoColor=white"></a>
+    <a href="https://discord.gg/Up5kxdeXZt"><img src="https://img.shields.io/discord/1319468398169686016?logo=discord&logoColor=white"></a>
+</p>
+<p align="center">
+    <a href="https://github.com/dev-formata-io/stof/actions"><img src="https://img.shields.io/github/actions/workflow/status/dev-formata-io/stof/rust.yml"></a>
+    <a href="https://crates.io/crates/stof"><img src="https://img.shields.io/crates/d/stof"></a>
+    <a href="https://crates.io/crates/stof"><img src="https://img.shields.io/crates/l/stof"></a>
+    <a href="https://github.com/dev-formata-io/stof/commits/main/"><img src="https://img.shields.io/github/commit-activity/m/dev-formata-io/stof"></a>
+    <a href="https://crates.io/crates/stof"><img src="https://img.shields.io/crates/size/stof"></a>
+</p>
+
+----
+
 [Stof](https://stof.dev) is efficient, governable, and accessible data that is much simpler to use, offering fine-grained control and sandboxed manipulation between computer systems without the need for additional application code, servers, and dependencies.
 
 - [Docs](https://docs.stof.dev)
