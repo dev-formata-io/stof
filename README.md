@@ -1,4 +1,4 @@
-<p align="center"><img src="./content/stof.png" height="180"></p>
+<p align="center"><img src="./content/stof.png" height="150"></p>
 <p align="center">
     <a href="https://docs.stof.dev"><img src="https://img.shields.io/badge/docs-docs.stof.dev-purple?logo=gitbook&logoColor=white"></a>
     <a href="https://discord.gg/Up5kxdeXZt"><img src="https://img.shields.io/discord/1319468398169686016?logo=discord&logoColor=white"></a>
@@ -13,7 +13,15 @@
 
 ----
 
-[Stof](https://stof.dev) is efficient, governable, and accessible data that is much simpler to use, offering fine-grained control and sandboxed manipulation between computer systems without the need for additional application code, servers, and dependencies.
+<br/>
+<p align="center"><img src="./content/overview.png" height="200"></p>
+<br/>
+
+[Stof](https://stof.dev) is a data interchange format that unifies data between systems. It offers fine-grained control and sandboxed manipulation without the need for additional application code and servers.
+
+Because Stof works with all other data formats and can be used anywhere, it standardizes data handling (by not needing a standard) and makes our lives as developers more fun.
+
+Whether used for configuration, deployment, APIs & interchange, or in other data specification & control scenarios, Stof's portable interfaces and code-as-data approach can help save time, improve quality, and give you the tools needed to solve cutting edge problems.
 
 - [Docs](https://docs.stof.dev)
 - [Discord](https://discord.gg/Up5kxdeXZt)
@@ -22,8 +30,9 @@
 - [More Information](https://docs.stof.dev/resources-and-information)
 
 <br/>
-
-![alt text](./content/stof.gif)
+<br/>
+<p align="center"><img src="./content/stof.gif"></p>
+<br/>
 
 ## Why
 The logic and cost involved in deciphering, unifying, and validating data entering and leaving computer systems are growing exponentially, becoming a bottleneck and limiting factor for next-generation federated applications and AI.
