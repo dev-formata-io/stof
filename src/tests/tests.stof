@@ -127,6 +127,7 @@ import './language/typeof' as Language.TypeOf;
  * Import Tests.
  */
 import './imports/location' as Imports.Location;
+import './imports/package' as Imports.Package;
 
 
 /**

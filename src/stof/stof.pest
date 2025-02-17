@@ -40,7 +40,7 @@ single_quotes = @{ "'" ~ ("\\" ~ ("'" | "\\") | (!"'" ~ ANY))* ~ "'" }
 
 // File path identifiers
 path       = ${ ("\"" ~ inner_path ~ "\"") | ("'" ~ inner_path ~ "'") }
-inner_path = @{ ("." | "/")* ~ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | ":" | "_" | "-" | "/" | ".")* }
+inner_path = @{ ("." | "/" | "@")* ~ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | ":" | "_" | "-" | "/" | ".")* }
 
 // Literals
 bool    = { "true" | "false" }

@@ -405,6 +405,12 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                         }
                     }
 
+                    // If @ path, add the __stof__ directory to the front
+                    // Ex. @formata/hello -> __stof__/formata/hello
+                    if import_path.starts_with("@") {
+                        import_path = format!("__stof__/{}", import_path.strip_prefix("@").unwrap());
+                    }
+
                     let compiled_path = format!("{}{}{}{}", &format, &import_path, &import_ext, &as_name);
                     if !env.compiled_path(&compiled_path) { // Don't import the same thing more than once!
                         doc.file_import(&env.pid, &format, &import_path, &import_ext, &as_name)?;
