@@ -16,7 +16,7 @@
 
 use wasm_bindgen::prelude::*;
 use crate::{SData, SDataRef, Store};
-use super::{StofDoc, StofNode};
+use super::{StofDoc, StofNode, DOCS};
 
 
 /// Stof Data.
@@ -29,16 +29,6 @@ impl StofData {
     pub fn data_ref(&self) -> SDataRef {
         SDataRef::from(&self.id)
     }
-
-    /// Get the data.
-    pub fn data<'a>(&self, doc: &'a StofDoc) -> Option<&'a SData> {
-        self.data_ref().data(&doc.doc().graph)
-    }
-
-    /// Get a mutable reference to the data.
-    pub fn data_mut<'a>(&self, doc: &'a mut StofDoc) -> Option<&'a mut SData> {
-        self.data_ref().data_mut(&mut doc.doc_mut().graph)
-    }
 }
 #[wasm_bindgen]
 impl StofData {
@@ -46,12 +36,16 @@ impl StofData {
     /// Will turn value into serde_json::Value, then create an SData, putting it into the document at 'node'.
     /// Only works if node is already in the document.
     #[wasm_bindgen(constructor)]
-    pub fn construct(doc: &mut StofDoc, node: &StofNode, value: JsValue) -> Result<Self, String> {
+    pub fn construct(doc: &StofDoc, node: &StofNode, value: JsValue) -> Result<Self, String> {
         if let Ok(value) = serde_wasm_bindgen::from_value::<serde_json::Value>(value) {
             if let Ok(json) = serde_json::to_string(&value) {
                 let data = SData::new(Box::new(json));
-                if let Some(dref) = doc.doc_mut().graph.put_data(&node.node_ref(), data) {
-                    return Ok(Self::new(&dref.id));
+                unsafe {
+                    if let Some(doc) = DOCS.get_mut(&doc.id()) {
+                        if let Some(dref) = doc.graph.put_data(&node.node_ref(), data) {
+                            return Ok(Self::new(&dref.id));
+                        }
+                    }
                 }
             }
         }
@@ -60,12 +54,16 @@ impl StofData {
 
     /// Construct a new StofData with an ID and a value.
     #[wasm_bindgen(js_name = newWithId)]
-    pub fn construct_with_id(doc: &mut StofDoc, node: &StofNode, id: &str, value: JsValue) -> Result<Self, String> {
+    pub fn construct_with_id(doc: &StofDoc, node: &StofNode, id: &str, value: JsValue) -> Result<Self, String> {
         if let Ok(value) = serde_wasm_bindgen::from_value::<serde_json::Value>(value) {
             if let Ok(json) = serde_json::to_string(&value) {
                 let data = SData::new_id(id, Box::new(json));
-                if let Some(dref) = doc.doc_mut().graph.put_data(&node.node_ref(), data) {
-                    return Ok(Self::new(&dref.id));
+                unsafe {
+                    if let Some(doc) = DOCS.get_mut(&doc.id()) {
+                        if let Some(dref) = doc.graph.put_data(&node.node_ref(), data) {
+                            return Ok(Self::new(&dref.id));
+                        }
+                    }
                 }
             }
         }
@@ -73,14 +71,24 @@ impl StofData {
     }
 
     /// Remove this data from every place within the document.
-    pub fn remove(&self, doc: &mut StofDoc) -> bool {
-        doc.doc_mut().graph.remove_data(&self.data_ref(), None)
+    pub fn remove(&self, doc: &StofDoc) -> bool {
+        unsafe {
+            if let Some(doc) = DOCS.get_mut(&doc.id()) {
+                return doc.graph.remove_data(&self.data_ref(), None);
+            }
+        }
+        false
     }
 
     /// Remove this data from a specific node in the document.
     #[wasm_bindgen(js_name = removeFrom)]
-    pub fn remove_from(&self, doc: &mut StofDoc, node: &StofNode) -> bool {
-        doc.doc_mut().graph.remove_data(&self.data_ref(), Some(&node.node_ref()))
+    pub fn remove_from(&self, doc: &StofDoc, node: &StofNode) -> bool {
+        unsafe {
+            if let Some(doc) = DOCS.get_mut(&doc.id()) {
+                return doc.graph.remove_data(&self.data_ref(), Some(&node.node_ref()));
+            }
+        }
+        false
     }
 
     /// ID constructor.
@@ -94,28 +102,40 @@ impl StofData {
     }
 
     /// Invalidate this data with a symbol.
-    pub fn invalidate(&self, doc: &mut StofDoc, symbol: &str) -> bool {
-        if let Some(data) = self.data_mut(doc) {
-            data.invalidate(symbol);
-            return true;
+    pub fn invalidate(&self, doc: &StofDoc, symbol: &str) -> bool {
+        unsafe {
+            if let Some(doc) = DOCS.get_mut(&doc.id()) {
+                if let Some(data) = self.data_ref().data_mut(&mut doc.graph) {
+                    data.invalidate(symbol);
+                    return true;
+                }
+            }
         }
         false
     }
 
     /// Invalidate value on this data.
     #[wasm_bindgen(js_name = invalidateValue)]
-    pub fn invalidate_value(&self, doc: &mut StofDoc) -> bool {
-        if let Some(data) = self.data_mut(doc) {
-            data.invalidate_val();
-            return true;
+    pub fn invalidate_value(&self, doc: &StofDoc) -> bool {
+        unsafe {
+            if let Some(doc) = DOCS.get_mut(&doc.id()) {
+                if let Some(data) = self.data_ref().data_mut(&mut doc.graph) {
+                    data.invalidate_val();
+                    return true;
+                }
+            }
         }
         false
     }
 
     /// Dirty?
     pub fn dirty(&self, doc: &StofDoc, symbol: &str) -> bool {
-        if let Some(data) = self.data(doc) {
-            return data.dirty(symbol);
+        unsafe {
+            if let Some(doc) = DOCS.get(&doc.id()) {
+                if let Some(data) = self.data_ref().data(&doc.graph) {
+                    return data.dirty(symbol);
+                }
+            }
         }
         false
     }
@@ -123,40 +143,62 @@ impl StofData {
     /// Any dirty symbols?
     #[wasm_bindgen(js_name = anyDirty)]
     pub fn any_dirty(&self, doc: &StofDoc) -> bool {
-        if let Some(data) = self.data(doc) {
-            return data.has_dirty();
+        unsafe {
+            if let Some(doc) = DOCS.get(&doc.id()) {
+                if let Some(data) = self.data_ref().data(&doc.graph) {
+                    return data.has_dirty();
+                }
+            }
         }
         false
     }
 
     /// Validate this data with the symbol.
-    pub fn validate(&self, doc: &mut StofDoc, symbol: &str) -> bool {
-        if let Some(data) = self.data_mut(doc) {
-            return data.validate(symbol);
+    pub fn validate(&self, doc: &StofDoc, symbol: &str) -> bool {
+        unsafe {
+            if let Some(doc) = DOCS.get_mut(&doc.id()) {
+                if let Some(data) = self.data_ref().data_mut(&mut doc.graph) {
+                    return data.validate(symbol);
+                }
+            }
         }
         false
     }
 
     /// Validate value for this data.
-    pub fn validate_all(&self, doc: &mut StofDoc) -> bool {
-        if let Some(data) = self.data_mut(doc) {
-            return data.validate_val();
+    #[wasm_bindgen(js_name = validateValue)]
+    pub fn validate_value(&self, doc: &StofDoc) -> bool {
+        unsafe {
+            if let Some(doc) = DOCS.get_mut(&doc.id()) {
+                if let Some(data) = self.data_ref().data_mut(&mut doc.graph) {
+                    return data.validate_val();
+                }
+            }
         }
         false
     }
 
     /// Exists?
     pub fn exists(&self, doc: &StofDoc) -> bool {
-        self.data_ref().exists(&doc.doc().graph)
+        unsafe {
+            if let Some(doc) = DOCS.get(&doc.id()) {
+                return self.data_ref().exists(&doc.graph);
+            }
+        }
+        false
     }
 
     /// Nodes that contain this data.
     /// Data can exist on several nodes at once.
     pub fn nodes(&self, doc: &StofDoc) -> Vec<StofNode> {
         let mut nodes = Vec::new();
-        if let Some(data) = self.data(doc) {
-            for nref in &data.nodes {
-                nodes.push(StofNode::new(&nref.id));
+        unsafe {
+            if let Some(doc) = DOCS.get(&doc.id()) {
+                if let Some(data) = self.data_ref().data(&doc.graph) {
+                    for nref in &data.nodes {
+                        nodes.push(StofNode::new(&nref.id));
+                    }
+                }
             }
         }
         nodes
@@ -166,11 +208,15 @@ impl StofData {
     /// Will only work if the value of this data can be deserialized into serde_json::Value.
     #[wasm_bindgen(js_name = getValue)]
     pub fn get_value(&self, doc: &StofDoc) -> Result<JsValue, String> {
-        if let Some(data) = self.data(doc) {
-            if let Some(json) = data.get_data::<String>() {
-                if let Ok(value) = serde_json::from_str::<serde_json::Value>(&json) {
-                    if let Ok(jsval) = serde_wasm_bindgen::to_value(&value) {
-                        return Ok(jsval);
+        unsafe {
+            if let Some(doc) = DOCS.get(&doc.id()) {
+                if let Some(data) = self.data_ref().data(&doc.graph) {
+                    if let Some(json) = data.get_data::<String>() {
+                        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&json) {
+                            if let Ok(jsval) = serde_wasm_bindgen::to_value(&value) {
+                                return Ok(jsval);
+                            }
+                        }
                     }
                 }
             }
@@ -180,12 +226,16 @@ impl StofData {
 
     /// Try setting a JSON value for this data.
     #[wasm_bindgen(js_name = setValue)]
-    pub fn set_value(&self, doc: &mut StofDoc, value: JsValue) -> bool {
-        if let Some(data) = self.data_mut(doc) {
-            if let Ok(value) = serde_wasm_bindgen::from_value::<serde_json::Value>(value) {
-                if let Ok(json) = serde_json::to_string(&value) {
-                    data.set_data(Box::new(json));
-                    return true;
+    pub fn set_value(&self, doc: &StofDoc, value: JsValue) -> bool {
+        unsafe {
+            if let Some(doc) = DOCS.get_mut(&doc.id()) {
+                if let Some(data) = self.data_ref().data_mut(&mut doc.graph) {
+                    if let Ok(value) = serde_wasm_bindgen::from_value::<serde_json::Value>(value) {
+                        if let Ok(json) = serde_json::to_string(&value) {
+                            data.set_data(Box::new(json));
+                            return true;
+                        }
+                    }
                 }
             }
         }
@@ -195,9 +245,13 @@ impl StofData {
     /// JSON value of this data as a whole.
     /// Can use this to store this value in an external place.
     pub fn to_json(&self, doc: &StofDoc) -> JsValue {
-        if let Some(data) = self.data(doc) {
-            if let Ok(val) = serde_wasm_bindgen::to_value(data) {
-                return val;
+        unsafe {
+            if let Some(doc) = DOCS.get(&doc.id()) {
+                if let Some(data) = self.data_ref().data(&doc.graph) {
+                    if let Ok(val) = serde_wasm_bindgen::to_value(data) {
+                        return val;
+                    }
+                }
             }
         }
         JsValue::null()
@@ -205,10 +259,14 @@ impl StofData {
 
     /// Loat a JSON representation of a data into a document.
     /// Can use this to load data from an external place.
-    pub fn from_json(doc: &mut StofDoc, json: JsValue) -> bool {
+    pub fn from_json(doc: &StofDoc, json: JsValue) -> bool {
         if let Ok(data) = serde_wasm_bindgen::from_value::<SData>(json) {
-            doc.doc_mut().graph.data.set(&data.id.clone(), data);
-            return true;
+            unsafe {
+                if let Some(doc) = DOCS.get_mut(&doc.id()) {
+                    doc.graph.data.set(&data.id.clone(), data);
+                    return true;
+                }
+            }
         }
         false
     }

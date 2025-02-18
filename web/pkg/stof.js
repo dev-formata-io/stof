@@ -378,9 +378,9 @@ export class StofData {
      * @param {StofDoc} doc
      * @returns {boolean}
      */
-    validate_all(doc) {
+    validateValue(doc) {
         _assertClass(doc, StofDoc);
-        const ret = wasm.stofdata_validate_all(this.__wbg_ptr, doc.__wbg_ptr);
+        const ret = wasm.stofdata_validateValue(this.__wbg_ptr, doc.__wbg_ptr);
         return ret !== 0;
     }
     /**
@@ -460,7 +460,7 @@ const StofDocFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_stofdoc_free(ptr >>> 0, 1));
 /**
- * JS Stof Document Interface.
+ * JS Stof Document.
  */
 export class StofDoc {
 
@@ -488,15 +488,6 @@ export class StofDoc {
      * Optionally provide some existing data to load in the format of choice (leave empty if not).
      *
      * If loading a JS object, use 'js' instead, passing the object.
-     *
-     * Built in formats:
-     * - json
-     * - stof
-     * - toml
-     * - xml
-     * - yaml
-     * - toml
-     * - urlencoded
      * @param {string} name
      * @param {string} src
      * @param {string} format
@@ -593,7 +584,7 @@ export class StofDoc {
         wasm.stofdoc_setName(this.__wbg_ptr, ptr0, len0);
     }
     /**
-     * Version of this document.
+     * Get the version of this document.
      * @returns {string}
      */
     version() {
@@ -1169,17 +1160,6 @@ export class StofLib {
             wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
     }
-    /**
-     * Load a library into a document.
-     * @param {StofDoc} doc
-     * @param {StofLib} lib
-     */
-    static load(doc, lib) {
-        _assertClass(doc, StofDoc);
-        _assertClass(lib, StofLib);
-        var ptr0 = lib.__destroy_into_raw();
-        wasm.stoflib_load(doc.__wbg_ptr, ptr0);
-    }
 }
 
 const StofNodeFinalization = (typeof FinalizationRegistry === 'undefined')
@@ -1329,9 +1309,9 @@ export class StofNode {
      * @param {StofDoc} doc
      * @returns {boolean}
      */
-    validate_all(doc) {
+    validateAll(doc) {
         _assertClass(doc, StofDoc);
-        const ret = wasm.stofnode_validate_all(this.__wbg_ptr, doc.__wbg_ptr);
+        const ret = wasm.stofnode_validateAll(this.__wbg_ptr, doc.__wbg_ptr);
         return ret !== 0;
     }
     /**
@@ -1776,6 +1756,10 @@ function __wbg_get_imports() {
     };
     imports.wbg.__wbg_stofdata_new = function(arg0) {
         const ret = StofData.__wrap(arg0);
+        return ret;
+    };
+    imports.wbg.__wbg_stofdoc_new = function(arg0) {
+        const ret = StofDoc.__wrap(arg0);
         return ret;
     };
     imports.wbg.__wbg_stofnode_new = function(arg0) {

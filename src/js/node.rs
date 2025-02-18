@@ -16,7 +16,7 @@
 
 use wasm_bindgen::prelude::*;
 use crate::{SNode, SNodeRef, Store};
-use super::{StofData, StofDoc};
+use super::{StofData, StofDoc, DOCS};
 
 
 /// Stof Node.
@@ -28,16 +28,6 @@ impl StofNode {
     /// Return the SNodeRef for this node.
     pub fn node_ref(&self) -> SNodeRef {
         SNodeRef::from(&self.id)
-    }
-
-    /// Get the node.
-    pub fn node<'a>(&self, doc: &'a StofDoc) -> Option<&'a SNode> {
-        self.node_ref().node(&doc.doc().graph)
-    }
-
-    /// Get a mutable reference to the node.
-    pub fn node_mut<'a>(&self, doc: &'a mut StofDoc) -> Option<&'a mut SNode> {
-        self.node_ref().node_mut(&mut doc.doc_mut().graph)
     }
 }
 #[wasm_bindgen]
@@ -51,8 +41,12 @@ impl StofNode {
     /// Path constructor.
     #[wasm_bindgen(js_name = fromPath)]
     pub fn path_from(doc: &StofDoc, path: &str) -> Option<Self> {
-        if let Some(nref) = doc.doc().graph.node_ref(path, None) {
-            return Some(Self::new(&nref.id));
+        unsafe {
+            if let Some(doc) = DOCS.get(&doc.id()) {
+                if let Some(nref) = doc.graph.node_ref(path, None) {
+                    return Some(Self::new(&nref.id));
+                }
+            }
         }
         None
     }
@@ -60,8 +54,12 @@ impl StofNode {
     /// Path from a starting point constructor.
     #[wasm_bindgen(js_name = fromPathStart)]
     pub fn path_from_start(doc: &StofDoc, path: &str, start: &Self) -> Option<Self> {
-        if let Some(nref) = doc.doc().graph.node_ref(path, Some(&start.node_ref())) {
-            return Some(Self::new(&nref.id));
+        unsafe {
+            if let Some(doc) = DOCS.get(&doc.id()) {
+                if let Some(nref) = doc.graph.node_ref(path, Some(&start.node_ref())) {
+                    return Some(Self::new(&nref.id));
+                }
+            }
         }
         None
     }
@@ -72,28 +70,40 @@ impl StofNode {
     }
 
     /// Invalidate this node with a symbol.
-    pub fn invalidate(&self, doc: &mut StofDoc, symbol: &str) -> bool {
-        if let Some(node) = self.node_mut(doc) {
-            node.invalidate(symbol);
-            return true;
+    pub fn invalidate(&self, doc: &StofDoc, symbol: &str) -> bool {
+        unsafe {
+            if let Some(doc) = DOCS.get_mut(&doc.id()) {
+                if let Some(node) = self.node_ref().node_mut(&mut doc.graph) {
+                    node.invalidate(symbol);
+                    return true;
+                }
+            }
         }
         false
     }
 
     /// Invalidate all on this node.
     #[wasm_bindgen(js_name = invalidateAll)]
-    pub fn invalidate_all(&self, doc: &mut StofDoc) -> bool {
-        if let Some(node) = self.node_mut(doc) {
-            node.invalidate_all();
-            return true;
+    pub fn invalidate_all(&self, doc: &StofDoc) -> bool {
+        unsafe {
+            if let Some(doc) = DOCS.get_mut(&doc.id()) {
+                if let Some(node) = self.node_ref().node_mut(&mut doc.graph) {
+                    node.invalidate_all();
+                    return true;
+                }
+            }
         }
         false
     }
 
     /// Dirty?
     pub fn dirty(&self, doc: &StofDoc, symbol: &str) -> bool {
-        if let Some(node) = self.node(doc) {
-            return node.dirty(symbol);
+        unsafe {
+            if let Some(doc) = DOCS.get(&doc.id()) {
+                if let Some(node) = self.node_ref().node(&doc.graph) {
+                    return node.dirty(symbol);
+                }
+            }
         }
         false
     }
@@ -101,39 +111,61 @@ impl StofNode {
     /// Any dirty symbols?
     #[wasm_bindgen(js_name = anyDirty)]
     pub fn any_dirty(&self, doc: &StofDoc) -> bool {
-        if let Some(node) = self.node(doc) {
-            return node.has_dirty();
+        unsafe {
+            if let Some(doc) = DOCS.get(&doc.id()) {
+                if let Some(node) = self.node_ref().node(&doc.graph) {
+                    return node.has_dirty();
+                }
+            }
         }
         false
     }
 
     /// Validate this node with the symbol.
-    pub fn validate(&self, doc: &mut StofDoc, symbol: &str) -> bool {
-        if let Some(node) = self.node_mut(doc) {
-            return node.validate(symbol);
+    pub fn validate(&self, doc: &StofDoc, symbol: &str) -> bool {
+        unsafe {
+            if let Some(doc) = DOCS.get_mut(&doc.id()) {
+                if let Some(node) = self.node_ref().node_mut(&mut doc.graph) {
+                    return node.validate(symbol);
+                }
+            }
         }
         false
     }
 
     /// Validate all for this node.
-    pub fn validate_all(&self, doc: &mut StofDoc) -> bool {
-        if let Some(node) = self.node_mut(doc) {
-            return node.validate_all();
+    #[wasm_bindgen(js_name = validateAll)]
+    pub fn validate_all(&self, doc: &StofDoc) -> bool {
+        unsafe {
+            if let Some(doc) = DOCS.get_mut(&doc.id()) {
+                if let Some(node) = self.node_ref().node_mut(&mut doc.graph) {
+                    return node.validate_all();
+                }
+            }
         }
         false
     }
 
     /// Root node for this reference.
     pub fn root(&self, doc: &StofDoc) -> Option<Self> {
-        if let Some(nref) = self.node_ref().root(&doc.doc().graph) {
-            return Some(Self::new(&nref.id));
+        unsafe {
+            if let Some(doc) = DOCS.get(&doc.id()) {
+                if let Some(nref) = self.node_ref().root(&doc.graph) {
+                    return Some(Self::new(&nref.id));
+                }
+            }
         }
         None
     }
 
     /// Exists within the document?
     pub fn exists(&self, doc: &StofDoc) -> bool {
-        self.node_ref().exists(&doc.doc().graph)
+        unsafe {
+            if let Some(doc) = DOCS.get(&doc.id()) {
+                return self.node_ref().exists(&doc.graph);
+            }
+        }
+        false
     }
 
     /// Is a child of the 'parent' node?
@@ -141,15 +173,24 @@ impl StofNode {
     /// Returns true if this node is a granchild or below.
     #[wasm_bindgen(js_name = isChildOf)]
     pub fn is_child_of(&self, doc: &StofDoc, parent: &Self) -> bool {
-        self.node_ref().is_child_of(&doc.doc().graph, &parent.node_ref())
+        unsafe {
+            if let Some(doc) = DOCS.get(&doc.id()) {
+                return self.node_ref().is_child_of(&doc.graph, &parent.node_ref());
+            }
+        }
+        false
     }
 
     /// Is an immediate child of 'parent'?
     /// Will return false if this node is a grandchild or below.
     #[wasm_bindgen(js_name = isImmediateChildOf)]
     pub fn is_immediate_child_of(&self, doc: &StofDoc, parent: &Self) -> bool {
-        if let Some(node) = parent.node(doc) {
-            return node.has_child(&self.node_ref());
+        unsafe {
+            if let Some(doc) = DOCS.get(&doc.id()) {
+                if let Some(parent) = parent.node_ref().node(&doc.graph) {
+                    return parent.has_child(&self.node_ref());
+                }
+            }
         }
         false
     }
@@ -157,34 +198,57 @@ impl StofNode {
     /// Return the named path of this node.
     /// Path is '/' separated and starts at this nodes root.
     pub fn path(&self, doc: &StofDoc) -> String {
-        self.node_ref().path(&doc.doc().graph)
+        unsafe {
+            if let Some(doc) = DOCS.get(&doc.id()) {
+                return self.node_ref().path(&doc.graph);
+            }
+        }
+        String::default()
     }
 
     /// Return the ID path of this node.
     #[wasm_bindgen(js_name = idPath)]
     pub fn id_path(&self, doc: &StofDoc) -> Vec<String> {
-        self.node_ref().id_path(&doc.doc().graph)
+        unsafe {
+            if let Some(doc) = DOCS.get(&doc.id()) {
+                return self.node_ref().id_path(&doc.graph);
+            }
+        }
+        vec![]
     }
 
     /// Distance to another node in the document.
     #[wasm_bindgen(js_name = distanceTo)]
     pub fn distance_to(&self, doc: &StofDoc, other: &Self) -> i32 {
-        self.node_ref().distance_to(&doc.doc().graph, &other.node_ref())
+        unsafe {
+            if let Some(doc) = DOCS.get(&doc.id()) {
+                return self.node_ref().distance_to(&doc.graph, &other.node_ref());
+            }
+        }
+        -1
     }
 
     /// Name of this node.
     pub fn name(&self, doc: &StofDoc) -> Option<String> {
-        if let Some(node) = self.node(doc) {
-            return Some(node.name.clone());
+        unsafe {
+            if let Some(doc) = DOCS.get(&doc.id()) {
+                if let Some(node) = self.node_ref().node(&doc.graph) {
+                    return Some(node.name.clone());
+                }
+            }
         }
         None
     }
 
     /// Parent of this node.
     pub fn parent(&self, doc: &StofDoc) -> Option<Self> {
-        if let Some(node) = self.node(doc) {
-            if let Some(parent) = &node.parent {
-                return Some(Self::new(&parent.id));
+        unsafe {
+            if let Some(doc) = DOCS.get(&doc.id()) {
+                if let Some(node) = self.node_ref().node(&doc.graph) {
+                    if let Some(parent) = &node.parent {
+                        return Some(Self::new(&parent.id));
+                    }
+                }
             }
         }
         None
@@ -193,9 +257,13 @@ impl StofNode {
     /// Children of this node.
     pub fn children(&self, doc: &StofDoc) -> Vec<Self> {
         let mut children = Vec::new();
-        if let Some(node) = self.node(doc) {
-            for child in &node.children {
-                children.push(Self::new(&child.id));
+        unsafe {
+            if let Some(doc) = DOCS.get(&doc.id()) {
+                if let Some(node) = self.node_ref().node(&doc.graph) {
+                    for child in &node.children {
+                        children.push(Self::new(&child.id));
+                    }
+                }
             }
         }
         children
@@ -204,9 +272,13 @@ impl StofNode {
     /// Data on this node.
     pub fn data(&self, doc: &StofDoc) -> Vec<StofData> {
         let mut data = Vec::new();
-        if let Some(node) = self.node(doc) {
-            for dref in &node.data {
-                data.push(StofData::new(&dref.id));
+        unsafe {
+            if let Some(doc) = DOCS.get(&doc.id()) {
+                if let Some(node) = self.node_ref().node(&doc.graph) {
+                    for dref in &node.data {
+                        data.push(StofData::new(&dref.id));
+                    }
+                }
             }
         }
         data
@@ -215,24 +287,32 @@ impl StofNode {
     /// Has data?
     #[wasm_bindgen(js_name = hasData)]
     pub fn has_data(&self, doc: &StofDoc, data: &StofData) -> bool {
-        if let Some(node) = self.node(doc) {
-            return node.has_data(&data.data_ref());
+        unsafe {
+            if let Some(doc) = DOCS.get(&doc.id()) {
+                if let Some(node) = self.node_ref().node(&doc.graph) {
+                    return node.has_data(&data.data_ref());
+                }
+            }
         }
         false
     }
 
     /// Create some abstract data on this node.
     #[wasm_bindgen(js_name = createData)]
-    pub fn create_data(&self, doc: &mut StofDoc, value: JsValue) -> Result<StofData, String> {
+    pub fn create_data(&self, doc: &StofDoc, value: JsValue) -> Result<StofData, String> {
         StofData::construct(doc, self, value)
     }
 
     /// JSON value of this node as a whole.
     /// Can use this to store this value in an external place.
     pub fn to_json(&self, doc: &StofDoc) -> JsValue {
-        if let Some(node) = self.node(doc) {
-            if let Ok(val) = serde_wasm_bindgen::to_value(node) {
-                return val;
+        unsafe {
+            if let Some(doc) = DOCS.get(&doc.id()) {
+                if let Some(node) = self.node_ref().node(&doc.graph) {
+                    if let Ok(val) = serde_wasm_bindgen::to_value(node) {
+                        return val;
+                    }
+                }
             }
         }
         JsValue::null()
@@ -240,10 +320,14 @@ impl StofNode {
 
     /// Loat a JSON representation of a node into a document.
     /// Can use this to load nodes from an external place.
-    pub fn from_json(doc: &mut StofDoc, json: JsValue) -> bool {
+    pub fn from_json(doc: &StofDoc, json: JsValue) -> bool {
         if let Ok(node) = serde_wasm_bindgen::from_value::<SNode>(json) {
-            doc.doc_mut().graph.nodes.set(&node.id.clone(), node);
-            return true;
+            unsafe {
+                if let Some(doc) = DOCS.get_mut(&doc.id()) {
+                    doc.graph.nodes.set(&node.id.clone(), node);
+                    return true;
+                }
+            }
         }
         false
     }

@@ -27,13 +27,6 @@ use super::FileSystemLibrary;
 #[cfg(not(feature = "wasm"))]
 use super::TimeLibrary;
 
-#[cfg(feature = "wasm")]
-use crate::js::StofLibFunc;
-#[cfg(feature = "wasm")]
-use std::collections::BTreeMap;
-#[cfg(feature = "wasm")]
-use std::sync::RwLock;
-
 #[cfg(feature = "json")]
 use crate::json::JSON;
 #[cfg(feature = "json")]
@@ -73,10 +66,6 @@ pub struct SDoc {
     
     #[serde(skip)]
     pub(crate) processes: SProcesses,
-
-    #[cfg(feature = "wasm")]
-    #[serde(skip)]
-    pub libfuncs: Arc<RwLock<BTreeMap<String, BTreeMap<String, StofLibFunc>>>>,
 }
 impl Default for SDoc {
     fn default() -> Self {
@@ -95,9 +84,6 @@ impl SDoc {
             formats: Default::default(),
             perms: Default::default(),
             processes: SProcesses::new(),
-
-            #[cfg(feature = "wasm")]
-            libfuncs: Default::default(),
         };
         doc.load_std_formats();
         doc.load_std_lib();

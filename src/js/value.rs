@@ -16,7 +16,7 @@
 
 use js_sys::{Array, Map, Set, Uint8Array};
 use wasm_bindgen::JsValue;
-use crate::{SDataRef, SDoc, SNodeRef, SNum, SVal};
+use crate::{SData, SDataRef, SDoc, SFunc, SNodeRef, SNum, SVal};
 
 
 /// Implement into JsValue for SVal
@@ -38,6 +38,7 @@ impl From<SVal> for JsValue {
                 }
             },
             SVal::FnPtr(dref) => Self::from_str(&dref.id), // Gets turned into an ID for a StofData!
+            SVal::Data(dref) => Self::from_str(&dref.id),  // Gets turned into an ID for a StofData!
             SVal::Object(nref) => Self::from_str(&nref.id), // Gets turned into an ID for a StofNode!
             SVal::Array(vals) => {
                 let array = Array::new();
@@ -87,13 +88,19 @@ impl From<(JsValue, &mut SDoc)> for SVal {
             if nref.exists(&doc.graph) {
                 return Self::Object(nref);
             }
-            // Check if this value is a data (function ptr) reference
-            // This works because FnPtr is the only SVal to be a SDataRef right now...
-            // In the future, we might have to introduce some id prefix for this.
+
+            // Check if this value is a data reference
             let dref = SDataRef::from(&val);
             if dref.exists(&doc.graph) {
-                return Self::FnPtr(dref);
+                // Check if this data is a function pointer
+                if let Some(_func) = SData::get::<SFunc>(&doc.graph, &dref) {
+                    return Self::FnPtr(dref);
+                }
+
+                // Return an opaque data reference
+                return Self::Data(dref);
             }
+
             return Self::String(val);
         }
         if value.is_array() {

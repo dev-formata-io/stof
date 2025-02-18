@@ -14,11 +14,10 @@
 // limitations under the License.
 //
 
-use std::sync::Arc;
 use js_sys::Function;
 use wasm_bindgen::prelude::*;
 use crate::{lang::SError, Library, SDoc, SVal};
-use super::StofDoc;
+use super::{StofDoc, DOC_LIBS};
 
 
 /// JS Doc Lib Func.
@@ -26,6 +25,8 @@ pub struct StofLibFunc {
     pub name: String,
     pub func: Function,
 }
+unsafe impl Send for StofLibFunc {}
+unsafe impl Sync for StofLibFunc {}
 
 
 /// JS Stof Lib.
@@ -38,11 +39,16 @@ impl Library for StofLib {
         self.scope.clone()
     }
     fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
-        let context = JsValue::NULL;
+        let refdoc = StofDoc::from_id(&doc.graph.id);
+        let context = JsValue::from(refdoc);
+        
         let mut func = None;
-        if let Some(lib) = doc.libfuncs.read().unwrap().get(&self.scope) {
-            if let Some(libfunc) = lib.get(name) {
-                func = Some(libfunc.func.clone());
+        let doc_libs = DOC_LIBS.read().unwrap();
+        if let Some(libs) = doc_libs.get(&doc.graph.id) {
+            if let Some(lib) = libs.get(&self.scope) {
+                if let Some(libfunc) = lib.get(name) {
+                    func = Some(libfunc.func.clone());
+                }
             }
         }
 
@@ -85,10 +91,5 @@ impl StofLib {
     /// This is how it will be referenced from within Stof.
     pub fn name(&self) -> String {
         self.scope.clone()
-    }
-
-    /// Load a library into a document.
-    pub fn load(doc: &mut StofDoc, lib: Self) {
-        doc.doc_mut().load_lib(Arc::new(lib));
     }
 }

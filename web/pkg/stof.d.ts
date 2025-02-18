@@ -54,7 +54,7 @@ export class StofData {
   /**
    * Validate value for this data.
    */
-  validate_all(doc: StofDoc): boolean;
+  validateValue(doc: StofDoc): boolean;
   /**
    * Exists?
    */
@@ -85,7 +85,7 @@ export class StofData {
   static from_json(doc: StofDoc, json: any): boolean;
 }
 /**
- * JS Stof Document Interface.
+ * JS Stof Document.
  */
 export class StofDoc {
   free(): void;
@@ -94,15 +94,6 @@ export class StofDoc {
    * Optionally provide some existing data to load in the format of choice (leave empty if not).
    *
    * If loading a JS object, use 'js' instead, passing the object.
-   *
-   * Built in formats:
-   * - json
-   * - stof
-   * - toml
-   * - xml
-   * - yaml
-   * - toml
-   * - urlencoded
    */
   constructor(name: string, src: string, format: string);
   /**
@@ -128,7 +119,7 @@ export class StofDoc {
    */
   setName(name: string): void;
   /**
-   * Version of this document.
+   * Get the version of this document.
    */
   version(): string;
   /**
@@ -328,10 +319,6 @@ export class StofLib {
    * This is how it will be referenced from within Stof.
    */
   name(): string;
-  /**
-   * Load a library into a document.
-   */
-  static load(doc: StofDoc, lib: StofLib): void;
 }
 /**
  * Stof Node.
@@ -377,7 +364,7 @@ export class StofNode {
   /**
    * Validate all for this node.
    */
-  validate_all(doc: StofDoc): boolean;
+  validateAll(doc: StofDoc): boolean;
   /**
    * Root node for this reference.
    */
@@ -483,6 +470,8 @@ export interface InitOutput {
   readonly stofdoc_insertNodeWithId: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
   readonly stofdoc_removeNode: (a: number, b: number) => number;
   readonly stofdoc_allChildren: (a: number, b: number) => [number, number];
+  readonly stofdoc_createData: (a: number, b: number, c: any) => [number, number, number];
+  readonly stofdoc_createDataWithId: (a: number, b: number, c: number, d: number, e: any) => [number, number, number];
   readonly stofdoc_putData: (a: number, b: number, c: number) => number;
   readonly stofdoc_removeData: (a: number, b: number) => number;
   readonly stofdoc_removeDataFrom: (a: number, b: number, c: number) => number;
@@ -502,15 +491,13 @@ export interface InitOutput {
   readonly stofdata_dirty: (a: number, b: number, c: number, d: number) => number;
   readonly stofdata_anyDirty: (a: number, b: number) => number;
   readonly stofdata_validate: (a: number, b: number, c: number, d: number) => number;
-  readonly stofdata_validate_all: (a: number, b: number) => number;
+  readonly stofdata_validateValue: (a: number, b: number) => number;
   readonly stofdata_exists: (a: number, b: number) => number;
   readonly stofdata_nodes: (a: number, b: number) => [number, number];
   readonly stofdata_getValue: (a: number, b: number) => [number, number, number];
   readonly stofdata_setValue: (a: number, b: number, c: any) => number;
   readonly stofdata_to_json: (a: number, b: number) => any;
   readonly stofdata_from_json: (a: number, b: any) => number;
-  readonly stofdoc_createDataWithId: (a: number, b: number, c: number, d: number, e: any) => [number, number, number];
-  readonly stofdoc_createData: (a: number, b: number, c: any) => [number, number, number];
   readonly __wbg_stofnode_free: (a: number, b: number) => void;
   readonly stofnode_new: (a: number, b: number) => number;
   readonly stofnode_fromPath: (a: number, b: number, c: number) => number;
@@ -521,7 +508,7 @@ export interface InitOutput {
   readonly stofnode_dirty: (a: number, b: number, c: number, d: number) => number;
   readonly stofnode_anyDirty: (a: number, b: number) => number;
   readonly stofnode_validate: (a: number, b: number, c: number, d: number) => number;
-  readonly stofnode_validate_all: (a: number, b: number) => number;
+  readonly stofnode_validateAll: (a: number, b: number) => number;
   readonly stofnode_root: (a: number, b: number) => number;
   readonly stofnode_exists: (a: number, b: number) => number;
   readonly stofnode_isChildOf: (a: number, b: number, c: number) => number;
@@ -540,7 +527,6 @@ export interface InitOutput {
   readonly __wbg_stoflib_free: (a: number, b: number) => void;
   readonly stoflib_new: (a: number, b: number) => number;
   readonly stoflib_name: (a: number) => [number, number];
-  readonly stoflib_load: (a: number, b: number) => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_exn_store: (a: number) => void;

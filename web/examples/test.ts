@@ -15,24 +15,33 @@
 //
 
 import { Stof } from '../doc.ts';
-await Stof.initialize();
 
-const doc = Stof.doc();
-doc.insertLibrary('fs', [
+const doc = await Stof.parse('stof', `
+    #[main]
+    fn main() {
+        let res = Test.hello('cj');
+        console.log(self.toString());
+        console.log(res);
+    }
+`);
+/*doc.insertLibrary('fs', [
     ['read', (path: string): string => {
         const decoder = new TextDecoder('utf-8');
         const data = Deno.readFileSync(path);
         return decoder.decode(data);
     }]
+]);*/
+
+doc.insertLibrary('Test', [
+    ['hello', function(name: string): string {
+        // parsing Stof into the StofDoc here...
+        // @ts-ignore any is okay
+        this.stringImport('stof', 'calledHello: true', '');
+    
+        return 'hello, ' + name;
+    }]
 ]);
 
-doc.doc.fileImport('json', 'src/json/tests/example.json', 'json', 'Import');
-doc.importString('stof', `
-    #[main]
-    fn main(): str {
-        return stringify(Import, 'toml');
-    }
-`);
-
-const res = doc.call('main', []);
-console.log(res);
+const ts = Date.now();
+doc.run();
+console.log(Date.now() - ts);
