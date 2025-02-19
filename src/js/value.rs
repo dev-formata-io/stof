@@ -32,9 +32,9 @@ impl From<SVal> for JsValue {
             SVal::String(val) => Self::from_str(&val),
             SVal::Number(num) => {
                 match num {
-                    SNum::I64(val) => Self::from(val),
-                    SNum::F64(val) => Self::from_f64(val),
-                    SNum::Units(val, _) => Self::from_f64(val),
+                    SNum::I64(val) => Self::from(val as i32),
+                    SNum::F64(val) => Self::from(val),
+                    SNum::Units(val, _) => Self::from(val),
                 }
             },
             SVal::FnPtr(dref) => Self::from_str(&dref.id), // Gets turned into an ID for a StofData!
