@@ -15,7 +15,6 @@
 //
 
 use std::ops::Deref;
-
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use crate::{IntoNodeRef, SData, SDoc, SField, SFunc, SPrototype, SType, SVal};
