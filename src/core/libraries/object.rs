@@ -15,7 +15,7 @@
 //
 
 use std::{cmp::Ordering, collections::{BTreeMap, HashMap, HashSet}, ops::Deref, sync::Arc};
-use crate::{lang::SError, IntoNodeRef, Library, SData, SDataRef, SDoc, SField, SFunc, SMutex, SNodeRef, SNum, SPrototype, SVal};
+use crate::{lang::SError, IntoNodeRef, Library, SData, SDoc, SField, SFunc, SMutex, SNodeRef, SNum, SPrototype, SVal};
 
 
 #[derive(Default, Debug)]
@@ -1089,14 +1089,32 @@ impl ObjectLibrary {
                         }
                         match &field.value {
                             SVal::Object(other) => {
-                                tasks.push((order, true, other.id.clone()));
+                                tasks.push((order, SVal::Object(other.clone())));
+                            },
+                            SVal::Array(_) => {
+                                tasks.push((order, field.value.clone()));
+                            },
+                            SVal::Set(_) => {
+                                tasks.push((order, field.value.clone()));
+                            },
+                            SVal::Map(_) => {
+                                tasks.push((order, field.value.clone()));
                             },
                             SVal::Boxed(val) => {
                                 let val = val.lock().unwrap();
                                 let val = val.deref();
                                 match val {
                                     SVal::Object(other) => {
-                                        tasks.push((order, true, other.id.clone()));
+                                        tasks.push((order, SVal::Object(other.clone())));
+                                    },
+                                    SVal::Array(_) => {
+                                        tasks.push((order, val.clone()));
+                                    },
+                                    SVal::Set(_) => {
+                                        tasks.push((order, val.clone()));
+                                    },
+                                    SVal::Map(_) => {
+                                        tasks.push((order, val.clone()));
                                     },
                                     _ => {}
                                 }
@@ -1128,7 +1146,7 @@ impl ObjectLibrary {
                                 },
                                 _ => {}
                             }
-                            tasks.push((order, false, func_ref.id));
+                            tasks.push((order, SVal::FnPtr(func_ref)));
                         }
                     }
                 }
@@ -1155,7 +1173,7 @@ impl ObjectLibrary {
                                         },
                                         _ => {}
                                     }
-                                    tasks.push((order, false, func_ref.id));
+                                    tasks.push((order, SVal::FnPtr(func_ref)));
                                 }
                             }
                         }
@@ -1165,11 +1183,7 @@ impl ObjectLibrary {
                 tasks.sort_by(|a, b| a.0.cmp(&b.0));
                 doc.push_self(pid, obj.clone());
                 for task in tasks {
-                    if task.1 {
-                        self.operate(pid, doc, "exec", &SNodeRef::from(task.2), parameters)?;
-                    } else {
-                        SFunc::call(&SDataRef::from(task.2), pid, doc, vec![], false)?;
-                    }
+                    self.exec_val(task.1, doc, pid, parameters)?;
                 }
                 doc.pop_self(pid);
 
@@ -1292,6 +1306,35 @@ impl ObjectLibrary {
                 Err(SError::obj(pid, &doc, "NotFound", &format!("{} is not a function in the Object Library", name)))
             }
         }
+    }
+
+    /// Execute a value.
+    fn exec_val(&self, value: SVal, doc: &mut SDoc, pid: &str, parameters: &mut Vec<SVal>) -> Result<(), SError> {
+        match value {
+            SVal::Object(nref) => {
+                self.operate(pid, doc, "exec", &nref, parameters)?;
+            },
+            SVal::FnPtr(dref) => {
+                SFunc::call(&dref, pid, doc, vec![], false)?;
+            },
+            SVal::Array(vals) => {
+                for val in vals {
+                    self.exec_val(val, doc, pid, parameters)?;
+                }
+            },
+            SVal::Set(vals) => {
+                for val in vals {
+                    self.exec_val(val, doc, pid, parameters)?;
+                }
+            },
+            SVal::Map(map) => {
+                for val in map {
+                    self.exec_val(val.1, doc, pid, parameters)?;
+                }
+            },
+            _ => {}
+        }
+        Ok(())
     }
 
     /// Schemafy an individual field on a target object.

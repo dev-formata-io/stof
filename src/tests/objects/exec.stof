@@ -132,6 +132,75 @@ nested: {
     }
 }
 
+arrays: {
+    #[run]
+    array: [
+        {
+            #[run]
+            fn task() { self.ran = true; }
+        },
+        {
+            #[run]
+            fn task() { self.didit = true; }
+        }
+    ]
+
+    #[test]
+    fn test() {
+        self.exec();
+
+        let first = self.array[0];
+        assert(first.ran);
+
+        let second = self.array[1];
+        assert(second.didit);
+    }
+}
+
+sets: {
+    first: {
+        #[run]
+        fn task() { self.ran = true; }
+    }
+
+    second: {
+        #[run]
+        fn task() { self.ran = true; }
+    }
+
+    #[run]
+    set: set(self.first, self.second)
+
+    #[test]
+    fn test() {
+        self.exec();
+        assert(self.first.ran);
+        assert(self.second.ran);
+    }
+}
+
+maps: {
+    first: {
+        #[run]
+        fn task() { self.ran = true; }
+    }
+
+    second: {
+        #[run]
+        fn task() { self.ran = true; }
+    }
+
+    #[run]
+    collection: map(('first', self.first), ('second', self.second))
+
+    #[test]
+    fn test() {
+        self.exec();
+        assert(self.first.ran);
+        assert(self.second.ran);
+    }
+}
+
 types: {
     type Base {
         #[run]
