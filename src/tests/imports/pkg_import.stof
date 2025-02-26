@@ -14,36 +14,21 @@
 // limitations under the License.
 //
 
-pub mod core;
-pub use core::*;
+import pkg '@geometry' as self.Geometry;
 
-pub mod data;
-pub use data::*;
+Geometry.Box box: {}
+Geometry.Point point: {}
 
-pub mod stof;
-pub use stof::*;
+#[test]
+fn import_box() {
+    assertEq(self.box.length, 1);
+    assertEq(self.box.width, 1);
+    assertEq(self.box.height, 1);
+}
 
-pub mod text;
-pub mod bytes;
-pub mod pkg;
-
-#[cfg(feature = "wasm")]
-pub mod js;
-
-#[cfg(feature = "json")]
-pub mod json;
-
-#[cfg(feature = "toml")]
-pub mod toml;
-
-#[cfg(feature = "yaml")]
-pub mod yaml;
-
-#[cfg(feature = "xml")]
-pub mod xml;
-
-#[cfg(feature = "urlencoded")]
-pub mod urlencoded;
-
-#[cfg(test)]
-mod tests;
+#[test]
+fn import_point() {
+    assertEq(self.point.x, 0);
+    assertEq(self.point.y, 0);
+    assertEq(self.point.z, 0);
+}

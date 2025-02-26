@@ -128,6 +128,7 @@ import './language/typeof' as Language.TypeOf;
  */
 import './imports/location' as Imports.Location;
 import './imports/package' as Imports.Package;
+import './imports/pkg_import' as Imports.PkgImport;
 
 
 /**
