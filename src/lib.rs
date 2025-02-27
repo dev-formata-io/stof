@@ -25,6 +25,8 @@ pub use stof::*;
 
 pub mod text;
 pub mod bytes;
+
+#[cfg(feature = "pkg")]
 pub mod pkg;
 
 #[cfg(feature = "wasm")]

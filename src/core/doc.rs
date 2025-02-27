@@ -18,7 +18,7 @@ use std::{collections::HashSet, sync::Arc, time::SystemTime};
 use bytes::Bytes;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
-use crate::{bytes::BYTES, lang::SError, text::TEXT, SData, SField, SFunc, SVal, BSTOF, STOF, pkg::PKG};
+use crate::{bytes::BYTES, lang::SError, text::TEXT, SData, SField, SFunc, SVal, BSTOF, STOF};
 use super::{runtime::{DocPermissions, Library, Symbol, SymbolTable}, ArrayLibrary, BlobLibrary, BoolLibrary, CustomTypes, DataLibrary, Format, FunctionLibrary, IntoDataRef, IntoNodeRef, MapLibrary, NumberLibrary, ObjectLibrary, SDataRef, SFormats, SGraph, SLibraries, SNodeRef, SProcesses, SetLibrary, StdLibrary, StringLibrary, TupleLibrary};
 
 #[cfg(not(feature = "wasm"))]
@@ -26,6 +26,9 @@ use super::FileSystemLibrary;
 
 #[cfg(not(feature = "wasm"))]
 use super::TimeLibrary;
+
+#[cfg(feature = "pkg")]
+use crate::pkg::PKG;
 
 #[cfg(feature = "json")]
 use crate::json::JSON;
@@ -138,13 +141,16 @@ impl SDoc {
     fn load_std_formats(&mut self) {
         self.load_format(Arc::new(TEXT{}));
         self.load_format(Arc::new(BYTES{}));
-        self.load_format(Arc::new(PKG{}));
 
         // STOF format ".stof" text files
         self.load_format(Arc::new(STOF{}));
 
         // BSTOF format ".bstof" binary files
         self.load_format(Arc::new(BSTOF{}));
+
+        // PKG format
+        #[cfg(feature = "pkg")]
+        self.load_format(Arc::new(PKG::default()));
 
         // JSON format ".json" files and NDJSON (newlines between json)
         #[cfg(feature = "json")]
