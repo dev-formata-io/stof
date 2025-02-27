@@ -164,18 +164,20 @@ impl PKG {
     }
 
     /// Unzip zip file bytes into the __stof__ pkg directory.
-    pub fn unzip_pkg_bytes(&self, package_name_path: &str, bytes: &Bytes) {
+    pub fn unzip_pkg_bytes(&self, package_name_path: &str, bytes: &Bytes) -> String {
         let _ = fs::create_dir_all(&self.temp_dir);
         let tmp_file_path = format!("{}/{}.zip", &self.temp_dir, nanoid!());
         let _ = fs::write(&tmp_file_path, bytes);
-        PKG::unzip_pkg(package_name_path, &tmp_file_path);
+        let outdir = PKG::unzip_pkg(package_name_path, &tmp_file_path);
         let _ = fs::remove_file(&tmp_file_path);
+        outdir
     }
 
     /// Unzip zip file into the __stof__ pkg directory.
-    pub fn unzip_pkg(package_name_path: &str, zip_file_path: &str) {
+    pub fn unzip_pkg(package_name_path: &str, zip_file_path: &str) -> String {
         let outdir = format!("__stof__/{}", package_name_path.trim_start_matches("@"));
         PKG::unzip_file(zip_file_path, &outdir);
+        outdir
     }
 }
 impl Format for PKG {
