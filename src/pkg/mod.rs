@@ -44,7 +44,7 @@ impl PKG {
     /// Create a temp zip file.
     pub fn create_temp_zip(&self, dir_path: &str, excluded: &HashSet<String>) -> Option<String> {
         let _ = fs::create_dir_all(&self.temp_dir);
-        let path = format!("{}/{}.zip", self.temp_dir, nanoid!());
+        let path = format!("{}/{}.pkg", self.temp_dir, nanoid!());
         PKG::create_package_zip(dir_path, &path, excluded)
     }
 
@@ -52,7 +52,7 @@ impl PKG {
     /// If successful, returns a path to the newly created zip file (dest_path).
     pub fn create_package_zip(dir_path: &str, dest_path: &str, excluded: &HashSet<String>) -> Option<String> {
         let mut path = dest_path.to_string();
-        if !path.ends_with(".zip") { path = format!("{}.zip", path); }
+        if !path.ends_with(".pkg") { path = format!("{}.pkg", path); }
 
         // Make sure the destination directory exists
         let mut dir_pth_buf = path.split('/').collect::<Vec<&str>>();
@@ -121,7 +121,7 @@ impl PKG {
         let outdir = format!("{}/{}", &self.temp_dir, nanoid!());
         let _ = fs::create_dir_all(&outdir);
         
-        let tmp_file_path = format!("{}/{}.zip", &self.temp_dir, nanoid!());
+        let tmp_file_path = format!("{}/{}.pkg", &self.temp_dir, nanoid!());
         let _ = fs::write(&tmp_file_path, bytes);
 
         PKG::unzip_file(&tmp_file_path, &outdir);
@@ -166,7 +166,7 @@ impl PKG {
     /// Unzip zip file bytes into the __stof__ pkg directory.
     pub fn unzip_pkg_bytes(&self, package_name_path: &str, bytes: &Bytes) -> String {
         let _ = fs::create_dir_all(&self.temp_dir);
-        let tmp_file_path = format!("{}/{}.zip", &self.temp_dir, nanoid!());
+        let tmp_file_path = format!("{}/{}.pkg", &self.temp_dir, nanoid!());
         let _ = fs::write(&tmp_file_path, bytes);
         let outdir = PKG::unzip_pkg(package_name_path, &tmp_file_path);
         let _ = fs::remove_file(&tmp_file_path);
