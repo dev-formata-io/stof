@@ -220,11 +220,11 @@ impl Format for PKG {
     /// Package import.
     /// Looks at the "pkg.stof" "import" or "imports" field for files to import into this document.
     /// Import a directory containing a "pkg.stof" file.
-    /// Import a zip file containing a "pkg.stof" file.
+    /// Import a zip (.pkg) file containing a "pkg.stof" file.
     fn file_import(&self, pid: &str, doc: &mut SDoc, _format: &str, full_path: &str, extension: &str, as_name: &str) -> Result<(), SError> {
         let mut import_path = full_path.to_owned();
         let mut created_temp = false;
-        if extension == "zip" {
+        if extension == "pkg" {
             // unzip this import path to a temporary directory so that it can be imported
             import_path = format!("{}/{}", &self.temp_dir, nanoid!());
             PKG::unzip_file(full_path, &import_path);
