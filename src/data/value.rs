@@ -1439,7 +1439,7 @@ impl SVal {
                                     let mut field = SField::new(&typefield.name, default_value);
                                     field.attributes = typefield.attributes;
                                     SData::insert_new(&mut doc.graph, nref, Box::new(field));
-                                } else {
+                                } else if !typefield.optional {
                                     return Err(SError::val(pid, &doc, "cast", &format!("Could not find or create the field '{}' while casting object into '{}'", typefield.name, typepath)));
                                 }
                             }

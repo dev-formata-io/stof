@@ -114,15 +114,17 @@ pub struct CustomTypeField {
     pub name: String,
     pub ptype: SType,
     pub default: Option<Expr>,
+    pub optional: bool,
     pub attributes: BTreeMap<String, SVal>,
 }
 impl CustomTypeField {
     /// New parameter.
-    pub fn new(name: &str, ptype: SType, default: Option<Expr>, attrs: BTreeMap<String, SVal>) -> Self {
+    pub fn new(name: &str, ptype: SType, default: Option<Expr>, attrs: BTreeMap<String, SVal>, optional: bool) -> Self {
         Self {
             name: name.into(),
             ptype,
             default,
+            optional,
             attributes: attrs,
         }
     }

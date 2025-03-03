@@ -631,7 +631,55 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                     _ => {}
                                 }
                             }
-                            params.push(CustomTypeField::new(&field_name, stype, default, attributes));
+                            params.push(CustomTypeField::new(&field_name, stype, default, attributes, false));
+                        },
+                        Rule::optional_type_field => {
+                            let mut field_name = String::default();
+                            let mut stype = SType::Void;
+                            let mut default = None;
+                            let mut attributes = BTreeMap::new();
+                            for pair in pair.into_inner() {
+                                match pair.as_rule() {
+                                    Rule::ident => {
+                                        field_name = pair.as_str().to_owned();
+                                    },
+                                    Rule::atype => {
+                                        stype = parse_atype(pair);
+                                    },
+                                    Rule::expr => {
+                                        default = Some(parse_expression(doc, env, pair)?);
+                                    },
+                                    Rule::field_attribute => {
+                                        let mut key = String::default();
+                                        let mut value = SVal::Null;
+                                        for pair in pair.into_inner() {
+                                            match pair.as_rule() {
+                                                Rule::ident => {
+                                                    key = pair.as_str().to_string();
+                                                },
+                                                Rule::expr => {
+                                                    let value_expr = parse_expression(doc, env, pair)?;
+                                                    let result = value_expr.exec(&env.pid, doc);
+                                                    match result {
+                                                        Ok(sval) => {
+                                                            value = sval;
+                                                        },
+                                                        Err(message) => {
+                                                            return Err(SError::parse(&env.pid, &doc, &format!("unable to execute attribute expression {}", message.message)));
+                                                        }
+                                                    }
+                                                },
+                                                _ => {
+                                                    return Err(SError::parse(&env.pid, &doc, "unrecognized rule for field attribute"));
+                                                }
+                                            }
+                                        }
+                                        attributes.insert(key, value);
+                                    },
+                                    _ => {}
+                                }
+                            }
+                            params.push(CustomTypeField::new(&field_name, stype, default, attributes, true));
                         },
                         Rule::function => {
                             let mut func = parse_function(doc, env, pair)?;

@@ -1,0 +1,43 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+type OptionalFieldType {
+    #[hello]
+    text?: str;
+}
+
+#[test]
+fn not_present() {
+    let object = new OptionalFieldType {};
+    assertNull(object.text);
+
+    object.text = 'hello';
+    assertEq(object.attributes('text').len(), 0);
+
+    object.removePrototype();
+    object as OptionalFieldType; // lazy setting of attributes (TODO: set automatically in the future?)
+
+    assertEq(object.attributes('text'), map(('hello', null)));
+    assertEq(object.text, 'hello');
+}
+
+#[test]
+fn present_cast() {
+    let object = new OptionalFieldType { text: 23 };
+    assertEq(typeof object.text, 'str');
+    assertEq(object.text, '23');
+    assertEq(object.attributes('text'), map(('hello', null)));
+}

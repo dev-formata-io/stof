@@ -100,6 +100,7 @@ import './types/geometry' as Types.Geometry;
 import './types/casting' as Types.Casting;
 import './types/attributes' as Types.Attributes;
 import './types/unknown' as Types.Unknown;
+import './types/optional_fields' as Types.Optional;
 
 
 /**
