@@ -15,10 +15,9 @@
 //
 
 use std::ops::Deref;
-
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{IntoNodeRef, SData, SDoc, SField, SFunc, SPrototype, SType, SVal};
+use crate::{IntoNodeRef, SData, SDoc, SField, SFunc, SNodeRef, SPrototype, SType, SVal};
 use super::{SError, Statement, Statements, StatementsRes};
 
 
@@ -423,6 +422,32 @@ impl Expr {
                     }
                 }
 
+                // Prototype call by type name, using the scope resolution operator
+                if name.contains("::") {
+                    let mut split = name.split("::").collect::<Vec<&str>>();
+                    let typename = split.remove(0);
+                    let funcname = split.join("::");
+                    let mut prototype = None;
+                    if let Some(ctype) = doc.types.find(&doc.graph, typename, doc.self_ptr(pid)) {
+                        prototype = Some(SNodeRef::from(&ctype.locid));
+                    }
+                    if let Some(prototype) = prototype {
+                        if let Some(func_ref) = SFunc::func_ref(&doc.graph, &funcname, '.', Some(&prototype)) {
+                            let mut func_params = Vec::new();
+                            for expr in params {
+                                let val = expr.exec(pid, doc)?;
+                                if !val.is_void() {
+                                    func_params.push(val);
+                                }
+                            }
+                            let current_symbol_table = doc.new_table(pid);
+                            let res = SFunc::call(&func_ref, pid, doc, func_params, false)?;
+                            doc.set_table(pid, current_symbol_table);
+                            return Ok(res);
+                        }
+                    }
+                }
+                
                 // If here, scope is not a field, func, object, or symbol
                 // Check to see if scope is a library itself before falling back to std lib
                 if let Some(lib) = doc.library(&scope) {
