@@ -394,8 +394,8 @@ impl ObjectLibrary {
                 if parameters.len() < 2 {
                     return Err(SError::obj(pid, &doc, "moveField", "invalid arguments - requires two paths, a source and a destination"));
                 }
-                let dest = parameters.pop().unwrap().to_string();
-                let source = parameters.pop().unwrap().to_string();
+                let dest = parameters.pop().unwrap().owned_to_string();
+                let source = parameters.pop().unwrap().owned_to_string();
 
                 if let Some(field_ref) = SField::field_ref(&doc.graph, &source, '.', Some(obj)) {
                     if !doc.perms.can_write_field(&doc.graph, &field_ref, Some(obj)) {

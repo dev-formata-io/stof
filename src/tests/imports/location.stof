@@ -17,7 +17,9 @@
 import "./import.json";
 import text "./import.json";
 import "./import.json" as self.JsonImport;
+
 import "src/tests/imports/import.json" as TestRootImports; // absolute path
+import "src/tests/imports/import.json" as TestRootImports; // duplicate imports are ignored
 
 #[test]
 fn basic_import() {

@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use crate::{lang::SError, IntoNodeRef, SData, SDataRef, SDoc, SField, SFunc, SNodeRef, SType, SVal};
 
 
@@ -30,9 +30,6 @@ pub struct StofEnv {
 
     /// Relative import path. Gets added to the import path when starting with '.'
     pub relative_import_path: String,
-
-    /// Paths that have been parsed already.
-    pub compiled_paths: HashSet<String>,
 
     /// Assign type stack (keep track of variable types for casting when declared with type).
     pub assign_type_stack: Vec<HashMap<String, SType>>,
@@ -57,7 +54,6 @@ impl StofEnv {
         Self {
             main,
             pid: pid.to_owned(),
-            compiled_paths: Default::default(),
             assign_type_stack: vec![Default::default()],
             init_funcs: Default::default(),
             node_field_collisions: Default::default(),
@@ -74,7 +70,6 @@ impl StofEnv {
                 pid: pid.to_owned(),
                 init_funcs: Default::default(),
                 assign_type_stack: vec![Default::default()],
-                compiled_paths: Default::default(),
                 node_field_collisions: Default::default(),
                 relative_import_path: String::default(),
             });
@@ -125,13 +120,13 @@ impl StofEnv {
     }
 
     /// Already compiled this file?
-    pub fn compiled_path(&self, path: &str) -> bool {
-        self.compiled_paths.contains(path)
+    pub fn compiled_path(&self, path: &str, doc: &SDoc) -> bool {
+        doc.env_compiled_paths.contains(path)
     }
 
     /// Add file path to compiled files.
-    pub fn add_compiled_path(&mut self, path: &str) {
-        self.compiled_paths.insert(path.to_owned());
+    pub fn add_compiled_path(&mut self, path: &str, doc: &mut SDoc) {
+        doc.env_compiled_paths.insert(path.to_owned());
     }
 
     /// Current scope.

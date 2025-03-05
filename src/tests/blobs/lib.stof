@@ -39,3 +39,38 @@ fn iteration() {
     }
     assertEq(res, "hello");
 }
+
+#[test]
+fn utf8_functions() {
+    let blb = Blob.fromUtf8("hello, world");
+    assertEq(typeof blb, "blob");
+    
+    let val = blb.utf8();
+    assertEq(val, "hello, world");
+}
+
+#[test]
+fn base64_standard() {
+    let blb: blob = "hello, world";
+    
+    let base = blb.base64();
+    assertEq(typeof base, "str");
+    assert(base.len() > 0);
+    
+    let decoded = Blob.fromBase64(base);
+    let val = decoded as str;
+    assertEq(val, "hello, world");
+}
+
+#[test]
+fn base64_urlsafe() {
+    let blb: blob = "hello, world";
+    
+    let base = blb.urlSafeBase64();
+    assertEq(typeof base, "str");
+    assert(base.len() > 0);
+    
+    let decoded = Blob.fromUrlSafeBase64(base);
+    let val = decoded as str;
+    assertEq(val, "hello, world");
+}

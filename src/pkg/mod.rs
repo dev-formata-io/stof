@@ -265,6 +265,33 @@ impl Format for PKG {
                             }
                         }
                     },
+                    SVal::Array(vals) => {
+                        for val in vals {
+                            let mut pkg_format = "stof".to_string();
+                            match val {
+                                SVal::String(path) => {
+                                    let pkg_path = format!("{}/{}", &cwd, path);
+                                    if let Err(error) = doc.file_import(pid, &pkg_format, &pkg_path, &pkg_format, as_name) {
+                                        cleanup();
+                                        return Err(error);
+                                    }
+                                },
+                                SVal::Object(nref) => {
+                                    if let Some(format_field) = SField::field(&pkg.graph, "format", '.', Some(nref)) {
+                                        pkg_format = format_field.to_string();
+                                    }
+                                    if let Some(path_field) = SField::field(&pkg.graph, "path", '.', Some(nref)) {
+                                        let pkg_path = format!("{}/{}", &cwd, path_field.to_string());
+                                        if let Err(error) = doc.file_import(pid, &pkg_format, &pkg_path, &pkg_format, as_name) {
+                                            cleanup();
+                                            return Err(error);
+                                        }
+                                    }
+                                },
+                                _ => {}
+                            }
+                        }
+                    },
                     _ => {}
                 }
                 cleanup();

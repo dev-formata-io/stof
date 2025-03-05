@@ -69,6 +69,9 @@ pub struct SDoc {
     
     #[serde(skip)]
     pub(crate) processes: SProcesses,
+
+    #[serde(skip)]
+    pub(crate) env_compiled_paths: HashSet<String>,
 }
 impl Default for SDoc {
     fn default() -> Self {
@@ -87,6 +90,7 @@ impl SDoc {
             formats: Default::default(),
             perms: Default::default(),
             processes: SProcesses::new(),
+            env_compiled_paths: Default::default(),
         };
         doc.load_std_formats();
         doc.load_std_lib();

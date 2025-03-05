@@ -14,7 +14,9 @@
 // limitations under the License.
 //
 
+use core::str;
 use std::ops::{Deref, DerefMut};
+use base64::{engine::general_purpose::{STANDARD, URL_SAFE}, Engine as _};
 use crate::{lang::SError, Library, SDoc, SNum, SVal};
 
 
@@ -57,6 +59,21 @@ impl BlobLibrary {
                 }
                 Err(SError::blob(pid, &doc, "at", "index argument not found"))
             },
+            "utf8" => {
+                if let Ok(res) = str::from_utf8(blob.as_slice()) {
+                    Ok(SVal::String(res.to_owned()))
+                } else {
+                    Err(SError::blob(pid, &doc, "utf8", "failed to decode blob into a utf-8 string"))
+                }
+            },
+            "base64" => {
+                let res = STANDARD.encode(blob);
+                Ok(SVal::String(res))
+            },
+            "urlSafeBase64" => {
+                let res = URL_SAFE.encode(blob);
+                Ok(SVal::String(res))
+            },
             _ => {
                 Err(SError::blob(pid, &doc, "NotFound", &format!("{} is not a function in the Blob Library", name)))
             }
@@ -83,6 +100,26 @@ impl Library for BlobLibrary {
                         }
                     }
                     return Ok(SVal::Null);
+                },
+                "fromUtf8" => {
+                    let value = parameters.pop().unwrap().owned_to_string();
+                    return Ok(SVal::Blob(str::as_bytes(&value).to_vec()));
+                },
+                "fromBase64" => {
+                    let value = parameters.pop().unwrap().owned_to_string();
+                    if let Ok(bytes) = STANDARD.decode(value) {
+                        return Ok(SVal::Blob(bytes));
+                    } else {
+                        return Err(SError::blob(pid, &doc, "fromBase64", "failed to decode base64 standard string"));
+                    }
+                },
+                "fromUrlSafeBase64" => {
+                    let value = parameters.pop().unwrap().owned_to_string();
+                    if let Ok(bytes) = URL_SAFE.decode(value) {
+                        return Ok(SVal::Blob(bytes));
+                    } else {
+                        return Err(SError::blob(pid, &doc, "fromUrlSafeBase64", "failed to decode base64 url-safe string"));
+                    }
                 },
                 _ => {}
             }
