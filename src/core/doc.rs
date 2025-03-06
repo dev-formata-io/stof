@@ -375,7 +375,7 @@ impl SDoc {
             },
         }
 
-        let res = doc.run(None);
+        let res = doc.run(None, None);
         match res {
             Ok(_) => {
                 // Don't do anything here
@@ -391,8 +391,13 @@ impl SDoc {
     }
 
     /// Run the main functions on a node or within this document.
-    /// Main functions are denoted with a #[main] attribute in the text format.
-    pub fn run(&mut self, context: Option<&SNodeRef>) -> Result<(), String> {
+    /// Main functions are denoted with an #[main] attribute in the text format. This is the default attribute to run.
+    pub fn run(&mut self, context: Option<&SNodeRef>, attribute: Option<String>) -> Result<(), String> {
+        let mut search_attr = String::from("main");
+        if let Some(att) = attribute {
+            search_attr = att;
+        }
+
         let functions;
         if context.is_some() {
             functions = SFunc::recursive_func_refs(&self.graph, context.unwrap());
@@ -402,7 +407,7 @@ impl SDoc {
         let mut errors = Vec::new();
         for func_ref in functions {
             if let Some(func) = SData::get::<SFunc>(&self.graph, &func_ref).cloned() {
-                if let Some(attr_val) = func.attributes.get("main") {
+                if let Some(attr_val) = func.attributes.get(&search_attr) {
                     let result;
                     if attr_val.is_empty() {
                         result = SFunc::call_internal(&func_ref, "main", self, vec![], true, &func.params, &func.statements, &func.rtype);

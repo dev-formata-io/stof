@@ -43,7 +43,7 @@ fn stof_run_out() {
         }
     "#;
     let mut doc = SDoc::src(stof, "stof").unwrap();
-    let res = doc.run(None);
+    let res = doc.run(None, None);
     match res {
         Ok(_) => {
             println!("stof document ran successfully");
