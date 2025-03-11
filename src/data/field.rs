@@ -241,7 +241,7 @@ impl SField {
                 for other_ref in other_fields {
                     if let Some(other) = SData::get::<SField>(other, other_ref) {
                         if field.name == other.name {
-                            if field == other {
+                            if field == other || (field.is_object() && other.is_object()) {
                                 // do nothing...
                             } else {
                                 field.merge(other)?;
