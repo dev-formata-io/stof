@@ -56,6 +56,27 @@ fn function_call() {
     assertEq(func.call(1, 2, 2), 1);
 }
 
+#[test]
+fn expand_call_array() {
+    let func = self.test_function;
+    let params = [1, 2, 2];
+    assertEq(func.expandCall(params), 1);
+}
+
+#[test]
+fn expand_call_tuple() {
+    let func = self.test_function;
+    let params = (1, 2, 2);
+    assertEq(func.expandCall(params), 1);
+}
+
+#[test]
+fn expand_call_set() {
+    let func = self.test_function;
+    let params = set(1, 2, 3);
+    assert(func.expandCall(params) > 0);
+}
+
 attributes: {
     #[ordering(2)]
     #[hello]

@@ -82,6 +82,27 @@ impl FunctionLibrary {
             "call" => {
                 SFunc::call(dref, pid, doc, parameters.drain(..).collect(), true)
             },
+            // Call this function with an array of parameters as an argument.
+            "expandCall" => {
+                if parameters.len() < 1 {
+                    return Err(SError::func(pid, &doc, "expandCall", "parameters value not found"));
+                }
+                let param = parameters.pop().unwrap();
+                match param {
+                    SVal::Array(vals) => {
+                        SFunc::call(dref, pid, doc, vals, true)
+                    },
+                    SVal::Tuple(vals) => {
+                        SFunc::call(dref, pid, doc, vals, true)
+                    },
+                    SVal::Set(set) => {
+                        SFunc::call(dref, pid, doc, set.into_iter().collect(), true)
+                    },
+                    _ => {
+                        Err(SError::func(pid, &doc, "expandCall", "must provide an (array, tuple, or set) of parameters to use"))
+                    }
+                }
+            },
             _ => {
                 Err(SError::func(pid, &doc, "NotFound", &format!("{} is not a function in the Function Library", name)))
             }
