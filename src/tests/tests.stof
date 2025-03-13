@@ -364,6 +364,18 @@ stdlib: {
     }
 
     #[test]
+    fn nanoid() {
+        let id = nanoid();
+        assertEq(id.len(), 21);
+    }
+
+    #[test]
+    fn nanoid_len() {
+        let id = nanoid(12);
+        assertEq(id.len(), 12);
+    }
+
+    #[test]
     fn is_number() {
         assert(isNumber(32));
         assert(isNumber(32.23));

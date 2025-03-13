@@ -17,6 +17,7 @@
 use std::{collections::{BTreeMap, BTreeSet, HashSet}, sync::Arc};
 use bytes::Bytes;
 use colored::Colorize;
+use nanoid::nanoid;
 use crate::{lang::SError, SData, SDoc, SField, SFunc, SType, SVal};
 
 
@@ -385,6 +386,26 @@ impl Library for StdLibrary {
                     }
                 }
                 Err(SError::std(pid, &doc, "assertNeq", "must give 2 arguments to assert they do not equal each other"))
+            },
+
+            /*****************************************************************************
+             * IDs.
+             *****************************************************************************/
+            // Return a new nanoid with an optional length (default is 21 URL safe chars).
+            "nanoid" => {
+                let mut length = None;
+                if parameters.len() > 0 {
+                    match &parameters[0] {
+                        SVal::Number(num) => {
+                            length = Some(num.int() as usize);
+                        },
+                        _ => {}
+                    }
+                }
+                if let Some(length) = length {
+                    return Ok(SVal::String(nanoid!(length)));
+                }
+                Ok(SVal::String(nanoid!()))
             },
 
             /*****************************************************************************
