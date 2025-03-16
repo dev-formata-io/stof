@@ -15,7 +15,7 @@
 //
 
 pub mod parser;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub use parser::*;
 
@@ -174,7 +174,28 @@ impl Format for BSTOF {
                 partial_doc.graph = graph;
             }
             
+            // Instert all types, then filter them out for the ones that are not declared on the node
             partial_doc.types = doc.types.declared_types_for(node, &doc.graph);
+            if let Some(stof_internal) = doc.graph.root_by_name("__stof__") {
+                if let Some(node) = stof_internal.node(&doc.graph) {
+                    partial_doc.graph.insert_external_node(&doc.graph, node, None, None);
+                }
+
+                if let Some(prototypes) = partial_doc.graph.node_ref("__stof__/prototypes", None) {
+                    let mut keep_refs = HashSet::new();
+                    for (_, custom_types) in &partial_doc.types.types {
+                        for custom_type in custom_types {
+                            keep_refs.insert(SNodeRef::from(&custom_type.locid));
+                        }
+                    }
+                    for child in partial_doc.graph.all_children(&prototypes) {
+                        if !keep_refs.contains(&child) {
+                            partial_doc.graph.remove_node(&child);
+                        }
+                    }
+                }
+            }
+
             partial_doc.perms.merge(&doc.perms);
             BSTOF::doc_to_bytes(pid, &partial_doc)
         } else {
