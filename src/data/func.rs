@@ -195,10 +195,18 @@ impl SFunc {
         // Add self to doc self stack
         if add_self {
             if let Some(data) = doc.graph.data_from_ref(dref) {
-                if let Some(nref) = data.nodes.last() {
-                    doc.push_self(pid, nref.clone());
+                let mut set_self = None;
+                for nref in data.nodes.iter().rev() {
+                    if nref.exists(&doc.graph) {
+                        set_self = Some(nref.clone());
+                        break;
+                    }
+                }
+
+                if let Some(nref) = set_self {
+                    doc.push_self(pid, nref);
                 } else {
-                    // Data isn't in the graph, so add main as root
+                    // Data isn't in the graph, so add main root as self
                     if doc.graph.roots.len() < 1 {
                         doc.graph.insert_root("root");
                     }
@@ -206,7 +214,7 @@ impl SFunc {
                     doc.push_self(pid, main_ref);
                 }
             } else {
-                // Data isn't in the graph, so add main as root
+                // Data isn't in the graph, so add main root as selt
                 if doc.graph.roots.len() < 1 {
                     doc.graph.insert_root("root");
                 }

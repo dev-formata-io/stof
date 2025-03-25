@@ -578,7 +578,9 @@ impl SDataRef {
     pub fn first_path(&self, graph: &SGraph) -> String {
         if let Some(data) = self.data(graph) {
             for node in &data.nodes {
-                return node.path(graph);
+                if node.exists(graph) {
+                    return node.path(graph);
+                }
             }
         }
         String::default()

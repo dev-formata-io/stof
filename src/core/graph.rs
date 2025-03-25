@@ -469,6 +469,14 @@ impl SGraph {
             if let Some(data) = dref.data(graph) {
                 let mut data = data.clone();
                 data.invalidate(DATA_DIRTY_NODES);
+
+                // Remove node references that don't exist on this graph
+                let mut nref_remove = Vec::new();
+                for i in 0..data.nodes.len() { if !data.nodes[i].exists(&self) { nref_remove.push(i); } }
+                nref_remove.reverse();
+                for i in nref_remove { data.nodes.remove(i); }
+
+                // Put the cloned data onto the node
                 self.put_data(onto, data);
             }
         }
@@ -493,6 +501,14 @@ impl SGraph {
             if let Some(data) = dref.data(graph) {
                 let mut data = data.clone();
                 data.invalidate(DATA_DIRTY_NODES);
+                
+                // Remove node references that don't exist on this graph
+                let mut nref_remove = Vec::new();
+                for i in 0..data.nodes.len() { if !data.nodes[i].exists(&self) { nref_remove.push(i); } }
+                nref_remove.reverse();
+                for i in nref_remove { data.nodes.remove(i); }
+
+                // Put the cloned data onto the cloned node
                 self.put_data(&clone, data);
             } else {
                 to_remove.push(dref.clone());

@@ -65,7 +65,9 @@ impl FunctionLibrary {
             "object" => {
                 let data = dref.data(&doc.graph).unwrap();
                 for node in &data.nodes {
-                    return Ok(SVal::Object(node.clone()));
+                    if node.exists(&doc.graph) {
+                        return Ok(SVal::Object(node.clone()));
+                    }
                 }
                 Ok(SVal::Null)
             },
@@ -74,7 +76,9 @@ impl FunctionLibrary {
                 let data = dref.data(&doc.graph).unwrap();
                 let mut objs = Vec::new();
                 for node in &data.nodes {
-                    objs.push(SVal::Object(node.clone()));
+                    if node.exists(&doc.graph) {
+                        objs.push(SVal::Object(node.clone()));
+                    }
                 }
                 Ok(SVal::Array(objs))
             },

@@ -68,3 +68,28 @@ absolute: {
         assertEq(Objects.Paths.absolute.field, 42);
     }
 }
+
+contained: {
+    a: {
+        b: {
+            field: 'hello-ab'
+
+            #[test]
+            fn test() {
+                let field = super.super.super.contained.c.super.c.d.self.field;
+                assertEq(field, 'hello-cd');
+            }
+        }
+    }
+    c: {
+        d: {
+            field: 'hello-cd'
+
+            #[test]
+            fn test() {
+                let field = self.super.d.super.super.a.b.super.b.self.field;
+                assertEq(field, 'hello-ab');
+            }
+        }
+    }
+}
