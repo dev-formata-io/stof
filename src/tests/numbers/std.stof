@@ -171,6 +171,18 @@ fn indexing() {
 }
 
 #[test]
+fn maximum() {
+    let max = Number.max(-12, 2, 22, 2, 42, 32);
+    assertEq(max, 42);
+}
+
+#[test]
+fn minimum() {
+    let min = Number.min(-12, 2, 22, 2, 42, 32);
+    assertEq(min, -12);
+}
+
+#[test]
 fn scientific_notation() {
     let i = -1.21e2;
     assertEq(i, -121);

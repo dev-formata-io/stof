@@ -42,6 +42,38 @@ impl Library for NumberLibrary {
                     }
                     return Ok(SVal::Null);
                 },
+                // Maximum number value in parameters
+                "max" => {
+                    let mut maximum = f64::MIN;
+                    for param in parameters.drain(..) {
+                        match param {
+                            SVal::Number(num) => {
+                                let val = num.float();
+                                if val > maximum {
+                                    maximum = val;
+                                }
+                            },
+                            _ => {}
+                        }
+                    }
+                    return Ok(SVal::from(maximum));
+                },
+                // Minimum number value in parameters
+                "min" => {
+                    let mut minimum = f64::MAX;
+                    for param in parameters.drain(..) {
+                        match param {
+                            SVal::Number(num) => {
+                                let val = num.float();
+                                if val < minimum {
+                                    minimum = val;
+                                }
+                            },
+                            _ => {}
+                        }
+                    }
+                    return Ok(SVal::from(minimum));
+                },
                 // parse a string into a number
                 "parse" => {
                     let value = parameters[0].to_string();
