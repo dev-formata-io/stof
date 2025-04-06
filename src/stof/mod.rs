@@ -16,9 +16,7 @@
 
 pub mod parser;
 use std::collections::{HashMap, HashSet};
-
 pub use parser::*;
-
 use bytes::Bytes;
 
 pub mod env;
@@ -31,23 +29,24 @@ mod tests;
 
 
 /// Stof binary format interface.
-/// BSTOF is a snappy compressed bincode serialized SDoc.
+/// BSTOF is a bincode serialized SDoc.
 pub struct BSTOF;
 impl BSTOF {
     /// Parse bytes into a new document.
     /// Bytes can either be a serialized SDoc or a serialized SGraph.
     pub fn parse(bytes: &Bytes) -> Result<SDoc, SError> {
-        let mut decoder = snap::raw::Decoder::new();
+        // 4/6/25 - removing snap compression do to corrupt input issue? compression should be an optional feature?
+        /*let mut decoder = snap::raw::Decoder::new();
         let res = decoder.decompress_vec(&bytes);
         let vec;
         match res {
             Ok(res) => vec = res,
             Err(error) => return Err(SError::empty_fmt("bstof", &error.to_string())),
-        }
-        if let Ok(doc) = bincode::deserialize::<SDoc>(vec.as_ref()) {
+        }*/
+        if let Ok(doc) = bincode::deserialize::<SDoc>(bytes.as_ref()) {
             Ok(doc)
         } else {
-            if let Ok(graph) = bincode::deserialize::<SGraph>(vec.as_ref()) {
+            if let Ok(graph) = bincode::deserialize::<SGraph>(bytes.as_ref()) {
                 Ok(SDoc::new(graph))
             } else {
                 Err(SError::empty_fmt("bstof", "failed to deserialize/parse bstof doc/graph"))
@@ -58,7 +57,10 @@ impl BSTOF {
     /// To bytes.
     pub fn doc_to_bytes(pid: &str, doc: &SDoc) -> Result<Bytes, SError> {
         if let Ok(bytes) = bincode::serialize(doc) {
-            let mut encoder = snap::raw::Encoder::new();
+            return Ok(bytes.into());
+
+            // 4/6/25 - removing snap compression do to corrupt input issue? compression should be an optional feature?
+            /*let mut encoder = snap::raw::Encoder::new();
             let res = encoder.compress_vec(&bytes);
             match res {
                 Ok(bytes) => {
@@ -67,7 +69,7 @@ impl BSTOF {
                 Err(error) => {
                     return Err(SError::fmt(pid, doc, "bstof", &format!("failed to compress document to bytes: {}", error.to_string())));
                 }
-            }
+            }*/
         }
         Err(SError::fmt(pid, doc, "bstof", "could not serialize document"))
     }
