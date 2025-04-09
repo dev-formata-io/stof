@@ -18,6 +18,11 @@
 import init, { type StofData, StofDoc, type StofNode } from './pkg/stof.js';
 
 
+// Export Stof Types
+// @deno-types="./pkg/stof.d.ts"
+export * from './pkg/stof.js';
+
+
 /**
  * Stof Document.
  */
