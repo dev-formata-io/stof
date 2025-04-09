@@ -132,13 +132,19 @@ impl From<(JsValue, &SDoc)> for SVal {
             if nref.exists(&doc.graph) {
                 return Self::Object(nref);
             }
-            // Check if this value is a data (function ptr) reference
-            // This works because FnPtr is the only SVal to be a SDataRef right now...
-            // In the future, we might have to introduce some id prefix for this.
+
+            // Check if this value is a data reference
             let dref = SDataRef::from(&val);
             if dref.exists(&doc.graph) {
-                return Self::FnPtr(dref);
+                // Check if this data is a function pointer
+                if let Some(_func) = SData::get::<SFunc>(&doc.graph, &dref) {
+                    return Self::FnPtr(dref);
+                }
+
+                // Return an opaque data reference
+                return Self::Data(dref);
             }
+
             return Self::String(val);
         }
         if value.is_array() {

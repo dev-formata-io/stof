@@ -1,6 +1,10 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
+export const __wbg_stoflib_free: (a: number, b: number) => void;
+export const stoflib_new: (a: number, b: number) => number;
+export const stoflib_name: (a: number) => [number, number];
+export const start: () => void;
 export const __wbg_stofdoc_free: (a: number, b: number) => void;
 export const stofdoc_new: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
 export const stofdoc_js: (a: number, b: number, c: any) => [number, number, number];
@@ -88,15 +92,18 @@ export const stofnode_hasData: (a: number, b: number, c: number) => number;
 export const stofnode_createData: (a: number, b: number, c: any) => [number, number, number];
 export const stofnode_to_json: (a: number, b: number) => any;
 export const stofnode_from_json: (a: number, b: any) => number;
-export const __wbg_stoflib_free: (a: number, b: number) => void;
-export const stoflib_new: (a: number, b: number) => number;
-export const stoflib_name: (a: number) => [number, number];
+export const __wbg_stoffield_free: (a: number, b: number) => void;
+export const stoffield_construct: (a: number, b: number, c: number, d: number, e: any) => [number, number, number];
+export const stoffield_field: (a: number, b: number, c: number) => number;
+export const stoffield_fieldFrom: (a: number, b: number, c: number, d: number) => number;
+export const stoffield_value: (a: number, b: number) => any;
+export const stoffield_set: (a: number, b: number, c: any) => number;
 export const __wbindgen_malloc: (a: number, b: number) => number;
 export const __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
 export const __wbindgen_exn_store: (a: number) => void;
 export const __externref_table_alloc: () => number;
 export const __wbindgen_export_4: WebAssembly.Table;
-export const __externref_table_dealloc: (a: number) => void;
 export const __wbindgen_free: (a: number, b: number, c: number) => void;
+export const __externref_table_dealloc: (a: number) => void;
 export const __externref_drop_slice: (a: number, b: number) => void;
 export const __wbindgen_start: () => void;

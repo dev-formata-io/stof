@@ -24,6 +24,23 @@ use crate::{json::JSON, SDataRef, SDoc, SNodeRef, SVal};
 use super::{StofData, StofLib, StofLibFunc, StofNode};
 
 
+// Workaround for Wasm-Pack Error
+#[cfg(target_family = "wasm")]
+mod wasm_workaround {
+    extern "C" {
+        pub(super) fn __wasm_call_ctors();
+    }
+}
+#[wasm_bindgen(start)]
+fn start() {
+
+    // stof::data::field::_::__ctor::h5fcded453a464929: Read a negative address value from the stack. Did we run out of memory?
+
+    #[cfg(target_family = "wasm")]
+    unsafe { wasm_workaround::__wasm_call_ctors() };
+}
+
+
 lazy_static! {
     // Stof document libraries.
     // Document ID -> (Library Name -> Library functions)
@@ -408,7 +425,7 @@ impl StofDoc {
     pub fn run(&self) -> Option<String> {
         unsafe {
             if let Some(doc) = DOCS.get_mut(&self.id) {
-                let res = doc.run(None);
+                let res = doc.run(None, None);
                 return match res {
                     Ok(_) => None,
                     Err(error) => Some(error),
@@ -423,7 +440,7 @@ impl StofDoc {
     pub fn run_node(&self, node: &StofNode) -> Option<String> {
         unsafe {
             if let Some(doc) = DOCS.get_mut(&self.id) {
-                let res = doc.run(Some(&node.node_ref()));
+                let res = doc.run(Some(&node.node_ref()), None);
                 return match res {
                     Ok(_) => None,
                     Err(error) => Some(error),

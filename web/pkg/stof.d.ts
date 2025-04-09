@@ -1,5 +1,6 @@
 /* tslint:disable */
 /* eslint-disable */
+export function start(): void;
 /**
  * Stof Data.
  */
@@ -63,7 +64,7 @@ export class StofData {
    * Nodes that contain this data.
    * Data can exist on several nodes at once.
    */
-  nodes(doc: StofDoc): (StofNode)[];
+  nodes(doc: StofDoc): StofNode[];
   /**
    * Try getting the JSON value of this data.
    * Will only work if the value of this data can be deserialized into serde_json::Value.
@@ -125,7 +126,7 @@ export class StofDoc {
   /**
    * Get all of the available formats.
    */
-  availableFormats(): (string)[];
+  availableFormats(): string[];
   /**
    * Get the content type for a format.
    */
@@ -195,7 +196,7 @@ export class StofDoc {
   /**
    * Get all of the available libraries.
    */
-  availableLibraries(): (string)[];
+  availableLibraries(): string[];
   /**
    * Insert a custom JS library function.
    */
@@ -240,7 +241,7 @@ export class StofDoc {
   /**
    * Roots.
    */
-  roots(): (StofNode)[];
+  roots(): StofNode[];
   /**
    * Insert a new root node.
    */
@@ -263,7 +264,7 @@ export class StofDoc {
   /**
    * Get all children of a node, on all children, grandchildren, etc...
    */
-  allChildren(node: StofNode): (StofNode)[];
+  allChildren(node: StofNode): StofNode[];
   /**
    * Create new data on a node.
    */
@@ -297,13 +298,40 @@ export class StofDoc {
    * Collect dirty nodes for validation.
    * For no limit, pass -1.
    */
-  flush_nodes(limit: number): (StofNode)[];
+  flush_nodes(limit: number): StofNode[];
   /**
    * Flush data.
    * Collect dirty data for validation.
    * For no limit, pass -1.
    */
-  flush_data(limit: number): (StofData)[];
+  flush_data(limit: number): StofData[];
+}
+/**
+ * Stof Field.
+ */
+export class StofField {
+  free(): void;
+  /**
+   * Field constructor with a JS Value.
+   * Creates a new field with this value on the node.
+   */
+  constructor(doc: StofDoc, node: StofNode, name: string, value: any);
+  /**
+   * Field from a dot separated path.
+   */
+  static field(doc: StofDoc, path: string): StofField | undefined;
+  /**
+   * Field from a dot separated path and a starting node.
+   */
+  static fieldFrom(doc: StofDoc, path: string, start: StofNode): StofField | undefined;
+  /**
+   * Field value getter.
+   */
+  value(doc: StofDoc): any;
+  /**
+   * Field value setter.
+   */
+  set(doc: StofDoc, value: any): boolean;
 }
 /**
  * JS Stof Lib.
@@ -392,7 +420,7 @@ export class StofNode {
   /**
    * Return the ID path of this node.
    */
-  idPath(doc: StofDoc): (string)[];
+  idPath(doc: StofDoc): string[];
   /**
    * Distance to another node in the document.
    */
@@ -408,11 +436,11 @@ export class StofNode {
   /**
    * Children of this node.
    */
-  children(doc: StofDoc): (StofNode)[];
+  children(doc: StofDoc): StofNode[];
   /**
    * Data on this node.
    */
-  data(doc: StofDoc): (StofData)[];
+  data(doc: StofDoc): StofData[];
   /**
    * Has data?
    */
@@ -437,6 +465,10 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
+  readonly __wbg_stoflib_free: (a: number, b: number) => void;
+  readonly stoflib_new: (a: number, b: number) => number;
+  readonly stoflib_name: (a: number) => [number, number];
+  readonly start: () => void;
   readonly __wbg_stofdoc_free: (a: number, b: number) => void;
   readonly stofdoc_new: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
   readonly stofdoc_js: (a: number, b: number, c: any) => [number, number, number];
@@ -524,16 +556,19 @@ export interface InitOutput {
   readonly stofnode_createData: (a: number, b: number, c: any) => [number, number, number];
   readonly stofnode_to_json: (a: number, b: number) => any;
   readonly stofnode_from_json: (a: number, b: any) => number;
-  readonly __wbg_stoflib_free: (a: number, b: number) => void;
-  readonly stoflib_new: (a: number, b: number) => number;
-  readonly stoflib_name: (a: number) => [number, number];
+  readonly __wbg_stoffield_free: (a: number, b: number) => void;
+  readonly stoffield_construct: (a: number, b: number, c: number, d: number, e: any) => [number, number, number];
+  readonly stoffield_field: (a: number, b: number, c: number) => number;
+  readonly stoffield_fieldFrom: (a: number, b: number, c: number, d: number) => number;
+  readonly stoffield_value: (a: number, b: number) => any;
+  readonly stoffield_set: (a: number, b: number, c: any) => number;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_exn_store: (a: number) => void;
   readonly __externref_table_alloc: () => number;
   readonly __wbindgen_export_4: WebAssembly.Table;
-  readonly __externref_table_dealloc: (a: number) => void;
   readonly __wbindgen_free: (a: number, b: number, c: number) => void;
+  readonly __externref_table_dealloc: (a: number) => void;
   readonly __externref_drop_slice: (a: number, b: number) => void;
   readonly __wbindgen_start: () => void;
 }
