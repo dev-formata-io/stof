@@ -38,9 +38,9 @@ export class Stof {
      * Initailize Stof.
      * Make sure to call this before using any Stof WebAssembly.
      */
-    static async initialize(): Promise<void> {
+    static async initialize(data?: unknown): Promise<void> {
         // @ts-ignore this exists
-        return Stof.initialized ?? await (Stof.initialized = init());
+        return Stof.initialized ?? await (Stof.initialized = init(data));
     }
 
 
