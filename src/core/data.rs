@@ -16,7 +16,7 @@
 
 use std::{any::Any, collections::HashSet};
 use nanoid::nanoid;
-use serde::{Deserialize, Serialize};
+use serde::{ser::Error, Deserialize, Serialize};
 use super::{IntoDataRef, IntoNodeRef, SDataRef, SGraph, SNodeRef};
 
 
@@ -29,15 +29,52 @@ pub const DATA_DIRTY_NODES: &str = "nodes";
 
 /// Data trait that allows for dynamically typed data in Stof.
 #[typetag::serde]
-pub trait Data: AsDynAny + std::fmt::Debug + DataClone + Send + Sync {}
+pub trait Data: AsDynAny + std::fmt::Debug + DataClone + Send + Sync {
+    /// Returning true will serialize and deserialize as normal (do this for all data defined in this crate, that is 'always' included).
+    /// Returning false will serialize this data into a container first, so that others can deserialize even if they don't know of this data type.
+    fn core_data(&self) -> bool {
+        return false;
+    }
+
+    /// Is this a conainer data?
+    /// Used to determin deserialize behavior.
+    fn is_container(&self) -> bool {
+        return false;
+    }
+}
 
 /// String data.
 #[typetag::serde(name = "_String")]
-impl Data for String {}
+impl Data for String {
+    fn core_data(&self) -> bool {
+        return true;
+    }
+}
 
 /// Empty data.
 #[typetag::serde(name = "_None")]
-impl Data for () {}
+impl Data for () {
+    fn core_data(&self) -> bool {
+        return true;
+    }
+}
+
+/// Container data.
+/// This contains non-core data, encoded twice for unknown types at load.
+/// Any core_data -> false data will get serialized into a container.
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct ContainerData {
+    pub contained: Vec<u8>,
+}
+#[typetag::serde(name = "_Contained")]
+impl Data for ContainerData {
+    fn core_data(&self) -> bool {
+        return true;
+    }
+    fn is_container(&self) -> bool {
+        return true;
+    }
+}
 
 /// Blanket Clone implementation for any struct that implements Clone + Data
 pub trait DataClone {
@@ -70,10 +107,14 @@ impl<T: Data + Any> AsDynAny for T {
 
 
 /// Stof Data.
+// Serialize and deserialize_data_field implemented below.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SData {
     pub id: String,
     pub nodes: Vec<SNodeRef>,
+
+    #[serde(deserialize_with = "deserialize_data_field")]
+    #[serde(serialize_with = "serialize_data_field")]
     pub data: Box<dyn Data>,
 
     #[serde(skip)]
@@ -289,4 +330,42 @@ impl SData {
         }
         None
     }
+}
+
+
+/// Custom serialize for data field.
+fn serialize_data_field<S>(data: &Box<dyn Data>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer {
+    if data.core_data() {
+        data.serialize(serializer)
+    } else {
+        // Not core, so create a container and serialize it instead
+        if let Ok(bytes) = bincode::serialize(data) {
+            let container: Box<dyn Data> = Box::new(ContainerData { contained: bytes });
+            container.as_ref().serialize(serializer)
+        } else {
+            Err(S::Error::custom("error serializing containerized (non-core) data to bytes"))
+        }
+    }
+}
+
+
+/// Custom deserialize for data field.
+fn deserialize_data_field<'de, D>(deserializer: D) -> Result<Box<dyn Data>, D::Error>
+    where
+        D: serde::Deserializer<'de> {
+    let mut data: Box<dyn Data> = Deserialize::deserialize(deserializer)?;
+
+    // If data is a container, try deserializing the contained contents, replacing the container if possible
+    if data.is_container() {
+        let any = data.as_dyn_any();
+        if let Some(container) = any.downcast_ref::<ContainerData>() {
+            if let Ok(res) = bincode::deserialize::<Box<dyn Data>>(container.contained.as_ref()) {
+                data = res;
+            }
+        }
+    }
+
+    Ok(data)
 }

@@ -31,7 +31,11 @@ pub struct SFunc {
 }
 
 #[typetag::serde(name = "_SFunc")]
-impl Data for SFunc {}
+impl Data for SFunc {
+    fn core_data(&self) -> bool {
+        return true;
+    }
+}
 
 impl SFunc {
     /// New function.

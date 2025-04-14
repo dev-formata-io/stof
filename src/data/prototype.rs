@@ -28,7 +28,11 @@ pub struct SPrototype {
 }
 
 #[typetag::serde(name = "_SProto")]
-impl Data for SPrototype {}
+impl Data for SPrototype {
+    fn core_data(&self) -> bool {
+        return true;
+    }
+}
 
 impl IntoNodeRef for SPrototype {
     fn node_ref(&self) -> SNodeRef {

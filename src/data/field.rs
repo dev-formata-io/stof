@@ -29,7 +29,11 @@ pub struct SField {
 }
 
 #[typetag::serde(name = "_SField")]
-impl Data for SField {}
+impl Data for SField {
+    fn core_data(&self) -> bool {
+        return true;
+    }
+}
 
 impl PartialOrd for SField {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
