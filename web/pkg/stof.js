@@ -1299,7 +1299,7 @@ export class StofNode {
     constructor(id) {
         const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.stofnode_new(ptr0, len0);
+        const ret = wasm.stofdata_new(ptr0, len0);
         this.__wbg_ptr = ret >>> 0;
         StofNodeFinalization.register(this, this.__wbg_ptr, this);
         return this;
