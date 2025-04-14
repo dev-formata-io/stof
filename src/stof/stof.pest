@@ -34,9 +34,11 @@ number  = ${ hex | oct | bin | (decimal | integer) ~ units? }
 
 // Identifiers and strings
 ident         = @{ (ASCII_ALPHA | "_" | "@" | "-") ~ (ASCII_ALPHANUMERIC | "_" | "@" | "-")* ~ (("." | "::" | ":" | "-") ~ (ASCII_ALPHA | "_" | "@" | "-") ~ (ASCII_ALPHANUMERIC | "_" | "@" | "-")*)* }
-string        = @{ double_quotes | single_quotes }
+string        = @{ double_quotes | single_quotes | raw_string | hash_string }
 double_quotes = @{ "\"" ~ ("\\" ~ ("\"" | "\\") | (!"\"" ~ ANY))* ~ "\"" }
 single_quotes = @{ "'" ~ ("\\" ~ ("'" | "\\") | (!"'" ~ ANY))* ~ "'" }
+raw_string    = @{ "r#\"" ~ (!"\"#" ~ ANY)* ~ "\"#" }
+hash_string    = @{ "#\"" ~ (!"\"#" ~ ANY)* ~ "\"#" }
 
 // File path identifiers
 path       = ${ ("\"" ~ inner_path ~ "\"") | ("'" ~ inner_path ~ "'") }

@@ -1960,19 +1960,28 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                     },
                     Rule::string => {
                         let mut val = pair.as_str();
-                        if val.starts_with("\"") {
-                            val = val.strip_prefix("\"").unwrap().strip_suffix("\"").unwrap();
-                        } else if val.starts_with("'") {
-                            val = val.strip_prefix("'").unwrap().strip_suffix("'").unwrap();
+                        if val.starts_with("r#\"") {
+                            val = val.strip_prefix("r#\"").unwrap().strip_suffix("\"#").unwrap();
+                            res = Expr::Literal(SVal::String(val.to_string()));
+                        } else {
+                            if val.starts_with("\"") {
+                                val = val.strip_prefix("\"").unwrap().strip_suffix("\"").unwrap();
+                            } else if val.starts_with("'") {
+                                val = val.strip_prefix("'").unwrap().strip_suffix("'").unwrap();
+                            } else if val.starts_with("#\"") {
+                                val = val.strip_prefix("#\"").unwrap().strip_suffix("\"#").unwrap();
+                            }
+                            let replaced = val
+                                .replace("\\n", "\n")
+                                .replace("\\\n", "\\n")
+                                .replace("\\t", "\t")
+                                .replace("\\\t", "\\t")
+                                .replace("\\r", "\r")
+                                .replace("\\\"", "\"")
+                                .replace("\\'", "\'")
+                                .replace("\\\\", "\\");
+                            res = Expr::Literal(SVal::String(replaced));
                         }
-                        let replaced = val
-                            .replace("\\n", "\n")
-                            .replace("\\t", "\t")
-                            .replace("\\r", "\r")
-                            .replace("\\\"", "\"")
-                            .replace("\\'", "\'")
-                            .replace("\\\\", "\\");
-                        res = Expr::Literal(SVal::String(replaced));
                     },
                     Rule::number => {
                         let mut number = SNum::I64(0);
