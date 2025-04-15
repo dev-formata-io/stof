@@ -2098,6 +2098,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                             match pair.as_rule() {
                                 Rule::ident => {
                                     field_name = pair.as_str().to_owned();
+                                    expr = Expr::Variable(field_name.clone());
                                 },
                                 Rule::string => {
                                     field_name = pair.as_str().to_owned();

@@ -154,7 +154,7 @@ fmt_inner  =  { "${" ~ expr ~ "}" }
 
 // Type constructor
 stof_type_constructor  = { "new" ~ ident? ~ "{" ~ (stof_type_field_create ~ (("," | ";")? ~ stof_type_field_create)*)? ~ ("," | ";")? ~ "}" }
-stof_type_field_create = { (string | ident) ~ ":" ~ expr }
+stof_type_field_create = { (string | ident) ~ ":" ~ expr | ident }
 
 // Math expressions
 math_expr   =  { math_atom ~ (math_op ~ math_atom)+ }
