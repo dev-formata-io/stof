@@ -66,6 +66,7 @@ fn loaded_bstof_types() {
         fn run() {
             pln(CustomType::static());
             pln(root.test.static());
+            pln(root.test.super.name());
             pln(typename root.test);
 
             pln(CustomType::new());

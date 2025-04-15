@@ -15,9 +15,9 @@
 //
 
 use std::{any::Any, collections::BTreeSet};
+use colored::Colorize;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{SField, SFunc};
 use super::{IntoDataRef, IntoNodeRef, SData, SDataRef, SGraph, SNodeRef};
 
 
@@ -190,7 +190,11 @@ impl SNode {
         for _ in 0..level { ident.push('\t'); }
 
         // Open the braces for this node
-        res.push_str(&format!("{}{} ({}) {{", &ident, &self.name, &self.id));
+        let mut parent_str = "None".to_string();
+        if let Some(parent) = &self.parent {
+            parent_str = format!("{}", &parent.id);
+        }
+        res.push_str(&format!("{}{} ({}, parent: {}) {{", &ident, &self.name.blue(), &self.id.cyan(), &parent_str.purple()));
         if level < 1 { res = res.replace('\n', ""); }
 
         // Dump data?
@@ -203,11 +207,13 @@ impl SNode {
 
             for data_ref in &self.data {
                 if let Some(data) = data_ref.data(graph) {
-                    res.push_str(&format!("{}data ({}) {{", &ident, &data.id));
-                    if let Some(field) = data.get_data::<SField>() {
-                        res.push_str(&format!("{}{:?}", &iident, field));
-                    } else if let Some(func) = data.get_data::<SFunc>() {
-                        res.push_str(&format!("{}{:?}", &iident, func));
+                    res.push_str(&format!("{}data ({}) {{", &ident, &data.id.green()));
+
+                    let json = serde_json::to_string(&data.data);
+                    if let Ok(json) = json {
+                        res.push_str(&format!("{}{}", &iident, json.dimmed()));
+                    } else {
+                        res.push_str(&format!("{}{}", &iident, "DATA SERIALIZATION ERROR".red()));
                     }
                     res.push_str(&format!("{}}}", &ident));
                 }

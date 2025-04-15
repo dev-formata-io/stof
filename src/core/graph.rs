@@ -16,6 +16,7 @@
 
 use std::{collections::{HashMap, HashSet}, ops::{Index, IndexMut}};
 use anyhow::Result;
+use colored::Colorize;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use crate::{lang::SError, SField};
@@ -738,16 +739,9 @@ impl SGraph {
         mut unique_self_handler: impl FnMut(&mut Self, &SNodeRef) -> Result<(), SError>) -> Result<(), SError> {
         let collisions = self.get_collisions(&other);
 
-        for index in 0..collisions.0.len() {
-            if index < collisions.1.len() {
-                let mut collide = (collisions.0[index].clone(), collisions.1[index].clone());
-                collision_handler(self, &mut other, &mut collide)?;
-            }
-        }
-
         if add_unique_other {
             let other_collided: HashSet<SNodeRef> = collisions.1.iter().cloned().collect();
-            for (_, node) in other.nodes.store {
+            for (_, node) in &other.nodes.store {
                 if !other_collided.contains(&node.node_ref()) {
                     // Transfer data over
                     for dref in &node.data {
@@ -759,8 +753,15 @@ impl SGraph {
                     if node.parent.is_none() {
                         self.roots.push(node.node_ref());
                     }
-                    self.nodes.set(&node.id.clone(), node);
+                    self.nodes.set(&node.id.clone(), node.clone());
                 }
+            }
+        }
+
+        for index in 0..collisions.0.len() {
+            if index < collisions.1.len() {
+                let mut collide = (collisions.0[index].clone(), collisions.1[index].clone());
+                collision_handler(self, &mut other, &mut collide)?;
             }
         }
 
@@ -837,7 +838,7 @@ impl SGraph {
     
     /// Dump this graph for debugging.
     pub fn dump(&self, data: bool) {
-        println!("Dump SGraph: {} (ver: {:?})", &self.name, &self.version);
+        println!("Dump SGraph: {} (ver: {:?})", &self.name.red(), &self.version);
         for root_ref in &self.roots {
             if let Some(root) = root_ref.node(self) {
                 println!("{}", root.dump(self, 0, data));
