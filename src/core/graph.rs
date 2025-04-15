@@ -785,7 +785,7 @@ impl SGraph {
             // Move all data from these nodes to the first node on 'graph' at this path
             let mut data = HashSet::new();
 
-            let mut children = Vec::new(); // children nodes of all others
+            let mut children: Vec<SNodeRef> = Vec::new(); // children nodes of all others
             let mut other_fields = Vec::new();
             if let Some(node) = nodes.1.node(other) {
                 for dref in &node.data {
@@ -805,6 +805,11 @@ impl SGraph {
             if let Some(node) = nodes.0.node_mut(graph) {
                 for child in &children {
                     node.put_child(child);
+                }
+            }
+            for child in &children {
+                if let Some(child) = child.node_mut(graph) {
+                    child.parent = Some(nodes.0.clone());
                 }
             }
 
