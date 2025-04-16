@@ -35,19 +35,20 @@ impl BSTOF {
     /// Parse bytes into a new document.
     /// Bytes can either be a serialized SDoc or a serialized SGraph.
     pub fn parse(bytes: &Bytes) -> Result<SDoc, SError> {
-        // 4/6/25 - removing snap compression do to corrupt input issue? compression should be an optional feature?
-        /*let mut decoder = snap::raw::Decoder::new();
-        let res = decoder.decompress_vec(&bytes);
-        let vec;
-        match res {
-            Ok(res) => vec = res,
-            Err(error) => return Err(SError::empty_fmt("bstof", &error.to_string())),
-        }*/
-        if let Ok(doc) = bincode::deserialize::<SDoc>(bytes.as_ref()) {
+        if let Ok(mut doc) = bincode::deserialize::<SDoc>(bytes.as_ref()) {
+            doc.load_std_formats();
+            doc.load_std_lib();
+
+            // Run document init functions after load
+            let _ = doc.run(None, Some("init".into()));
             Ok(doc)
         } else {
             if let Ok(graph) = bincode::deserialize::<SGraph>(bytes.as_ref()) {
-                Ok(SDoc::new(graph))
+                let mut doc = SDoc::new(graph);
+                
+                // Run document init functions after load
+                let _ = doc.run(None, Some("init".into()));
+                Ok(doc)
             } else {
                 Err(SError::empty_fmt("bstof", "failed to deserialize/parse bstof doc/graph"))
             }
@@ -58,18 +59,6 @@ impl BSTOF {
     pub fn doc_to_bytes(pid: &str, doc: &SDoc) -> Result<Bytes, SError> {
         if let Ok(bytes) = bincode::serialize(doc) {
             return Ok(bytes.into());
-
-            // 4/6/25 - removing snap compression do to corrupt input issue? compression should be an optional feature?
-            /*let mut encoder = snap::raw::Encoder::new();
-            let res = encoder.compress_vec(&bytes);
-            match res {
-                Ok(bytes) => {
-                    return Ok(bytes.into());
-                },
-                Err(error) => {
-                    return Err(SError::fmt(pid, doc, "bstof", &format!("failed to compress document to bytes: {}", error.to_string())));
-                }
-            }*/
         }
         Err(SError::fmt(pid, doc, "bstof", "could not serialize document"))
     }

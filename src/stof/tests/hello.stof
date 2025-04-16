@@ -14,9 +14,15 @@
 // limitations under the License.
 //
 
-str hello: 'hello'
+int count: 0
+
+#[init]
+fn init() {
+    // Called on parse, then on load bstof
+    self.count += 1;
+}
 
 #[main]
 fn main(): str {
-    return self.hello;
+    return self.count;
 }

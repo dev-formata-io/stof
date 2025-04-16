@@ -142,7 +142,7 @@ impl SDoc {
      *****************************************************************************/
     
     /// Load the Stof standard formats.
-    fn load_std_formats(&mut self) {
+    pub fn load_std_formats(&mut self) {
         self.load_format(Arc::new(TEXT{}));
         self.load_format(Arc::new(BYTES{}));
 
@@ -233,7 +233,7 @@ impl SDoc {
      *****************************************************************************/
 
     /// Load the Stof standard library.
-    fn load_std_lib(&mut self) {
+    pub fn load_std_lib(&mut self) {
         #[cfg(not(feature = "wasm"))]
         self.load_lib(Arc::new(FileSystemLibrary::default()));
 

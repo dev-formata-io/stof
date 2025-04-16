@@ -727,12 +727,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d66dc143e6b11c1eddc06d5c423cfc97062865baf299914ab64caa38182078fe"
 
 [[package]]
-name = "snap"
-version = "1.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b6b67fb9a61334225b5b790716f609cd58395f895b3fe8b328786812a40bc3b"
-
-[[package]]
 name = "stof"
 version = "0.3.31"
 dependencies = [
@@ -754,7 +748,6 @@ dependencies = [
  "serde-xml-rs",
  "serde_json",
  "serde_yaml",
- "snap",
  "toml",
  "typetag",
  "urlencoding",
