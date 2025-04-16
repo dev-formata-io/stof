@@ -167,10 +167,14 @@ function debugString(val) {
     return className;
 }
 
-function _assertClass(instance, klass) {
-    if (!(instance instanceof klass)) {
-        throw new Error(`expected instance of ${klass.name}`);
-    }
+export function start() {
+    wasm.start();
+}
+
+function takeFromExternrefTable0(idx) {
+    const value = wasm.__wbindgen_export_4.get(idx);
+    wasm.__externref_table_dealloc(idx);
+    return value;
 }
 
 function getArrayJsValueFromWasm0(ptr, len) {
@@ -184,14 +188,10 @@ function getArrayJsValueFromWasm0(ptr, len) {
     return result;
 }
 
-function takeFromExternrefTable0(idx) {
-    const value = wasm.__wbindgen_export_4.get(idx);
-    wasm.__externref_table_dealloc(idx);
-    return value;
-}
-
-export function start() {
-    wasm.start();
+function _assertClass(instance, klass) {
+    if (!(instance instanceof klass)) {
+        throw new Error(`expected instance of ${klass.name}`);
+    }
 }
 
 function passArrayJsValueToWasm0(array, malloc) {
@@ -1241,7 +1241,7 @@ export class StofLib {
     constructor(scope) {
         const ptr0 = passStringToWasm0(scope, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.stoflib_new(ptr0, len0);
+        const ret = wasm.stofdata_new(ptr0, len0);
         this.__wbg_ptr = ret >>> 0;
         StofLibFinalization.register(this, this.__wbg_ptr, this);
         return this;

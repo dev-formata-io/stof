@@ -30,6 +30,7 @@ impl From<SVal> for JsValue {
             },
             SVal::Bool(val) => Self::from_bool(val),
             SVal::String(val) => Self::from_str(&val),
+            SVal::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => Self::from_str(&value.to_string()),
             SVal::Number(num) => {
                 match num {
                     SNum::I64(val) => Self::from(val as i32),
