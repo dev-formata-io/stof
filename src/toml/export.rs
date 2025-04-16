@@ -51,6 +51,7 @@ fn toml_value(graph: &SGraph, val: SVal) -> Value {
     match val {
         SVal::Boxed(val) => toml_value(graph, val.lock().unwrap().clone()),
         SVal::String(val) => Value::String(val),
+        SVal::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => Value::String(val.to_string()),
         SVal::Bool(val) => Value::Boolean(val),
         SVal::Number(val) => {
             match val {

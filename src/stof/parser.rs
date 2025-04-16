@@ -132,6 +132,69 @@ pub fn parse_internal(src: &str, doc: &mut SDoc, env: &mut StofEnv) -> Result<()
 }
 
 
+/// Parse semver only.
+pub fn parse_semver(src: &str) -> Result<SVal, SError> {
+    let res = StofParser::parse(Rule::semver, src);
+    match res {
+        Ok(pairs) => {
+            for pair in pairs {
+                match pair.as_rule() {
+                    Rule::semver => {
+                        let mut major = -1;
+                        let mut minor = -1;
+                        let mut patch = -1;
+                        let mut release = None;
+                        let mut build = None;
+                        for pair in pair.into_inner() {
+                            match pair.as_rule() {
+                                Rule::semver_major => {
+                                    if let Ok(v) = pair.as_str().parse::<i32>() {
+                                        major = v;
+                                    }
+                                },
+                                Rule::semver_minor => {
+                                    if let Ok(v) = pair.as_str().parse::<i32>() {
+                                        minor = v;
+                                    }
+                                },
+                                Rule::semver_patch => {
+                                    if let Ok(v) = pair.as_str().parse::<i32>() {
+                                        patch = v;
+                                    }
+                                },
+                                Rule::semver_pre_release => {
+                                    release = Some(pair.as_str().to_owned());
+                                },
+                                Rule::semver_build => {
+                                    build = Some(pair.as_str().to_owned());
+                                },
+                                _ => {}
+                            }
+                        }
+                        return Ok(SVal::SemVer { major, minor, patch, release, build });
+                    },
+                    _ => {}
+                }
+            }
+            Err(SError {
+                pid: "main".into(),
+                error_type: ErrorType::Custom("ParseSemVerError".into()),
+                message: "failed to parse a string into a stof semver".into(),
+                call_stack: Default::default(),
+            })
+        },
+        Err(_error) => {
+            Err(SError {
+                pid: "main".into(),
+                error_type: ErrorType::Custom("ParseSemVerError".into()),
+                message: "failed to parse a string into a stof semver".into(),
+                call_stack: Default::default(),
+            })
+        }
+    }
+}
+
+
 /// Parse number only.
 pub fn parse_number(src: &str) -> Result<SVal, SError> {
     let res = StofParser::parse(Rule::number, src);
@@ -277,6 +340,7 @@ fn parse_atype(pair: Pair<Rule>) -> SType {
                     "int" => SType::Number(SNumType::I64),
                     "float" => SType::Number(SNumType::F64),
                     "str" => SType::String,
+                    "semver" => SType::SemVer,
                     "blob" => SType::Blob,
                     "bool" => SType::Bool,
                     "null" => SType::Null,
@@ -2037,8 +2101,41 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         }
                         res = Expr::Literal(SVal::Number(number));
                     },
+                    Rule::semver => {
+                        let mut major = -1;
+                        let mut minor = -1;
+                        let mut patch = -1;
+                        let mut release = None;
+                        let mut build = None;
+                        for pair in pair.into_inner() {
+                            match pair.as_rule() {
+                                Rule::semver_major => {
+                                    if let Ok(v) = pair.as_str().parse::<i32>() {
+                                        major = v;
+                                    }
+                                },
+                                Rule::semver_minor => {
+                                    if let Ok(v) = pair.as_str().parse::<i32>() {
+                                        minor = v;
+                                    }
+                                },
+                                Rule::semver_patch => {
+                                    if let Ok(v) = pair.as_str().parse::<i32>() {
+                                        patch = v;
+                                    }
+                                },
+                                Rule::semver_pre_release => {
+                                    release = Some(pair.as_str().to_owned());
+                                },
+                                Rule::semver_build => {
+                                    build = Some(pair.as_str().to_owned());
+                                },
+                                _ => {}
+                            }
+                        }
+                        res = Expr::Literal(SVal::SemVer { major, minor, patch, release, build });
+                    },
                     Rule::ident => {
-                        // This one is special for now, its actually a variable usage!
                         res = Expr::Variable(pair.as_str().into());
                     },
                     _ => {

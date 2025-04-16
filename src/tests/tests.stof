@@ -34,6 +34,12 @@ import './strings/raw' as Strings.Raw;
 
 
 /**
+ * Semver Tests.
+ */
+import './semver/std' as SemVer.StdLib;
+
+
+/**
  * Function Tests.
  */
 import './functions/decorators' as Functions.Decorators;

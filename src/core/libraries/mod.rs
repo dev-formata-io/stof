@@ -46,3 +46,6 @@ pub use blob::*;
 
 pub mod data;
 pub use data::*;
+
+pub mod semver;
+pub use semver::*;

@@ -27,6 +27,7 @@ pub enum SType {
     Null,
     Bool,
     Number(SNumType),
+    SemVer,
     String,
     Object(String),
     FnPtr,
@@ -63,6 +64,7 @@ impl PartialEq for SType {
                 }
             },
             Self::String => other.is_string(),
+            Self::SemVer => other.is_semver(),
             Self::Object(ntype) => {
                 match other {
                     Self::Object(otype) => ntype == otype,
@@ -143,6 +145,14 @@ impl SType {
     pub fn is_null(&self) -> bool {
         match self {
             SType::Null => true,
+            _ => false,
+        }
+    }
+
+    /// Is semver?
+    pub fn is_semver(&self) -> bool {
+        match self {
+            SType::SemVer => true,
             _ => false,
         }
     }
@@ -294,6 +304,7 @@ impl SType {
             SType::FnPtr => "Function".to_owned(),
             SType::Data => "Data".to_owned(),
             SType::String => "String".to_owned(),
+            SType::SemVer => "SemVer".to_owned(),
             SType::Number(_) => "Number".to_owned(),
             SType::Bool => "Bool".to_owned(),
             SType::Tuple(_) => "Tuple".to_owned(),
@@ -325,6 +336,7 @@ impl SType {
             Self::Number(ntype) => {
                 ntype.type_of()
             },
+            Self::SemVer => "semver".into(),
             Self::String => "str".into(),
             Self::Tuple(vals) => {
                 let mut res = "(".to_string();

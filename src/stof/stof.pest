@@ -40,6 +40,14 @@ single_quotes = @{ "'" ~ ("\\" ~ ("'" | "\\") | (!"'" ~ ANY))* ~ "'" }
 raw_string    = @{ "r#\"" ~ (!"\"#" ~ ANY)* ~ "\"#" }
 hash_string    = @{ "#\"" ~ (!"\"#" ~ ANY)* ~ "\"#" }
 
+// Semver Ex. 0.1.1-alpha.2+210 *.3.*-beta
+semver = ${ semver_major ~ "." ~ semver_minor ~ "." ~ semver_patch ~ ("-" ~ semver_pre_release ~ ("+" ~ semver_build)? | "+" ~ semver_build)? }
+semver_major = @{ ASCII_DIGIT+ | "*" }
+semver_minor = @{ ASCII_DIGIT+ | "*" }
+semver_patch = @{ ASCII_DIGIT+ | "*" }
+semver_pre_release = @{ (ASCII_ALPHANUMERIC | "-")+ ~ ("." ~ (ASCII_ALPHANUMERIC | "-")+)* }
+semver_build = @{ (ASCII_ALPHANUMERIC | "-")+ }
+
 // File path identifiers
 path       = ${ ("\"" ~ inner_path ~ "\"") | ("'" ~ inner_path ~ "'") }
 inner_path = @{ ("." | "/" | "@")* ~ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | ":" | "_" | "-" | "/" | ".")* }
@@ -47,7 +55,7 @@ inner_path = @{ ("." | "/" | "@")* ~ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | ":" | "
 // Literals
 bool    = { "true" | "false" }
 null    = { "null" }
-literal = { bool | null | string | number | ident }
+literal = { bool | null | string | semver | number | ident }
 
 // Types
 tuple = { "(" ~ atype ~ ("," ~ atype)+ ~ ")" }

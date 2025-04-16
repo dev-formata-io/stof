@@ -17,7 +17,7 @@
 use core::str;
 use std::{cmp::Ordering, collections::{BTreeMap, BTreeSet, HashSet}, hash::{Hash, Hasher}, ops::{Deref, DerefMut}, sync::{Arc, Mutex}};
 use serde::{Deserialize, Serialize};
-use crate::{SData, SDataRef, SDoc, SGraph, SNodeRef};
+use crate::{parse_semver, SData, SDataRef, SDoc, SGraph, SNodeRef};
 use super::{lang::SError, SField, SFunc, SNumType, SPrototype, SType, SUnits};
 
 #[cfg(feature = "json")]
@@ -198,6 +198,13 @@ pub enum SVal {
     Bool(bool),
     Number(SNum),
     String(String),
+    SemVer {
+        major: i32,
+        minor: i32,
+        patch: i32,
+        release: Option<String>,
+        build: Option<String>,
+    },
     Object(SNodeRef),
     FnPtr(SDataRef),
     Data(SDataRef),
@@ -398,8 +405,45 @@ impl Ord for SVal {
                     Self::Set(_) |
                     Self::Map(_) |
                     Self::Blob(_) => Ordering::Greater,
+                    _ => Ordering::Less,
                 }
             },
+            Self::SemVer { major, minor, patch, release, build } => {
+                match other {
+                    Self::SemVer { major: omajor, minor: ominor, patch: opatch, release: orelease, build: obuild } => {
+                        let mut cmp = major.cmp(omajor);
+                        if cmp == Ordering::Equal {
+                            cmp = minor.cmp(ominor);
+                            if cmp == Ordering::Equal {
+                                cmp = patch.cmp(opatch);
+                                if cmp == Ordering::Equal {
+                                    cmp = release.cmp(orelease);
+                                    if cmp == Ordering::Equal {
+                                        cmp = build.cmp(obuild);
+                                    }
+                                }
+                            }
+                        }
+                        return cmp;
+                    },
+                    Self::Boxed(oval) => {
+                        self.cmp(oval.lock().unwrap().deref())
+                    },
+                    Self::Void |
+                    Self::Null |
+                    Self::Bool(_) |
+                    Self::Number(_) |
+                    Self::String(_) |
+                    Self::Object(_) |
+                    Self::FnPtr(_) |
+                    Self::Array(_) |
+                    Self::Tuple(_) |
+                    Self::Set(_) |
+                    Self::Map(_) |
+                    Self::Blob(_) |
+                    Self::Data(_) => Ordering::Greater,
+                }
+            }
         }
     }
 }
@@ -540,6 +584,30 @@ impl PartialEq for SVal {
                             return true;
                         }
                         false
+                    },
+                    Self::Boxed(oval) => {
+                        self.eq(oval.lock().unwrap().deref())
+                    },
+                    _ => false,
+                }
+            },
+            Self::SemVer { major, minor, patch, release, build } => {
+                match other {
+                    Self::SemVer { major: omajor, minor: ominor, patch: opatch, release: orelease, build: obuild } => {
+                        let mut cmp = major.cmp(omajor);
+                        if cmp == Ordering::Equal {
+                            cmp = minor.cmp(ominor);
+                            if cmp == Ordering::Equal {
+                                cmp = patch.cmp(opatch);
+                                if cmp == Ordering::Equal {
+                                    cmp = release.cmp(orelease);
+                                    if cmp == Ordering::Equal {
+                                        cmp = build.cmp(obuild);
+                                    }
+                                }
+                            }
+                        }
+                        cmp.is_eq()
                     },
                     Self::Boxed(oval) => {
                         self.eq(oval.lock().unwrap().deref())
@@ -829,6 +897,7 @@ impl SVal {
             Self::Array(_) => SType::Array,
             Self::Map(_) => SType::Map,
             Self::Set(_) => SType::Set,
+            Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => SType::SemVer,
             Self::Null => SType::Null,
             Self::Tuple(vals) => {
                 let mut types: Vec<SType> = Vec::new();
@@ -870,6 +939,23 @@ impl SVal {
             Self::Void => { "void".to_string() },
             Self::Tuple(tup) => { format!("tup({:?})", tup) },
             Self::Blob(blob) => { format!("blob({}bytes)", blob.len()) },
+            Self::SemVer { major, minor, patch, release, build } => {
+                let mut major_str = format!("{major}");
+                if *major < 0 { major_str = "*".to_string(); }
+                let mut minor_str = format!("{minor}");
+                if *minor < 0 { minor_str = "*".to_string(); }
+                let mut patch_str = format!("{patch}");
+                if *patch < 0 { patch_str = "*".to_string(); }
+
+                let mut res = format!("{major_str}.{minor_str}.{patch_str}");
+                if let Some(release) = release {
+                    res.push_str(&format!("-{release}"));
+                }
+                if let Some(build) = build {
+                    res.push_str(&format!("+{build}"));
+                }
+                res
+            },
             Self::Boxed(val) => {
                 val.lock().unwrap().to_string()
             },
@@ -892,6 +978,23 @@ impl SVal {
             Self::Void => { "void".to_string() },
             Self::Tuple(tup) => { format!("tup({:?})", tup) },
             Self::Blob(blob) => { format!("blob({}bytes)", blob.len()) },
+            Self::SemVer { major, minor, patch, release, build } => {
+                let mut major_str = format!("{major}");
+                if major < 0 { major_str = "*".to_string(); }
+                let mut minor_str = format!("{minor}");
+                if minor < 0 { minor_str = "*".to_string(); }
+                let mut patch_str = format!("{patch}");
+                if patch < 0 { patch_str = "*".to_string(); }
+
+                let mut res = format!("{major_str}.{minor_str}.{patch_str}");
+                if let Some(release) = release {
+                    res.push_str(&format!("-{release}"));
+                }
+                if let Some(build) = build {
+                    res.push_str(&format!("+{build}"));
+                }
+                res
+            },
             Self::Boxed(val) => {
                 val.lock().unwrap().to_string()
             },
@@ -914,6 +1017,7 @@ impl SVal {
             Self::Tuple(_) => true,
             Self::Void => false,
             Self::Blob(_) => true,
+            Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => true,
             Self::Boxed(val) => {
                 val.lock().unwrap().truthy()
             },
@@ -1016,6 +1120,7 @@ impl SVal {
             SVal::FnPtr(_) |
             SVal::Data(_) |
             SVal::String(_) |
+            SVal::SemVer { major: _, minor: _, patch: _, release: _, build: _ } |
             SVal::Bool(_) => {
                 if self != other {
                     match other {
@@ -1259,6 +1364,9 @@ impl SVal {
                     SType::String => {
                         Ok(Self::String(val.clone()))
                     },
+                    SType::SemVer => {
+                        parse_semver(val)
+                    },
                     SType::Number(ntype) => {
                         match ntype {
                             SNumType::I64 => {
@@ -1282,6 +1390,13 @@ impl SVal {
                         }
                     },
                     stype => Err(SError::val(pid, &doc, "cast", &format!("cannot cast a string to type: {:?}", stype)))
+                }
+            },
+            Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                match target {
+                    SType::SemVer => Ok(self.clone()),
+                    SType::String => Ok(self.to_string().into()),
+                    stype => Err(SError::val(pid, &doc, "cast", &format!("cannot cast a semver to type: {:?}", stype)))
                 }
             },
             Self::Tuple(vals) => {
@@ -1468,6 +1583,9 @@ impl SVal {
             Self::Number(val) => {
                 val.print()
             },
+            Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                self.to_string()
+            },
             Self::String(val) => {
                 val.clone()
             },
@@ -1541,6 +1659,9 @@ impl SVal {
             Self::Number(val) => {
                 val.debug()
             },
+            Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                format!("{:?}", self)
+            },
             Self::String(val) => {
                 format!("{:?}", val)
             },
@@ -1578,6 +1699,61 @@ impl SVal {
 
     /// Equality.
     pub fn equal(&self, other: &Self) -> Result<Self, SError> {
+        // SemVer equality: SemVer == SemVer || SemVer == String (does not parse String to SemVer for performance reasons)
+        match self {
+            Self::SemVer { major, minor, patch, release, build } => {
+                match other {
+                    Self::String(semver) => {
+                        if let Ok(semver) = parse_semver(semver) {
+                            match semver {
+                                Self::SemVer { major: omajor, minor: ominor, patch: opatch, release: orelease, build: obuild } => {
+                                    let mut cmp = major.cmp(&omajor);
+                                    if *major < 0 || omajor < 0 || cmp == Ordering::Equal {
+                                        cmp = minor.cmp(&ominor);
+                                        if *minor < 0 || ominor < 0 || cmp == Ordering::Equal {
+                                            cmp = patch.cmp(&opatch);
+                                            if *patch < 0 || opatch < 0 || cmp == Ordering::Equal {
+                                                cmp = release.cmp(&orelease);
+                                                if cmp == Ordering::Equal {
+                                                    cmp = build.cmp(&obuild);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    return Ok(cmp.is_eq().into());
+                                },
+                                _ => {}
+                            }
+                        }
+                        return Ok(SVal::Bool(false));
+                    },
+                    Self::SemVer { major: omajor, minor: ominor, patch: opatch, release: orelease, build: obuild } => {
+                        let mut cmp = major.cmp(omajor);
+                        if *major < 0 || *omajor < 0 || cmp == Ordering::Equal {
+                            cmp = minor.cmp(ominor);
+                            if *minor < 0 || *ominor < 0 || cmp == Ordering::Equal {
+                                cmp = patch.cmp(opatch);
+                                if *patch < 0 || *opatch < 0 || cmp == Ordering::Equal {
+                                    cmp = release.cmp(orelease);
+                                    if cmp == Ordering::Equal {
+                                        cmp = build.cmp(obuild);
+                                    }
+                                }
+                            }
+                        }
+                        return Ok(cmp.is_eq().into());
+                    },
+                    Self::Boxed(oval) => {
+                        return self.equal(&oval.lock().unwrap().deref());
+                    }
+                    _ => {}
+                }
+            },
+            Self::Boxed(val) => {
+                return val.lock().unwrap().deref().equal(other);
+            },
+            _ => {}
+        }
         Ok((self == other).into())
     }
 
@@ -1640,6 +1816,51 @@ impl SVal {
                     _ => Ok(Self::Bool(false)),
                 }
             },
+            Self::SemVer { major, minor, patch, release, build } => {
+                match other {
+                    Self::String(semver) => {
+                        if let Ok(semver) = parse_semver(semver) {
+                            match &semver {
+                                Self::SemVer { major: omajor, minor: ominor, patch: opatch, release: orelease, build: obuild } => {
+                                    let mut cmp = major.cmp(omajor);
+                                    if *major < 0 || *omajor < 0 || cmp == Ordering::Equal {
+                                        cmp = minor.cmp(ominor);
+                                        if *minor < 0 || *ominor < 0 || cmp == Ordering::Equal {
+                                            cmp = patch.cmp(opatch);
+                                            if *patch < 0 || *opatch < 0 || cmp == Ordering::Equal {
+                                                cmp = release.cmp(orelease);
+                                                if cmp == Ordering::Equal {
+                                                    cmp = build.cmp(obuild);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    return Ok(cmp.is_gt().into());
+                                },
+                                _ => {}
+                            }
+                        }
+                        Ok(Self::Bool(false))
+                    },
+                    Self::SemVer { major: omajor, minor: ominor, patch: opatch, release: orelease, build: obuild } => {
+                        let mut cmp = major.cmp(omajor);
+                        if *major < 0 || *omajor < 0 || cmp == Ordering::Equal {
+                            cmp = minor.cmp(ominor);
+                            if *minor < 0 || *ominor < 0 || cmp == Ordering::Equal {
+                                cmp = patch.cmp(opatch);
+                                if *patch < 0 || *opatch < 0 || cmp == Ordering::Equal {
+                                    cmp = release.cmp(orelease);
+                                    if cmp == Ordering::Equal {
+                                        cmp = build.cmp(obuild);
+                                    }
+                                }
+                            }
+                        }
+                        Ok(cmp.is_gt().into())
+                    },
+                    _ => Ok(Self::Bool(false)),
+                }
+            },
         }
     }
 
@@ -1692,6 +1913,51 @@ impl SVal {
             Self::Set(set) => {
                 match other {
                     Self::Set(oset) => Ok(Self::Bool(set.len() < oset.len())),
+                    _ => Ok(Self::Bool(false)),
+                }
+            },
+            Self::SemVer { major, minor, patch, release, build } => {
+                match other {
+                    Self::String(semver) => {
+                        if let Ok(semver) = parse_semver(semver) {
+                            match &semver {
+                                Self::SemVer { major: omajor, minor: ominor, patch: opatch, release: orelease, build: obuild } => {
+                                    let mut cmp = major.cmp(omajor);
+                                    if *major < 0 || *omajor < 0 || cmp == Ordering::Equal {
+                                        cmp = minor.cmp(ominor);
+                                        if *minor < 0 || *ominor < 0 || cmp == Ordering::Equal {
+                                            cmp = patch.cmp(opatch);
+                                            if *patch < 0 || *opatch < 0 || cmp == Ordering::Equal {
+                                                cmp = release.cmp(orelease);
+                                                if cmp == Ordering::Equal {
+                                                    cmp = build.cmp(obuild);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    return Ok(cmp.is_lt().into());
+                                },
+                                _ => {}
+                            }
+                        }
+                        Ok(Self::Bool(false))
+                    },
+                    Self::SemVer { major: omajor, minor: ominor, patch: opatch, release: orelease, build: obuild } => {
+                        let mut cmp = major.cmp(omajor);
+                        if *major < 0 || *omajor < 0 || cmp == Ordering::Equal {
+                            cmp = minor.cmp(ominor);
+                            if *minor < 0 || *ominor < 0 || cmp == Ordering::Equal {
+                                cmp = patch.cmp(opatch);
+                                if *patch < 0 || *opatch < 0 || cmp == Ordering::Equal {
+                                    cmp = release.cmp(orelease);
+                                    if cmp == Ordering::Equal {
+                                        cmp = build.cmp(obuild);
+                                    }
+                                }
+                            }
+                        }
+                        Ok(cmp.is_lt().into())
+                    },
                     _ => Ok(Self::Bool(false)),
                 }
             },
@@ -1804,6 +2070,9 @@ impl SVal {
                     Self::Set(_) => {
                         Err(SError::val(pid, &doc, "add", "cannot add a bool and a set"))
                     },
+                    Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                        Err(SError::val(pid, &doc, "add", "cannot add a bool and a semver"))
+                    },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of")
                 }
             },
@@ -1844,6 +2113,9 @@ impl SVal {
                     },
                     Self::Set(_) => {
                         Err(SError::val(pid, &doc, "add", "cannot add a string and a set"))
+                    },
+                    Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                        Err(SError::val(pid, &doc, "add", "cannot add a string and a semver"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of")
                 }
@@ -1888,6 +2160,9 @@ impl SVal {
                     },
                     Self::Set(_) => {
                         Err(SError::val(pid, &doc, "add", "cannot add a number and a set"))
+                    },
+                    Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                        Err(SError::val(pid, &doc, "add", "cannot add a number and a semver"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of")
                 }
@@ -1939,6 +2214,9 @@ impl SVal {
                     Self::Map(_) => {
                         Err(SError::val(pid, &doc, "add", "cannot add an array and a map"))
                     },
+                    Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                        Err(SError::val(pid, &doc, "add", "cannot add an array and a semver"))
+                    },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of")
                 }
             },
@@ -1950,6 +2228,9 @@ impl SVal {
             },
             Self::Data(_) => {
                 Err(SError::val(pid, &doc, "add", "cannot add an opaque data pointer with anything"))
+            },
+            Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                Err(SError::val(pid, &doc, "add", "cannot add a semver with anything"))
             },
             Self::Map(mut map) => {
                 match other {
@@ -2051,6 +2332,9 @@ impl SVal {
                     Self::Set(_) => {
                         Err(SError::val(pid, &doc, "subtract", "cannot subtract a set from a bool"))
                     },
+                    Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract a semver from a bool"))
+                    },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
@@ -2090,6 +2374,9 @@ impl SVal {
                     },
                     Self::Set(_) => {
                         Err(SError::val(pid, &doc, "subtract", "cannot subtract a set from a string"))
+                    },
+                    Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract a semver from a string"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
@@ -2137,6 +2424,9 @@ impl SVal {
                     Self::Set(_) => {
                         Err(SError::val(pid, &doc, "subtract", "cannot subtract a set from a number"))
                     },
+                    Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                        Err(SError::val(pid, &doc, "subtract", "cannot subtract a semver from a number"))
+                    },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
@@ -2151,6 +2441,9 @@ impl SVal {
             },
             Self::Data(_) => {
                 Err(SError::val(pid, &doc, "subtract", "cannot subtract anything from an opaque data pointer"))
+            },
+            Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                Err(SError::val(pid, &doc, "subtract", "cannot subtract anything from a semver"))
             },
             Self::Map(mut map) => {
                 match other {
@@ -2256,6 +2549,9 @@ impl SVal {
                     Self::Set(_) => {
                         Err(SError::val(pid, &doc, "multiply", "cannot multiply a bool and a set"))
                     },
+                    Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a bool and a semver"))
+                    },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
@@ -2299,6 +2595,9 @@ impl SVal {
                     },
                     Self::Set(_) => {
                         Err(SError::val(pid, &doc, "multiply", "cannot multiply a string and a set"))
+                    },
+                    Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a string and a semver"))
                     },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
@@ -2344,6 +2643,9 @@ impl SVal {
                     Self::Set(_) => {
                         Err(SError::val(pid, &doc, "multiply", "cannot multiply a number and a set"))
                     },
+                    Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                        Err(SError::val(pid, &doc, "multiply", "cannot multiply a number and a semver"))
+                    },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
@@ -2358,6 +2660,9 @@ impl SVal {
             },
             Self::Data(_) => {
                 Err(SError::val(pid, &doc, "multiply", "cannot multiply an opaque data pointer"))
+            },
+            Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                Err(SError::val(pid, &doc, "multiply", "cannot multiply a semver with anything"))
             },
             Self::Set(set) => {
                 match other {
@@ -2490,6 +2795,9 @@ impl SVal {
                     Self::Set(_) => {
                         Err(SError::val(pid, &doc, "divide", "cannot divide a bool with a set"))
                     },
+                    Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a bool with a semver"))
+                    },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
@@ -2535,6 +2843,9 @@ impl SVal {
                     Self::Set(_) => {
                         Err(SError::val(pid, &doc, "divide", "cannot divide a string with a set"))
                     },
+                    Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a string with a semver"))
+                    },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
@@ -2579,6 +2890,9 @@ impl SVal {
                     Self::Set(_) => {
                         Err(SError::val(pid, &doc, "divide", "cannot divide a number with a set"))
                     },
+                    Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                        Err(SError::val(pid, &doc, "divide", "cannot divide a number with a semver"))
+                    },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
@@ -2593,6 +2907,9 @@ impl SVal {
             },
             Self::Data(_) => {
                 Err(SError::val(pid, &doc, "divide", "cannot divide an opaque data pointer"))
+            },
+            Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                Err(SError::val(pid, &doc, "divide", "cannot divide a semver"))
             },
             Self::Map(_) => {
                 Err(SError::val(pid, &doc, "divide", "cannot divide a map"))
@@ -2667,6 +2984,9 @@ impl SVal {
                     Self::Set(_) => {
                         Err(SError::val(pid, &doc, "modulo", "cannot divide a bool with a set"))
                     },
+                    Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a bool with a semver"))
+                    },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
@@ -2712,6 +3032,9 @@ impl SVal {
                     Self::Set(_) => {
                         Err(SError::val(pid, &doc, "modulo", "cannot divide a string with a set"))
                     },
+                    Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a string with a semver"))
+                    },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
@@ -2756,6 +3079,9 @@ impl SVal {
                     Self::Set(_) => {
                         Err(SError::val(pid, &doc, "modulo", "cannot divide a number with a set"))
                     },
+                    Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                        Err(SError::val(pid, &doc, "modulo", "cannot divide a number with a semver"))
+                    },
                     Self::Boxed(_) => unreachable!("Boxed other is already taken care of"),
                 }
             },
@@ -2770,6 +3096,9 @@ impl SVal {
             },
             Self::Data(_) => {
                 Err(SError::val(pid, &doc, "modulo", "cannot divide an opaque data pointer"))
+            },
+            Self::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => {
+                Err(SError::val(pid, &doc, "modulo", "cannot divide a semver"))
             },
             Self::Set(set) => {
                 match other {

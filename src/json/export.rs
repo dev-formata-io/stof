@@ -52,6 +52,7 @@ fn json_value(graph: &SGraph, val: SVal) -> Value {
         SVal::Boxed(val) => json_value(graph, val.lock().unwrap().clone()),
         SVal::Void => Value::Null,
         SVal::Null => Value::Null,
+        SVal::SemVer { major: _, minor: _, patch: _, release: _, build: _ } => Value::String(val.to_string()),
         SVal::String(val) => Value::String(val),
         SVal::Bool(val) => Value::Bool(val),
         SVal::Number(val) => Value::Number(Number::from(val)),
