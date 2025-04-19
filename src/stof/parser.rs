@@ -2183,6 +2183,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
         Rule::stof_type_constructor => {
             let mut cast_object_type = None;
             let mut block_statements = Vec::new();
+            let mut on_expr = None;
             for pair in pair.into_inner() {
                 match pair.as_rule() {
                     Rule::ident => {
@@ -2210,15 +2211,18 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         }
                         block_statements.push(Statement::Assign(field_name.into(), expr));
                     },
+                    Rule::expr => {
+                        on_expr = Some(Box::new(parse_expression(doc, env, pair)?));
+                    },
                     _ => {}
                 }
             }
 
             // New object expression - creates the object at runtime under self
             if let Some(cast) = cast_object_type {
-                res = Expr::Cast(cast, Box::new(Expr::NewObject(Statements::from(block_statements))));
+                res = Expr::Cast(cast, Box::new(Expr::NewObject(Statements::from(block_statements), on_expr)));
             } else {
-                res = Expr::NewObject(Statements::from(block_statements));
+                res = Expr::NewObject(Statements::from(block_statements), on_expr);
             }
         },
         Rule::if_expr => { // modified ternary expression

@@ -161,7 +161,7 @@ fmt_expr_i =  { (fmt_inner | "\\" ~ ("`" | "\\") | (!"`" ~ ANY))* }
 fmt_inner  =  { "${" ~ expr ~ "}" }
 
 // Type constructor
-stof_type_constructor  = { "new" ~ ident? ~ "{" ~ (stof_type_field_create ~ (("," | ";")? ~ stof_type_field_create)*)? ~ ("," | ";")? ~ "}" }
+stof_type_constructor  = { "new" ~ ident? ~ "{" ~ (stof_type_field_create ~ (("," | ";")? ~ stof_type_field_create)*)? ~ ("," | ";")? ~ "}" ~ ("on" ~ expr)? }
 stof_type_field_create = { (string | ident) ~ ":" ~ expr | ident }
 
 // Math expressions

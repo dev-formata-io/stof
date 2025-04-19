@@ -45,7 +45,7 @@ pub enum Expr {
     },
 
     Block(Statements),
-    NewObject(Statements),
+    NewObject(Statements, Option<Box<Expr>>),
 
     Add(Vec<Expr>),
     Sub(Vec<Expr>),
@@ -211,9 +211,36 @@ impl Expr {
                 // Block did not return anything!
                 Ok(SVal::Void)
             },
-            Expr::NewObject(statements) => {
+            Expr::NewObject(statements, on) => {
+                let mut on_parent = None;
+                if let Some(on_expr) = on {
+                    let res = on_expr.exec(pid, doc)?;
+                    match res {
+                        SVal::Object(nref) => {
+                            on_parent = Some(nref);
+                        },
+                        SVal::Boxed(val) => {
+                            let val = val.lock().unwrap();
+                            let val = val.deref();
+                            match val {
+                                SVal::Object(nref) => {
+                                    on_parent = Some(nref.clone());
+                                },
+                                _ => {
+                                    return Err(SError::custom(pid, &doc, "NewObjectError", "'on' expression must evaluate to an object"));
+                                }
+                            }
+                        },
+                        _ => {
+                            return Err(SError::custom(pid, &doc, "NewObjectError", "'on' expression must evaluate to an object"));
+                        }
+                    }
+                }
+
                 let stof_object;
-                if let Some(parent) = doc.self_ptr(pid) {
+                if let Some(on) = on_parent {
+                    stof_object = doc.graph.insert_node(&format!("obj{}", nanoid!(7)), Some(&on));
+                } else if let Some(parent) = doc.self_ptr(pid) {
                     stof_object = doc.graph.insert_node(&format!("obj{}", nanoid!(7)), Some(&parent));
                 } else {
                     stof_object = doc.graph.insert_node(&format!("obj{}", nanoid!(7)), None);
