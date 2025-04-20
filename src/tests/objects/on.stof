@@ -31,3 +31,16 @@ fn on_field(): str {
     assertEq(a.parent().name(), self.sub.name());
     return self.sub.name();
 }
+
+#[test]
+fn on_on() {
+    let b = new {};
+    let a = new {} on new {} on b;
+    assertEq(a.parent().parent(), b);
+}
+
+#[test]
+#[errors]
+fn on_error() {
+    let b = new {} on 45;
+}

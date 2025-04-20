@@ -167,14 +167,10 @@ function debugString(val) {
     return className;
 }
 
-export function start() {
-    wasm.start();
-}
-
-function takeFromExternrefTable0(idx) {
-    const value = wasm.__wbindgen_export_4.get(idx);
-    wasm.__externref_table_dealloc(idx);
-    return value;
+function _assertClass(instance, klass) {
+    if (!(instance instanceof klass)) {
+        throw new Error(`expected instance of ${klass.name}`);
+    }
 }
 
 function getArrayJsValueFromWasm0(ptr, len) {
@@ -188,10 +184,14 @@ function getArrayJsValueFromWasm0(ptr, len) {
     return result;
 }
 
-function _assertClass(instance, klass) {
-    if (!(instance instanceof klass)) {
-        throw new Error(`expected instance of ${klass.name}`);
-    }
+function takeFromExternrefTable0(idx) {
+    const value = wasm.__wbindgen_export_4.get(idx);
+    wasm.__externref_table_dealloc(idx);
+    return value;
+}
+
+export function start() {
+    wasm.start();
 }
 
 function passArrayJsValueToWasm0(array, malloc) {
