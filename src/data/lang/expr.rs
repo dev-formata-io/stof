@@ -411,6 +411,19 @@ impl Expr {
                 let stype = variable_value.stype(&doc.graph);
                 if !variable_value.is_empty() {
                     library_name = stype.std_libname();
+
+                    if stype.is_data() {
+                        match variable_value.clone().unbox() {
+                            SVal::Data(dref) => {
+                                if let Some(tagname) = SData::tagname(&doc.graph, dref) {
+                                    // If the tagname points to a library, use that library instead of "Data"
+                                    // Recommended to implement "Data" lib functions on these libraries also
+                                    library_name = SType::data_type_libname(&doc, &library_name, &tagname);
+                                }
+                            },
+                            _ => {}
+                        }
+                    }
                 }
                 if let Some(lib) = doc.library(&library_name) {
                     let mut func_params = vec![variable_value];

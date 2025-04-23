@@ -36,3 +36,40 @@ fn drop_function() {
     drop self.test_fn;
     assertNull(self.test_fn);
 }
+
+test_fn_field: ():bool => true;
+#[test]
+fn drop_function_field() {
+    let opaque = Data.fromId(self.test_fn_field.id());
+    assert(opaque.exists());
+
+    drop self.test_fn_field;
+    assertNot(opaque.exists());
+}
+
+#[test]
+#[errors]
+fn drop_object_symbol() {
+    let o = new {};
+    let copy = o;
+    drop o;
+    copy.name(); // dangling object reference (blah...)
+}
+
+obj_field: {}
+#[test]
+#[errors]
+fn drop_object_field() {
+    let o = self.obj_field;
+    drop self.obj_field;
+    o.name();
+}
+
+data_drop: 42
+#[test]
+fn drop_data() {
+    let dta = Data.from('self.data_drop');
+    assert(dta.exists());
+    drop dta;
+    assertNull(self.data_drop);
+}

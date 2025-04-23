@@ -89,6 +89,66 @@ impl DataLibrary {
                     }
                 }
             },
+            "move" => {
+                if parameters.len() < 2 {
+                    return Err(SError::data(pid, &doc, "move", "move must have an object 'from' and an object 'to'"));
+                }
+                
+                let from;
+                let to;
+                match &parameters[0] {
+                    SVal::Object(nref) => {
+                        from = Some(nref.clone());
+                    },
+                    SVal::Boxed(val) => {
+                        let val = val.lock().unwrap();
+                        let val = val.deref();
+                        match val {
+                            SVal::Object(nref) => {
+                                from = Some(nref.clone());
+                            },
+                            _ => {
+                                return Err(SError::data(pid, &doc, "move", "move 'from' must be an object"));
+                            }
+                        }
+                    },
+                    _ => {
+                        return Err(SError::data(pid, &doc, "move", "move 'from' must be an object"));
+                    }
+                }
+                match &parameters[1] {
+                    SVal::Object(nref) => {
+                        to = Some(nref.clone());
+                    },
+                    SVal::Boxed(val) => {
+                        let val = val.lock().unwrap();
+                        let val = val.deref();
+                        match val {
+                            SVal::Object(nref) => {
+                                to = Some(nref.clone());
+                            },
+                            _ => {
+                                return Err(SError::data(pid, &doc, "move", "move 'to' must be an object"));
+                            }
+                        }
+                    },
+                    _ => {
+                        return Err(SError::data(pid, &doc, "move", "move 'to' must be an object"));
+                    }
+                }
+                
+                if let Some(from) = from {
+                    if let Some(to) = to {
+                        if doc.graph.put_data_ref(to, data.clone()) {
+                            if doc.graph.remove_data(data.clone(), Some(&from)) {
+                                return Ok(SVal::Bool(true));
+                            }
+                        }
+                        return Ok(SVal::Bool(false));
+                    }
+                }
+                Err(SError::data(pid, &doc, "move", "move must have an object 'from' and an object 'to'"))
+            },
             _ => {
                 Err(SError::data(pid, &doc, "NotFound", &format!("{} is not a function in the Data Library", name)))
             }

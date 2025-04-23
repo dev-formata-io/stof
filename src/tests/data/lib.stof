@@ -99,6 +99,21 @@ drop: {
     }
 }
 
+move: {
+    source: {
+        field: 42
+    }
+    dest: {}
+
+    #[test]
+    fn move_data() {
+        let dref = Data.from('self.source.field');
+        dref.move(self.source, self.dest);
+        assertNull(self.source.field);
+        assertEq(self.dest.field, 42);
+    }
+}
+
 // Make sure the data type works
 fn pass_data(dref: data): bool {
     return dref.exists();

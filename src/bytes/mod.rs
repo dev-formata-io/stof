@@ -15,6 +15,7 @@
 //
 
 use core::str;
+use std::ops::Deref;
 use bytes::Bytes;
 use crate::{lang::SError, Format, IntoNodeRef, SData, SDoc, SField, SGraph, SVal};
 
@@ -41,6 +42,14 @@ impl BYTES {
         if let Some(field) = SField::field(&doc.graph, "bytes", '.', doc.graph.main_root().as_ref()) {
             match &field.value {
                 SVal::Blob(bytes) => return Ok(Bytes::from(bytes.clone())),
+                SVal::Boxed(val) => {
+                    let val = val.lock().unwrap();
+                    let val = val.deref();
+                    match val {
+                        SVal::Blob(bytes) => return Ok(Bytes::from(bytes.clone())),
+                        _ => {}
+                    }
+                },
                 _ => {}
             }
         }
@@ -52,6 +61,14 @@ impl BYTES {
         if let Some(field) = SField::field(&doc.graph, "bytes", '.', Some(&node.node_ref())) {
             match &field.value {
                 SVal::Blob(bytes) => return Ok(Bytes::from(bytes.clone())),
+                SVal::Boxed(val) => {
+                    let val = val.lock().unwrap();
+                    let val = val.deref();
+                    match val {
+                        SVal::Blob(bytes) => return Ok(Bytes::from(bytes.clone())),
+                        _ => {}
+                    }
+                },
                 _ => {}
             }
         }

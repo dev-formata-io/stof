@@ -16,7 +16,7 @@
 
 use std::ops::Deref;
 use serde::{Deserialize, Serialize};
-use crate::{parse_type, SUnits};
+use crate::{parse_type, SDoc, SUnits};
 
 
 /// Stof Value Types.
@@ -252,6 +252,7 @@ impl SType {
     pub fn is_data(&self) -> bool {
         match self {
             SType::Data => true,
+            SType::Boxed(stype) => stype.is_data(),
             _ => false
         }
     }
@@ -316,6 +317,14 @@ impl SType {
                 btype.std_libname()
             },
         }
+    }
+
+    /// Data type libname.
+    pub fn data_type_libname(doc: &SDoc, libname: &str, tagname: &str) -> String {
+        if libname == "Data" && doc.libraries.libraries.contains_key(tagname) {
+            return tagname.to_owned();
+        }
+        libname.to_owned()
     }
 
     /// Typeof.

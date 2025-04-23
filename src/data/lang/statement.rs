@@ -170,7 +170,7 @@ impl Statements {
                     // Try dropping a variable in the symbol table by name
                     let mut dropped_var = false;
                     if let Some(symbol) = doc.drop(pid, &name) {
-                        let dropped_val = symbol.var();
+                        let dropped_val = symbol.var().unbox();
                         match &dropped_val {
                             SVal::Object(nref) => {
                                 if !doc.perms.can_write_scope(&doc.graph, &nref, doc.self_ptr(pid).as_ref()) {
@@ -187,6 +187,9 @@ impl Statements {
                                     doc.add_variable(pid, &name, dropped_val);
                                 }
                             },
+                            SVal::Data(dref) => {
+                                doc.graph.remove_data(dref, None);
+                            },
                             _ => {}
                         }
                         dropped_var = true;
@@ -196,6 +199,7 @@ impl Statements {
                         if let Some(field_ref) = SField::field_ref(&doc.graph, &name, '.', None) {
                             let mut remove = true;
                             let mut remove_objects = Vec::new();
+                            let mut remove_data = Vec::new();
                             if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
                                 if !doc.perms.can_write_field(&doc.graph, &field_ref, doc.self_ptr(pid).as_ref()) {
                                     remove = false;
@@ -204,15 +208,11 @@ impl Statements {
                                         SVal::Object(nref) => {
                                             remove_objects.push(nref.clone());
                                         },
-                                        SVal::Array(vec) => {
-                                            for val in vec {
-                                                match val {
-                                                    SVal::Object(nref) => {
-                                                        remove_objects.push(nref.clone());
-                                                    },
-                                                    _ => {}
-                                                }
-                                            }
+                                        SVal::Data(dref) => {
+                                            remove_data.push(dref.clone());
+                                        },
+                                        SVal::FnPtr(dref) => {
+                                            remove_data.push(dref.clone());
                                         },
                                         SVal::Boxed(val) => {
                                             let val = val.lock().unwrap();
@@ -221,15 +221,11 @@ impl Statements {
                                                 SVal::Object(nref) => {
                                                     remove_objects.push(nref.clone());
                                                 },
-                                                SVal::Array(vec) => {
-                                                    for val in vec {
-                                                        match val {
-                                                            SVal::Object(nref) => {
-                                                                remove_objects.push(nref.clone());
-                                                            },
-                                                            _ => {}
-                                                        }
-                                                    }
+                                                SVal::Data(dref) => {
+                                                    remove_data.push(dref.clone());
+                                                },
+                                                SVal::FnPtr(dref) => {
+                                                    remove_data.push(dref.clone());
                                                 },
                                                 _ => {}
                                             }
@@ -240,6 +236,9 @@ impl Statements {
                             }
                             if remove {
                                 doc.graph.remove_data(&field_ref, None);
+                                for dta in remove_data {
+                                    doc.graph.remove_data(&dta, None);
+                                }
                                 for obj in remove_objects {
                                     doc.types.drop_types_for(&obj, &doc.graph);
                                     doc.graph.remove_node(&obj);
@@ -300,6 +299,7 @@ impl Statements {
                                 } else if let Some(field_ref) = SField::field_ref(&doc.graph, &context_path, '.', Some(&context)) {
                                     let mut remove = true;
                                     let mut remove_objects = Vec::new();
+                                    let mut remove_data = Vec::new();
                                     if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
                                         if !doc.perms.can_write_field(&doc.graph, &field_ref, doc.self_ptr(pid).as_ref()) {
                                             remove = false;
@@ -308,15 +308,11 @@ impl Statements {
                                                 SVal::Object(nref) => {
                                                     remove_objects.push(nref.clone());
                                                 },
-                                                SVal::Array(vec) => {
-                                                    for val in vec {
-                                                        match val {
-                                                            SVal::Object(nref) => {
-                                                                remove_objects.push(nref.clone());
-                                                            },
-                                                            _ => {}
-                                                        }
-                                                    }
+                                                SVal::Data(dref) => {
+                                                    remove_data.push(dref.clone());
+                                                },
+                                                SVal::FnPtr(dref) => {
+                                                    remove_data.push(dref.clone());
                                                 },
                                                 SVal::Boxed(val) => {
                                                     let val = val.lock().unwrap();
@@ -325,15 +321,11 @@ impl Statements {
                                                         SVal::Object(nref) => {
                                                             remove_objects.push(nref.clone());
                                                         },
-                                                        SVal::Array(vec) => {
-                                                            for val in vec {
-                                                                match val {
-                                                                    SVal::Object(nref) => {
-                                                                        remove_objects.push(nref.clone());
-                                                                    },
-                                                                    _ => {}
-                                                                }
-                                                            }
+                                                        SVal::Data(dref) => {
+                                                            remove_data.push(dref.clone());
+                                                        },
+                                                        SVal::FnPtr(dref) => {
+                                                            remove_data.push(dref.clone());
                                                         },
                                                         _ => {}
                                                     }
@@ -344,6 +336,9 @@ impl Statements {
                                     }
                                     if remove {
                                         doc.graph.remove_data(&field_ref, None);
+                                        for dta in remove_data {
+                                            doc.graph.remove_data(&dta, None);
+                                        }
                                         for obj in remove_objects {
                                             doc.types.drop_types_for(&obj, &doc.graph);
                                             doc.graph.remove_node(&obj);

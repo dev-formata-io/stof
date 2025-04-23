@@ -25,6 +25,10 @@ impl FunctionLibrary {
     /// Call function operation.
     pub fn operate(&self, pid: &str, doc: &mut SDoc, name: &str, dref: &SDataRef, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
         match name {
+            // Get the ID of this function ref.
+            "id" => {
+                Ok(SVal::String(dref.id.clone()))
+            },
             // Get the name of this function.
             "name" => {
                 let func: &SFunc = dref.data(&doc.graph).unwrap().get_data().unwrap();
