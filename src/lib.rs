@@ -47,5 +47,8 @@ pub mod xml;
 #[cfg(feature = "urlencoded")]
 pub mod urlencoded;
 
+#[cfg(feature = "image")]
+pub mod image;
+
 #[cfg(test)]
 mod tests;

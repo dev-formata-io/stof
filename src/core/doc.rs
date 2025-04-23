@@ -47,6 +47,11 @@ use crate::xml::XML;
 #[cfg(feature = "urlencoded")]
 use crate::urlencoded::URLENC;
 
+#[cfg(feature = "image")]
+use crate::image::load_image_formats;
+#[cfg(feature = "image")]
+use crate::image::library::SImageLibrary;
+
 
 /// Stof Document.
 /// Holds a Graph, containing the data contained within this document as well as
@@ -177,6 +182,10 @@ impl SDoc {
         // URL encoding "urlencoded" format
         #[cfg(feature = "urlencoded")]
         self.load_format(Arc::new(URLENC{}));
+
+        // IMAGE formats
+        #[cfg(feature = "image")]
+        load_image_formats(self);
     }
 
     /// Load a format into this document.
@@ -253,6 +262,9 @@ impl SDoc {
         self.load_lib(Arc::new(BlobLibrary::default()));
         self.load_lib(Arc::new(SemVerLibrary::default()));
         self.load_lib(Arc::new(DataLibrary::default()));
+
+        #[cfg(feature = "image")]
+        self.load_lib(Arc::new(SImageLibrary::default()));
     }
     
     /// Load a library into this document.
