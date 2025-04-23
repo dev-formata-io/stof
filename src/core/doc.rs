@@ -18,7 +18,7 @@ use std::{collections::HashSet, sync::Arc, time::SystemTime};
 use bytes::Bytes;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
-use crate::{bytes::BYTES, lang::SError, text::TEXT, SData, SField, SFunc, SVal, BSTOF, STOF};
+use crate::{bytes::BYTES, lang::SError, text::{TXT,TEXT}, SData, SField, SFunc, SVal, BSTOF, STOF};
 use super::{runtime::{DocPermissions, Library, Symbol, SymbolTable}, ArrayLibrary, BlobLibrary, SemVerLibrary, BoolLibrary, CustomTypes, DataLibrary, Format, FunctionLibrary, IntoDataRef, IntoNodeRef, MapLibrary, NumberLibrary, ObjectLibrary, SDataRef, SFormats, SGraph, SLibraries, SNodeRef, SProcesses, SetLibrary, StdLibrary, StringLibrary, TupleLibrary};
 
 #[cfg(not(feature = "wasm"))]
@@ -149,6 +149,7 @@ impl SDoc {
     /// Load the Stof standard formats.
     pub fn load_std_formats(&mut self) {
         self.load_format(Arc::new(TEXT{}));
+        self.load_format(Arc::new(TXT{})); // text format for .txt files
         self.load_format(Arc::new(BYTES{}));
 
         // STOF format ".stof" text files
@@ -183,7 +184,7 @@ impl SDoc {
         #[cfg(feature = "urlencoded")]
         self.load_format(Arc::new(URLENC{}));
 
-        // IMAGE formats
+        // IMAGE formats (.jpg, .png, .bmp, .ico, .tiff, .tif, .gif, .webp)
         #[cfg(feature = "image")]
         load_image_formats(self);
     }
