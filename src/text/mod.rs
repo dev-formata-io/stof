@@ -58,71 +58,9 @@ impl Format for TEXT {
         "text".to_string()
     }
 
-    /// Content type.
-    fn content_type(&self) -> String {
-        "text/plain".to_string()
-    }
-
-    /// Header import.
-    fn header_import(&self, pid: &str, doc: &mut crate::SDoc, _content_type: &str, bytes: &mut bytes::Bytes, as_name: &str) -> Result<(), SError> {
-        let res = std::str::from_utf8(bytes.as_ref());
-        match res {
-            Ok(str) => {
-                self.string_import(pid, doc, str, as_name)
-            },
-            Err(error) => {
-                Err(SError::fmt(pid, &doc, "text", &error.to_string()))
-            }
-        }
-    }
-
-    /// String import.
-    fn string_import(&self, pid: &str, doc: &mut crate::SDoc, src: &str, as_name: &str) -> Result<(), SError> {
-        let mut graph = TEXT::parse(src);
-        if as_name.len() > 0 && as_name != "root" {
-            let mut path = as_name.replace(".", "/");
-            if as_name.starts_with("self") || as_name.starts_with("super") {
-                if let Some(ptr) = doc.self_ptr(pid) {
-                    path = format!("{}/{}", ptr.path(&doc.graph), path);
-                }
-            }
-
-            // as_name is really a location, so ensure the nodes and move it there
-            let mut loc_graph = SGraph::default();
-            let loc = loc_graph.ensure_nodes(&path, '/', true, None);
-            if let Some(main) = graph.main_root() {
-                if let Some(main) = main.node(&graph) {
-                    loc_graph.absorb_external_node(&graph, main, &loc);
-                }
-            }
-            graph = loc_graph;
-        }
-        doc.graph.default_absorb_merge(graph)
-    }
-
-    /// File import.
-    fn file_import(&self, pid: &str, doc: &mut crate::SDoc, _format: &str, full_path: &str, _extension: &str, as_name: &str) -> Result<(), SError> {
-        let src = doc.fs_read_string(pid, full_path)?;
-        self.string_import(pid, doc, &src, as_name)
-    }
-
-    /// Export string.
-    fn export_string(&self, pid: &str, doc: &crate::SDoc, node: Option<&crate::SNodeRef>) -> Result<String, SError> {
-        if node.is_some() {
-            TEXT::stringify_node(pid, &doc, node)
-        } else {
-            TEXT::stringify(pid, &doc)
-        }
-    }
-}
-
-
-/// TXT variation of the TEXT format
-pub struct TXT;
-impl Format for TXT {
-    /// Format getter.
-    fn format(&self) -> String {
-        "txt".to_string()
+    /// Additional formats that this format is registered under.
+    fn additional_formats(&self) -> Vec<String> {
+        vec!["txt".into()]
     }
 
     /// Content type.

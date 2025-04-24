@@ -18,7 +18,7 @@ use std::{collections::HashSet, sync::Arc, time::SystemTime};
 use bytes::Bytes;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
-use crate::{bytes::BYTES, lang::SError, text::{TXT,TEXT,markdown::MD}, SData, SField, SFunc, SVal, BSTOF, STOF};
+use crate::{bytes::BYTES, lang::SError, text::{TEXT, markdown::MD}, SData, SField, SFunc, SVal, BSTOF, STOF};
 use super::{runtime::{DocPermissions, Library, Symbol, SymbolTable}, ArrayLibrary, BlobLibrary, SemVerLibrary, BoolLibrary, CustomTypes, DataLibrary, Format, FunctionLibrary, IntoDataRef, IntoNodeRef, MapLibrary, NumberLibrary, ObjectLibrary, SDataRef, SFormats, SGraph, SLibraries, SNodeRef, SProcesses, SetLibrary, StdLibrary, StringLibrary, TupleLibrary};
 
 #[cfg(not(feature = "wasm"))]
@@ -26,6 +26,9 @@ use super::FileSystemLibrary;
 
 #[cfg(not(feature = "wasm"))]
 use super::TimeLibrary;
+
+#[cfg(feature = "http")]
+use super::HTTPLibrary;
 
 #[cfg(feature = "pkg")]
 use crate::pkg::PKG;
@@ -151,8 +154,7 @@ impl SDoc {
     
     /// Load the Stof standard formats.
     pub fn load_std_formats(&mut self) {
-        self.load_format(Arc::new(TEXT{})); // "text" import "text" field
-        self.load_format(Arc::new(TXT{}));  // .txt import "text" field
+        self.load_format(Arc::new(TEXT{})); // "text" | .txt import "text" field
         self.load_format(Arc::new(MD{}));   // .md import "markdown" field
         self.load_format(Arc::new(BYTES{}));// "bytes" import "bytes" field
 
@@ -202,9 +204,21 @@ impl SDoc {
         self.formats.insert(format);
     }
 
-    /// Available formats
+    /// Available formats.
     pub fn available_formats(&self) -> HashSet<String> {
         self.formats.available()
+    }
+
+    /// Remove a format.
+    /// If this format is registered as many formats, all are removed.
+    pub fn remove_format(&mut self, format: &str) -> bool {
+        self.formats.remove_all(format)
+    }
+
+    /// Remove a singular format.
+    /// The format referenced may still exist under other formats.
+    pub fn remove_singular_format(&mut self, format: &str) -> bool {
+        self.formats.remove(format)
     }
 
     /// Content type for a format.
@@ -272,6 +286,9 @@ impl SDoc {
         self.load_lib(Arc::new(SemVerLibrary::default()));
         self.load_lib(Arc::new(DataLibrary::default()));
 
+        #[cfg(feature = "http")]
+        self.load_lib(Arc::new(HTTPLibrary::default()));
+
         #[cfg(feature = "image")]
         self.load_lib(Arc::new(SImageLibrary::default()));
     }
@@ -289,9 +306,14 @@ impl SDoc {
         None
     }
 
-    /// Available libraries
+    /// Available libraries.
     pub fn available_libraries(&self) -> HashSet<String> {
         self.libraries.available()
+    }
+
+    /// Remove a library.
+    pub fn remove_library(&mut self, lib: &str) -> bool {
+        self.libraries.remove(lib)
     }
 
     /// Write a string to a file using the fs library.

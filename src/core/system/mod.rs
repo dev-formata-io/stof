@@ -20,3 +20,8 @@ pub use filesystem::*;
 
 pub mod time;
 pub use time::*;
+
+#[cfg(feature = "http")]
+pub mod http;
+#[cfg(feature = "http")]
+pub use http::*;

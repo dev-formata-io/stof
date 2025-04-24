@@ -27,12 +27,37 @@ pub struct SFormats {
 impl SFormats {
     /// Insert a format.
     pub fn insert(&mut self, format: Arc<dyn Format>) {
+        for additional in format.additional_formats() {
+            self.formats.insert(additional, format.clone());
+        }
         self.formats.insert(format.format(), format);
     }
 
     /// Get a format.
     pub fn get(&self, format: &str) -> Option<Arc<dyn Format>> {
         self.formats.get(format).cloned()
+    }
+
+    /// Remove a format.
+    pub fn remove(&mut self, format: &str) -> bool {
+        self.formats.remove(format).is_some()
+    }
+
+    /// Remove all versions of a format.
+    pub fn remove_all(&mut self, format: &str) -> bool {
+        let mut to_remove = HashSet::new();
+        to_remove.insert(format.to_string());
+        if let Some(format) = self.formats.get(format) {
+            to_remove.insert(format.format());
+            for additional in format.additional_formats() {
+                to_remove.insert(additional);
+            }
+        }
+        let mut removed = false;
+        for fmt in to_remove {
+            removed = self.remove(&fmt) || removed;
+        }
+        removed
     }
 
     /// Available formats.
@@ -150,6 +175,12 @@ pub trait Format: Send + Sync {
     #[allow(unused)]
     fn format(&self) -> String {
         "text".to_string()
+    }
+
+    /// Additional extensions (formats) that this format is listed under.
+    #[allow(unused)]
+    fn additional_formats(&self) -> Vec<String> {
+        vec![]
     }
 
     /// Content type.

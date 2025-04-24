@@ -40,6 +40,11 @@ impl SLibraries {
         self.libraries.get(scope).cloned()
     }
 
+    /// Remove a library.
+    pub fn remove(&mut self, scope: &str) -> bool {
+        self.libraries.remove(scope).is_some()
+    }
+
     /// Available libraries.
     pub fn available(&self) -> HashSet<String> {
         let mut scopes = HashSet::new();
