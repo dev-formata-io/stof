@@ -14,44 +14,20 @@
 // limitations under the License.
 //
 
-pub mod core;
-pub use core::*;
+import './hello.docx' as DocX;
 
-pub mod data;
-pub use data::*;
 
-pub mod stof;
-pub use stof::*;
+#[test]
+fn import_docx() {
+    assertEq(DocX.text(), 'Hello , World! This is CJ! HI ');
+}
 
-pub mod text;
-pub mod bytes;
 
-#[cfg(feature = "pkg")]
-pub mod pkg;
+#[test]
+fn from_bytes() {
+    let bytes = fs.read_blob('src/docx/hello.docx');
+    assert(bytes.size() > 0);
 
-#[cfg(feature = "wasm")]
-pub mod js;
-
-#[cfg(feature = "json")]
-pub mod json;
-
-#[cfg(feature = "toml")]
-pub mod toml;
-
-#[cfg(feature = "yaml")]
-pub mod yaml;
-
-#[cfg(feature = "xml")]
-pub mod xml;
-
-#[cfg(feature = "urlencoded")]
-pub mod urlencoded;
-
-#[cfg(feature = "docx")]
-pub mod docx;
-
-#[cfg(feature = "image")]
-pub mod image;
-
-#[cfg(test)]
-mod tests;
+    let docx = parse(bytes, 'docx', 'self.FromBytes');
+    assertEq(self.FromBytes.text(), 'Hello , World! This is CJ! HI ');
+}

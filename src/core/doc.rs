@@ -47,6 +47,9 @@ use crate::xml::XML;
 #[cfg(feature = "urlencoded")]
 use crate::urlencoded::URLENC;
 
+#[cfg(feature = "docx")]
+use crate::docx::DOCX;
+
 #[cfg(feature = "image")]
 use crate::image::load_image_formats;
 #[cfg(feature = "image")]
@@ -183,6 +186,10 @@ impl SDoc {
         // URL encoding "urlencoded" format
         #[cfg(feature = "urlencoded")]
         self.load_format(Arc::new(URLENC{}));
+
+        // DOCX format (.docx)
+        #[cfg(feature = "docx")]
+        self.load_format(Arc::new(DOCX{}));
 
         // IMAGE formats (.jpg, .png, .bmp, .ico, .tiff, .tif, .gif, .webp)
         #[cfg(feature = "image")]

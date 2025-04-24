@@ -22,8 +22,11 @@ toml = ["dep:toml"]
 yaml = ["json", "dep:serde_yaml"]
 xml = ["json", "dep:quick-xml", "dep:serde-xml-rs"]
 urlencoded = ["json", "dep:urlencoding"]
-image = ["dep:image"]
 pkg = ["dep:zip", "dep:regex", "dep:walkdir"]
+
+# Formats that are not included by default
+image = ["dep:image"]
+docx = ["dep:docx-rs", "json"]
 
 # WebAssembly Interface feature - no default file system lib, add "json" dependency, and "wasm-bindgen"
 wasm = ["json", "dep:js-sys", "dep:serde-wasm-bindgen", "dep:wasm-bindgen"]
@@ -34,6 +37,7 @@ base64 = "0.22.1"
 bincode = "1.3.3"
 bytes = "1.9.0"
 colored = "2.1.0"
+docx-rs = { version = "0.4.17", optional = true }
 getrandom = { version = "0.2.15", features = ["js"] }
 image = { version = "0.25.6", features = ["serde"], optional = true }
 js-sys = { version = "0.3.76", optional = true }
