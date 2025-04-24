@@ -14,8 +14,14 @@
 // limitations under the License.
 //
 
+#[cfg(feature = "markdown")]
 pub mod markdown;
+#[cfg(feature = "markdown")]
 pub use markdown::*;
+
+#[cfg(feature = "markdown-html")]
+pub mod md_html;
+
 use crate::{lang::SError, Format, IntoNodeRef, SDoc, SField, SGraph};
 
 

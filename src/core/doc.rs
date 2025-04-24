@@ -18,7 +18,7 @@ use std::{collections::HashSet, sync::Arc, time::SystemTime};
 use bytes::Bytes;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
-use crate::{bytes::BYTES, lang::SError, text::{TEXT, markdown::MD}, SData, SField, SFunc, SVal, BSTOF, STOF};
+use crate::{bytes::BYTES, lang::SError, text::TEXT, SData, SField, SFunc, SVal, BSTOF, STOF};
 use super::{runtime::{DocPermissions, Library, Symbol, SymbolTable}, ArrayLibrary, BlobLibrary, SemVerLibrary, BoolLibrary, CustomTypes, DataLibrary, Format, FunctionLibrary, IntoDataRef, IntoNodeRef, MapLibrary, NumberLibrary, ObjectLibrary, SDataRef, SFormats, SGraph, SLibraries, SNodeRef, SProcesses, SetLibrary, StdLibrary, StringLibrary, TupleLibrary};
 
 #[cfg(not(feature = "wasm"))]
@@ -32,6 +32,11 @@ use super::HTTPLibrary;
 
 #[cfg(feature = "pkg")]
 use crate::pkg::PKG;
+
+#[cfg(feature = "markdown")]
+use crate::text::markdown::MD;
+#[cfg(feature = "markdown-html")]
+use crate::text::md_html::MDHTMLLibrary;
 
 #[cfg(feature = "json")]
 use crate::json::JSON;
@@ -155,7 +160,6 @@ impl SDoc {
     /// Load the Stof standard formats.
     pub fn load_std_formats(&mut self) {
         self.load_format(Arc::new(TEXT{})); // "text" | .txt import "text" field
-        self.load_format(Arc::new(MD{}));   // .md import "markdown" field
         self.load_format(Arc::new(BYTES{}));// "bytes" import "bytes" field
 
         // STOF format ".stof" text files
@@ -167,6 +171,9 @@ impl SDoc {
         // PKG format
         #[cfg(feature = "pkg")]
         self.load_format(Arc::new(PKG::default()));
+
+        #[cfg(feature = "markdown")]
+        self.load_format(Arc::new(MD{}));   // .md import "markdown" field
 
         // JSON format ".json" files and NDJSON (newlines between json)
         #[cfg(feature = "json")]
@@ -288,6 +295,9 @@ impl SDoc {
 
         #[cfg(feature = "http")]
         self.load_lib(Arc::new(HTTPLibrary::default()));
+
+        #[cfg(feature = "markdown-html")]
+        self.load_lib(Arc::new(MDHTMLLibrary::default()));
 
         #[cfg(feature = "image")]
         self.load_lib(Arc::new(SImageLibrary::default()));
