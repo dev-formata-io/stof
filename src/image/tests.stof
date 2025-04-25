@@ -14,51 +14,52 @@
 // limitations under the License.
 //
 
+StofImages: {
+    import './norse.png';
 
-import './norse.png';
 
+    #[test]
+    fn imported_image() {
+        assert(Image.isImage(self.image));
+        assertEq(Image.tagname(self.image), 'Image'); // the library name that will be used
+        assert(self.image.isImage()); // references "Image" lib via serde tagname
+    }
 
-#[test]
-fn imported_image() {
-    assert(Image.isImage(self.image));
-    assertEq(Image.tagname(self.image), 'Image'); // the library name that will be used
-    assert(self.image.isImage()); // references "Image" lib via serde tagname
-}
+    #[test]
+    fn from_bytes() {
+        let bytes = Image.png(self.image);
+        assert(isBlob(bytes));
+        
+        let image = Image.from(bytes);
+        assert(Image.isImage(image));
+        image.drop();
+    }
 
-#[test]
-fn from_bytes() {
-    let bytes = Image.png(self.image);
-    assert(isBlob(bytes));
-    
-    let image = Image.from(bytes);
-    assert(Image.isImage(image));
-    image.drop();
-}
+    #[test]
+    fn resize() {
+        let clone = Image.clone(self.image);
+        assertEq(Image.width(clone), 1200);
+        assertEq(Image.height(clone), 1200);
+        assertEq(clone.width(), 1200);
+        assertEq(clone.height(), 1200);
 
-#[test]
-fn resize() {
-    let clone = Image.clone(self.image);
-    assertEq(Image.width(clone), 1200);
-    assertEq(Image.height(clone), 1200);
-    assertEq(clone.width(), 1200);
-    assertEq(clone.height(), 1200);
+        assert(Image.resize(clone, 500, 500));
+        assertEq(Image.width(clone), 500);
+        assertEq(Image.height(clone), 500);
 
-    assert(Image.resize(clone, 500, 500));
-    assertEq(Image.width(clone), 500);
-    assertEq(Image.height(clone), 500);
+        assertEq(Image.width(self.image), 1200);
+        assertEq(Image.height(self.image), 1200);
+    }
 
-    assertEq(Image.width(self.image), 1200);
-    assertEq(Image.height(self.image), 1200);
-}
+    #[test]
+    fn to_from_bmp() {
+        let bmp = Image.bmp(self.image);
+        assert(isBlob(bmp));
 
-#[test]
-fn to_from_bmp() {
-    let bmp = Image.bmp(self.image);
-    assert(isBlob(bmp));
-
-    let image = Image.from(bmp); // auto interprets format
-    assertEq(typeof image, 'data');
-    assertEq(Image.width(image), 1200);
-    assertEq(Image.height(image), 1200);
-    image.drop();
+        let image = Image.from(bmp); // auto interprets format
+        assertEq(typeof image, 'data');
+        assertEq(Image.width(image), 1200);
+        assertEq(Image.height(image), 1200);
+        image.drop();
+    }
 }

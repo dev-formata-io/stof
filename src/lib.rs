@@ -53,5 +53,8 @@ pub mod docx;
 #[cfg(feature = "image")]
 pub mod image;
 
+#[cfg(feature = "pdf")]
+pub mod pdf;
+
 #[cfg(test)]
 mod tests;

@@ -14,20 +14,22 @@
 // limitations under the License.
 //
 
-import './hello.docx' as DocX;
+StofDocX: {
+    import './hello.docx' as DocX;
 
 
-#[test]
-fn import_docx() {
-    assertEq(DocX.text(), 'Hello , World! This is CJ! HI ');
-}
+    #[test]
+    fn import_docx() {
+        assertEq(DocX.text(), 'Hello , World! This is CJ! HI ');
+    }
 
 
-#[test]
-fn from_bytes() {
-    let bytes = fs.read_blob('src/docx/hello.docx');
-    assert(bytes.size() > 0);
+    #[test]
+    fn from_bytes() {
+        let bytes = fs.read_blob('src/docx/hello.docx');
+        assert(bytes.size() > 0);
 
-    let docx = parse(bytes, 'docx', 'self.FromBytes');
-    assertEq(self.FromBytes.text(), 'Hello , World! This is CJ! HI ');
+        let docx = parse(bytes, 'docx', 'self.FromBytes');
+        assertEq(self.FromBytes.text(), 'Hello , World! This is CJ! HI ');
+    }
 }

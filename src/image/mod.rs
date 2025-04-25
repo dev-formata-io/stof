@@ -72,8 +72,11 @@ impl SImage {
     }
 
     /// Create a new SImage from bytes.
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
-        if let Ok(reader) = ImageReader::new(Cursor::new(bytes)).with_guessed_format() {
+    pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, String> {
+        if let Ok(mut reader) = ImageReader::new(Cursor::new(bytes)).with_guessed_format() {
+            if reader.format().is_none() {
+                reader.set_format(ImageFormat::Png); // PNG is default image format if one cannot be determined
+            }
             if let Ok(image) = reader.decode() {
                 let mut bytes: Vec<u8> = Vec::new();
                 if let Err(error) = image.write_to(&mut Cursor::new(&mut bytes), ImageFormat::Png) {
@@ -92,7 +95,10 @@ impl SImage {
     pub fn ensure_dynamic(&mut self) -> bool {
         if self.dynamic_image.is_some() {
             return true;
-        } else if let Ok(reader) = ImageReader::new(Cursor::new(&self.raw_image)).with_guessed_format() {
+        } else if let Ok(mut reader) = ImageReader::new(Cursor::new(&self.raw_image)).with_guessed_format() {
+            if reader.format().is_none() {
+                reader.set_format(ImageFormat::Png); // PNG is default image format if one cannot be determined
+            }
             if let Ok(image) = reader.decode() {
                 self.dynamic_image = Some(image);
                 return true;
@@ -518,11 +524,11 @@ impl SImage {
      *****************************************************************************/
 
     /// Parse into a new graph.
-    pub fn parse(bytes: &Bytes) -> Result<SGraph, String> {
+    pub fn parse(bytes: Vec<u8>) -> Result<SGraph, String> {
         let mut graph = SGraph::default();
         let root = graph.insert_root("root");
 
-        let image = SImage::from_bytes(&bytes)?;
+        let image = SImage::from_bytes(bytes)?;
         let dref = SData::insert_new(&mut graph, &root, Box::new(image)).unwrap();
 
         let field = SField::new("image", SVal::Data(dref));
@@ -591,7 +597,7 @@ impl SImage {
 
     /// Header import.
     pub fn header_import(pid: &str, doc: &mut SDoc, bytes: &mut Bytes, as_name: &str) -> Result<(), SError> {
-        let res = SImage::parse(bytes);
+        let res = SImage::parse(bytes.to_vec());
         if res.is_err() {
             return Err(SError::fmt(pid, &doc, "image", "could not parse bytes into a graph (header import)"));
         }

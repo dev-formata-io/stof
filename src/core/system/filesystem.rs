@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::fs;
+use std::{fs, ops::Deref, path::PathBuf};
 use crate::{lang::SError, Library, SDoc, SVal};
 
 
@@ -33,7 +33,11 @@ impl Library for FileSystemLibrary {
                     // write(path, contents)
                     let contents = parameters.pop().unwrap().owned_to_string();
                     let path = parameters.pop().unwrap().owned_to_string();
-                    let res = fs::write(&path, &contents);
+                    let buf = PathBuf::from(&path);
+                    if let Some(path) = buf.parent() {
+                        let _ = fs::create_dir_all(path);
+                    }
+                    let res = fs::write(&buf, &contents);
                     return match res {
                         Ok(_) => {
                             Ok(SVal::Void)
@@ -52,7 +56,11 @@ impl Library for FileSystemLibrary {
                     let path = parameters.pop().unwrap().owned_to_string();
                     match contents {
                         SVal::Blob(blob) => {
-                            let res = fs::write(&path, blob);
+                            let buf = PathBuf::from(&path);
+                            if let Some(path) = buf.parent() {
+                                let _ = fs::create_dir_all(path);
+                            }
+                            let res = fs::write(buf, blob);
                             return match res {
                                 Ok(_) => {
                                     Ok(SVal::Void)
@@ -61,6 +69,28 @@ impl Library for FileSystemLibrary {
                                     Err(SError::filesys(pid, &doc, "write_blob", &error.to_string()))
                                 }
                             };
+                        },
+                        SVal::Boxed(val) => {
+                            let val = val.lock().unwrap();
+                            let val = val.deref();
+                            match val {
+                                SVal::Blob(blob) => {
+                                    let buf = PathBuf::from(&path);
+                                    if let Some(path) = buf.parent() {
+                                        let _ = fs::create_dir_all(path);
+                                    }
+                                    let res = fs::write(buf, blob);
+                                    return match res {
+                                        Ok(_) => {
+                                            Ok(SVal::Void)
+                                        },
+                                        Err(error) => {
+                                            Err(SError::filesys(pid, &doc, "write_blob", &error.to_string()))
+                                        }
+                                    };
+                                },
+                                _ => {}
+                            }
                         },
                         _ => {}
                     }

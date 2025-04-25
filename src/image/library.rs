@@ -550,9 +550,9 @@ impl Library for SImageLibrary {
 
                     let mut context = doc.self_ptr(pid);
                     if parameters.len() > 1 {
-                        match &parameters[1] {
+                        match parameters.pop().unwrap() {
                             SVal::Object(nref) => {
-                                context = Some(nref.clone());
+                                context = Some(nref);
                             },
                             SVal::Boxed(val) => {
                                 let val = val.lock().unwrap();
@@ -575,9 +575,9 @@ impl Library for SImageLibrary {
                         return Err(SError::custom(pid, &doc, "ImageLibraryFrom", "context not found"));
                     }
 
-                    match &parameters[0] {
+                    match parameters.pop().unwrap() {
                         SVal::Blob(bytes) => {
-                            if let Ok(image) = SImage::from_bytes(&bytes) {
+                            if let Ok(image) = SImage::from_bytes(bytes) {
                                 let node = context.unwrap();
                                 let dref = SData::insert_new(&mut doc.graph, &node, Box::new(image)).unwrap();
                                 return Ok(SVal::Data(dref));
@@ -586,7 +586,7 @@ impl Library for SImageLibrary {
                         },
                         SVal::String(base64) => {
                             if let Ok(bytes) = STANDARD.decode(base64) {
-                                if let Ok(image) = SImage::from_bytes(&bytes) {
+                                if let Ok(image) = SImage::from_bytes(bytes) {
                                     let node = context.unwrap();
                                     let dref = SData::insert_new(&mut doc.graph, &node, Box::new(image)).unwrap();
                                     return Ok(SVal::Data(dref));
@@ -595,8 +595,36 @@ impl Library for SImageLibrary {
                             }
                             return Err(SError::custom(pid, &doc, "ImageLibraryFrom", "failed to decode base64 image string"));
                         },
+                        SVal::Boxed(val) => {
+                            let val = val.lock().unwrap();
+                            let val = val.clone().unbox();
+                            match val {
+                                SVal::Blob(bytes) => {
+                                    if let Ok(image) = SImage::from_bytes(bytes) {
+                                        let node = context.unwrap();
+                                        let dref = SData::insert_new(&mut doc.graph, &node, Box::new(image)).unwrap();
+                                        return Ok(SVal::Data(dref));
+                                    }
+                                    return Err(SError::custom(pid, &doc, "ImageLibraryFrom", "image could not be parsed from bytes"));
+                                },
+                                SVal::String(base64) => {
+                                    if let Ok(bytes) = STANDARD.decode(base64) {
+                                        if let Ok(image) = SImage::from_bytes(bytes) {
+                                            let node = context.unwrap();
+                                            let dref = SData::insert_new(&mut doc.graph, &node, Box::new(image)).unwrap();
+                                            return Ok(SVal::Data(dref));
+                                        }
+                                        return Err(SError::custom(pid, &doc, "ImageLibraryFrom", "image could not be parsed from bytes"));
+                                    }
+                                    return Err(SError::custom(pid, &doc, "ImageLibraryFrom", "failed to decode base64 image string"));
+                                },
+                                _ => {
+                                    return Err(SError::custom(pid, &doc, "ImageLibraryFrom", "image 'from' must be from a blob or base64 encoded string"))
+                                }
+                            }
+                        },
                         _ => {
-                            return Err(SError::custom(pid, &doc, "ImageLibraryFrom", "image 'from' must be crom a blob or base64 encoded string"))
+                            return Err(SError::custom(pid, &doc, "ImageLibraryFrom", "image 'from' must be from a blob or base64 encoded string"))
                         }
                     }
                 },

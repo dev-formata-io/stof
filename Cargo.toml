@@ -1,6 +1,6 @@
 [package]
 name = "stof"
-version = "0.4.0"
+version = "0.3.35"
 edition = "2021"
 authors = ["CJ Cummings <cj@formata.io>"]
 description = "Stof is a unified data interface and interchange format for creating, sharing, and manipulating data. Stof removes the fragile and cumbersome parts of combining and using data in applications."
@@ -28,6 +28,7 @@ pkg = ["dep:zip", "dep:regex", "dep:walkdir"]
 # Not included by default
 image = ["dep:image"]
 docx = ["dep:docx-rs", "json"]
+pdf = ["dep:lopdf", "image"]
 http = ["dep:ureq"]
 markdown-html = ["dep:markdown"]
 
@@ -47,6 +48,7 @@ js-sys = { version = "0.3.76", optional = true }
 lazy_static = "1.5.0"
 markdown = { version = "1.0.0", optional = true }
 nanoid = "0.4.0"
+lopdf = { version = "0.36.0", features = ["serde"], optional = true }
 pest = "2.7.15"
 pest_derive = "2.7.15"
 quick-xml = { version = "0.37.1", optional = true }

@@ -63,6 +63,11 @@ use crate::image::load_image_formats;
 #[cfg(feature = "image")]
 use crate::image::library::SImageLibrary;
 
+#[cfg(feature = "pdf")]
+use crate::pdf::PDF;
+#[cfg(feature = "pdf")]
+use crate::pdf::library::SPDFLibrary;
+
 
 /// Stof Document.
 /// Holds a Graph, containing the data contained within this document as well as
@@ -204,6 +209,10 @@ impl SDoc {
         // IMAGE formats (.jpg, .png, .bmp, .ico, .tiff, .tif, .gif, .webp)
         #[cfg(feature = "image")]
         load_image_formats(self);
+
+        // PDF format (.pdf)
+        #[cfg(feature = "pdf")]
+        self.load_format(Arc::new(PDF{}));
     }
 
     /// Load a format into this document.
@@ -301,6 +310,9 @@ impl SDoc {
 
         #[cfg(feature = "image")]
         self.load_lib(Arc::new(SImageLibrary::default()));
+
+        #[cfg(feature = "pdf")]
+        self.load_lib(Arc::new(SPDFLibrary::default()));
     }
     
     /// Load a library into this document.
