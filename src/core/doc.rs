@@ -92,10 +92,10 @@ pub struct SDoc {
     pub libraries: SLibraries,
     
     #[serde(skip)]
-    pub(crate) processes: SProcesses,
+    pub processes: SProcesses,
 
     #[serde(skip)]
-    pub(crate) env_compiled_paths: HashSet<String>,
+    pub env_compiled_paths: HashSet<String>,
 }
 impl Default for SDoc {
     fn default() -> Self {
