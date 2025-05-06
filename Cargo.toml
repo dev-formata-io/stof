@@ -1,6 +1,6 @@
 [package]
 name = "stof"
-version = "0.3.35"
+version = "0.3.36"
 edition = "2021"
 authors = ["CJ Cummings <cj@formata.io>"]
 description = "Stof is a unified data interface and interchange format for creating, sharing, and manipulating data. Stof removes the fragile and cumbersome parts of combining and using data in applications."
@@ -26,6 +26,7 @@ markdown = []
 pkg = ["dep:zip", "dep:regex", "dep:walkdir"]
 
 # Not included by default
+thread = []
 image = ["dep:image"]
 docx = ["dep:docx-rs", "json"]
 pdf = ["dep:lopdf", "image"]

@@ -25,3 +25,8 @@ pub use time::*;
 pub mod http;
 #[cfg(feature = "http")]
 pub use http::*;
+
+#[cfg(feature = "thread")]
+pub mod thread;
+#[cfg(feature = "thread")]
+pub use thread::*;

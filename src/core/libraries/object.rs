@@ -244,6 +244,7 @@ impl ObjectLibrary {
                         } else {
                             field.value.unbox_ref();
                         }
+                        field_ref.invalidate_val(&mut doc.graph);
                         return Ok(SVal::Bool(true));
                     }
                     return Ok(SVal::Bool(false));
@@ -289,6 +290,7 @@ impl ObjectLibrary {
                         } else {
                             field.value.to_box_ref();
                         }
+                        field_ref.invalidate_val(&mut doc.graph);
                         return Ok(SVal::Bool(true));
                     }
                     return Ok(SVal::Bool(false));
@@ -324,6 +326,7 @@ impl ObjectLibrary {
                         }
                         if let Some(field) = SData::get_mut::<SField>(&mut doc.graph, &field_ref) {
                             field.value = value;
+                            field_ref.invalidate_val(&mut doc.graph);
                             return Ok(SVal::Bool(true));
                         }
                         return Ok(SVal::Bool(false));
@@ -1485,6 +1488,7 @@ impl ObjectLibrary {
                                 return res.truthy();
                             } else if !res.is_empty() {
                                 field.value = res;
+                                field_ref.invalidate_val(&mut doc.graph);
                             }
                         }
                     } else if valid_check {

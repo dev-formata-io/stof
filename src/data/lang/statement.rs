@@ -90,6 +90,7 @@ impl Statements {
                             if doc.perms.can_write_field(&doc.graph, &field_ref, doc.self_ptr(pid).as_ref()) {
                                 if let Some(field) = SData::get_mut::<SField>(&mut doc.graph, &field_ref) {
                                     field.value = val;
+                                    field_ref.invalidate_val(&mut doc.graph);
                                 }
                             }
                         } else {
@@ -117,6 +118,7 @@ impl Statements {
                                     if doc.perms.can_write_field(&doc.graph, &field_ref, doc.self_ptr(pid).as_ref()) {
                                         if let Some(field) = SData::get_mut::<SField>(&mut doc.graph, &field_ref) {
                                             field.value = val;
+                                            field_ref.invalidate_val(&mut doc.graph);
                                         }
                                     }
                                 }

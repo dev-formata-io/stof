@@ -77,6 +77,13 @@ impl SNode {
         self.dirty.remove(symbol)
     }
 
+    /// Validate all dirty symbols in the set at once.
+    pub fn validate_clear(&mut self) -> bool {
+        let res = self.dirty.len() > 0;
+        self.dirty.clear();
+        res
+    }
+
     /// Has dirty tags?
     pub fn has_dirty(&self) -> bool {
         self.dirty.len() > 0

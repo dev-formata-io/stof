@@ -586,6 +586,16 @@ impl SDataRef {
         String::default()
     }
 
+    /// Invalidate value.
+    pub fn invalidate_val(&self, graph: &mut SGraph) -> bool {
+        if let Some(data) = self.data_mut(graph) {
+            data.invalidate_val();
+            true
+        } else {
+            false
+        }
+    }
+
     /// Validate value.
     /// Returns whether the data was invalid.
     pub fn validate_val(&self, graph: &mut SGraph) -> bool {

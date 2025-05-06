@@ -24,6 +24,9 @@ use super::Expr;
 /// Custom type declaration information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CustomType {
+    /// Custom type ID.
+    pub id: String,
+
     /// Location ID for this custom type.
     /// This is the SNodeRef ID to this prototype in a SGraph.
     pub locid: String,
@@ -40,6 +43,7 @@ impl CustomType {
     /// New Type.
     pub fn new(decid: &str, name: &str, fields: Vec<CustomTypeField>) -> Self {
         Self {
+            id: format!("ct_{}", nanoid!(16)),
             name: name.to_owned(),
             fields,
             locid: format!("ctl{}", nanoid!(10)),
@@ -90,6 +94,7 @@ impl CustomType {
         if let Some(typename_field_ref) = SField::field_ref(graph, "typename", '.', Some(&nref)) {
             if let Some(field) = SData::get_mut::<SField>(graph, &typename_field_ref) {
                 field.value = SVal::String(self.name.clone());
+                typename_field_ref.invalidate_val(graph);
             }
         } else {
             SField::new_string(graph, "typename", &self.name, &nref);
@@ -100,6 +105,7 @@ impl CustomType {
         if let Some(typepath_field_ref) = SField::field_ref(graph, "typepath", '.', Some(&nref)) {
             if let Some(field) = SData::get_mut::<SField>(graph, &typepath_field_ref) {
                 field.value = SVal::String(format!("{}.{}", typepath, self.name));
+                typepath_field_ref.invalidate_val(graph);
             }
         } else {
             SField::new_string(graph, "typepath", &format!("{}.{}", typepath, self.name), &nref);
