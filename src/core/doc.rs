@@ -724,6 +724,40 @@ impl SDoc {
 
 
     /*****************************************************************************
+     * Split.
+     *****************************************************************************/
+    
+    /// Split this document into another.
+    pub fn split(&self) -> Self {
+        let mut split = self.clone();
+        split.graph.flush_all();
+        split
+    }
+
+    /// Context split this document into another.
+    /// When used well, can prevent a lot of the data from being cloned.
+    pub fn context_split(&self, context: HashSet<SNodeRef>) -> Self {
+        let mut split = Self::default();
+        split.graph = self.graph.context_clone(context);
+        split.perms = self.perms.clone();
+        split.types = self.types.clone();
+        split.formats = self.formats.clone();
+        split.libraries = self.libraries.clone();
+        split.processes = self.processes.clone();
+        split.env_compiled_paths = self.env_compiled_paths.clone();
+        split
+    }
+
+    /// Join a document with this document.
+    /// Validates all changed of other, as if it were 'split' from this document.
+    pub fn join(&mut self, other: &mut Self) {
+        self.graph.flush_join_graph(&mut other.graph);
+        self.perms.merge(&other.perms);
+        self.types.merge(&other.types);
+    }
+
+
+    /*****************************************************************************
      * Stof Parser/Runtime Interface.
      *****************************************************************************/
 

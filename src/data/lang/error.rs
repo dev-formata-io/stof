@@ -43,6 +43,7 @@ pub enum ErrorType {
     // Special system libraries
     FileSystemLibError(String),
     TimeLibError(String),
+    ThreadLibError(String),
 
     FormatError(String),
     ThrownError(String), // error for when users call "throw"
@@ -166,6 +167,11 @@ impl SError {
     /// Time library error.
     pub fn time(pid: &str, doc: &SDoc, func: &str, message: &str) -> Self {
         Self::new(pid, doc, ErrorType::TimeLibError(func.to_owned()), message)
+    }
+
+    /// Thread library error.
+    pub fn thread(pid: &str, doc: &SDoc, func: &str, message: &str) -> Self {
+        Self::new(pid, doc, ErrorType::ThreadLibError(func.to_owned()), message)
     }
 
     /// User thrown error.

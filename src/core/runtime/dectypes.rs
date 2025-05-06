@@ -31,8 +31,11 @@ impl CustomTypes {
             if !self.types.contains_key(name) {
                 self.types.insert(name.clone(), types.clone());
             } else if let Some(type_vec) = self.types.get_mut(name) {
+                let type_ids = type_vec.iter().map(|ct| ct.id.clone()).collect::<HashSet<_>>();
                 for ty in types {
-                    type_vec.push(ty.clone());
+                    if !type_ids.contains(&ty.id) {
+                        type_vec.push(ty.clone());
+                    }
                 }
             }
         }

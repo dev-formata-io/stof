@@ -1539,15 +1539,20 @@ impl SVal {
                                         cast_value = Some(cast_type.0.cast(cast_type.1, pid, doc)?);
                                     }
 
+                                    let mut invalidate_val = false;
                                     if let Some(field) = SData::get_mut::<SField>(&mut doc.graph, &field_ref) {
                                         if let Some(new_val) = cast_value {
                                             field.value = new_val;
+                                            invalidate_val = true;
                                         }
                                         for (name, value) in typefield.attributes {
                                             if !field.attributes.contains_key(&name) {
                                                 field.attributes.insert(name, value);
                                             }
                                         }
+                                    }
+                                    if invalidate_val {
+                                        field_ref.invalidate_val(&mut doc.graph);
                                     }
                                 } else if let Some(default) = &typefield.default {
                                     let default_value = default.exec(pid, doc)?;

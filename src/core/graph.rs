@@ -660,6 +660,120 @@ impl SGraph {
         self.data.flush(limit)
     }
 
+    /// Flush all, clearing the graph of all dirty nodes and data.
+    /// This will clear all custom dirty symbols as well.
+    pub fn flush_all(&mut self) {
+        self.flush_node_deadpool();
+        self.flush_data_deadpool();
+        for node in self.flush_nodes(-1) {
+            node.validate_clear();
+        }
+        for data in self.flush_data(-1) {
+            data.validate_clear();
+        }
+    }
+
+    /// Flush join.
+    /// Joins another graph's changes into this graph via flushed nodes and data, validating the other graph.
+    pub fn flush_join_graph(&mut self, other: &mut Self) {
+        // Delete nodes that have been deleted in other first
+        for node in other.flush_node_deadpool() {
+            self.remove_node(node.node_ref());
+        }
+
+        // Delete data that has been delete in other next
+        for data in other.flush_data_deadpool() {
+            self.remove_data(data.data_ref(), None);
+        }
+
+        // Update nodes in this graph that have been modified or inserted in other
+        for node in other.flush_nodes(-1) {
+            node.validate_clear();
+            if let Some(existing) = self.node_mut(node.node_ref()) {
+                // This node exists in this graph, but needs to be updated!
+                existing.name = node.name.clone();
+                existing.parent = node.parent.clone();
+                existing.children = node.children.clone();
+                existing.data = node.data.clone();
+            } else {
+                // This node was inserted into other, but doesn't exist in this graph
+                self.nodes.set(&node.id.clone(), node.clone());
+            }
+        }
+
+        // Update data in this graph that has been modified or inserted in other
+        for data in other.flush_data(-1) {
+            data.validate_clear();
+            if let Some(existing) = self.data_from_id_mut(&data.id) {
+                // This data exists in this graph, but needs to be updated!
+                existing.nodes = data.nodes.clone();
+                existing.data = data.data.clone();
+                println!("UPDATED DATA: {:?}", existing);
+            } else {
+                // This data was inserted into other, but doesn't exist in this graph
+                self.data.set(&data.id.clone(), data.clone());
+            }
+        }
+    }
+
+    /// Context clone this graph (useful for efficient splits).
+    pub fn context_clone(&self, context: HashSet<SNodeRef>) -> Self {
+        let mut clone = Self::default();
+        clone.name = self.name.clone();
+        
+        // Get a high-level snapshot of the nodes to add
+        // This removes any children from within the context, because insert external adds child nodes
+        let mut snapshot = HashSet::new();
+        for a in &context {
+            let mut is_child = false;
+            for b in &context {
+                if a.is_child_of(self, b) {
+                    is_child = true;
+                    break;
+                }
+            }
+            if !is_child {
+                snapshot.insert(a);
+            }
+        }
+
+        // Add nodes from self that meet the snapshot into the cloned graph
+        for nref in &snapshot {
+            if let Some(node) = nref.node(self) {
+                let mut parent = None;
+                if let Some(prnt) = &node.parent {
+                    if snapshot.contains(prnt) {
+                        parent = Some(prnt.clone());
+                    }
+                }
+                clone.insert_external_node(self, node, parent.as_ref(), None);
+            }
+        }
+
+        // Make sure the main root has the name "root"
+        let mut found_root = false;
+        let mut new_roots = Vec::new();
+        for nref in &clone.roots {
+            if let Some(node) = nref.node(&clone) {
+                if node.name == "root" {
+                    new_roots.insert(0, nref.clone());
+                    found_root = true;
+                } else {
+                    new_roots.push(nref.clone());
+                }
+            }
+        }
+        if !found_root {
+            if let Some(main) = clone.main_root() {
+                clone.rename_node(main, "root");
+            }
+        } else {
+            clone.roots = new_roots;
+        }
+
+        clone
+    }
+
 
     /*****************************************************************************
      * Absorb.

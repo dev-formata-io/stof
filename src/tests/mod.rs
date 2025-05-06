@@ -81,3 +81,50 @@ fn stof_assert_eq_false() {
 fn stof_test_suite() {
     SDoc::test_file("src/tests/tests.stof", true);
 }
+
+
+#[test]
+fn flush_join_docs() {
+    let mut doc = SDoc::src(r#"
+
+        message: 'hello'
+        unchanged: 'yo'
+
+        root Other: {
+            test: 'test'
+        }
+
+        sub: {
+            test: 'test'
+        }
+
+        to_drop: {
+            data: 'hi'
+        }
+
+        #[main]
+        fn manipulate() {
+            self.added = new {
+                added: true;
+            };
+            
+            self.sub.test = 'changed';
+            Other.test = 'changed';
+
+            self.message = new {
+                object: true;
+            };
+
+            drop self.to_drop;
+        }
+
+    "#, "stof").unwrap();
+
+    let mut split = doc.split();
+    split.run(None, None).unwrap();
+    doc.join(&mut split);
+
+    // Lets see it.
+    doc.graph.dump(true);
+    println!("{}", doc.export_string("main", "json", None).unwrap());
+}

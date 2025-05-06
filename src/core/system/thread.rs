@@ -14,19 +14,22 @@
 // limitations under the License.
 //
 
+use crate::{lang::SError, Library, SDoc, SVal};
 
-pub mod filesystem;
-pub use filesystem::*;
 
-pub mod time;
-pub use time::*;
+/// Thread library.
+#[derive(Default, Debug)]
+pub struct ThreadLibrary;
+impl Library for ThreadLibrary {
+    fn scope(&self) -> String {
+        "Thread".to_string()
+    }
 
-#[cfg(feature = "http")]
-pub mod http;
-#[cfg(feature = "http")]
-pub use http::*;
-
-#[cfg(feature = "thread")]
-pub mod thread;
-#[cfg(feature = "thread")]
-pub use thread::*;
+    fn call(&self, pid: &str, doc: &mut SDoc, name: &str, parameters: &mut Vec<SVal>) -> Result<SVal, SError> {
+        match name {
+            _ => {
+                Err(SError::thread(pid, &doc, "NotFound", &format!("{} is not a function in the Thread Library", name)))
+            }
+        }
+    }
+}

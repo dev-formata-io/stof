@@ -185,9 +185,31 @@ impl SData {
         self.dirty(DATA_DIRTY_VAL)
     }
 
+    /// Invalidate nodes.
+    pub fn invalidate_nodes(&mut self) {
+        self.invalidate(DATA_DIRTY_NODES);
+    }
+
+    /// Validate nodes.
+    pub fn validate_nodes(&mut self) -> bool {
+        self.validate(DATA_DIRTY_NODES)
+    }
+
+    /// Has dirty nodes?
+    pub fn dirty_nodes(&self) -> bool {
+        self.dirty(DATA_DIRTY_NODES)
+    }
+
     /// Has the dirty symbol?
     pub fn dirty(&self, symbol: &str) -> bool {
         self.dirty.contains(symbol)
+    }
+
+    /// Validate all dirty symbols in the set at once.
+    pub fn validate_clear(&mut self) -> bool {
+        let res = self.dirty.len() > 0;
+        self.dirty.clear();
+        res
     }
 
     /// Validate.
