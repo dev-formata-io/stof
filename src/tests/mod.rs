@@ -124,7 +124,7 @@ fn flush_join_docs() {
     split.run(None, None).unwrap();
     doc.join(&mut split);
 
-    // Lets see it.
-    doc.graph.dump(true);
-    println!("{}", doc.export_string("main", "json", None).unwrap());
+    // Lets see it
+    let res = doc.export_string("main", "json", None).unwrap();
+    assert_eq!(res, "{\"added\":{\"added\":true},\"message\":{\"object\":true},\"sub\":{\"test\":\"changed\"},\"unchanged\":\"yo\"}");
 }

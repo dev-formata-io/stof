@@ -708,7 +708,6 @@ impl SGraph {
                 // This data exists in this graph, but needs to be updated!
                 existing.nodes = data.nodes.clone();
                 existing.data = data.data.clone();
-                println!("UPDATED DATA: {:?}", existing);
             } else {
                 // This data was inserted into other, but doesn't exist in this graph
                 self.data.set(&data.id.clone(), data.clone());
@@ -727,7 +726,7 @@ impl SGraph {
         for a in &context {
             let mut is_child = false;
             for b in &context {
-                if a.is_child_of(self, b) {
+                if a.id != b.id && a.is_child_of(self, b) {
                     is_child = true;
                     break;
                 }

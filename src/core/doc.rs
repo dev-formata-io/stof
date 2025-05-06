@@ -27,6 +27,9 @@ use super::FileSystemLibrary;
 #[cfg(not(feature = "wasm"))]
 use super::TimeLibrary;
 
+#[cfg(feature = "thread")]
+use super::ThreadLibrary;
+
 #[cfg(feature = "http")]
 use super::HTTPLibrary;
 
@@ -287,6 +290,9 @@ impl SDoc {
 
         #[cfg(not(feature = "wasm"))]
         self.load_lib(Arc::new(TimeLibrary::default()));
+
+        #[cfg(feature = "thread")]
+        self.load_lib(Arc::new(ThreadLibrary::default()));
 
         self.load_lib(Arc::new(StdLibrary::default()));
         self.load_lib(Arc::new(ObjectLibrary::default()));
