@@ -48,3 +48,45 @@ fn diff_nano_test() {
     assertEq(diff.units(), 'ns');
     assert(diff >= 2ms);
 }
+
+#[test]
+fn rfc3339() {
+    let stamp = Time.now();
+    
+    let now = Time.nowRFC3339();
+    let parsed = Time.parseRFC3339(now);
+
+    assert(parsed - stamp < 10ms);
+
+    now = Time.toRFC3339(stamp);
+    parsed = Time.parseRFC3339(now);
+
+    assert(parsed - stamp < 10ms);
+}
+
+#[test]
+fn rfc2822() {
+    let stamp = Time.now();
+
+    let now = Time.nowRFC2822();
+    let parsed = Time.parseRFC2822(now);
+
+    assert(parsed - stamp < 10ms);
+
+    now = Time.toRFC2822(stamp);
+    parsed = Time.parseRFC2822(now);
+
+    assert(parsed - stamp < 10ms);
+}
+
+#[test]
+fn practical_rfc() {
+    let start = Time.now();
+    let stop = start + 7days + 3hours + 2min + 33seconds;
+
+    let begin = Time.toRFC2822(start);
+    let end = Time.toRFC2822(stop);
+    
+    let res = Time.parseRFC2822(end) - Time.parseRFC2822(begin);
+    assert(res > 7days && res < 8days);
+}
