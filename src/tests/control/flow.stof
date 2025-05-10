@@ -230,3 +230,27 @@ return: {
         return 0;
     }
 }
+
+
+#[test]
+/// Test bubble control flow between functions
+/// Each function call should start with a bc of 0 for flow control
+fn break_in_if_call() {
+    let res = 0;
+    for (i in 10) {
+        if (i > 5) break;
+        res += self.break_call(i); // 0 (2), 1 (2), 2 (2), 3 (1), 4 (1), 5 (1)
+    }
+    assertEq(res, 9); // 9
+}
+fn break_call(i: int): int {
+    let add = 0;
+    if (i > 2) {
+        break; // skip add 1 from within block
+        add += 1;
+    } else {
+        add += 1;
+    }
+    add += 1;
+    return add;
+}

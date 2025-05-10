@@ -229,9 +229,11 @@ impl SFunc {
 
         // Execute all of the statements with this doc in a scope (block)
         doc.push_call_stack(pid, dref);
+        let bcs = doc.funcstart_bubble_control(pid);
         doc.new_scope(pid);
         let statements_res = statements.exec(pid, doc);
         doc.end_scope(pid);
+        doc.funcset_bubble_control(pid, bcs);
         doc.pop_call_stack(pid);
 
         // Pop the self stack!

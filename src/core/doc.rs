@@ -926,4 +926,21 @@ impl SDoc {
             process.bubble_control_flow -= 1;
         }
     }
+
+    /// Funcstart bubble control.
+    pub(crate) fn funcstart_bubble_control(&mut self, pid: &str) -> u8 {
+        if let Some(process) = self.processes.get_mut(pid) {
+            let res = process.bubble_control_flow;
+            process.bubble_control_flow = 0;
+            return res;
+        }
+        0
+    }
+
+    /// Funcset bubble control.
+    pub(crate) fn funcset_bubble_control(&mut self, pid: &str, bc: u8) {
+        if let Some(process) = self.processes.get_mut(pid) {
+            process.bubble_control_flow = bc;
+        }
+    }
 }
