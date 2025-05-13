@@ -8,7 +8,6 @@
     <a href="https://crates.io/crates/stof"><img src="https://img.shields.io/crates/d/stof"></a>
     <a href="https://crates.io/crates/stof"><img src="https://img.shields.io/crates/l/stof"></a>
     <a href="https://github.com/dev-formata-io/stof/commits/main/"><img src="https://img.shields.io/github/commit-activity/m/dev-formata-io/stof"></a>
-    <a href="https://crates.io/crates/stof"><img src="https://img.shields.io/crates/size/stof"></a>
 </p>
 
 ----
@@ -17,11 +16,7 @@
 <p align="center"><img src="./content/overview.png" height="200"></p>
 <br/>
 
-[Stof](https://stof.dev) is a data interchange format that unifies data between systems. It offers fine-grained control and sandboxed manipulation without the need for additional application code and servers.
-
-Because Stof works with all other data formats and can be used anywhere, it standardizes data handling (by not needing a standard) and makes our lives as developers more fun.
-
-Whether used for configuration, deployment, APIs & interchange, or in other data specification & control scenarios, Stof's portable interfaces and code-as-data approach can help save time, improve quality, and give you the tools needed to solve cutting edge problems.
+[Stof](https://stof.dev) is a simple data runtime for all of your stuff. It unifies data handling and makes working with data much more enjoyable.
 
 - [Docs](https://docs.stof.dev)
 - [Discord](https://discord.gg/Up5kxdeXZt)
@@ -35,9 +30,7 @@ Whether used for configuration, deployment, APIs & interchange, or in other data
 <br/>
 
 ## Why
-The logic and cost involved in deciphering, unifying, and validating data entering and leaving computer systems are growing exponentially, becoming a bottleneck and limiting factor for next-generation federated applications and AI.
-
-Stof drastically decreases the amount of application code it takes to do this by moving this logic into the data layer, creating a standard interface that can be used by all systems today for cheaper and higher-quality access to data, while improving application-level security, developer experience, and data governance.
+Stof drastically decreases the amount of application code it takes to manipulate data by moving logic into the data that needs manipulating (typically done the other way around), creating a standard interface that can be used for cheaper and higher-quality access, while improving security, developer experience, and governance.
 
 ## Getting Started
 ### CLI
@@ -55,7 +48,7 @@ It is currently possible to use Stof from the browser and in JavaScript host env
 [Stof JSR](https://jsr.io/@formata/stof)
 
 ## Example
-> For declaring data, Stof is a superset of JSON - valid JSON will always be valid Stof.
+> Note: Stof is also a superset of JSON
 ``` rust
 users: [
     {
@@ -86,27 +79,19 @@ name = "Joe Schmo"
 ```
 
 ## Why Use Stof?
-### Accessibility & Unification
-Simplify data access, making it more straightforward to interact with diverse data sources and destinations. Stof works with other data formats instead of competing, meaning no matter what data format or schema you're interfacing with, Stof can help.
+Use Stof for just about any data interchange use-case. It's particularly helpful for data unification and sending APIs (logic) over the wire (and combining APIs dynamically).
 
-### Code as Data
-Add custom logic to Stof documents, leveraging their data for a more capable and robust data interface. Offer a safe way to send logic over the network, tying systems together at the data layer.
-
-### Validation
-Ensure integrity by validating data using schemas, defined in Stof, reducing errors and maintaining consistency across applications.
-
-### Transformation & Structure
-Dynamically manipulate data, enabling seamless transformations to meet specific application needs, such as converting units or restructuring data formats.
-
-### Orchestration
-Stof is a logical layer between data sources and applications, capable of unification, transformation, validation, structuring, access control, and orchestration between systems, replacing fragile application code typically responsible for these tasks.
+1. Data Unification
+    - Use different types of data together at once (PDFs, JSON, YAML, XML, Images, DOCX, etc).
+2. Remote Execution
+    - Send Stof over networks as a lightweight and sandboxed way to execute logic remotely.
+3. Data Validation
+    - Use Stofs type system to quickly and easily filter/validate data according to your needs.
+4. Data Transformation & Connectors
+    - Connect data to your application through Stof for easy restructuring & access.
 
 ## Contributing
-Take a look first at the Stof test suite in `src/tests/tests.stof`, this will give a good jumping off point, but there's a lot to do still overall. We'll update this section as the project progresses with more details on how you can specifically get involved.
-
-There are lots of opportunities to contribute and use Stof. If you have ideas or want to get involved, just reach out and we'll make it happen.
-
-Please also consider sponsoring and supporting this project as it's the only way we'll make strides towards our vision of a world where data is more secure, easily governed, and readily available - one with efficient and user-friendly access to high-quality data that is simple and native to the federated and decentralized world we are quickly moving towards.
+Theres a lot to do, so please jump in and consider supporting the project.
 
 ## License
 Apache 2.0. See LICENSE for details.

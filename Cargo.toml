@@ -1,13 +1,13 @@
 [package]
 name = "stof"
-version = "0.3.39"
+version = "0.4.0"
 edition = "2021"
 authors = ["CJ Cummings <cj@formata.io>"]
-description = "Stof is a unified data interface and interchange format for creating, sharing, and manipulating data. Stof removes the fragile and cumbersome parts of combining and using data in applications."
+description = "Stof is a data runtime for all of your stuff."
 license = "Apache-2.0"
 repository = "https://github.com/dev-formata-io/stof"
 homepage = "https://docs.stof.dev"
-keywords = ["stof", "json", "language", "embedded", "api"]
+keywords = ["stof", "language", "embedded", "api"]
 categories = ["data-structures", "development-tools"]
 
 [lib]

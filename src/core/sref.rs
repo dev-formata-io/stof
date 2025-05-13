@@ -368,10 +368,24 @@ impl SNodeRef {
         }
         if first_node.is_none() {
             let first = names.pop().unwrap();
-            for (_, node) in &graph.nodes.store {
-                if node.name == first {
-                    first_node = Some(node);
-                    break;
+
+            // Common scenario: look at root nodes first
+            for root in &graph.roots {
+                if let Some(node) = root.node(graph) {
+                    if node.name == first {
+                        first_node = Some(node);
+                        break;
+                    }
+                }
+            }
+
+            // Look for anything that matches... any order
+            if first_node.is_none() {
+                for (_, node) in &graph.nodes.store {
+                    if node.name == first {
+                        first_node = Some(node);
+                        break;
+                    }
                 }
             }
         }
