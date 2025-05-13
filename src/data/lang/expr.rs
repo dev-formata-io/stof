@@ -246,28 +246,42 @@ impl Expr {
                     stof_object = doc.graph.insert_node(&format!("obj{}", nanoid!(7)), None);
                 }
 
-                // Parse initialization statements and execute them
-                let mut init_statements = Vec::new();
+                // Parse initialization statements and execute them into the new object
                 for statement in &statements.statements {
                     match statement {
                         Statement::Assign(name, expr) => {
-                            let init_statement = Statement::Assign(format!("self.{}", &name).into(), expr.clone());
-                            init_statements.push(init_statement);
+                            if name == "self" || name == "super" || name.contains('.') {
+                                let error = SError::custom(pid, &doc, "NewObjectFieldError", &format!("invalid field name '{name}' for new object"));
+                                return Err(error);
+                            }
+
+                            let val = expr.exec(pid, doc)?;
+                            if val.is_void() {
+                                let error = SError::custom(pid, &doc, "NewObjectFieldError", "cannot assign a void value");
+                                return Err(error);
+                            }
+
+                            let field = SField::new(name, val);
+                            SData::insert_new(&mut doc.graph, &stof_object, Box::new(field));
                         },
                         Statement::Declare(name, expr) => {
-                            let init_statement = Statement::Declare(format!("self.{}", &name).into(), expr.clone());
-                            init_statements.push(init_statement);
+                            if name == "self" || name == "super" || name.contains('.') {
+                                let error = SError::custom(pid, &doc, "NewObjectFieldError", &format!("invalid field name '{name}' for new object"));
+                                return Err(error);
+                            }
+                            
+                            let val = expr.exec(pid, doc)?;
+                            if val.is_void() {
+                                let error = SError::custom(pid, &doc, "NewObjectFieldError", "cannot assign a void value");
+                                return Err(error);
+                            }
+
+                            let field = SField::new(name, val);
+                            SData::insert_new(&mut doc.graph, &stof_object, Box::new(field));
                         }
                         _ => {}
                     }
                 }
-
-                // Execute initialization statements!
-                // Make sure to set new object as self_ptr for new sub-objects!
-                doc.push_self(pid, stof_object.clone());
-                let init_statements = Statements::from(init_statements);
-                let _ = init_statements.exec(pid, doc);
-                doc.pop_self(pid);
 
                 return Ok(SVal::Object(stof_object));
             },

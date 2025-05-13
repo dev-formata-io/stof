@@ -35,7 +35,7 @@ fn new_shortcut() {
     //let x = 5;
     let y = 2;
     let z = 0;
-    let obj = new { x: super.x, y, z };
+    let obj = new { x: self.x, y, z };
     assertEq(obj.x, 543);
     assertEq(obj.y, 2);
     assertEq(obj.z, 0);
