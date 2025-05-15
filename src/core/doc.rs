@@ -38,8 +38,8 @@ use crate::pkg::PKG;
 
 #[cfg(feature = "markdown")]
 use crate::text::markdown::MD;
-#[cfg(feature = "markdown-html")]
-use crate::text::md_html::MDHTMLLibrary;
+#[cfg(feature = "markdown-lib")]
+use crate::text::md_lib::MDLibrary;
 
 #[cfg(feature = "json")]
 use crate::json::JSON;
@@ -311,8 +311,8 @@ impl SDoc {
         #[cfg(feature = "http")]
         self.load_lib(Arc::new(HTTPLibrary::default()));
 
-        #[cfg(feature = "markdown-html")]
-        self.load_lib(Arc::new(MDHTMLLibrary::default()));
+        #[cfg(feature = "markdown-lib")]
+        self.load_lib(Arc::new(MDLibrary::default()));
 
         #[cfg(feature = "image")]
         self.load_lib(Arc::new(SImageLibrary::default()));

@@ -41,3 +41,19 @@ fn new_shortcut() {
     assertEq(obj.z, 0);
     assertNull(obj.i);
 }
+
+#[test]
+fn nested_new_field() {
+    let obj = new {
+        x: self.x,
+        nested: new {
+            x: self.x,
+            nested: new {
+                x: self.x,
+            }
+        }
+    };
+    assertEq(obj.x, 543);
+    assertEq(obj.nested.x, 543);
+    assertEq(obj.nested.nested.x, 543);
+}

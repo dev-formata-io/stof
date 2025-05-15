@@ -19,8 +19,8 @@ pub mod markdown;
 #[cfg(feature = "markdown")]
 pub use markdown::*;
 
-#[cfg(feature = "markdown-html")]
-pub mod md_html;
+#[cfg(feature = "markdown-lib")]
+pub mod md_lib;
 
 use crate::{lang::SError, Format, IntoNodeRef, SDoc, SField, SGraph};
 

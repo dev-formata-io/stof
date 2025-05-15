@@ -1,9 +1,9 @@
 [package]
 name = "stof"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 authors = ["CJ Cummings <cj@formata.io>"]
-description = "Stof is a data runtime for all of your stuff."
+description = "Stof is a simple and embedable data runtime for all of your stuff."
 license = "Apache-2.0"
 repository = "https://github.com/dev-formata-io/stof"
 homepage = "https://docs.stof.dev"
@@ -31,7 +31,7 @@ image = ["dep:image"]
 docx = ["dep:docx-rs", "json"]
 pdf = ["dep:lopdf", "image"]
 http = ["dep:ureq"]
-markdown-html = ["dep:markdown"]
+markdown-lib = ["dep:markdown", "json"]
 
 # WebAssembly Interface feature - no default file system lib, add "json" dependency, and "wasm-bindgen"
 wasm = ["json", "dep:js-sys", "dep:serde-wasm-bindgen", "dep:wasm-bindgen"]
@@ -47,7 +47,7 @@ getrandom = { version = "0.2.15", features = ["js"] }
 image = { version = "0.25.6", features = ["serde"], optional = true }
 js-sys = { version = "0.3.76", optional = true }
 lazy_static = "1.5.0"
-markdown = { version = "1.0.0", optional = true }
+markdown = { version = "1.0.0", features = ["serde"], optional = true }
 nanoid = "0.4.0"
 lopdf = { version = "0.36.0", features = ["serde"], optional = true }
 pest = "2.7.15"

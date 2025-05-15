@@ -14,13 +14,14 @@
 // limitations under the License.
 //
 
-use markdown::to_html;
+use markdown::{to_html, to_mdast, ParseOptions};
+use serde_json::Value;
 use crate::{lang::SError, Library, SDoc, SVal};
 
 
 #[derive(Default)]
-pub struct MDHTMLLibrary;
-impl Library for MDHTMLLibrary {
+pub struct MDLibrary;
+impl Library for MDLibrary {
     fn scope(&self) -> String {
         "Markdown".to_string()
     }
@@ -34,10 +35,43 @@ impl Library for MDHTMLLibrary {
                 }
                 Err(SError::custom(pid, &doc, "MarkdownError", "Markdown.toHTML requires a string (markdown) parameter"))
             },
+            "toJSON" => {
+                if parameters.len() > 0 {
+                    let md = parameters.pop().unwrap().owned_to_string();
+                    let options = ParseOptions::default();
+                    if let Ok(ast) = to_mdast(&md, &options) {
+                        if let Ok(mut value) = serde_json::to_value(&ast) {
+                            remove_json_position_data(&mut value);
+                            return Ok(SVal::String(serde_json::to_string(&value).unwrap()));
+                        }
+                    }
+                }
+                Err(SError::custom(pid, &doc, "MarkdownError", "Markdown.toJSON requires a string (markdown) parameter"))
+            },
             _ => {
                 Err(SError::custom(pid, &doc, "MarkdownError", &format!("{name} is not a function in the Markdown library")))
             }
         }
+    }
+}
+
+
+fn remove_json_position_data(value: &mut Value) {
+    match value {
+        Value::Object(map) => {
+            map.remove("position"); // remove position data... that sh#$ aint helpful
+            if let Some(children) = map.get_mut("children") {
+                remove_json_position_data(children);
+            }
+        },
+        Value::Array(vals) => {
+            for val in vals {
+                if val.is_object() {
+                    remove_json_position_data(val);
+                }
+            }
+        },
+        _ => {}
     }
 }
 
