@@ -1,9 +1,9 @@
 [package]
 name = "stof"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2021"
 authors = ["CJ Cummings <cj@formata.io>"]
-description = "Stof is a simple and embedable data runtime for all of your stuff."
+description = "A simple and embeddable data runtime."
 license = "Apache-2.0"
 repository = "https://github.com/dev-formata-io/stof"
 homepage = "https://docs.stof.dev"

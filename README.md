@@ -16,7 +16,7 @@
 <p align="center"><img src="./content/overview.png" height="200"></p>
 <br/>
 
-[Stof](https://stof.dev) is a simple data runtime for all of your stuff. It unifies data handling and makes working with data much more enjoyable.
+[Stof](https://stof.dev) is a simple and embeddable data runtime. Expanding on hypermedia concepts, Stof documents make working with data much more enjoyable by unifying many data types and APIs to be used together from one place.
 
 - [Docs](https://docs.stof.dev)
 - [Discord](https://discord.gg/Up5kxdeXZt)
@@ -24,31 +24,17 @@
 - [Introduction & Design](https://docs.stof.dev/book/introduction-and-design)
 - [More Information](https://docs.stof.dev/resources-and-information)
 
-<br/>
-<br/>
-<p align="center"><img src="./content/stof.gif"></p>
-<br/>
-
 ## Why
-Stof drastically decreases the amount of application code it takes to manipulate data by moving logic into the data that needs manipulating (typically done the other way around), creating a standard interface that can be used for cheaper and higher-quality access, while improving security, developer experience, and governance.
+> Unified data that manipulates itself is the foundation for portable, composable, secure, and universal APIs.
 
-## Getting Started
-### CLI
-[CLI](https://docs.stof.dev/reference/cli) is a standalone way to use Stof outside of an embedded environment.
-```bash
-cargo install stof-cli
-```
-### Rust
-The Stof [Rust Crate](https://crates.io/crates/stof) is the most fully-featured way to embed and work with Stof. However, we are adding as many languages as possible to this list.
-```bash
-cargo add stof
-```
-### TypeScript (JSR)
-It is currently possible to use Stof from the browser and in JavaScript host environments through WebAssembly. In this context, Stof is not yet fully featured.
-[Stof JSR](https://jsr.io/@formata/stof)
+Combining APIs and manipulating the data to, from, and within them is a pain, made worse by the plethora of programming languages and SDKs that are used.
+
+Stof is a glue format for putting all of this together and a standard interface from your language of choice (or standalone) for working with data and APIs.
+
+If you're sending APIs and data over a network, combining many APIs, or are using a lot of different data types at once, Stof might be a good choice for your project.
 
 ## Example
-> Note: Stof is also a superset of JSON
+> Note: Stof documents are also a superset of JSON
 ``` rust
 users: [
     {
@@ -78,17 +64,26 @@ height = 185.42
 name = "Joe Schmo"
 ```
 
+<br/>
+<br/>
+<p align="center"><img src="./content/stof.gif"></p>
+<br/>
+
 ## Why Use Stof?
-Use Stof for just about any data interchange use-case. It's particularly helpful for data unification and sending APIs (logic) over the wire (and combining APIs dynamically).
+Use Stof for just about any data interchange use-case. It's particularly helpful for data unification, sending APIs (logic) over the wire, and combining APIs dynamically.
+
+As an example, it would require many SDKs, dependencies, and a lot of application dependant logic to use the Google Drive API to get document data (images, PDF, DOCX, JSON, etc.), send unified data to an LLM provider, then post a response in Slack or Discord.
+
+All of this plus the user configuration, conversation data, and auth can be contained within a singular Stof document, sent between servers, persisted in databases or to disk (even partially), and be executed anywhere Stof runs (most places due to WebAssembly).
 
 1. Data Unification
     - Use different types of data together at once (PDFs, JSON, YAML, XML, Images, DOCX, etc).
 2. Remote Execution
     - Send Stof over networks as a lightweight and sandboxed way to execute logic remotely.
 3. Data Validation
-    - Use Stofs type system to quickly and easily filter/validate data according to your needs.
+    - Use Stofs type system to quickly and easily filter/modify/validate data according to your needs.
 4. Data Transformation & Connectors
-    - Connect data to your application through Stof for easy restructuring & access.
+    - Upgrade and downgrade data to and from Stof using the formats of your choice for interoperability, transformations, translations, and data connectors.
 
 ## Contributing
 Theres a lot to do, so please jump in and consider supporting the project.
