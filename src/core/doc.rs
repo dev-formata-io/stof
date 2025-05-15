@@ -791,6 +791,30 @@ impl SDoc {
         }
     }
 
+    /// New object pointer.
+    pub(crate) fn new_obj_ptr(&self, pid: &str) -> Option<SNodeRef> {
+        if let Some(process) = self.processes.get(pid) {
+            return process.new_obj_ptr();
+        }
+        None
+    }
+
+    /// Push a node ref to the new object stack of a process.
+    pub(crate) fn push_new_obj(&mut self, pid: &str, node: impl IntoNodeRef) {
+        if let Some(process) = self.processes.get_mut(pid) {
+            process.new_obj_stack.push(node.node_ref());
+        }
+    }
+
+    /// Pop a node ref from the new object stack of a process.
+    pub(crate) fn pop_new_obj(&mut self, pid: &str) -> Option<SNodeRef> {
+        if let Some(process) = self.processes.get_mut(pid) {
+            process.new_obj_stack.pop()
+        } else {
+            None
+        }
+    }
+
     /// New table.
     /// Returns the current table, replacing it with a new one.
     /// This happens for function calls.

@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::collections::{BTreeMap, HashSet};
+use std::{collections::{BTreeMap, HashSet}, ops::Deref};
 use serde::{Deserialize, Serialize};
 use crate::{Data, SData, SDataRef, SGraph, SNodeRef};
 use super::{lang::{ErrorType, SError}, SNum, SUnits, SVal};
@@ -256,10 +256,50 @@ impl SField {
                 }
             }
         }
-        for other_ref in other_fields {
+        'other_fields: for other_ref in other_fields {
             if !other_handled.contains(other_ref) {
                 if let Some(other) = SData::get::<SField>(other, other_ref) {
                     let cloned = other.clone();
+                    match &cloned.value {
+                        SVal::Object(nref) => {
+                            if !nref.exists(graph) {
+                                continue 'other_fields;
+                            }
+                        },
+                        SVal::Data(dref) => {
+                            if !dref.exists(graph) {
+                                continue 'other_fields;
+                            }
+                        },
+                        SVal::FnPtr(dref) => {
+                            if !dref.exists(graph) {
+                                continue 'other_fields;
+                            }
+                        },
+                        SVal::Boxed(val) => {
+                            let val = val.lock().unwrap();
+                            let val = val.deref();
+                            match val {
+                                SVal::Object(nref) => {
+                                    if !nref.exists(graph) {
+                                        continue 'other_fields;
+                                    }
+                                },
+                                SVal::Data(dref) => {
+                                    if !dref.exists(graph) {
+                                        continue 'other_fields;
+                                    }
+                                },
+                                SVal::FnPtr(dref) => {
+                                    if !dref.exists(graph) {
+                                        continue 'other_fields;
+                                    }
+                                },
+                                _ => {}
+                            }
+                        },
+                        _ => {}
+                    }
                     SData::insert_new_id(graph, node, Box::new(cloned), &other_ref.id);
                 }
             }

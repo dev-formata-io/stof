@@ -79,6 +79,7 @@ impl SProcesses {
 pub struct SProcess {
     pub pid: String,
     pub self_stack: Vec<SNodeRef>,
+    pub new_obj_stack: Vec<SNodeRef>,
     pub stack: Vec<SVal>,
     pub table: SymbolTable,
     pub call_stack: Vec<SDataRef>,
@@ -90,6 +91,7 @@ impl SProcess {
         Self {
             pid: id.to_owned(),
             self_stack: Default::default(),
+            new_obj_stack: Default::default(),
             stack: Default::default(),
             table: Default::default(),
             call_stack: Default::default(),
@@ -100,6 +102,14 @@ impl SProcess {
     /// Self pointer.
     pub fn self_ptr(&self) -> Option<SNodeRef> {
         if let Some(last) = self.self_stack.last() {
+            return Some(last.clone());
+        }
+        None
+    }
+
+    /// New obj pointer.
+    pub fn new_obj_ptr(&self) -> Option<SNodeRef> {
+        if let Some(last) = self.new_obj_stack.last() {
             return Some(last.clone());
         }
         None

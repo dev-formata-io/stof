@@ -239,25 +239,31 @@ impl Expr {
 
                 let stof_object;
                 if let Some(on) = on_parent {
-                    stof_object = doc.graph.insert_node(&format!("obj{}", nanoid!(7)), Some(&on));
+                    stof_object = doc.graph.insert_node(&format!("objn{}", nanoid!(10)), Some(&on));
+                } else if let Some(new_obj) = doc.new_obj_ptr(pid) {
+                    stof_object = doc.graph.insert_node(&format!("objn{}", nanoid!(10)), Some(&new_obj));
                 } else if let Some(parent) = doc.self_ptr(pid) {
-                    stof_object = doc.graph.insert_node(&format!("obj{}", nanoid!(7)), Some(&parent));
+                    stof_object = doc.graph.insert_node(&format!("objn{}", nanoid!(10)), Some(&parent));
                 } else {
-                    stof_object = doc.graph.insert_node(&format!("obj{}", nanoid!(7)), None);
+                    stof_object = doc.graph.insert_node(&format!("objn{}", nanoid!(10)), None);
                 }
 
                 // Parse initialization statements and execute them into the new object
+                // Place this newly created object onto the new obj stack - any new obj fields will be children of this obj
+                doc.push_new_obj(pid, &stof_object);
                 for statement in &statements.statements {
                     match statement {
                         Statement::Assign(name, expr) => {
                             if name == "self" || name == "super" || name.contains('.') {
                                 let error = SError::custom(pid, &doc, "NewObjectFieldError", &format!("invalid field name '{name}' for new object"));
+                                doc.pop_new_obj(pid);
                                 return Err(error);
                             }
 
                             let val = expr.exec(pid, doc)?;
                             if val.is_void() {
                                 let error = SError::custom(pid, &doc, "NewObjectFieldError", "cannot assign a void value");
+                                doc.pop_new_obj(pid);
                                 return Err(error);
                             }
 
@@ -267,12 +273,14 @@ impl Expr {
                         Statement::Declare(name, expr) => {
                             if name == "self" || name == "super" || name.contains('.') {
                                 let error = SError::custom(pid, &doc, "NewObjectFieldError", &format!("invalid field name '{name}' for new object"));
+                                doc.pop_new_obj(pid);
                                 return Err(error);
                             }
                             
                             let val = expr.exec(pid, doc)?;
                             if val.is_void() {
                                 let error = SError::custom(pid, &doc, "NewObjectFieldError", "cannot assign a void value");
+                                doc.pop_new_obj(pid);
                                 return Err(error);
                             }
 
@@ -282,6 +290,7 @@ impl Expr {
                         _ => {}
                     }
                 }
+                doc.pop_new_obj(pid);
 
                 return Ok(SVal::Object(stof_object));
             },

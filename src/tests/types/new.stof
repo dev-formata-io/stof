@@ -57,3 +57,49 @@ fn nested_new_field() {
     assertEq(obj.nested.x, 543);
     assertEq(obj.nested.nested.x, 543);
 }
+
+#[test]
+fn nested_parent() {
+    let obj = new {
+        nested: new {
+            x: self.x;
+            nested: new {
+                x: self.x
+            }
+        }
+        other: new {
+            x: self.x;
+        } on self
+    };
+    assertEq(obj.parent(), self);
+
+    assertEq(obj.nested.parent(), obj);
+    assertEq(obj.nested.x, 543);
+    assertEq(obj.nested.nested.parent(), obj.nested);
+    assertEq(obj.nested.nested.x, 543);
+
+    assertEq(obj.other.parent(), self);
+    assertEq(obj.other.x, 543);
+}
+
+new_merge_field: {
+    #[test]
+    // This is a test to make sure the collision doesn't create
+    // a rogue field on 'self' where 'obj' was in the intermediate graph
+    // If failing, look at SField::merge_fields and the JSON format
+    fn merge_created_field() {
+        let obj = new {};
+
+        let path = obj.path();
+        let json = r#"{
+            "hello": "dude",
+            "another": {
+                "man": true
+            }
+        }"#;
+        parse(json, 'json', path);
+        
+        assertEq(self.toString(), '{}');
+        assertEq(obj.toString(), '{"another":{"man":true},"hello":"dude"}');
+    }
+}
