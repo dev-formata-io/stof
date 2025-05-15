@@ -911,9 +911,6 @@ impl SGraph {
                 }
                 children.append(&mut node.children.iter().cloned().collect());
             }
-            
-            // Merge both sets of fields, then insert/set them on this graph node
-            SField::merge_fields(graph, &nodes.0, &other, &other_fields)?;
 
             // Add children to this node
             if let Some(node) = nodes.0.node_mut(graph) {
@@ -935,6 +932,10 @@ impl SGraph {
                     }
                 }
             }
+
+            // Merge both sets of fields, then insert/set them on this graph node
+            SField::merge_fields(graph, &nodes.0, &other, &other_fields)?;
+            
             Ok(())
         },
         |_graph, _node| {
