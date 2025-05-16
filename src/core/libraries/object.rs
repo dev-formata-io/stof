@@ -1552,6 +1552,10 @@ impl Library for ObjectLibrary {
                     }
                     return Ok(SVal::Null);
                 },
+                // Create an Object value from a NodeRef ID.
+                "fromId" => {
+                    return Ok(SVal::Object(SNodeRef::new(&parameters[0].to_string())));
+                },
                 _ => {}
             }
 

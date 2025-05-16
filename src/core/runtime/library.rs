@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::{collections::{BTreeMap, BTreeSet, HashSet}, sync::Arc};
+use std::{collections::{BTreeMap, BTreeSet, HashSet}, ops::Deref, sync::Arc};
 use bytes::Bytes;
 use colored::Colorize;
 use nanoid::nanoid;
@@ -394,6 +394,51 @@ impl Library for StdLibrary {
             },
 
             /*****************************************************************************
+             * Function finding.
+             *****************************************************************************/
+            // Find all functions with an optional attribute and optional context.
+            "getFunctions" => {
+                let mut context = None;
+                let mut attribute = None;
+
+                for param in parameters.drain(..) {
+                    match param {
+                        SVal::Object(nref) => context = Some(nref),
+                        SVal::String(attr) => attribute = Some(attr),
+                        SVal::Boxed(val) => {
+                            let val = val.lock().unwrap();
+                            let val = val.deref();
+                            match val {
+                                SVal::Object(nref) => context = Some(nref.clone()),
+                                SVal::String(attr) => attribute = Some(attr.clone()),
+                                _ => {}
+                            }
+                        },
+                        _ => {}
+                    }
+                }
+
+                let mut functions;
+                if context.is_some() {
+                    functions = SFunc::recursive_func_refs(&doc.graph, &context.unwrap());
+                } else {
+                    functions = SFunc::all_funcs(&doc.graph);
+                }
+
+                if let Some(attr) = attribute {
+                    functions.retain(|f| {
+                        if let Some(func) = SData::get::<SFunc>(&doc.graph, f) {
+                            func.attributes.contains_key(&attr)
+                        } else {
+                            false
+                        }
+                    });
+                }
+
+                Ok(SVal::Array(functions.into_iter().map(|dref| SVal::FnPtr(dref)).collect()))
+            },
+
+            /*****************************************************************************
              * IDs.
              *****************************************************************************/
             // Return a new nanoid with an optional length (default is 21 URL safe chars).
@@ -487,6 +532,7 @@ impl Library for StdLibrary {
                 Ok(SVal::Bool(parameters[0].is_number()))
             },
             // Is the value an object (boxed or unboxed)?
+            "isObj" |
             "isObject" => {
                 if parameters.len() != 1 {
                     return Err(SError::std(pid, &doc, "isObject", "expecting one value argument to test that it is an object"));
@@ -500,6 +546,7 @@ impl Library for StdLibrary {
                 }
                 Ok(SVal::Bool(parameters[0].is_empty()))
             },
+            "isStr" |
             "isString" => {
                 if parameters.len() != 1 {
                     return Err(SError::std(pid, &doc, "isString", "expecting one value argument to test that it is a string"));
@@ -537,7 +584,8 @@ impl Library for StdLibrary {
                 }
                 Ok(SVal::Bool(parameters[0].is_array()))
             },
-            "isFunc" => {
+            "isFunc" |
+            "isFunction" => {
                 if parameters.len() != 1 {
                     return Err(SError::std(pid, &doc, "isFunc", "expecting one value argument to test that it is a function"));
                 }
@@ -681,6 +729,38 @@ impl Library for StdLibrary {
                     }
                 }
                 Ok(SVal::Map(map))
+            },
+
+            // New object constructor (without having to create unnessessary fields)
+            // Ex. obj('my_obj', self, true) instead of self.my_obj = new {};
+            "obj" => {
+                let mut name = format!("stdobj{}", nanoid!(12));
+                let mut parent = None;
+                let mut field = false;
+
+                for param in parameters.drain(..) {
+                    match param {
+                        SVal::String(nm) => name = nm,
+                        SVal::Object(prt) => parent = Some(prt),
+                        SVal::Bool(fld) => field = fld,
+                        SVal::Boxed(val) => {
+                            let val = val.lock().unwrap();
+                            let val = val.deref();
+                            match val {
+                                SVal::String(nm) => name = nm.clone(),
+                                SVal::Object(prt) => parent = Some(prt.clone()),
+                                SVal::Bool(fld) => field = *fld,
+                                _ => {}
+                            }
+                        },
+                        _ => {}
+                    }
+                }
+
+                if field && parent.is_some() { // root objects cannot be fields
+                    return Ok(SVal::Object(SField::new_object(&mut doc.graph, &name, &parent.unwrap())));
+                }
+                Ok(SVal::Object(doc.graph.insert_node(&name, parent.as_ref())))
             },
             _ => {
                 Err(SError::std(pid, &doc, "NotFound", &format!("{} is not a function in the Stof Standard Library", name)))

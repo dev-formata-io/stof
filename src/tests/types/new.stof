@@ -28,6 +28,16 @@ fn new_keyword() {
     assertNull(obj.i);
 }
 
+#[test]
+fn new_empty_constructor() {
+    // Eq to 'new {}', but able to set obj name
+    let obj = obj('myobj', self);
+    
+    assertEq(obj.name(), 'myobj');
+    assertEq(obj.parent(), self);
+    assert(self.myobj); // but not a field, so won't be exported when parsed!
+}
+
 x: 543
 
 #[test]
@@ -40,6 +50,9 @@ fn new_shortcut() {
     assertEq(obj.y, 2);
     assertEq(obj.z, 0);
     assertNull(obj.i);
+
+    let another = Object.fromId(obj.id());
+    assertEq(another.x, 543);
 }
 
 #[test]

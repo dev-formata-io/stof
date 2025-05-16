@@ -402,7 +402,7 @@ stdlib: {
         let object = new {};
         assert(isObject(object));
         assert(isObject(box(object)));
-        assertNot(isObject(true));
+        assertNot(isObj(true));
     }
 
     #[test]
@@ -416,6 +416,7 @@ stdlib: {
         assert(isString('hi'));
         assert(isString(box('hi')));
         assertNot(isString(32));
+        assertNot(isStr(32));
     }
 
     #[test]
@@ -462,6 +463,7 @@ stdlib: {
         assert(isFunc(() => {}));
         assert(isFunc(box(() => {})));
         assertNot(isFunc(32));
+        assertNot(isFunction(32));
     }
 
     #[test]
@@ -471,4 +473,27 @@ stdlib: {
         assertNot(isBox(32));
         assertNot(isBoxed(32));
     }
+
+    func_search: {
+        #[example_attr]
+        fn first() {}
+
+        #[example_attr]
+        fn second() {}
+
+        #[NOT_example_attr]
+        fn not_included() {}
+
+        #[test]
+        fn find_example_attr() {
+            let funcs = getFunctions('example_attr');
+            assertEq(funcs.len(), 3);
+
+            funcs = getFunctions('example_attr', self);
+            assertEq(funcs.len(), 2); // local search
+        }
+    }
+
+    #[example_attr]
+    fn dude() {}
 }
