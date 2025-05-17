@@ -41,6 +41,7 @@ lazy_static! {
             .op(Op::infix(bit_and, Left) | Op::infix(bit_or, Left) | Op::infix(bit_xor, Left))
             .op(Op::infix(bit_shl, Left) | Op::infix(bit_shr, Left))
             .op(Op::prefix(unary_minus))
+            .op(Op::prefix(bang))
     };
 }
 enum MathExpr {
