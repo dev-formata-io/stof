@@ -105,8 +105,8 @@ if_statement      =  { "if" ~ "(" ~ expr ~ ")" ~ (block | single_block) ~ else_i
 else_if_statement =  { "else if" ~ "(" ~ expr ~ ")" ~ (block | single_block) }
 else_statement    =  { "else" ~ (block | single_block) }
 switch_statement  =  { "switch" ~ "(" ~ expr ~ ")" ~ "{" ~ switch_case* ~ switch_default? ~ "}" }
-switch_case       =  { (switch_or)* ~ "case" ~ expr ~ ":" ~ (block | single_block) ~ ("," | ";")? }
-switch_or         = _{ "case" ~ expr ~ "or" }
+switch_case       =  { block_comment | "case" ~ expr ~ ":" ~ (switch_or)* ~ (block | single_block) ~ ("," | ";")? }
+switch_or         = _{ "case" ~ expr ~ ":" }
 switch_default    =  { "default" ~ ":" ~ (block | single_block) ~ ("," | ";")? }
 try_statement     =  { "try" ~ (block | single_block) ~ "catch" ~ catch_error? ~ (block | single_block) }
 catch_error       =  { "(" ~ ident ~ ":" ~ atype ~ ")" }
@@ -150,7 +150,7 @@ chain_index_inner = { "[" ~ expr ~ ("," ~ expr)* ~ "]" }
 type_of_expr      = { "typeof" ~ expr }
 type_name_expr    = { "typename" ~ expr }
 not_expr          = { "!" ~ expr }
-if_expr           = { "if" ~ expr ~ "?" ~ expr ~ ":" ~ expr }
+if_expr           = { "if" ~ ("(" ~ expr ~ ")" | expr) ~ "?" ~ expr ~ ":" ~ expr }
 
 // Arrow function expression
 arrow_function = { "(" ~ func_params? ~ ")" ~ (":" ~ atype)? ~ "=>" ~ (block | expr) }
@@ -162,7 +162,7 @@ fmt_inner  =  { "${" ~ expr ~ "}" }
 
 // Type constructor
 stof_type_constructor  = { "new" ~ ident? ~ "{" ~ (stof_type_field_create ~ (("," | ";")? ~ stof_type_field_create)*)? ~ ("," | ";")? ~ "}" ~ ("on" ~ expr)? }
-stof_type_field_create = { (string | ident) ~ ":" ~ expr | ident }
+stof_type_field_create = { block_comment | (string | ident) ~ ":" ~ expr | ident }
 
 // Math expressions
 math_expr   =  { math_atom ~ (math_op ~ math_atom)+ }

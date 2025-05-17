@@ -27,6 +27,18 @@ fn ternary() {
 }
 
 #[test]
+fn ternary_parens() {
+    let x = 10;
+    
+    let y = if (x > 5) ? true : false;
+    assert(y);
+    
+    x = 3;
+    y = if (x > 5) ? true : false;
+    assertNot(y);
+}
+
+#[test]
 fn ternary_blocks() {
     let x = if true ? {
         let a = Number.abs(-34);

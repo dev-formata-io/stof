@@ -88,11 +88,40 @@ fn switch_tuples() {
 fn switch_or() {
     let seen = false;
     switch ('hel') {
-        case 'h'    or
-        case 'he'   or
-        case 'hel'  or
-        case 'hell' or
+        case 'h':
+        case 'he':
+        case 'hel':
+        case 'hell':
         case 'hello': seen = true;
+    }
+    assert(seen);
+}
+
+#[test]
+fn switch_boxed_int() {
+    let val = box(42);
+    let seen = false;
+    switch (val) { // Switch statement unboxes this value here at runtime for eval
+        case 42: seen = true;
+    }
+    assertEq(typeof val, 'Box<int>');
+    assert(seen);
+}
+
+#[test]
+fn switch_boxed_array() {
+    let val = box([
+        box(34),
+        box('hello'),
+        box((true, false, 'hi')),
+    ]);
+    
+    let seen = false;
+    switch (val) {
+        /* 
+            Has to be the correct order
+        */
+        case [34, 'hello', (true, false, 'hi')]: seen = true;
     }
     assert(seen);
 }

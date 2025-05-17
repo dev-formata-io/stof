@@ -18,14 +18,21 @@
 #[test]
 fn new_keyword() {
     let obj = new {
+        /*
+         This is a comment in a new block.
+        */
         x: 5
         y: 2;
+        // This is a line comment in a new block.
         z: 0,
     };
     assertEq(obj.x, 5);
     assertEq(obj.y, 2);
     assertEq(obj.z, 0);
     assertNull(obj.i);
+
+    //await self.new_keyword(32, 32) with self with other; // Async.await(Async.spawn(self, other, (self.new_keyword, [32, 32])));
+    //await handle; // Async.await(handle);
 }
 
 #[test]

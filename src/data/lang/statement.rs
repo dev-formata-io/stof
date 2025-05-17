@@ -451,7 +451,8 @@ impl Statements {
                     }
                 },
                 Statement::Switch(expr, map, default) => {
-                    let val = expr.exec(pid, doc)?;
+                    let mut val = expr.exec(pid, doc)?;
+                    val.unbox_ref(); // switch expr should be unboxed right when evaluated
                     if let Some(statements) = map.get(&val) {
                         doc.new_scope(pid);
                         let res = statements.exec(pid, doc)?;
