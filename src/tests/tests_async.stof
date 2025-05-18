@@ -167,6 +167,8 @@ type AsyncPoint {
 
 #[test]
 fn types_in_async() {
+    assert(self.point_context.do_point_stuff.isAsync());
+
     let res = await self.point_context.do_point_stuff(2m, 2m, 2m);
     assertEq(res.round(3), 3.464m);
     assertEq(self.point_context.test, 'hello, there, new data!');

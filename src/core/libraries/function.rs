@@ -115,6 +115,27 @@ impl FunctionLibrary {
                     }
                 }
             },
+
+            #[cfg(not(feature = "async"))]
+            // This is for library compatability, but without running in async mode, no function is async.
+            "isAsync" => {
+                // Not currently running in async mode...
+                // TODO: Should update these to be lib calls for a more dynamic async environment
+                Ok(SVal::Bool(false))
+            },
+
+            #[cfg(feature = "async")]
+            // When this function is called (in this runtime), is it going to be executed as async (if runtime permits)?
+            // Must be currently running in an async runtime, have an #[async] attribute, and have an "Async" library.
+            "isAsync" => {
+                let func: &SFunc = dref.data(&doc.graph).unwrap().get_data().unwrap();
+                let mut is_async = false;
+                if func.attributes.contains_key("async") && doc.libraries.libraries.contains_key("Async") {
+                    use tokio::runtime::Handle; // make sure we are in an async runtime
+                    is_async = Handle::try_current().is_ok();
+                }
+                Ok(SVal::Bool(is_async))
+            },
             _ => {
                 Err(SError::func(pid, &doc, "NotFound", &format!("{} is not a function in the Function Library", name)))
             }
