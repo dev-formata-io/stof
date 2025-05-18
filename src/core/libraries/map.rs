@@ -204,7 +204,7 @@ impl MapLibrary {
                             let statements = func.statements.clone();
                             let params = func.params.clone();
                             map.retain(|k, v| {
-                                if let Ok(res) = SFunc::call_internal(dref, pid, doc, vec![k.clone(), v.clone()], true, &params, &statements, &rtype) {
+                                if let Ok(res) = SFunc::call_internal(dref, pid, doc, vec![k.clone(), v.clone()], true, &params, &statements, &rtype, false) {
                                     res.truthy()
                                 } else {
                                     false

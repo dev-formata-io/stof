@@ -47,6 +47,8 @@ pub enum Expr {
     Block(Statements),
     NewObject(Statements, Option<Box<Expr>>),
 
+    Await(Box<Expr>),
+
     Add(Vec<Expr>),
     Sub(Vec<Expr>),
     Mul(Vec<Expr>),
@@ -355,7 +357,7 @@ impl Expr {
                                 }
                             }
                             let current_symbol_table = doc.new_table(pid);
-                            let res = SFunc::call(&func_ref, pid, doc, func_params, true)?;
+                            let res = SFunc::call(&func_ref, pid, doc, func_params, true, true)?;
                             doc.set_table(pid, current_symbol_table);
                             return Ok(res);
                         }
@@ -410,7 +412,7 @@ impl Expr {
                                     let current_symbol_table = doc.new_table(pid);
                                     // Set self to the object still...
                                     doc.push_self(pid, nref.clone());
-                                    let res = SFunc::call(&func_ref, pid, doc, func_params, false)?;
+                                    let res = SFunc::call(&func_ref, pid, doc, func_params, false, true)?;
                                     doc.pop_self(pid);
                                     doc.set_table(pid, current_symbol_table);
                                     return Ok(res);
@@ -504,7 +506,7 @@ impl Expr {
                                 }
                             }
                             let current_symbol_table = doc.new_table(pid);
-                            let res = SFunc::call(&func_ref, pid, doc, func_params, false)?;
+                            let res = SFunc::call(&func_ref, pid, doc, func_params, false, true)?;
                             doc.set_table(pid, current_symbol_table);
                             return Ok(res);
                         }
@@ -699,6 +701,71 @@ impl Expr {
                 let lhs = lhs.exec(pid, doc)?;
                 let rhs = rhs.exec(pid, doc)?;
                 Ok(lhs.bit_shr(pid, rhs, doc)?)
+            },
+            Expr::Await(expr) => {
+                let val = expr.exec(pid, doc)?;
+
+                #[cfg(feature = "async")]
+                {
+                    use crate::TokioPool;
+                    use tokio::runtime::Handle;
+
+                    if Handle::try_current().is_ok() && doc.libraries.libraries.contains_key("Async") {
+                        if val.is_string() {
+                            let task_id = val.to_string();
+                            if TokioPool::is_handle(&task_id) {
+                                match TokioPool::join(doc, &task_id) {
+                                    Some(mut results) => {
+                                        if results.len() == 1 {
+                                            return Ok(results.pop().unwrap());
+                                        }
+                                        return Ok(SVal::Array(results));
+                                    },
+                                    None => {
+                                        return Ok(SVal::Null);
+                                    }
+                                }
+                            }
+                        } else if val.is_array() {
+                            let mut ids = Vec::new();
+                            match &val {
+                                SVal::Array(vals) => {
+                                    for id in vals {
+                                        if id.is_string() {
+                                            let id = id.to_string();
+                                            if TokioPool::is_handle(&id) {
+                                                ids.push(id);
+                                            }
+                                        }
+                                    }
+                                },
+                                SVal::Boxed(val) => {
+                                    let val = val.lock().unwrap();
+                                    let val = val.deref();
+                                    match val {
+                                        SVal::Array(vals) => {
+                                            for id in vals {
+                                                if id.is_string() {
+                                                    let id = id.to_string();
+                                                    if TokioPool::is_handle(&id) {
+                                                        ids.push(id);
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        _ => {}
+                                    }
+                                },
+                                _ => {}
+                            }
+                            if ids.len() > 0 {
+                                return Ok(SVal::Map(TokioPool::join_many(doc, ids)));
+                            }
+                        }
+                    }
+                }
+
+                Ok(val)
             },
         }
     }

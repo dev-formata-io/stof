@@ -88,7 +88,7 @@ impl FunctionLibrary {
             },
             // Call this function.
             "call" => {
-                SFunc::call(dref, pid, doc, parameters.drain(..).collect(), true)
+                SFunc::call(dref, pid, doc, parameters.drain(..).collect(), true, true)
             },
             // Call this function with an array of parameters as an argument.
             "expandCall" => {
@@ -98,13 +98,13 @@ impl FunctionLibrary {
                 let param = parameters.pop().unwrap();
                 match param {
                     SVal::Array(vals) => {
-                        SFunc::call(dref, pid, doc, vals, true)
+                        SFunc::call(dref, pid, doc, vals, true, true)
                     },
                     SVal::Tuple(vals) => {
-                        SFunc::call(dref, pid, doc, vals, true)
+                        SFunc::call(dref, pid, doc, vals, true, true)
                     },
                     SVal::Set(set) => {
-                        SFunc::call(dref, pid, doc, set.into_iter().collect(), true)
+                        SFunc::call(dref, pid, doc, set.into_iter().collect(), true, true)
                     },
                     _ => {
                         Err(SError::func(pid, &doc, "expandCall", "must provide an (array, tuple, or set) of parameters to use"))

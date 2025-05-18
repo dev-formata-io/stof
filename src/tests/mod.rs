@@ -83,6 +83,13 @@ fn stof_test_suite() {
 }
 
 
+#[cfg(feature = "async")]
+#[tokio::test]
+async fn async_stof_suite() {
+    SDoc::test_file_async("src/tests/tests_async.stof", true).await;
+}
+
+
 #[test]
 fn flush_join_docs() {
     let mut doc = SDoc::src(r#"

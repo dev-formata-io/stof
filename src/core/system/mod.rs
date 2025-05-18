@@ -21,6 +21,11 @@ pub use filesystem::*;
 pub mod time;
 pub use time::*;
 
+#[cfg(feature = "async")]
+pub mod tokio;
+#[cfg(feature = "async")]
+pub use tokio::*;
+
 #[cfg(feature = "http")]
 pub mod http;
 #[cfg(feature = "http")]

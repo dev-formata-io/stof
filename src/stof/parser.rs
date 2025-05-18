@@ -504,7 +504,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                     func.name = format!("decfn_{}", nanoid!(7));
                                     if let Some(func_ref) = SData::insert_new(&mut doc.graph, &scope, Box::new(func)) {
                                         // Call the decorator function with the func as the parameter
-                                        if let Ok(res_val) = SFunc::call_internal(&dref, &env.pid, doc, vec![SVal::FnPtr(func_ref.clone())], true, &decorator.params, &decorator.statements, &decorator.rtype) {
+                                        if let Ok(res_val) = SFunc::call_internal(&dref, &env.pid, doc, vec![SVal::FnPtr(func_ref.clone())], true, &decorator.params, &decorator.statements, &decorator.rtype, false) {
                                             match res_val {
                                                 SVal::FnPtr(res_ref) => {
                                                     if let Some(res_func) = SData::get::<SFunc>(&mut doc.graph, res_ref) {
@@ -767,7 +767,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                                 func.name = format!("decfn_{}", nanoid!(7));
                                                 if let Some(func_ref) = SData::insert_new(&mut doc.graph, &scope, Box::new(func)) {
                                                     // Call the decorator function with the func as the parameter
-                                                    if let Ok(res_val) = SFunc::call_internal(&dref, &env.pid, doc, vec![SVal::FnPtr(func_ref.clone())], true, &decorator.params, &decorator.statements, &decorator.rtype) {
+                                                    if let Ok(res_val) = SFunc::call_internal(&dref, &env.pid, doc, vec![SVal::FnPtr(func_ref.clone())], true, &decorator.params, &decorator.statements, &decorator.rtype, false) {
                                                         match res_val {
                                                             SVal::FnPtr(res_ref) => {
                                                                 if let Some(res_func) = SData::get::<SFunc>(&mut doc.graph, res_ref) {
@@ -2225,6 +2225,18 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
             } else {
                 res = Expr::NewObject(Statements::from(block_statements), on_expr);
             }
+        },
+        Rule::await_expr => {
+            let mut expr = Expr::Literal(SVal::Void);
+            for pair in pair.into_inner() {
+                match pair.as_rule() {
+                    Rule::expr => {
+                        expr = parse_expression(doc, env, pair)?;
+                    },
+                    _ => {}
+                }
+            }
+            res = Expr::Await(Box::new(expr));
         },
         Rule::if_expr => { // modified ternary expression
             let mut set_if = false;

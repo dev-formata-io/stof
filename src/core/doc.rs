@@ -27,6 +27,9 @@ use super::FileSystemLibrary;
 #[cfg(not(feature = "wasm"))]
 use super::TimeLibrary;
 
+#[cfg(feature = "async")]
+use super::TokioLibrary;
+
 #[cfg(feature = "thread")]
 use super::ThreadLibrary;
 
@@ -294,6 +297,9 @@ impl SDoc {
         #[cfg(feature = "thread")]
         self.load_lib(Arc::new(ThreadLibrary::default()));
 
+        #[cfg(feature = "async")]
+        self.load_lib(Arc::new(TokioLibrary::default()));
+
         self.load_lib(Arc::new(StdLibrary::default()));
         self.load_lib(Arc::new(ObjectLibrary::default()));
         self.load_lib(Arc::new(ArrayLibrary::default()));
@@ -403,7 +409,7 @@ impl SDoc {
                     parameters.push(params.clone());
                 }
             }
-            if let Ok(res) = SFunc::call(&func_ref, "main", self, parameters, true) {
+            if let Ok(res) = SFunc::call(&func_ref, "main", self, parameters, true, false) {
                 self.clean("main");
                 return Some(res);
             }
@@ -462,6 +468,57 @@ impl SDoc {
         }
     }
 
+    #[cfg(feature = "async")]
+    /// Run some Stof in a file.
+    /// Will run all #[main] functions.
+    /// Set 'throw' to true if you want this function to panic if tests fail.
+    pub async fn run_file_async(file: &str, throw: bool) {
+        let doc_res = Self::file(file, "stof");
+        let doc;
+        match doc_res {
+            Ok(dr) => doc = dr,
+            Err(err) => {
+                let message = format!("{}: {} - {}", "parse error".red(), err.error_type.to_string().blue(), err.message.dimmed());
+                if throw {
+                    panic!("{message}");
+                } else {
+                    println!("{message}");
+                    return;
+                }
+            },
+        }
+
+        let res = Self::run_blocking_async(doc, None, None).await;
+        match res {
+            Ok(_) => {
+                // Don't do anything here
+            },
+            Err(err) => {
+                if throw {
+                    panic!("{err}");
+                } else {
+                    println!("{err}");
+                }
+            }
+        }
+    }
+
+    #[cfg(feature = "async")]
+    /// Async run a document, taking ownership of the document.
+    /// Must be ran from within a tokio runtime.
+    /// Creates a new blocking thread and does not prevent other async tasks from progressing.
+    pub async fn run_blocking_async(mut doc: Self, context: Option<SNodeRef>, attribute: Option<String>) -> Result<(), String> {
+        use tokio::runtime::Handle;
+        let current = Handle::current();
+        let res = current.spawn_blocking(move || {
+            doc.run(context.as_ref(), attribute)
+        }).await;
+        match res {
+            Ok(res) => res,
+            Err(error) => Err(error.to_string()),
+        }
+    }
+
     /// Run the main functions on a node or within this document.
     /// Main functions are denoted with an #[main] attribute in the text format. This is the default attribute to run.
     pub fn run(&mut self, context: Option<&SNodeRef>, attribute: Option<String>) -> Result<(), String> {
@@ -482,9 +539,9 @@ impl SDoc {
                 if let Some(attr_val) = func.attributes.get(&search_attr) {
                     let result;
                     if attr_val.is_empty() {
-                        result = SFunc::call_internal(&func_ref, "main", self, vec![], true, &func.params, &func.statements, &func.rtype);
+                        result = SFunc::call_internal(&func_ref, "main", self, vec![], true, &func.params, &func.statements, &func.rtype, false);
                     } else {
-                        result = SFunc::call_internal(&func_ref, "main", self, vec![attr_val.clone()], true, &func.params, &func.statements, &func.rtype);
+                        result = SFunc::call_internal(&func_ref, "main", self, vec![attr_val.clone()], true, &func.params, &func.statements, &func.rtype, false);
                     }
                     self.clean("main");
                     match result {
@@ -526,7 +583,7 @@ impl SDoc {
     /// Call a function in this document with a path.
     pub fn call_func(&mut self, path: &str, start: Option<&SNodeRef>, params: Vec<SVal>) -> Result<SVal, SError> {
         if let Some(func_ref) = SFunc::func_ref(&self.graph, path, '.', start) {
-            let res = SFunc::call(&func_ref, "main", self, params, true);
+            let res = SFunc::call(&func_ref, "main", self, params, true, true);
             self.clean("main");
             return res;
         }
@@ -556,6 +613,40 @@ impl SDoc {
         }
 
         let res = doc.run_tests(throw, None);
+        match res {
+            Ok(res) => {
+                println!("{res}");
+            },
+            Err(err) => {
+                panic!("{err}");
+            }
+        }
+    }
+
+    #[cfg(feature = "async")]
+    /// Test some Stof in a file.
+    /// Will run all #[test] functions.
+    /// Set 'throw' to true if you want this function to panic if tests fail.
+    pub async fn test_file_async(file: &str, throw: bool) {
+        let compile_start = SystemTime::now();
+        let doc_res = Self::file(file, "stof");
+        let dur = (compile_start.elapsed().unwrap().as_secs_f32() * 100.0).round() / 100.0;
+        println!("{} {}s", "stof compiled in".dimmed(), dur);
+        let doc;
+        match doc_res {
+            Ok(dr) => doc = dr,
+            Err(err) => {
+                let message = format!("{}: {} - {}", "parse error".red(), err.error_type.to_string().blue(), err.message.dimmed());
+                if throw {
+                    panic!("{message}");
+                } else {
+                    println!("{message}");
+                    return;
+                }
+            },
+        }
+
+        let res = Self::test_blocking_async(doc, throw, None).await;
         match res {
             Ok(res) => {
                 println!("{res}");
@@ -596,6 +687,22 @@ impl SDoc {
         }
     }
 
+    #[cfg(feature = "async")]
+    /// Async test a document, taking ownership of the document.
+    /// Must be ran from within a tokio runtime.
+    /// Creates a new blocking thread and does not prevent other async tasks from progressing.
+    pub async fn test_blocking_async(mut doc: Self, throw: bool, context: Option<SNodeRef>) -> Result<String, String> {
+        use tokio::runtime::Handle;
+        let current = Handle::current();
+        let res = current.spawn_blocking(move || {
+            doc.run_tests(throw, context.as_ref())
+        }).await;
+        match res {
+            Ok(res) => res,
+            Err(error) => Err(error.to_string()),
+        }
+    }
+
     /// Run the test functions on a node or within this document, throwing an error if any fail.
     /// Test functions are denoted with a #[test(<result_expr_eq>)] attribute.
     pub fn run_tests(&mut self, throw: bool, context: Option<&SNodeRef>) -> Result<String, String> {
@@ -626,7 +733,7 @@ impl SDoc {
             if let Some(func) = SData::get::<SFunc>(&self.graph, &func_ref).cloned() {
                 if let Some(res_test_val) = func.attributes.get("test") {
                     let silent = func.attributes.contains_key("silent");
-                    let mut result = SFunc::call_internal(&func_ref, "main", self, vec![], true, &func.params, &func.statements, &func.rtype);
+                    let mut result = SFunc::call_internal(&func_ref, "main", self, vec![], true, &func.params, &func.statements, &func.rtype, false);
                     self.clean("main");
 
                     let func_nodes = func_ref.nodes(&self.graph);
@@ -673,7 +780,7 @@ impl SDoc {
 
                                         let profile_start = SystemTime::now();
                                         for _ in 0..iterations {
-                                            let _ = SFunc::call_internal(&func_ref, "main", self, vec![], true, &func.params, &func.statements, &func.rtype);
+                                            let _ = SFunc::call_internal(&func_ref, "main", self, vec![], true, &func.params, &func.statements, &func.rtype, false);
                                             self.clean("main");
                                         }
                                         let total_duration = profile_start.elapsed().unwrap();

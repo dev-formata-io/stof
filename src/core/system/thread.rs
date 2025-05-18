@@ -52,7 +52,7 @@ impl ThreadPool {
         let join_handle = std::thread::spawn(move || {
             let mut results = Vec::new();
             for (func, params) in calls {
-                match SFunc::call(&func, &pid, &mut split, params, true) {
+                match SFunc::call(&func, &pid, &mut split, params, true, false) {
                     Ok(res) => {
                         results.push(res);
                     },

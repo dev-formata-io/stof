@@ -692,6 +692,10 @@ impl ObjectLibrary {
             },
 
             // dump this object (testing)
+            "dbg_full_dump" => {
+                doc.graph.dump(true);
+                Ok(SVal::Void)
+            },
             "dbg_dump" => {
                 if let Some(node) = obj.node(&doc.graph) {
                     let dump = node.dump(&doc.graph, 0, true);
@@ -1318,7 +1322,7 @@ impl ObjectLibrary {
                 self.operate(pid, doc, "exec", &nref, parameters)?;
             },
             SVal::FnPtr(dref) => {
-                SFunc::call(&dref, pid, doc, vec![], allow_self)?;
+                SFunc::call(&dref, pid, doc, vec![], allow_self, false)?;
             },
             SVal::Array(vals) => {
                 for val in vals {
@@ -1478,7 +1482,7 @@ impl ObjectLibrary {
                     }
                 }
                 
-                if let Ok(res) = SFunc::call(&func_ref, pid, doc, parameters, true) {
+                if let Ok(res) = SFunc::call(&func_ref, pid, doc, parameters, true, false) {
                     if let Some(field_ref) = SField::field_ref(&doc.graph, field, '.', Some(target)) {
                         if let Some(field) = SData::get_mut::<SField>(&mut doc.graph, &field_ref) {
                             if let Some(new_name) = boxed_field_name {

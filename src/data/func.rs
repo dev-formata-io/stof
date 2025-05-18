@@ -131,7 +131,7 @@ impl SFunc {
     }
 
     /// Call this function.
-    pub fn call(dref: &SDataRef, pid: &str, doc: &mut SDoc, parameters: Vec<SVal>, add_self: bool) -> Result<SVal, SError> {
+    pub fn call(dref: &SDataRef, pid: &str, doc: &mut SDoc, parameters: Vec<SVal>, add_self: bool, allow_async: bool) -> Result<SVal, SError> {
         let params;
         let statements;
         let rtype;
@@ -142,11 +142,69 @@ impl SFunc {
         } else {
             return Err(SError::call(pid, &doc, "data reference given was not a function"));
         }
-        Self::call_internal(dref, pid, doc, parameters, add_self, &params, &statements, &rtype)
+        Self::call_internal(dref, pid, doc, parameters, add_self, &params, &statements, &rtype, allow_async)
     }
 
     /// Internal call with this data reference.
-    pub fn call_internal(dref: &SDataRef, pid: &str, doc: &mut SDoc, mut parameters: Vec<SVal>, add_self: bool, params: &Vec<SParam>, statements: &Statements, rtype: &SType) -> Result<SVal, SError> {
+    #[allow(unused)]
+    pub fn call_internal(dref: &SDataRef, pid: &str, doc: &mut SDoc, mut parameters: Vec<SVal>, add_self: bool, params: &Vec<SParam>, statements: &Statements, rtype: &SType, allow_async: bool) -> Result<SVal, SError> {
+        #[cfg(feature = "async")]
+        // Async function call returns a string handle instead of the resulting value
+        {
+            use crate::TokioPool;
+            if allow_async && doc.libraries.libraries.contains_key("Async") {
+                use tokio::runtime::Handle;
+                if Handle::try_current().is_ok() {
+                    if let Some(func) = SData::get::<Self>(&doc.graph, dref) {
+                        if let Some(async_context) = func.attributes.get("async") {
+                            let mut contexts = HashSet::new();
+
+                            let data = dref.data(&doc.graph).unwrap();
+                            for node in &data.nodes {
+                                if node.exists(&doc.graph) {
+                                    contexts.insert(node.clone());
+                                }
+                            }
+
+                            match async_context {
+                                SVal::Object(nref) => {
+                                    contexts.insert(nref.clone());
+                                    return Ok(SVal::String(TokioPool::spawn(&doc, vec![(dref.clone(), parameters)], Some(contexts), None)));
+                                },
+                                SVal::Array(vals) => {
+                                    for val in vals {
+                                        match val {
+                                            SVal::Object(nref) => {
+                                                contexts.insert(nref.clone());
+                                            },
+                                            _ => {}
+                                        }
+                                    }
+                                    return Ok(SVal::String(TokioPool::spawn(&doc, vec![(dref.clone(), parameters)], Some(contexts), None)));
+                                },
+                                SVal::String(mode) => {
+                                    match mode.as_str() {
+                                        "none" |
+                                        "scope" |
+                                        "local" |
+                                        "scoped" => {
+                                            return Ok(SVal::String(TokioPool::spawn(&doc, vec![(dref.clone(), parameters)], Some(contexts), None)));
+                                        },
+                                        _ => {
+                                            return Ok(SVal::String(TokioPool::spawn(&doc, vec![(dref.clone(), parameters)], None, None)));
+                                        }
+                                    }
+                                },
+                                _ => {
+                                    return Ok(SVal::String(TokioPool::spawn(&doc, vec![(dref.clone(), parameters)], None, None)));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
         // Validate the number of parameters required to call this function
         if params.len() != parameters.len() {
             let mut index = parameters.len();

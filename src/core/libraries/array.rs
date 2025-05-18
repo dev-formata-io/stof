@@ -325,7 +325,7 @@ impl ArrayLibrary {
                             let statements = func.statements.clone();
                             let params = func.params.clone();
                             for val in array {
-                                let res = SFunc::call_internal(dref, pid, doc, vec![val.clone()], true, &params, &statements, &rtype)?;
+                                let res = SFunc::call_internal(dref, pid, doc, vec![val.clone()], true, &params, &statements, &rtype, false)?;
                                 if !res.is_empty() {
                                     *val = res;
                                 }
@@ -348,7 +348,7 @@ impl ArrayLibrary {
                             let statements = func.statements.clone();
                             let params = func.params.clone();
                             array.retain(|val| -> bool {
-                                let res = SFunc::call_internal(dref, pid, doc, vec![val.clone()], true, &params, &statements, &rtype).unwrap_or(SVal::Null);
+                                let res = SFunc::call_internal(dref, pid, doc, vec![val.clone()], true, &params, &statements, &rtype, false).unwrap_or(SVal::Null);
                                 res.truthy()
                             });
                         }
@@ -387,7 +387,7 @@ impl ArrayLibrary {
                                 let statements = func.statements.clone();
                                 let params = func.params.clone();
                                 array.sort_by(|a, b| {
-                                    let res = SFunc::call_internal(dref, pid, doc, vec![a.clone(), b.clone()], true, &params, &statements, &rtype).unwrap_or(SVal::Number(SNum::I64(0)));
+                                    let res = SFunc::call_internal(dref, pid, doc, vec![a.clone(), b.clone()], true, &params, &statements, &rtype, false).unwrap_or(SVal::Number(SNum::I64(0)));
                                     match res {
                                         SVal::Number(num) => {
                                             let int = num.int();

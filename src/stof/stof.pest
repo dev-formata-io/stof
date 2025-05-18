@@ -135,7 +135,7 @@ div_assign =  { ident ~ "/=" ~ expr }
 rem_assign =  { ident ~ "%=" ~ expr }
 
 // Expressions
-expr              = { (stof_type_constructor | arrow_function | type_name_expr | type_of_expr | if_expr | tuple_expr | math_expr | not_expr | expr_call | range_expr | array_expr | chain_index | index_expr | chain_call | call | block | fmt_expr | literal | wrapped_expr) ~ ("as" ~ atype)? }
+expr              = { (stof_type_constructor | arrow_function | type_name_expr | type_of_expr | if_expr | await_expr | tuple_expr | math_expr | not_expr | expr_call | range_expr | array_expr | chain_index | index_expr | chain_call | call | block | fmt_expr | literal | wrapped_expr) ~ ("as" ~ atype)? }
 call              = { ident ~ "(" ~ call_params? ~ ")" }
 call_params       = { expr ~ ("," ~ expr)* }
 expr_call         = { ( arrow_function | range_expr | array_expr | chain_index | index_expr | fmt_expr | literal | wrapped_expr) ~ "." ~ call }
@@ -151,6 +151,7 @@ type_of_expr      = { "typeof" ~ expr }
 type_name_expr    = { "typename" ~ expr }
 not_expr          = { "!" ~ expr }
 if_expr           = { "if" ~ ("(" ~ expr ~ ")" | expr) ~ "?" ~ expr ~ ":" ~ expr }
+await_expr        = { "await" ~ expr }
 
 // Arrow function expression
 arrow_function = { "(" ~ func_params? ~ ")" ~ (":" ~ atype)? ~ "=>" ~ (block | expr) }
@@ -168,7 +169,7 @@ stof_type_field_create = { block_comment | (string | ident) ~ ":" ~ expr | ident
 math_expr   =  { math_atom ~ (math_op ~ math_atom)+ }
 unary_minus =  { "-" }
 bang        =  { "!" }
-primary     = _{ expr_call | chain_call | not_expr | type_name_expr | type_of_expr | if_expr | range_expr | array_expr | chain_index | index_expr | call | block | fmt_expr | literal | wrapped_expr | "(" ~ math_expr ~ ")" }
+primary     = _{ expr_call | chain_call | not_expr | type_name_expr | type_of_expr | if_expr | await_expr | range_expr | array_expr | chain_index | index_expr | call | block | fmt_expr | literal | wrapped_expr | "(" ~ math_expr ~ ")" }
 math_atom   = _{ bang? ~ unary_minus? ~ primary }
 math_op     = _{ and | or | add | sub | mul | div | rem | eq | neq | gte | lte | bit_shl | bit_shr | gt | lt | bit_and | bit_or | bit_xor }
 and         =  { "&&" }

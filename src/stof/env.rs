@@ -161,7 +161,7 @@ impl StofEnv {
     /// Call init functions with the document.
     pub fn call_init_functions(&self, doc: &mut SDoc) {
         for (dref, params) in &self.init_funcs {
-            SFunc::call(dref, &self.pid, doc, params.clone(), true).expect(&format!("Failed to call init function: {:?}", SData::get::<SFunc>(&doc.graph, dref)));
+            SFunc::call(dref, &self.pid, doc, params.clone(), true, true).expect(&format!("Failed to call init function: {:?}", SData::get::<SFunc>(&doc.graph, dref)));
         }
     }
 }

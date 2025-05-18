@@ -1,6 +1,6 @@
 [package]
 name = "stof"
-version = "0.4.7"
+version = "0.5.0"
 edition = "2021"
 authors = ["CJ Cummings <cj@formata.io>"]
 description = "A simple and embeddable data runtime."
@@ -32,6 +32,7 @@ docx = ["dep:docx-rs", "json"]
 pdf = ["dep:lopdf", "image"]
 http = ["dep:ureq"]
 markdown-lib = ["dep:markdown", "json"]
+async = ["dep:tokio"]
 
 # WebAssembly Interface feature - no default file system lib, add "json" dependency, and "wasm-bindgen"
 wasm = ["json", "dep:js-sys", "dep:serde-wasm-bindgen", "dep:wasm-bindgen"]
@@ -67,3 +68,4 @@ walkdir = { version = "2.5.0", optional = true }
 wasm-bindgen = { version = "0.2.100", optional = true }
 zip = { version = "3.0.0", optional = true }
 chrono = "0.4.41"
+tokio = { version = "1.45.0", features = ["rt", "macros", "sync", "time"], optional = true }
