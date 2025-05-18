@@ -47,13 +47,14 @@ impl TokioPool {
         let current = Handle::current();
         let join_handle = current.spawn_blocking(move || {
             let mut results = Vec::new();
+            let mut errors = Vec::new();
             for (func, params) in calls {
                 match SFunc::call(&func, &pid, &mut split, params, true, false) {
                     Ok(res) => {
                         results.push(res);
                     },
                     Err(error) => {
-                        results.push(SVal::String(error.to_string(&split.graph)));
+                        errors.push(error.to_string(&split.graph));
                     }
                 }
             }
@@ -66,6 +67,7 @@ impl TokioPool {
                     if let Some(thread) = pool.tasks.get_mut(&tid) {
                         thread.doc = Some(split);
                         thread.results = results;
+                        thread.errors = errors;
                         thread.finished_ts = Some(SystemTime::now().duration_since(UNIX_EPOCH).unwrap());
                     }
                 }
@@ -100,6 +102,7 @@ impl TokioPool {
                 pool.tasks.insert(tid.clone(), Task {
                     id: tid.clone(),
                     results: Default::default(),
+                    errors: Default::default(),
                     doc: None,
                     finished_ts: None,
                 });
@@ -118,20 +121,23 @@ impl TokioPool {
     }
 
     /// Join a thread back into this document, returning the function results.
-    pub fn join(doc: &mut SDoc, thread_id: &str) -> Option<Vec<SVal>> {
+    pub fn join(doc: &mut SDoc, thread_id: &str) -> Result<Vec<SVal>, Vec<String>> {
         let current = Handle::current();
         current.block_on(async move {
             {
                 let mut pool = TOKIO_POOL.lock().await;
                 let mut done = false;
-                if let Some(thread) = pool.tasks.get_mut(thread_id) {
+                if let Some(thread) = pool.tasks.get(thread_id) {
                     done = thread.doc.is_some();
                 }
                 if done {
                     let thread = pool.tasks.remove(thread_id).unwrap();
+                    if !thread.errors.is_empty() {
+                        return Err(thread.errors); // return error and don't join
+                    }
                     let mut other = thread.doc.unwrap();
                     doc.join(&mut other);
-                    return Some(thread.results);
+                    return Ok(thread.results);
                 }
             }
 
@@ -150,29 +156,30 @@ impl TokioPool {
                 let _ = handle.await;
                 let mut pool = TOKIO_POOL.lock().await;
                 if let Some(thread) = pool.tasks.remove(thread_id) {
+                    if !thread.errors.is_empty() {
+                        return Err(thread.errors); // return error and don't join
+                    }
                     let mut other = thread.doc.unwrap();
                     doc.join(&mut other);
-                    return Some(thread.results);
+                    return Ok(thread.results);
                 }
             }
-
-            None
+            Err(vec!["async task handle not found for join/await".into()])
         })
     }
 
     /// Join many thread ids.
-    pub fn join_many(doc: &mut SDoc, ids: impl IntoIterator<Item = String>) -> BTreeMap<SVal, SVal> {
+    pub fn join_many(doc: &mut SDoc, ids: impl IntoIterator<Item = String>) -> Result<BTreeMap<SVal, SVal>, Vec<String>> {
         let mut results = BTreeMap::new();
         for id in ids {
-            if let Some(mut res) = Self::join(doc, &id) {
-                if res.len() == 1 {
-                    results.insert(id.into(), res.pop().unwrap());
-                } else {
-                    results.insert(id.into(), SVal::Array(res));
-                }
+            let mut res = Self::join(doc, &id)?;
+            if res.len() == 1 {
+                results.insert(id.into(), res.pop().unwrap());
+            } else {
+                results.insert(id.into(), SVal::Array(res));
             }
         }
-        results
+        Ok(results)
     }
 
     /// Is an active handle?
@@ -212,6 +219,9 @@ pub struct Task {
 
     /// Resulting values.
     pub results: Vec<SVal>,
+
+    /// Errors?
+    pub errors: Vec<String>,
 
     /// Resulting Document.
     pub doc: Option<SDoc>,
@@ -298,21 +308,28 @@ impl Library for TokioLibrary {
                 if parameters.len() == 1 {
                     let thread_id = parameters.pop().unwrap().owned_to_string();
                     match TokioPool::join(doc, &thread_id) {
-                        Some(mut results) => {
+                        Ok(mut results) => {
                             if results.len() == 1 {
                                 return Ok(results.pop().unwrap());
                             }
                             return Ok(SVal::Array(results));
                         },
-                        None => {
-                            return Ok(SVal::Null);
+                        Err(errors) => {
+                            let error = errors.join("\n\n").replace("\t", "\t\t");
+                            return Err(SError::thread(pid, &doc, "await", &format!("async errors:\n\n{error}")));
                         }
                     }
                 } else if parameters.len() > 0 {
                     let ids = parameters.drain(..).map(|p| p.owned_to_string()).collect::<Vec<_>>();
-                    return Ok(SVal::Map(TokioPool::join_many(doc, ids)));
+                    return match TokioPool::join_many(doc, ids) {
+                        Ok(result) => Ok(SVal::Map(result)),
+                        Err(errors) => {
+                            let error = errors.join("\n\n").replace("\t", "\t\t");
+                            Err(SError::thread(pid, &doc, "await", &format!("async errors:\n\n{error}")))
+                        },
+                    };
                 }
-                Err(SError::thread(pid, &doc, "join", "expected a task ID to join"))
+                Err(SError::thread(pid, &doc, "await", "expected a task ID to join"))
             },
 
             // Sleep for an amount of time.

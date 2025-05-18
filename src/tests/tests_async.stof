@@ -186,3 +186,21 @@ point_context: {
         return res;
     }
 }
+
+
+/*****************************************************************************
+ * Errors.
+ *****************************************************************************/
+
+errors: {
+    #[test]
+    #[errors]
+    fn async_call_errors() {
+        await self.throws_error();
+    }
+
+    local async fn throws_error(param: Box<str> = null) {
+        assertEq(self, root); // make sure the root works always
+        throw('CustomAsyncError', 'woah, dude...');
+    }
+}

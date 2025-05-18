@@ -715,14 +715,15 @@ impl Expr {
                             let task_id = val.to_string();
                             if TokioPool::is_handle(&task_id) {
                                 match TokioPool::join(doc, &task_id) {
-                                    Some(mut results) => {
+                                    Ok(mut results) => {
                                         if results.len() == 1 {
                                             return Ok(results.pop().unwrap());
                                         }
                                         return Ok(SVal::Array(results));
                                     },
-                                    None => {
-                                        return Ok(SVal::Null);
+                                    Err(errors) => {
+                                        let error = errors.join("\n\n").replace("\t", "\t\t");
+                                        return Err(SError::thread(pid, &doc, "await", &format!("async errors:\n\n{error}")));
                                     }
                                 }
                             }
@@ -759,7 +760,13 @@ impl Expr {
                                 _ => {}
                             }
                             if ids.len() > 0 {
-                                return Ok(SVal::Map(TokioPool::join_many(doc, ids)));
+                                return match TokioPool::join_many(doc, ids) {
+                                    Ok(result) => Ok(SVal::Map(result)),
+                                    Err(errors) => {
+                                        let error = errors.join("\n\n").replace("\t", "\t\t");
+                                        Err(SError::thread(pid, &doc, "await", &format!("async errors:\n\n{error}")))
+                                    },
+                                };
                             }
                         }
                     }

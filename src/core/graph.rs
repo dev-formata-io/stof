@@ -754,22 +754,29 @@ impl SGraph {
         // Make sure the main root has the name "root"
         let mut found_root = false;
         let mut new_roots = Vec::new();
+        let mut stof_node = None;
         for nref in &clone.roots {
             if let Some(node) = nref.node(&clone) {
                 if node.name == "root" {
                     new_roots.insert(0, nref.clone());
                     found_root = true;
+                } else if node.name == "__stof__" {
+                    stof_node = Some(nref.clone());
                 } else {
                     new_roots.push(nref.clone());
                 }
             }
         }
         if !found_root {
+            clone.roots = new_roots;
             if let Some(main) = clone.main_root() {
                 clone.rename_node(main, "root");
             }
         } else {
             clone.roots = new_roots;
+        }
+        if let Some(srt) = stof_node {
+            clone.roots.push(srt);
         }
 
         clone
