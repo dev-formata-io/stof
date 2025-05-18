@@ -220,13 +220,13 @@ impl SNodeRef {
     pub fn path(&self, graph: &SGraph) -> String {
         let mut node = self.node(graph);
         if node.is_some() {
-            let mut res: Vec<String> = vec![];
+            let mut res: Vec<&str> = vec![];
             let mut seen: HashSet<String> = HashSet::new();
             while node.is_some() {
                 let node_inner = node.unwrap();
                 if seen.contains(&node_inner.id) { break; }
 
-                res.push(node_inner.name.clone());
+                res.push(&node_inner.name);
                 seen.insert(node_inner.id.clone());
                 if let Some(par) = &node_inner.parent {
                     node = par.node(graph);

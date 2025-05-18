@@ -29,6 +29,10 @@ impl FunctionLibrary {
             "id" => {
                 Ok(SVal::String(dref.id.clone()))
             },
+            // Get the data representation of this function.
+            "data" => {
+                Ok(SVal::Data(dref.clone()))
+            },
             // Get the name of this function.
             "name" => {
                 let func: &SFunc = dref.data(&doc.graph).unwrap().get_data().unwrap();

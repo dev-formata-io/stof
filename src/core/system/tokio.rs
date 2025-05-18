@@ -2,7 +2,7 @@
 // Copyright 2025 Formata, Inc. All rights reserved.
 //
 
-use std::{collections::{BTreeMap, HashMap, HashSet}, sync::Arc, time::Duration};
+use std::{collections::{BTreeMap, HashMap, HashSet}, sync::Arc, time::{Duration, SystemTime, UNIX_EPOCH}};
 use tokio::{runtime::Handle, sync::Mutex, task::JoinHandle, time::sleep};
 use lazy_static::lazy_static;
 use nanoid::nanoid;
@@ -66,6 +66,7 @@ impl TokioPool {
                     if let Some(thread) = pool.tasks.get_mut(&tid) {
                         thread.doc = Some(split);
                         thread.results = results;
+                        thread.finished_ts = Some(SystemTime::now().duration_since(UNIX_EPOCH).unwrap());
                     }
                 }
                 {
@@ -81,20 +82,36 @@ impl TokioPool {
 
         let tid = thread_id.clone();
         current.block_on(async move {
-            let mut pool = TOKIO_POOL.lock().await;
-            pool.tasks.insert(tid.clone(), Task {
-                id: tid.clone(),
-                results: Default::default(),
-                doc: None,
-            });
+            {
+                let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+                let mut pool = TOKIO_POOL.lock().await;
+                
+                // Remove tasks that have been finished for longer than 30 seconds
+                pool.tasks.retain(|_tid, task| {
+                    if let Some(ts) = &task.finished_ts {
+                        let diff = now - *ts;
+                        if diff.as_secs() > 30 {
+                            return false;
+                        }
+                    }
+                    true
+                });
 
+                pool.tasks.insert(tid.clone(), Task {
+                    id: tid.clone(),
+                    results: Default::default(),
+                    doc: None,
+                    finished_ts: None,
+                });
+            }
             {
                 let mut tmp_handles = ACTIVE_HANDLES.lock().await;
                 tmp_handles.insert(tid.clone());
             }
-
-            let mut handles = TOKIO_HANDLES.lock().await;
-            handles.insert(tid, join_handle);
+            {
+                let mut handles = TOKIO_HANDLES.lock().await;
+                handles.insert(tid, join_handle);
+            }
         });
 
         thread_id
@@ -172,6 +189,18 @@ impl TokioPool {
             handles.contains_key(task_id)
         })
     }
+
+    /// Is a task running?
+    pub fn is_running(task_id: &str) -> bool {
+        let current = Handle::current();
+        current.block_on(async {
+            let pool = TOKIO_POOL.lock().await;
+            if let Some(task) = pool.tasks.get(task_id) {
+                return task.finished_ts.is_none();
+            }
+            false
+        })
+    }
 }
 
 
@@ -186,6 +215,9 @@ pub struct Task {
 
     /// Resulting Document.
     pub doc: Option<SDoc>,
+
+    /// Finished timestamp.
+    pub finished_ts: Option<Duration>,
 }
 
 
@@ -322,6 +354,15 @@ impl Library for TokioLibrary {
                 Err(SError::thread(pid, &doc, "isHandle", "expecting a string handle ID"))
             },
 
+            // Task is running?
+            "isRunning" => {
+                if parameters.len() == 1 {
+                    let thread_id = parameters.pop().unwrap().owned_to_string();
+                    return Ok(SVal::Bool(TokioPool::is_running(&thread_id)));
+                }
+                Err(SError::thread(pid, &doc, "isRunning", "expecting a string handle ID"))
+            },
+
             // Abort a tokio task.
             "abort" => {
                 if parameters.len() < 1 { return Err(SError::thread(pid, &doc, "abort", "expecting a task ID to abort")); }
@@ -346,7 +387,7 @@ impl Library for TokioLibrary {
                 Ok(SVal::Void)
             },
             _ => {
-                Err(SError::thread(pid, &doc, "NotFound", &format!("{} is not a function in the Tokio Library", name)))
+                Err(SError::thread(pid, &doc, "NotFound", &format!("{} is not a function in the Async Library", name)))
             }
         }
     }

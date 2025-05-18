@@ -22,10 +22,10 @@
 #[test]
 fn call_async() {
     let handles = [
-        Async.spawn(self.context, (self.context.execute, [1, 200ms])),
+        Async.spawn(self.context, (self.context.execute, [1, 120ms])),
         Async.spawn(self.context, (self.context.execute, [2, 100ms])),
         Async.spawn(self.context, (self.context.execute, [3, 20ms])),
-        Async.spawn(self.context, (self.context.execute, [4, 400ms])),
+        Async.spawn(self.context, (self.context.execute, [4, 130ms])),
     ];
 
     assert(Async.isHandle(handles.first()));
@@ -54,7 +54,7 @@ context: {
 #[test]
 fn call_async_syntax() {
     // val will be correct whether executed within an async runtime/context or not
-    let val = await self.ctx.execute(10, 200ms);
+    let val = await self.ctx.execute(10, 0ms);
     assertEq(val, 10);
 
     // await does nothing if not a valid handle (protected against non-async runtimes)
@@ -78,11 +78,13 @@ ctx: {
 #[test]
 fn together_syntax() {
     let handles = [
-        self.together.execute(1, 200ms),
+        self.together.execute(1, 120ms),
         self.together.execute(2, 100ms),
         self.together.execute(3, 20ms),
-        self.together.execute(4, 400ms),
+        self.together.execute(4, 130ms),
     ];
+
+    assert(Async.isRunning(handles[3]));
 
     // syntax works with arrays as well
     let values = await handles;
@@ -120,4 +122,29 @@ scoped_async: {
         }
         return count;
     }
+}
+
+
+scoped_arrow: {
+    #[test]
+    fn arrow_async() {
+        let func = (n: int): int => n * 2;
+        let res = await Async.spawn(self, (func, [3]));
+        assertEq(res, 6);
+    }
+
+
+    #[test]
+    fn arrow_in_another_context() {
+        let func = (n: int): int => n * 10;
+
+        // Make sure func is moved to the async context
+        let dta = func.data();
+        dta.move(self, self.async_context);
+
+        let res = await Async.spawn(self.async_context, (func, [20]));
+        assertEq(res, 200);
+    }
+
+    async_context: {}
 }

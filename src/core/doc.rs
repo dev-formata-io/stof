@@ -852,6 +852,7 @@ impl SDoc {
     pub fn context_split(&self, context: HashSet<SNodeRef>) -> Self {
         let mut split = Self::default();
         split.graph = self.graph.context_clone(context);
+        split.graph.flush_all();
         split.perms = self.perms.clone();
         split.types = self.types.clone();
         split.formats = self.formats.clone();

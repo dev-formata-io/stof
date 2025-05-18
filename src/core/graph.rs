@@ -691,7 +691,9 @@ impl SGraph {
             node.validate_clear();
             if let Some(existing) = self.node_mut(node.node_ref()) {
                 // This node exists in this graph, but needs to be updated!
-                existing.name = node.name.clone();
+                if node.name != "root" { // root node name is special...
+                    existing.name = node.name.clone();
+                }
                 existing.parent = node.parent.clone();
                 existing.children = node.children.clone();
                 existing.data = node.data.clone();
