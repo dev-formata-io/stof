@@ -148,3 +148,39 @@ scoped_arrow: {
 
     async_context: {}
 }
+
+
+/*****************************************************************************
+ * Types.
+ *****************************************************************************/
+
+type AsyncPoint {
+    x: float = 0;
+    y: float = 0;
+    z: float = 0;
+
+    fn len(): float {
+        return Number.sqrt(self.x.pow(2) + self.y.pow(2) + self.z.pow(2));
+    }
+}
+
+
+#[test]
+fn types_in_async() {
+    let res = await self.point_context.do_point_stuff(2m, 2m, 2m);
+    assertEq(res.round(3), 3.464m);
+    assertEq(self.point_context.test, 'hello, there, new data!');
+}
+
+
+point_context: {
+    // Even though this is local, __stof__ data is always put into async contexts
+    local async fn do_point_stuff(x: float, y: float, z: float): float {
+        let point = new AsyncPoint { x, y, z };
+        let res = point.len();
+        drop point;
+
+        self.test = 'hello, there, new data!';
+        return res;
+    }
+}

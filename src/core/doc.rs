@@ -849,10 +849,16 @@ impl SDoc {
 
     /// Context split this document into another.
     /// When used well, can prevent a lot of the data from being cloned.
-    pub fn context_split(&self, context: HashSet<SNodeRef>) -> Self {
+    pub fn context_split(&self, mut context: HashSet<SNodeRef>) -> Self {
         let mut split = Self::default();
+        
+        // Make sure all of the prototype data exists
+        if let Some(nref) = self.graph.node_ref("__stof__", None) {
+            context.insert(nref);
+        }
         split.graph = self.graph.context_clone(context);
         split.graph.flush_all();
+
         split.perms = self.perms.clone();
         split.types = self.types.clone();
         split.formats = self.formats.clone();
