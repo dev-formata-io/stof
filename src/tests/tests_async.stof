@@ -108,13 +108,16 @@ together: {
  * Recursive Async.
  *****************************************************************************/
 
-#[test(10)] // top level async disabled (pretty f-ed up, I know)
-#[async]
-fn recursive_async(count: int = 0): int {
-    if (count < 10) {
-        let handle = self.recursive_async(count + 1);
-        assert(Async.isHandle(handle)); // check to make sure all are spawned handles
-        return await handle;
+// add scope to prevent clone of whole graph
+scoped_async: {
+
+    #[test(10)] // top level async disabled (pretty f-ed up, I know)
+    local async fn recursive_async(count: int = 0): int {
+        if (count < 10) {
+            let handle = self.recursive_async(count + 1);
+            assert(Async.isHandle(handle)); // check to make sure all are spawned handles
+            return await handle;
+        }
+        return count;
     }
-    return count;
 }

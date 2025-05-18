@@ -93,7 +93,8 @@ array_value  = {
 func_attribute = { "#" ~ "[" ~ ident ~ ("(" ~ expr ~ ")")? ~ "]" }
 
 // Functions
-function    =  { func_attribute* ~ "fn" ~ ident ~ "(" ~ func_params? ~ ")" ~ (":" ~ atype)? ~ block }
+async_fn    =  { "async" | "local" ~ "async" }
+function    =  { func_attribute* ~ async_fn? ~ "fn" ~ ident ~ "(" ~ func_params? ~ ")" ~ (":" ~ atype)? ~ block }
 func_params = _{ func_param ~ ("," ~ func_param)* }
 func_param  =  { ident ~ ":" ~ atype ~ ("=" ~ expr)? }
 

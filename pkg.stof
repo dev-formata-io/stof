@@ -2,6 +2,7 @@
 // to run all tests (including tests defined in Rust & stof test suite), run "cargo test -- --nocapture"
 import: [
     'src/tests/tests.stof',
+    'src/tests/tests_async.stof',
     'src/image/tests.stof',
     'src/docx/tests.stof',
     'src/pdf/tests.stof',

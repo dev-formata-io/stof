@@ -1053,6 +1053,14 @@ fn parse_function(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result
                 }
                 attributes.insert(key, value);
             },
+            Rule::async_fn => {
+                let scope = pair.as_str();
+                if scope.contains("local") {
+                    attributes.insert("async".into(), SVal::String("local".into()));
+                } else {
+                    attributes.insert("async".into(), SVal::Null);
+                }
+            },
             Rule::ident => {
                 name = pair.as_str().to_owned();
             },
