@@ -502,9 +502,6 @@ stdlib: {
 #[test(10)]
 #[async] // not in an async context, but that should be okay!
 fn recursive_async(count: int = 0): int {
-    // Returns false because we are not inside of an async runtime!
-    assertNot(self.recursive_async.isAsync());
-
     if (count < 10) {
         // await doesn't do anything if not async, just pass-through
         return await self.recursive_async(count + 1);

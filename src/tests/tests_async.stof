@@ -203,4 +203,21 @@ errors: {
         assertEq(self, root); // make sure the root works always
         throw('CustomAsyncError', 'woah, dude...');
     }
+
+    #[test]
+    fn pass_boxed() {
+        // boxed values work because async calls are blocking and create threads...
+        let boxed = box('original');
+        
+        let handle = self.pass_box(boxed);
+        boxed = 'dude'; // assignment happens before pass_box executes
+        
+        await handle;
+        assertEq(boxed, 'altered');
+    }
+
+    local async fn pass_box(boxed: Box<str>) {
+        assertEq(boxed, 'dude');
+        boxed = 'altered';
+    }
 }

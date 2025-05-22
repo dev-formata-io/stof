@@ -34,7 +34,7 @@ use super::TokioLibrary;
 use super::ThreadLibrary;
 
 #[cfg(feature = "http")]
-use super::HTTPLibrary;
+use super::HttpLibrary;
 
 #[cfg(feature = "pkg")]
 use crate::pkg::PKG;
@@ -315,7 +315,7 @@ impl SDoc {
         self.load_lib(Arc::new(DataLibrary::default()));
 
         #[cfg(feature = "http")]
-        self.load_lib(Arc::new(HTTPLibrary::default()));
+        self.load_lib(Arc::new(HttpLibrary::default()));
 
         #[cfg(feature = "markdown-lib")]
         self.load_lib(Arc::new(MDLibrary::default()));
