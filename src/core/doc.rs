@@ -993,7 +993,7 @@ impl SDoc {
     /// Set a variable.
     /// Will not add the variable if not already present.
     /// Sets current scope or above variables!
-    pub(crate) fn set_variable<T>(&mut self, pid: &str, name: &str, value: T) -> bool where T: Into<SVal> {
+    pub(crate) fn set_variable(&mut self, pid: &str, name: &str, value: &SVal) -> bool {
         if let Some(process) = self.processes.get_mut(pid) {
             process.set_variable(name, value)
         } else {

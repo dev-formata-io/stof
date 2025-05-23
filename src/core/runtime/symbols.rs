@@ -46,9 +46,9 @@ impl SymbolScope {
 
     /// Set a variable by name.
     /// Will not insert if not present!
-    pub fn set_variable(&mut self, name: &str, value: SVal) -> bool {
+    pub fn set_variable(&mut self, name: &str, value: &SVal) -> bool {
         if let Some(var) = self.get_mut(name) {
-            var.set(value);
+            var.set(value.clone());
             return true;
         }
         false
@@ -158,7 +158,7 @@ impl SymbolTable {
     pub fn set_variable(&mut self, name: &str, value: &SVal) -> bool {
         for i in (0..self.scope + 1).rev() {
             if let Some(scope) = self.scopes.get_mut(&i) {
-                if scope.set_variable(name, value.clone()) {
+                if scope.set_variable(name, value) {
                     return true;
                 }
             }

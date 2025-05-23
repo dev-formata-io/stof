@@ -48,7 +48,7 @@ impl Statements {
     pub fn exec(&self, pid: &str, doc: &mut SDoc) -> Result<StatementsRes, SError> {
         for statement in &self.statements {
             match statement {
-                Statement::Declare(name, rhs) => {
+                Statement::Declare(name, rhs, allow_void) => {
                     // Check to see if the symbol already exists in the current scope
                     if doc.has_var_with_name_in_current(pid, name) {
                         let error = SError::custom(pid, &doc, "VarDeclare", &format!("cannot declare a variable twice within the same scope: {}", &name));
@@ -57,7 +57,7 @@ impl Statements {
 
                     // Eval rhs, which is the value of the new variable
                     let val = rhs.exec(pid, doc)?;
-                    if val.is_void() {
+                    if !*allow_void && val.is_void() {
                         let error = SError::custom(pid, &doc, "VarDeclare", "cannot declare a void variable");
                         return Err(error);
                     }
@@ -79,12 +79,9 @@ impl Statements {
                     }
 
                     // Try setting a variable in the symbol table
-                    let mut set_var = false;
-                    if doc.set_variable(pid, &name, val.clone()) {
-                        set_var = true;
-                    }
-
-                    if !set_var && name.contains('.') && !name.ends_with('.') && !name.starts_with('.') {
+                    if doc.set_variable(pid, &name, &val) {
+                        // Nada..
+                    } else if name.contains('.') && !name.ends_with('.') && !name.starts_with('.') {
                         // Try assigning via an absolute path to a field first
                         if let Some(field_ref) = SField::field_ref(&doc.graph, &name, '.', None) {
                             if doc.perms.can_write_field(&doc.graph, &field_ref, doc.self_ptr(pid).as_ref()) {
@@ -149,7 +146,7 @@ impl Statements {
                                 }
                             }
                         }
-                    } else if !set_var && !name.contains('.') && !name.ends_with('.') && !name.starts_with('.') {
+                    } else if !name.contains('.') && !name.ends_with('.') && !name.starts_with('.') {
                         // Assigning a root object!
                         match val {
                             SVal::Object(nref) => {
@@ -359,8 +356,9 @@ impl Statements {
                     let if_res = if_expr.0.exec(pid, doc)?;
                     if if_res.truthy() {
                         doc.new_scope(pid);
-                        let res = if_expr.1.exec(pid, doc)?;
+                        let res = if_expr.1.exec(pid, doc);
                         doc.end_scope(pid);
+                        let res = res?;
                         
                         match res {
                             StatementsRes::Break => {
@@ -390,8 +388,9 @@ impl Statements {
                             let if_res = if_expr.0.exec(pid, doc)?;
                             if if_res.truthy() {
                                 doc.new_scope(pid);
-                                let res = if_expr.1.exec(pid, doc)?;
+                                let res = if_expr.1.exec(pid, doc);
                                 doc.end_scope(pid);
+                                let res = res?;
                                 
                                 match res {
                                     StatementsRes::Break => {
@@ -422,8 +421,9 @@ impl Statements {
                             // Didn't find an else if statement match, so look for an else statement
                             if let Some(else_statements) = else_expr {
                                 doc.new_scope(pid);
-                                let res = else_statements.exec(pid, doc)?;
+                                let res = else_statements.exec(pid, doc);
                                 doc.end_scope(pid);
+                                let res = res?;
                                 
                                 match res {
                                     StatementsRes::Break => {
@@ -455,8 +455,9 @@ impl Statements {
                     val.unbox_ref(); // switch expr should be unboxed right when evaluated
                     if let Some(statements) = map.get(&val) {
                         doc.new_scope(pid);
-                        let res = statements.exec(pid, doc)?;
+                        let res = statements.exec(pid, doc);
                         doc.end_scope(pid);
+                        let res = res?;
                         
                         match res {
                             StatementsRes::Break => {
@@ -481,8 +482,9 @@ impl Statements {
                         }
                     } else if let Some(default) = default {
                         doc.new_scope(pid);
-                        let res = default.exec(pid, doc)?;
+                        let res = default.exec(pid, doc);
                         doc.end_scope(pid);
+                        let res = res?;
                         
                         match res {
                             StatementsRes::Break => {
@@ -544,8 +546,9 @@ impl Statements {
                                     }
                                 }
                             }
-                            res = catch_statements.exec(pid, doc)?;
+                            let bres = catch_statements.exec(pid, doc);
                             doc.end_scope(pid);
+                            res = bres?;
                         }
                     }
 
@@ -585,15 +588,11 @@ impl Statements {
                     while expr.exec(pid, doc)?.truthy() {
                         doc.new_scope(pid);
                         doc.inc_bubble_control(pid);
-                        let res;
                         let sres = statements.exec(pid, doc);
                         doc.dinc_bubble_control(pid);
-                        match sres {
-                            Ok(sres) => res = sres,
-                            Err(_) => return sres,
-                        }
                         doc.end_scope(pid);
 
+                        let res = sres?;
                         match res {
                             StatementsRes::Break => {
                                 // Exit the while loop!
@@ -625,12 +624,18 @@ impl Statements {
                 },
                 Statement::Block(statements, finally) => {
                     doc.new_scope(pid);
-                    let res = statements.exec(pid, doc)?;
+                    let statements_res = statements.exec(pid, doc);
                     if finally.statements.len() > 0 {
-                        finally.exec(pid, doc)?; // We don't care about a result here
+                        let finally_res = finally.exec(pid, doc);
+
+                        if finally_res.is_err() {
+                            doc.end_scope(pid);
+                            return finally_res;
+                        }
                     }
                     doc.end_scope(pid);
 
+                    let res = statements_res?;
                     match res {
                         StatementsRes::Break => {
                             // Break should propogate too if bubbling
@@ -671,7 +676,7 @@ impl From<Vec<Statement>> for Statements {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Statement {
     // Variables.
-    Declare(String, Expr),
+    Declare(String, Expr, bool), // name, val, allow_void (for init only)
     Assign(String, Expr),
 
     // Field & Variable ops

@@ -272,7 +272,7 @@ impl Expr {
                             let field = SField::new(name, val);
                             SData::insert_new(&mut doc.graph, &stof_object, Box::new(field));
                         },
-                        Statement::Declare(name, expr) => {
+                        Statement::Declare(name, expr, _allow_void) => {
                             if name == "self" || name == "super" || name.contains('.') {
                                 let error = SError::custom(pid, &doc, "NewObjectFieldError", &format!("invalid field name '{name}' for new object"));
                                 doc.pop_new_obj(pid);
@@ -357,9 +357,17 @@ impl Expr {
                                 }
                             }
                             let current_symbol_table = doc.new_table(pid);
-                            let res = SFunc::call(&func_ref, pid, doc, func_params, true, true)?;
-                            doc.set_table(pid, current_symbol_table);
-                            return Ok(res);
+                            let res = SFunc::call(&func_ref, pid, doc, func_params, true, true);
+                            match res {
+                                Ok(val) => {
+                                    doc.set_table(pid, current_symbol_table);
+                                    return Ok(val);
+                                },
+                                Err(error) => {
+                                    doc.set_table(pid, current_symbol_table);
+                                    return Err(error);
+                                }
+                            }
                         }
 
                         // Look for a prototype on this object next
@@ -412,10 +420,19 @@ impl Expr {
                                     let current_symbol_table = doc.new_table(pid);
                                     // Set self to the object still...
                                     doc.push_self(pid, nref.clone());
-                                    let res = SFunc::call(&func_ref, pid, doc, func_params, false, true)?;
-                                    doc.pop_self(pid);
-                                    doc.set_table(pid, current_symbol_table);
-                                    return Ok(res);
+                                    let res = SFunc::call(&func_ref, pid, doc, func_params, false, true);
+                                    match res {
+                                        Ok(val) => {
+                                            doc.pop_self(pid);
+                                            doc.set_table(pid, current_symbol_table);
+                                            return Ok(val);
+                                        },
+                                        Err(error) => {
+                                            doc.pop_self(pid);
+                                            doc.set_table(pid, current_symbol_table);
+                                            return Err(error);
+                                        }
+                                    }
                                 }
                                 if let Some(node) = current.unwrap().node(&doc.graph) {
                                     if let Some(parent_ref) = &node.parent {
@@ -477,7 +494,7 @@ impl Expr {
                         
                         // Update the symbol with the mutated parameter if it's the right type
                         if func_params.len() > 0 {
-                            let new_symbol_val = func_params.first().unwrap().clone();
+                            let new_symbol_val = func_params.first().unwrap();
                             if new_symbol_val.stype(&doc.graph) == stype {
                                 doc.set_variable(pid, &scope, new_symbol_val);
                             }
@@ -506,9 +523,17 @@ impl Expr {
                                 }
                             }
                             let current_symbol_table = doc.new_table(pid);
-                            let res = SFunc::call(&func_ref, pid, doc, func_params, false, true)?;
-                            doc.set_table(pid, current_symbol_table);
-                            return Ok(res);
+                            let res = SFunc::call(&func_ref, pid, doc, func_params, false, true);
+                            match res {
+                                Ok(val) => {
+                                    doc.set_table(pid, current_symbol_table);
+                                    return Ok(val);
+                                },
+                                Err(error) => {
+                                    doc.set_table(pid, current_symbol_table);
+                                    return Err(error);
+                                }
+                            }
                         }
                     }
                 }

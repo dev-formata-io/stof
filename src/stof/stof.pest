@@ -126,7 +126,7 @@ for_in_typed_inner = _{ atype ~ ident ~ "in" ~ expr }
 
 // Statements
 statement  = _{ (declare | assign | drop | add_assign | sub_assign | mul_assign | div_assign | rem_assign | expr) ~ ";" }
-declare    =  { "let" ~ ident ~ (":" ~ atype)? ~ "=" ~ expr }
+declare    =  { "let" ~ ident ~ (":" ~ atype)? ~ ("=" ~ expr)? }
 assign     =  { ident ~ "=" ~ expr }
 drop       =  { "drop" ~ ident ~ ("," ~ ident)* }
 add_assign =  { ident ~ "+=" ~ expr }

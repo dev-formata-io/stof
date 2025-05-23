@@ -149,13 +149,21 @@ impl StofEnv {
     /// Push scope ref.
     pub fn push_scope_ref(&mut self, doc: &mut SDoc, nref: SNodeRef) {
         doc.push_self(&self.pid, nref);
-        self.assign_type_stack.push(HashMap::default());
     }
 
     /// Pop scope.
     pub fn pop_scope(&mut self, doc: &mut SDoc) {
         doc.pop_self(&self.pid);
-        self.assign_type_stack.pop();
+    }
+
+    /// Get assign type for a variable name.
+    pub fn assign_type_for_var(&self, ident: &str) -> Option<SType> {
+        for types in self.assign_type_stack.iter().rev() {
+            if let Some(tp) = types.get(ident) {
+                return Some(tp.clone());
+            }
+        }
+        None
     }
 
     /// Call init functions with the document.

@@ -25,15 +25,28 @@ fn try_catch_error(): int {
 
 #[test(100)]
 fn try_catch(): int {
-    let x: int = null;
-    
+    let x; // void val, any type
     try {
         x = self.func_that_doesnt_exist(); // errors
     } catch {
         x = 100;
     }
-
     return x;
+}
+
+#[test(100)]
+fn test_func_that_throws(): int {
+    let x: int; // void val, int type only
+    try {
+        x = self.func_that_throws();
+    } catch {
+        x = 100;
+    }
+    return x;
+}
+fn func_that_throws(): int {
+    throw('This is an error');
+    return 1;
 }
 
 #[test(100)]

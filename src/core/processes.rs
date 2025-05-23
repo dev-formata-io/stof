@@ -149,8 +149,8 @@ impl SProcess {
     /// Set a variable.
     /// Will not add the variable if not already present.
     /// Sets current scope or above variables!
-    pub fn set_variable<T>(&mut self, name: &str, value: T) -> bool where T: Into<SVal> {
-        self.table.set_variable(name, &value.into())
+    pub fn set_variable(&mut self, name: &str, value: &SVal) -> bool {
+        self.table.set_variable(name, value)
     }
 
     /// Drop a symbol from the current scope.

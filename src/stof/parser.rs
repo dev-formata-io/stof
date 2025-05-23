@@ -513,7 +513,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                                         new_func.attributes = attributes;
                                                         
                                                         let old_statments = new_func.statements.clone();
-                                                        new_func.statements = Statements::from(vec![Statement::Declare(funcparamname, Expr::Literal(SVal::FnPtr(func_ref)))]);
+                                                        new_func.statements = Statements::from(vec![Statement::Declare(funcparamname, Expr::Literal(SVal::FnPtr(func_ref)), false)]);
                                                         new_func.statements.absorb(old_statments);
 
                                                         SData::insert_new(&mut doc.graph, &scope, Box::new(new_func)); // make sure it's in the new scope
@@ -776,7 +776,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                                                     new_func.attributes = attributes;
                                                                     
                                                                     let old_statments = new_func.statements.clone();
-                                                                    new_func.statements = Statements::from(vec![Statement::Declare(funcparamname, Expr::Literal(SVal::FnPtr(func_ref)))]);
+                                                                    new_func.statements = Statements::from(vec![Statement::Declare(funcparamname, Expr::Literal(SVal::FnPtr(func_ref)), false)]);
                                                                     new_func.statements.absorb(old_statments);
             
                                                                     //SData::insert_new(&mut doc.graph, &scope, Box::new(new_func)); // make sure it's in the new scope
@@ -1111,6 +1111,7 @@ fn parse_function(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result
 /// Parse a block of statements.
 fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<Statements, SError> {
     let mut statements = Vec::new();
+    env.assign_type_stack.push(HashMap::default()); // start a new block of dec types
     for pair in pair.into_inner() {
         match pair.as_rule() {
             Rule::return_statement => {
@@ -1166,7 +1167,7 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                             }
 
                             let var_name = pair.as_str().to_owned();
-                            inner_statements.push(Statement::Declare(var_name.into(), dec_expr));
+                            inner_statements.push(Statement::Declare(var_name.into(), dec_expr, false));
                         },
                         Rule::expr => {
                             // Array (or iterable) expression!
@@ -1180,15 +1181,15 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                     }
                 }
                 let mut outer_statements = vec![
-                    Statement::Declare("iterable".into(), iterable_expr),
+                    Statement::Declare("iterable".into(), iterable_expr, false),
                     Statement::Declare("length".into(), Expr::Call {
                         scope: "iterable".to_string(),
                         name: "len".to_string(),
                         params: vec![],
-                    }),
-                    Statement::Declare("index".into(), Expr::Literal(0.into())),
-                    Statement::Declare("first".into(), Expr::Literal(true.into())),
-                    Statement::Declare("last".into(), Expr::Literal(false.into())),
+                    }, false),
+                    Statement::Declare("index".into(), Expr::Literal(0.into()), false),
+                    Statement::Declare("first".into(), Expr::Literal(true.into()), false),
+                    Statement::Declare("last".into(), Expr::Literal(false.into()), false),
                 ];
                 // Put finally statements together that increases "index" by one on the end of the inner statements
                 let finally_statements = Statements::from(vec![
@@ -1446,6 +1447,7 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
             }
         }
     }
+    env.assign_type_stack.pop();
     Ok(statements.into())
 }
 
@@ -1453,7 +1455,8 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
 /// Parse declare statement.
 fn parse_declare(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<Statement, SError> {
     let mut ident = String::default();
-    let mut expr = Expr::Literal("".into());
+    let mut void_expr = true;
+    let mut expr = Expr::Literal(SVal::Void);
     let mut atype = SType::Void;
     for pair in pair.into_inner() {
         match pair.as_rule() {
@@ -1464,6 +1467,7 @@ fn parse_declare(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<
                 atype = parse_atype(pair);
             },
             Rule::expr => {
+                void_expr = false;
                 expr = parse_expression(doc, env, pair)?;
             },
             _ => {
@@ -1475,9 +1479,12 @@ fn parse_declare(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<
         if !atype.is_void() {
             // Assigned a variable with a type... so future assignments must cast to this type
             env.assign_type_stack.last_mut().unwrap().insert(ident.clone(), atype.clone());
-            expr = Expr::Cast(atype, Box::new(expr));
+
+            if !void_expr { // cannot cast a void value, but need to set variable assign type
+                expr = Expr::Cast(atype, Box::new(expr));
+            }
         }
-        return Ok(Statement::Declare(ident, expr));
+        return Ok(Statement::Declare(ident, expr, void_expr));
     }
     Err(SError::parse(&env.pid, &doc, "could not parse declare statement"))
 }
@@ -1488,7 +1495,7 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
     match pair.as_rule() {
         Rule::assign => {
             let mut ident = String::default();
-            let mut expr = Expr::Literal("".into());
+            let mut expr = Expr::Literal(SVal::Void);
             for pair in pair.into_inner() {
                 match pair.as_rule() {
                     Rule::ident => {
@@ -1496,8 +1503,8 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                     },
                     Rule::expr => {
                         expr = parse_expression(doc, env, pair)?;
-                        if let Some(cast_type) = env.assign_type_stack.last().unwrap().get(&ident) {
-                            expr = Expr::Cast(cast_type.clone(), Box::new(expr));
+                        if let Some(cast_type) = env.assign_type_for_var(&ident) {
+                            expr = Expr::Cast(cast_type, Box::new(expr));
                         }
                     },
                     _ => {
@@ -1517,8 +1524,8 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                     },
                     Rule::expr => {
                         expr = parse_expression(doc, env, pair)?;
-                        if let Some(cast_type) = env.assign_type_stack.last().unwrap().get(&ident) {
-                            expr = Expr::Cast(cast_type.clone(), Box::new(expr));
+                        if let Some(cast_type) = env.assign_type_for_var(&ident) {
+                            expr = Expr::Cast(cast_type, Box::new(expr));
                         }
                     },
                     _ => {
@@ -1542,8 +1549,8 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                     },
                     Rule::expr => {
                         expr = parse_expression(doc, env, pair)?;
-                        if let Some(cast_type) = env.assign_type_stack.last().unwrap().get(&ident) {
-                            expr = Expr::Cast(cast_type.clone(), Box::new(expr));
+                        if let Some(cast_type) = env.assign_type_for_var(&ident) {
+                            expr = Expr::Cast(cast_type, Box::new(expr));
                         }
                     },
                     _ => {
@@ -1567,8 +1574,8 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                     },
                     Rule::expr => {
                         expr = parse_expression(doc, env, pair)?;
-                        if let Some(cast_type) = env.assign_type_stack.last().unwrap().get(&ident) {
-                            expr = Expr::Cast(cast_type.clone(), Box::new(expr));
+                        if let Some(cast_type) = env.assign_type_for_var(&ident) {
+                            expr = Expr::Cast(cast_type, Box::new(expr));
                         }
                     },
                     _ => {
@@ -1592,8 +1599,8 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                     },
                     Rule::expr => {
                         expr = parse_expression(doc, env, pair)?;
-                        if let Some(cast_type) = env.assign_type_stack.last().unwrap().get(&ident) {
-                            expr = Expr::Cast(cast_type.clone(), Box::new(expr));
+                        if let Some(cast_type) = env.assign_type_for_var(&ident) {
+                            expr = Expr::Cast(cast_type, Box::new(expr));
                         }
                     },
                     _ => {
@@ -1617,8 +1624,8 @@ fn parse_assignment(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
                     },
                     Rule::expr => {
                         expr = parse_expression(doc, env, pair)?;
-                        if let Some(cast_type) = env.assign_type_stack.last().unwrap().get(&ident) {
-                            expr = Expr::Cast(cast_type.clone(), Box::new(expr));
+                        if let Some(cast_type) = env.assign_type_for_var(&ident) {
+                            expr = Expr::Cast(cast_type, Box::new(expr));
                         }
                     },
                     _ => {
@@ -1852,7 +1859,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         }
                         if !declared {
                             declared = true;
-                            block_statements.push(Statement::Declare("tmp".into(), Expr::Call { scope: scope.clone(), name: "at".into(), params }));
+                            block_statements.push(Statement::Declare("tmp".into(), Expr::Call { scope: scope.clone(), name: "at".into(), params }, false));
                         } else {
                             block_statements.push(Statement::Assign("tmp".into(), Expr::Call { scope: scope.clone(), name: "at".into(), params }));
                         }
@@ -1879,7 +1886,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         block_statements.push(Statement::Return(expr));
                     },
                     _ => {
-                        block_statements.push(Statement::Declare("tmp".into(), parse_expr_pair(doc, env, pair)?));
+                        block_statements.push(Statement::Declare("tmp".into(), parse_expr_pair(doc, env, pair)?, false));
                     }
                 }
             }
@@ -1903,7 +1910,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         }
                         if !declared {
                             declared = true;
-                            block_statements.push(Statement::Declare("tmp".into(), expr));
+                            block_statements.push(Statement::Declare("tmp".into(), expr, false));
                         } else {
                             block_statements.push(Statement::Assign("tmp".into(), expr));
                         }
@@ -1973,9 +1980,9 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                             .replace("\\`", "`")
                             .replace("\\\\", "\\");*/ // TODO - regex or different string replace strategy
                         let mut statements = Vec::new();
-                        statements.push(Statement::Declare("tmp".into(), Expr::Literal(SVal::String(format.to_owned()))));
-                        statements.push(Statement::Declare("res".into(), Expr::Literal(SVal::String(format.to_owned()))));
-                        statements.push(Statement::Declare("sub".into(), Expr::Literal(SVal::Null)));
+                        statements.push(Statement::Declare("tmp".into(), Expr::Literal(SVal::String(format.to_owned())), false));
+                        statements.push(Statement::Declare("res".into(), Expr::Literal(SVal::String(format.to_owned())), false));
+                        statements.push(Statement::Declare("sub".into(), Expr::Literal(SVal::Null), false));
 
                         let fmt_span = pair.as_span();
                         let fmt_start = fmt_span.start();
