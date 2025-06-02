@@ -108,3 +108,14 @@ attributes: {
         assert(func.hasAttribute("ordering"));
     }
 }
+
+param_calls: {
+    #[test(42)]
+    fn call_in_args(val: int = self.arg_call()): int {
+        return val;
+    }
+
+    fn arg_call(): int {
+        return 42;
+    }
+}

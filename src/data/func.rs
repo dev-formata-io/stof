@@ -205,55 +205,6 @@ impl SFunc {
             }
         }
         
-        // Validate the number of parameters required to call this function
-        if params.len() != parameters.len() {
-            let mut index = parameters.len();
-            while index < params.len() {
-                let param = &params[index];
-                if let Some(default) = &param.default {
-                    let value = default.exec(pid, doc)?;
-                    parameters.push(value);
-                } else {
-                    break;
-                }
-                index += 1;
-            }
-        }
-        if params.len() != parameters.len() {
-            doc.push_call_stack(pid, dref);
-            let error = SError::call(pid, &doc, &format!("received incorrect parameters for function call, expecting ({:?})", &params));
-            doc.pop_call_stack(pid);
-            return Err(error);
-        }
-
-        // Validate the types of parameters given as we push them to the doc stack
-        let mut added = Vec::new();
-        parameters.reverse();
-        for i in 0..parameters.len() {
-            let mut arg_val = parameters.pop().unwrap();
-            let mut arg_type = arg_val.stype(&doc.graph);
-            let param = &params[i];
-
-            if arg_type != param.ptype {
-                arg_val = arg_val.cast(param.ptype.clone(), pid, doc)?;
-                arg_type = param.ptype.clone(); // for null, etc..
-            }
-
-            if arg_type == param.ptype {
-                let name = &param.name;
-                added.push(name.clone());
-                doc.add_variable(pid, name, arg_val);
-            } else {
-                for name in added {
-                    doc.drop(pid, &name);
-                }
-                doc.push_call_stack(pid, dref);
-                let error = SError::call(pid, &doc, &format!("arguments do not match expected parameter types and cannot be converted, expecting ({:?})", &params));
-                doc.pop_call_stack(pid);
-                return Err(error);
-            }
-        }
-
         // Add self to doc self stack
         if add_self {
             if let Some(data) = doc.graph.data_from_ref(dref) {
@@ -282,6 +233,78 @@ impl SFunc {
                 }
                 let main_ref = doc.graph.main_root().unwrap();
                 doc.push_self(pid, main_ref);
+            }
+        }
+        
+        // Validate the number of parameters required to call this function
+        if params.len() != parameters.len() {
+            let mut index = parameters.len();
+            while index < params.len() {
+                let param = &params[index];
+                if let Some(default) = &param.default {
+                    let value = default.exec(pid, doc);
+                    match value {
+                        Ok(val) => parameters.push(val),
+                        Err(error) => {
+                            if add_self {
+                                doc.pop_self(pid);
+                            }
+                            return Err(error);
+                        }
+                    }
+                } else {
+                    break;
+                }
+                index += 1;
+            }
+        }
+        if params.len() != parameters.len() {
+            doc.push_call_stack(pid, dref);
+            let error = SError::call(pid, &doc, &format!("received incorrect parameters for function call, expecting ({:?})", &params));
+            doc.pop_call_stack(pid);
+            if add_self {
+                doc.pop_self(pid);
+            }
+            return Err(error);
+        }
+
+        // Validate the types of parameters given as we push them to the doc stack
+        let mut added = Vec::new();
+        parameters.reverse();
+        for i in 0..parameters.len() {
+            let mut arg_val = parameters.pop().unwrap();
+            let mut arg_type = arg_val.stype(&doc.graph);
+            let param = &params[i];
+
+            if arg_type != param.ptype {
+                let arg_val_res = arg_val.cast(param.ptype.clone(), pid, doc);
+                match arg_val_res {
+                    Ok(val) => arg_val = val,
+                    Err(error) => {
+                        if add_self {
+                            doc.pop_self(pid);
+                        }
+                        return Err(error);
+                    }
+                }
+                arg_type = param.ptype.clone(); // for null, etc..
+            }
+
+            if arg_type == param.ptype {
+                let name = &param.name;
+                added.push(name.clone());
+                doc.add_variable(pid, name, arg_val);
+            } else {
+                for name in added {
+                    doc.drop(pid, &name);
+                }
+                doc.push_call_stack(pid, dref);
+                let error = SError::call(pid, &doc, &format!("arguments do not match expected parameter types and cannot be converted, expecting ({:?})", &params));
+                doc.pop_call_stack(pid);
+                if add_self {
+                    doc.pop_self(pid);
+                }
+                return Err(error);
             }
         }
 
