@@ -557,6 +557,47 @@ impl ObjectLibrary {
                 }
                 Ok(SVal::Null)
             },
+            // Move this object to another object.
+            // Destination cannot be a descendant of this object.
+            // Returns false if already a child of the destination object, true if moved successfully.
+            "moveTo" => {
+                if parameters.len() < 1 {
+                    return Err(SError::obj(pid, &doc, "moveTo", "invalid arguments - object destination not found"));
+                }
+                match &parameters[0] {
+                    SVal::Object(dest) => {
+                        let id_path: HashSet<String> = HashSet::from_iter(obj.id_path(&doc.graph).into_iter());
+                        if id_path.contains(&dest.id) { // already a child of the destination
+                            return Ok(SVal::Bool(false));
+                        }
+                        if dest.is_child_of(&doc.graph, obj) { // cannot be a child destination
+                            return Err(SError::obj(pid, &doc, "moveTo", "destination cannot be a descendant"));
+                        }
+                        let res = doc.graph.move_node(obj, dest);
+                        return Ok(SVal::Bool(res.len() > 0));
+                    },
+                    SVal::Boxed(val) => {
+                        let val = val.lock().unwrap();
+                        let val = val.deref();
+                        match val {
+                            SVal::Object(dest) => {
+                                let id_path: HashSet<String> = HashSet::from_iter(obj.id_path(&doc.graph).into_iter());
+                                if id_path.contains(&dest.id) { // already a child of the destination
+                                    return Ok(SVal::Bool(false));
+                                }
+                                if dest.is_child_of(&doc.graph, obj) { // cannot be a child destination
+                                    return Err(SError::obj(pid, &doc, "moveTo", "destination cannot be a descendant"));
+                                }
+                                let res = doc.graph.move_node(obj, dest);
+                                return Ok(SVal::Bool(res.len() > 0));
+                            },
+                            _ => {}
+                        }
+                    },
+                    _ => {}
+                }
+                Err(SError::obj(pid, &doc, "moveTo", "invalid arguments - object destination not found"))
+            },
             // Return this objects prototype object (if any)
             "prototype" => {
                 if let Some(prototype) = SPrototype::get(&doc.graph, obj) {
@@ -1268,6 +1309,406 @@ impl ObjectLibrary {
                                     },
                                     _ => {}
                                 }
+                            } else if field.value.is_array() {
+                                match &field.value {
+                                    SVal::Array(vals) => {
+                                        for val in vals {
+                                            match val {
+                                                SVal::Object(nref) => {
+                                                    let mut name = None;
+                                                    if let Some(node) = nref.node(&doc.graph) {
+                                                        name = Some(node.name.clone());
+                                                    }
+                                                    if let Some(name) = name {
+                                                        let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                        let to_copy = SVal::Object(nref.clone());
+                                                        self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                    }
+                                                },
+                                                SVal::Boxed(val) => {
+                                                    let val = val.lock().unwrap();
+                                                    let val = val.deref();
+                                                    match val {
+                                                        SVal::Object(nref) => {
+                                                            let mut name = None;
+                                                            if let Some(node) = nref.node(&doc.graph) {
+                                                                name = Some(node.name.clone());
+                                                            }
+                                                            if let Some(name) = name {
+                                                                let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                let to_copy = SVal::Object(nref.clone());
+                                                                self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                            }
+                                                        },
+                                                        _ => {}
+                                                    }
+                                                },
+                                                _ => {}
+                                            }
+                                        }
+                                    },
+                                    SVal::Boxed(val) => {
+                                        let val = val.lock().unwrap();
+                                        let val = val.deref();
+                                        match val {
+                                            SVal::Array(vals) => {
+                                                for val in vals {
+                                                    match val {
+                                                        SVal::Object(nref) => {
+                                                            let mut name = None;
+                                                            if let Some(node) = nref.node(&doc.graph) {
+                                                                name = Some(node.name.clone());
+                                                            }
+                                                            if let Some(name) = name {
+                                                                let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                let to_copy = SVal::Object(nref.clone());
+                                                                self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                            }
+                                                        },
+                                                        SVal::Boxed(val) => {
+                                                            let val = val.lock().unwrap();
+                                                            let val = val.deref();
+                                                            match val {
+                                                                SVal::Object(nref) => {
+                                                                    let mut name = None;
+                                                                    if let Some(node) = nref.node(&doc.graph) {
+                                                                        name = Some(node.name.clone());
+                                                                    }
+                                                                    if let Some(name) = name {
+                                                                        let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                        let to_copy = SVal::Object(nref.clone());
+                                                                        self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                                    }
+                                                                },
+                                                                _ => {}
+                                                            }
+                                                        },
+                                                        _ => {}
+                                                    }
+                                                }
+                                            },
+                                            _ => {}
+                                        }
+                                    },
+                                    _ => {}
+                                }
+                                SData::insert_new(&mut doc.graph, obj, Box::new(field));
+                            } else if field.value.is_tuple() {
+                                match &field.value {
+                                    SVal::Tuple(vals) => {
+                                        for val in vals {
+                                            match val {
+                                                SVal::Object(nref) => {
+                                                    let mut name = None;
+                                                    if let Some(node) = nref.node(&doc.graph) {
+                                                        name = Some(node.name.clone());
+                                                    }
+                                                    if let Some(name) = name {
+                                                        let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                        let to_copy = SVal::Object(nref.clone());
+                                                        self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                    }
+                                                },
+                                                SVal::Boxed(val) => {
+                                                    let val = val.lock().unwrap();
+                                                    let val = val.deref();
+                                                    match val {
+                                                        SVal::Object(nref) => {
+                                                            let mut name = None;
+                                                            if let Some(node) = nref.node(&doc.graph) {
+                                                                name = Some(node.name.clone());
+                                                            }
+                                                            if let Some(name) = name {
+                                                                let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                let to_copy = SVal::Object(nref.clone());
+                                                                self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                            }
+                                                        },
+                                                        _ => {}
+                                                    }
+                                                },
+                                                _ => {}
+                                            }
+                                        }
+                                    },
+                                    SVal::Boxed(val) => {
+                                        let val = val.lock().unwrap();
+                                        let val = val.deref();
+                                        match val {
+                                            SVal::Tuple(vals) => {
+                                                for val in vals {
+                                                    match val {
+                                                        SVal::Object(nref) => {
+                                                            let mut name = None;
+                                                            if let Some(node) = nref.node(&doc.graph) {
+                                                                name = Some(node.name.clone());
+                                                            }
+                                                            if let Some(name) = name {
+                                                                let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                let to_copy = SVal::Object(nref.clone());
+                                                                self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                            }
+                                                        },
+                                                        SVal::Boxed(val) => {
+                                                            let val = val.lock().unwrap();
+                                                            let val = val.deref();
+                                                            match val {
+                                                                SVal::Object(nref) => {
+                                                                    let mut name = None;
+                                                                    if let Some(node) = nref.node(&doc.graph) {
+                                                                        name = Some(node.name.clone());
+                                                                    }
+                                                                    if let Some(name) = name {
+                                                                        let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                        let to_copy = SVal::Object(nref.clone());
+                                                                        self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                                    }
+                                                                },
+                                                                _ => {}
+                                                            }
+                                                        },
+                                                        _ => {}
+                                                    }
+                                                }
+                                            },
+                                            _ => {}
+                                        }
+                                    },
+                                    _ => {}
+                                }
+                                SData::insert_new(&mut doc.graph, obj, Box::new(field));
+                            } else if field.value.is_set() {
+                                match &field.value {
+                                    SVal::Set(vals) => {
+                                        for val in vals {
+                                            match val {
+                                                SVal::Object(nref) => {
+                                                    let mut name = None;
+                                                    if let Some(node) = nref.node(&doc.graph) {
+                                                        name = Some(node.name.clone());
+                                                    }
+                                                    if let Some(name) = name {
+                                                        let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                        let to_copy = SVal::Object(nref.clone());
+                                                        self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                    }
+                                                },
+                                                SVal::Boxed(val) => {
+                                                    let val = val.lock().unwrap();
+                                                    let val = val.deref();
+                                                    match val {
+                                                        SVal::Object(nref) => {
+                                                            let mut name = None;
+                                                            if let Some(node) = nref.node(&doc.graph) {
+                                                                name = Some(node.name.clone());
+                                                            }
+                                                            if let Some(name) = name {
+                                                                let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                let to_copy = SVal::Object(nref.clone());
+                                                                self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                            }
+                                                        },
+                                                        _ => {}
+                                                    }
+                                                },
+                                                _ => {}
+                                            }
+                                        }
+                                    },
+                                    SVal::Boxed(val) => {
+                                        let val = val.lock().unwrap();
+                                        let val = val.deref();
+                                        match val {
+                                            SVal::Set(vals) => {
+                                                for val in vals {
+                                                    match val {
+                                                        SVal::Object(nref) => {
+                                                            let mut name = None;
+                                                            if let Some(node) = nref.node(&doc.graph) {
+                                                                name = Some(node.name.clone());
+                                                            }
+                                                            if let Some(name) = name {
+                                                                let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                let to_copy = SVal::Object(nref.clone());
+                                                                self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                            }
+                                                        },
+                                                        SVal::Boxed(val) => {
+                                                            let val = val.lock().unwrap();
+                                                            let val = val.deref();
+                                                            match val {
+                                                                SVal::Object(nref) => {
+                                                                    let mut name = None;
+                                                                    if let Some(node) = nref.node(&doc.graph) {
+                                                                        name = Some(node.name.clone());
+                                                                    }
+                                                                    if let Some(name) = name {
+                                                                        let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                        let to_copy = SVal::Object(nref.clone());
+                                                                        self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                                    }
+                                                                },
+                                                                _ => {}
+                                                            }
+                                                        },
+                                                        _ => {}
+                                                    }
+                                                }
+                                            },
+                                            _ => {}
+                                        }
+                                    },
+                                    _ => {}
+                                }
+                                SData::insert_new(&mut doc.graph, obj, Box::new(field));
+                            } else if field.value.is_map() {
+                                match &field.value {
+                                    SVal::Map(vals) => {
+                                        for pair in vals {
+                                            match pair.0 {
+                                                SVal::Object(nref) => {
+                                                    let mut name = None;
+                                                    if let Some(node) = nref.node(&doc.graph) {
+                                                        name = Some(node.name.clone());
+                                                    }
+                                                    if let Some(name) = name {
+                                                        let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                        let to_copy = SVal::Object(nref.clone());
+                                                        self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                    }
+                                                },
+                                                SVal::Boxed(val) => {
+                                                    let val = val.lock().unwrap();
+                                                    let val = val.deref();
+                                                    match val {
+                                                        SVal::Object(nref) => {
+                                                            let mut name = None;
+                                                            if let Some(node) = nref.node(&doc.graph) {
+                                                                name = Some(node.name.clone());
+                                                            }
+                                                            if let Some(name) = name {
+                                                                let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                let to_copy = SVal::Object(nref.clone());
+                                                                self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                            }
+                                                        },
+                                                        _ => {}
+                                                    }
+                                                },
+                                                _ => {}
+                                            }
+                                            match pair.1 {
+                                                SVal::Object(nref) => {
+                                                    let mut name = None;
+                                                    if let Some(node) = nref.node(&doc.graph) {
+                                                        name = Some(node.name.clone());
+                                                    }
+                                                    if let Some(name) = name {
+                                                        let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                        let to_copy = SVal::Object(nref.clone());
+                                                        self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                    }
+                                                },
+                                                SVal::Boxed(val) => {
+                                                    let val = val.lock().unwrap();
+                                                    let val = val.deref();
+                                                    match val {
+                                                        SVal::Object(nref) => {
+                                                            let mut name = None;
+                                                            if let Some(node) = nref.node(&doc.graph) {
+                                                                name = Some(node.name.clone());
+                                                            }
+                                                            if let Some(name) = name {
+                                                                let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                let to_copy = SVal::Object(nref.clone());
+                                                                self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                            }
+                                                        },
+                                                        _ => {}
+                                                    }
+                                                },
+                                                _ => {}
+                                            }
+                                        }
+                                    },
+                                    SVal::Boxed(val) => {
+                                        let val = val.lock().unwrap();
+                                        let val = val.deref();
+                                        match val {
+                                            SVal::Map(vals) => {
+                                                for pair in vals {
+                                                    match pair.0 {
+                                                        SVal::Object(nref) => {
+                                                            let mut name = None;
+                                                            if let Some(node) = nref.node(&doc.graph) {
+                                                                name = Some(node.name.clone());
+                                                            }
+                                                            if let Some(name) = name {
+                                                                let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                let to_copy = SVal::Object(nref.clone());
+                                                                self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                            }
+                                                        },
+                                                        SVal::Boxed(val) => {
+                                                            let val = val.lock().unwrap();
+                                                            let val = val.deref();
+                                                            match val {
+                                                                SVal::Object(nref) => {
+                                                                    let mut name = None;
+                                                                    if let Some(node) = nref.node(&doc.graph) {
+                                                                        name = Some(node.name.clone());
+                                                                    }
+                                                                    if let Some(name) = name {
+                                                                        let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                        let to_copy = SVal::Object(nref.clone());
+                                                                        self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                                    }
+                                                                },
+                                                                _ => {}
+                                                            }
+                                                        },
+                                                        _ => {}
+                                                    }
+                                                    match pair.1 {
+                                                        SVal::Object(nref) => {
+                                                            let mut name = None;
+                                                            if let Some(node) = nref.node(&doc.graph) {
+                                                                name = Some(node.name.clone());
+                                                            }
+                                                            if let Some(name) = name {
+                                                                let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                let to_copy = SVal::Object(nref.clone());
+                                                                self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                            }
+                                                        },
+                                                        SVal::Boxed(val) => {
+                                                            let val = val.lock().unwrap();
+                                                            let val = val.deref();
+                                                            match val {
+                                                                SVal::Object(nref) => {
+                                                                    let mut name = None;
+                                                                    if let Some(node) = nref.node(&doc.graph) {
+                                                                        name = Some(node.name.clone());
+                                                                    }
+                                                                    if let Some(name) = name {
+                                                                        let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                        let to_copy = SVal::Object(nref.clone());
+                                                                        self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                                    }
+                                                                },
+                                                                _ => {}
+                                                            }
+                                                        },
+                                                        _ => {}
+                                                    }
+                                                }
+                                            },
+                                            _ => {}
+                                        }
+                                    },
+                                    _ => {}
+                                }
+                                SData::insert_new(&mut doc.graph, obj, Box::new(field));
                             } else {
                                 SData::insert_new(&mut doc.graph, obj, Box::new(field));
                             }
@@ -1293,6 +1734,406 @@ impl ObjectLibrary {
                                             },
                                             _ => {}
                                         }
+                                    } else if field.value.is_array() {
+                                        match &field.value {
+                                            SVal::Array(vals) => {
+                                                for val in vals {
+                                                    match val {
+                                                        SVal::Object(nref) => {
+                                                            let mut name = None;
+                                                            if let Some(node) = nref.node(&doc.graph) {
+                                                                name = Some(node.name.clone());
+                                                            }
+                                                            if let Some(name) = name {
+                                                                let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                let to_copy = SVal::Object(nref.clone());
+                                                                self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                            }
+                                                        },
+                                                        SVal::Boxed(val) => {
+                                                            let val = val.lock().unwrap();
+                                                            let val = val.deref();
+                                                            match val {
+                                                                SVal::Object(nref) => {
+                                                                    let mut name = None;
+                                                                    if let Some(node) = nref.node(&doc.graph) {
+                                                                        name = Some(node.name.clone());
+                                                                    }
+                                                                    if let Some(name) = name {
+                                                                        let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                        let to_copy = SVal::Object(nref.clone());
+                                                                        self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                                    }
+                                                                },
+                                                                _ => {}
+                                                            }
+                                                        },
+                                                        _ => {}
+                                                    }
+                                                }
+                                            },
+                                            SVal::Boxed(val) => {
+                                                let val = val.lock().unwrap();
+                                                let val = val.deref();
+                                                match val {
+                                                    SVal::Array(vals) => {
+                                                        for val in vals {
+                                                            match val {
+                                                                SVal::Object(nref) => {
+                                                                    let mut name = None;
+                                                                    if let Some(node) = nref.node(&doc.graph) {
+                                                                        name = Some(node.name.clone());
+                                                                    }
+                                                                    if let Some(name) = name {
+                                                                        let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                        let to_copy = SVal::Object(nref.clone());
+                                                                        self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                                    }
+                                                                },
+                                                                SVal::Boxed(val) => {
+                                                                    let val = val.lock().unwrap();
+                                                                    let val = val.deref();
+                                                                    match val {
+                                                                        SVal::Object(nref) => {
+                                                                            let mut name = None;
+                                                                            if let Some(node) = nref.node(&doc.graph) {
+                                                                                name = Some(node.name.clone());
+                                                                            }
+                                                                            if let Some(name) = name {
+                                                                                let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                                let to_copy = SVal::Object(nref.clone());
+                                                                                self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                                            }
+                                                                        },
+                                                                        _ => {}
+                                                                    }
+                                                                },
+                                                                _ => {}
+                                                            }
+                                                        }
+                                                    },
+                                                    _ => {}
+                                                }
+                                            },
+                                            _ => {}
+                                        }
+                                        SData::insert_new(&mut doc.graph, obj, Box::new(field));
+                                    } else if field.value.is_tuple() {
+                                        match &field.value {
+                                            SVal::Tuple(vals) => {
+                                                for val in vals {
+                                                    match val {
+                                                        SVal::Object(nref) => {
+                                                            let mut name = None;
+                                                            if let Some(node) = nref.node(&doc.graph) {
+                                                                name = Some(node.name.clone());
+                                                            }
+                                                            if let Some(name) = name {
+                                                                let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                let to_copy = SVal::Object(nref.clone());
+                                                                self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                            }
+                                                        },
+                                                        SVal::Boxed(val) => {
+                                                            let val = val.lock().unwrap();
+                                                            let val = val.deref();
+                                                            match val {
+                                                                SVal::Object(nref) => {
+                                                                    let mut name = None;
+                                                                    if let Some(node) = nref.node(&doc.graph) {
+                                                                        name = Some(node.name.clone());
+                                                                    }
+                                                                    if let Some(name) = name {
+                                                                        let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                        let to_copy = SVal::Object(nref.clone());
+                                                                        self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                                    }
+                                                                },
+                                                                _ => {}
+                                                            }
+                                                        },
+                                                        _ => {}
+                                                    }
+                                                }
+                                            },
+                                            SVal::Boxed(val) => {
+                                                let val = val.lock().unwrap();
+                                                let val = val.deref();
+                                                match val {
+                                                    SVal::Tuple(vals) => {
+                                                        for val in vals {
+                                                            match val {
+                                                                SVal::Object(nref) => {
+                                                                    let mut name = None;
+                                                                    if let Some(node) = nref.node(&doc.graph) {
+                                                                        name = Some(node.name.clone());
+                                                                    }
+                                                                    if let Some(name) = name {
+                                                                        let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                        let to_copy = SVal::Object(nref.clone());
+                                                                        self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                                    }
+                                                                },
+                                                                SVal::Boxed(val) => {
+                                                                    let val = val.lock().unwrap();
+                                                                    let val = val.deref();
+                                                                    match val {
+                                                                        SVal::Object(nref) => {
+                                                                            let mut name = None;
+                                                                            if let Some(node) = nref.node(&doc.graph) {
+                                                                                name = Some(node.name.clone());
+                                                                            }
+                                                                            if let Some(name) = name {
+                                                                                let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                                let to_copy = SVal::Object(nref.clone());
+                                                                                self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                                            }
+                                                                        },
+                                                                        _ => {}
+                                                                    }
+                                                                },
+                                                                _ => {}
+                                                            }
+                                                        }
+                                                    },
+                                                    _ => {}
+                                                }
+                                            },
+                                            _ => {}
+                                        }
+                                        SData::insert_new(&mut doc.graph, obj, Box::new(field));
+                                    } else if field.value.is_set() {
+                                        match &field.value {
+                                            SVal::Set(vals) => {
+                                                for val in vals {
+                                                    match val {
+                                                        SVal::Object(nref) => {
+                                                            let mut name = None;
+                                                            if let Some(node) = nref.node(&doc.graph) {
+                                                                name = Some(node.name.clone());
+                                                            }
+                                                            if let Some(name) = name {
+                                                                let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                let to_copy = SVal::Object(nref.clone());
+                                                                self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                            }
+                                                        },
+                                                        SVal::Boxed(val) => {
+                                                            let val = val.lock().unwrap();
+                                                            let val = val.deref();
+                                                            match val {
+                                                                SVal::Object(nref) => {
+                                                                    let mut name = None;
+                                                                    if let Some(node) = nref.node(&doc.graph) {
+                                                                        name = Some(node.name.clone());
+                                                                    }
+                                                                    if let Some(name) = name {
+                                                                        let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                        let to_copy = SVal::Object(nref.clone());
+                                                                        self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                                    }
+                                                                },
+                                                                _ => {}
+                                                            }
+                                                        },
+                                                        _ => {}
+                                                    }
+                                                }
+                                            },
+                                            SVal::Boxed(val) => {
+                                                let val = val.lock().unwrap();
+                                                let val = val.deref();
+                                                match val {
+                                                    SVal::Set(vals) => {
+                                                        for val in vals {
+                                                            match val {
+                                                                SVal::Object(nref) => {
+                                                                    let mut name = None;
+                                                                    if let Some(node) = nref.node(&doc.graph) {
+                                                                        name = Some(node.name.clone());
+                                                                    }
+                                                                    if let Some(name) = name {
+                                                                        let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                        let to_copy = SVal::Object(nref.clone());
+                                                                        self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                                    }
+                                                                },
+                                                                SVal::Boxed(val) => {
+                                                                    let val = val.lock().unwrap();
+                                                                    let val = val.deref();
+                                                                    match val {
+                                                                        SVal::Object(nref) => {
+                                                                            let mut name = None;
+                                                                            if let Some(node) = nref.node(&doc.graph) {
+                                                                                name = Some(node.name.clone());
+                                                                            }
+                                                                            if let Some(name) = name {
+                                                                                let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                                let to_copy = SVal::Object(nref.clone());
+                                                                                self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                                            }
+                                                                        },
+                                                                        _ => {}
+                                                                    }
+                                                                },
+                                                                _ => {}
+                                                            }
+                                                        }
+                                                    },
+                                                    _ => {}
+                                                }
+                                            },
+                                            _ => {}
+                                        }
+                                        SData::insert_new(&mut doc.graph, obj, Box::new(field));
+                                    } else if field.value.is_map() {
+                                        match &field.value {
+                                            SVal::Map(vals) => {
+                                                for pair in vals {
+                                                    match pair.0 {
+                                                        SVal::Object(nref) => {
+                                                            let mut name = None;
+                                                            if let Some(node) = nref.node(&doc.graph) {
+                                                                name = Some(node.name.clone());
+                                                            }
+                                                            if let Some(name) = name {
+                                                                let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                let to_copy = SVal::Object(nref.clone());
+                                                                self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                            }
+                                                        },
+                                                        SVal::Boxed(val) => {
+                                                            let val = val.lock().unwrap();
+                                                            let val = val.deref();
+                                                            match val {
+                                                                SVal::Object(nref) => {
+                                                                    let mut name = None;
+                                                                    if let Some(node) = nref.node(&doc.graph) {
+                                                                        name = Some(node.name.clone());
+                                                                    }
+                                                                    if let Some(name) = name {
+                                                                        let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                        let to_copy = SVal::Object(nref.clone());
+                                                                        self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                                    }
+                                                                },
+                                                                _ => {}
+                                                            }
+                                                        },
+                                                        _ => {}
+                                                    }
+                                                    match pair.1 {
+                                                        SVal::Object(nref) => {
+                                                            let mut name = None;
+                                                            if let Some(node) = nref.node(&doc.graph) {
+                                                                name = Some(node.name.clone());
+                                                            }
+                                                            if let Some(name) = name {
+                                                                let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                let to_copy = SVal::Object(nref.clone());
+                                                                self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                            }
+                                                        },
+                                                        SVal::Boxed(val) => {
+                                                            let val = val.lock().unwrap();
+                                                            let val = val.deref();
+                                                            match val {
+                                                                SVal::Object(nref) => {
+                                                                    let mut name = None;
+                                                                    if let Some(node) = nref.node(&doc.graph) {
+                                                                        name = Some(node.name.clone());
+                                                                    }
+                                                                    if let Some(name) = name {
+                                                                        let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                        let to_copy = SVal::Object(nref.clone());
+                                                                        self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                                    }
+                                                                },
+                                                                _ => {}
+                                                            }
+                                                        },
+                                                        _ => {}
+                                                    }
+                                                }
+                                            },
+                                            SVal::Boxed(val) => {
+                                                let val = val.lock().unwrap();
+                                                let val = val.deref();
+                                                match val {
+                                                    SVal::Map(vals) => {
+                                                        for pair in vals {
+                                                            match pair.0 {
+                                                                SVal::Object(nref) => {
+                                                                    let mut name = None;
+                                                                    if let Some(node) = nref.node(&doc.graph) {
+                                                                        name = Some(node.name.clone());
+                                                                    }
+                                                                    if let Some(name) = name {
+                                                                        let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                        let to_copy = SVal::Object(nref.clone());
+                                                                        self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                                    }
+                                                                },
+                                                                SVal::Boxed(val) => {
+                                                                    let val = val.lock().unwrap();
+                                                                    let val = val.deref();
+                                                                    match val {
+                                                                        SVal::Object(nref) => {
+                                                                            let mut name = None;
+                                                                            if let Some(node) = nref.node(&doc.graph) {
+                                                                                name = Some(node.name.clone());
+                                                                            }
+                                                                            if let Some(name) = name {
+                                                                                let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                                let to_copy = SVal::Object(nref.clone());
+                                                                                self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                                            }
+                                                                        },
+                                                                        _ => {}
+                                                                    }
+                                                                },
+                                                                _ => {}
+                                                            }
+                                                            match pair.1 {
+                                                                SVal::Object(nref) => {
+                                                                    let mut name = None;
+                                                                    if let Some(node) = nref.node(&doc.graph) {
+                                                                        name = Some(node.name.clone());
+                                                                    }
+                                                                    if let Some(name) = name {
+                                                                        let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                        let to_copy = SVal::Object(nref.clone());
+                                                                        self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                                    }
+                                                                },
+                                                                SVal::Boxed(val) => {
+                                                                    let val = val.lock().unwrap();
+                                                                    let val = val.deref();
+                                                                    match val {
+                                                                        SVal::Object(nref) => {
+                                                                            let mut name = None;
+                                                                            if let Some(node) = nref.node(&doc.graph) {
+                                                                                name = Some(node.name.clone());
+                                                                            }
+                                                                            if let Some(name) = name {
+                                                                                let deep_copy = doc.graph.insert_node(&name, Some(obj));
+                                                                                let to_copy = SVal::Object(nref.clone());
+                                                                                self.operate(pid, doc, "deepCopyFields", &deep_copy, &mut vec![to_copy])?;
+                                                                            }
+                                                                        },
+                                                                        _ => {}
+                                                                    }
+                                                                },
+                                                                _ => {}
+                                                            }
+                                                        }
+                                                    },
+                                                    _ => {}
+                                                }
+                                            },
+                                            _ => {}
+                                        }
+                                        SData::insert_new(&mut doc.graph, obj, Box::new(field));
                                     } else {
                                         SData::insert_new(&mut doc.graph, obj, Box::new(field));
                                     }

@@ -369,6 +369,41 @@ cloned_objects: {
         self.source2.sub.a = 'AA';
         assertEq(copy.sub.a, 'a');
     }
+
+    source3: {
+        array: [
+            {
+                test: true
+            },
+            {
+                array: 22
+            }
+        ]
+        set: set(new { test: true })
+        map: map((new { key: 1 }, new { value: 42 }))
+        tup: (new { tup: true }, new { dude: 'hi' }, 33)
+    }
+
+    #[test]
+    fn deep_copy_collections() {
+        let copy = new {};
+        copy.deepCopyFields(self.source3);
+
+        assertEq(copy.array.len(), 2);
+        assertEq(copy.array.first().at('test'), true);
+        assertEq(copy.array.last().at('array'), 22);
+
+        assertEq(copy.set.len(), 1);
+        assertEq(copy.set.first().at('test'), true);
+
+        assertEq(copy.map.len(), 1);
+        assertEq(copy.map.first().at(0).at('key'), 1);
+        assertEq(copy.map.first().at(1).at('value'), 42);
+
+        assertEq(copy.tup.at(0).at('tup'), true);
+        assertEq(copy.tup[1]['dude'], 'hi');
+        assertEq(copy.tup[2], 33);
+    }
 }
 
 map_fields: {
@@ -517,5 +552,23 @@ search: {
         val = self.space.searchUp('eq');
         assertEq(val[0], 'EQUP');
         assertEq(val[1], 5); // make sure testing the right thing above
+    }
+}
+
+move_to: {
+    a: {}
+    
+    #[test]
+    fn move_anonymous() {
+        let o = new {}; // on self
+        
+        assertEq(o.parent(), self);
+        assertEq(self.children().len(), 2);
+        assertEq(self.a.children().len(), 0);
+
+        assert(o.moveTo(self.a));
+        assertEq(o.parent(), self.a);
+        assertEq(self.children().len(), 1);
+        assertEq(self.a.children().len(), 1);
     }
 }
