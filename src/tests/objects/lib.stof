@@ -371,7 +371,7 @@ cloned_objects: {
     }
 
     source3: {
-        array: [
+        Box<vec> array: [
             {
                 test: true
             },
@@ -379,8 +379,8 @@ cloned_objects: {
                 array: 22
             }
         ]
-        set: set(new { test: true })
-        map: map((new { key: 1 }, new { value: 42 }))
+        Box<set> set: set(new { test: true })
+        Box<map> map: map((new { key: 1 }, new { value: 42 }))
         tup: (new { tup: true }, new { dude: 'hi' }, 33)
     }
 
@@ -388,6 +388,23 @@ cloned_objects: {
     fn deep_copy_collections() {
         let copy = new {};
         copy.deepCopyFields(self.source3);
+
+        for (o in self.source3.array) drop o;
+        self.source3.array.clear();
+
+        for (o in self.source3.set) drop o;
+        self.source3.set.clear();
+
+        for (o in self.source3.map) { o[0].drop(); o[1].drop(); }
+        self.source3.map.clear();
+
+        self.source3.tup[0].drop();
+        self.source3.tup[1].drop();
+        drop self.source3.tup;
+
+        assert(self.source3.array.empty());
+        assert(self.source3.set.empty());
+        assert(self.source3.map.empty());
 
         assertEq(copy.array.len(), 2);
         assertEq(copy.array.first().at('test'), true);

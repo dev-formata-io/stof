@@ -206,7 +206,9 @@ impl Expr {
                     StatementsRes::Return(v) => {
                         if v {
                             // block returned something to the stack!
-                            return Ok(doc.pop(pid).unwrap());
+                            if let Some(val) = doc.pop(pid) {
+                                return Ok(val);
+                            }
                         }
                     }
                 }

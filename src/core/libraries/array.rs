@@ -92,6 +92,11 @@ impl ArrayLibrary {
                 }
                 return Ok(SVal::Null);
             },
+            // Clear this array.
+            "clear" => {
+                array.clear();
+                Ok(SVal::Void)
+            },
             // Reverse the array in-place.
             "reverse" => {
                 array.reverse();
