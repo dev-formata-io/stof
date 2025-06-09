@@ -45,6 +45,16 @@ impl TokioPool {
         let pid = split.processes.spawn();
         let tid = thread_id.clone();
         let current = Handle::current();
+
+        // Make sure to add the active handle before anything else, so that awaits always
+        let active_task_id = tid.clone();
+        current.block_on(async move {
+            {
+                let mut tmp_handles = ACTIVE_HANDLES.lock().await;
+                tmp_handles.insert(active_task_id);
+            }
+        });
+
         let join_handle = current.spawn_blocking(move || {
             let mut results = Vec::new();
             let mut errors = Vec::new();
@@ -85,6 +95,10 @@ impl TokioPool {
         let tid = thread_id.clone();
         current.block_on(async move {
             {
+                let mut handles = TOKIO_HANDLES.lock().await;
+                handles.insert(tid.clone(), join_handle);
+            }
+            {
                 let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
                 let mut pool = TOKIO_POOL.lock().await;
                 
@@ -100,20 +114,12 @@ impl TokioPool {
                 });
 
                 pool.tasks.insert(tid.clone(), Task {
-                    id: tid.clone(),
+                    id: tid,
                     results: Default::default(),
                     errors: Default::default(),
                     doc: None,
                     finished_ts: None,
                 });
-            }
-            {
-                let mut tmp_handles = ACTIVE_HANDLES.lock().await;
-                tmp_handles.insert(tid.clone());
-            }
-            {
-                let mut handles = TOKIO_HANDLES.lock().await;
-                handles.insert(tid, join_handle);
             }
         });
 

@@ -457,6 +457,10 @@ impl Library for StdLibrary {
                 }
                 Ok(SVal::String(nanoid!()))
             },
+            "docId" |
+            "graphId" => {
+                Ok(SVal::String(doc.graph.id.clone()))
+            },
 
             /*****************************************************************************
              * Tracing & Debugging.
