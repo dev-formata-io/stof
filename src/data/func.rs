@@ -293,7 +293,7 @@ impl SFunc {
             if arg_type == param.ptype {
                 let name = &param.name;
                 added.push(name.clone());
-                doc.add_variable(pid, name, arg_val);
+                doc.add_variable(pid, name, arg_val, false);
             } else {
                 for name in added {
                     doc.drop(pid, &name);

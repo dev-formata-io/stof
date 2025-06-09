@@ -984,20 +984,20 @@ impl SDoc {
     }
 
     /// Add a variable to the current scope.
-    pub(crate) fn add_variable<T>(&mut self, pid: &str, name: &str, value: T) where T: Into<SVal> {
+    pub(crate) fn add_variable<T>(&mut self, pid: &str, name: &str, value: T, is_const: bool) where T: Into<SVal> {
         if let Some(process) = self.processes.get_mut(pid) {
-            process.add_variable(name, value);
+            process.add_variable(name, value, is_const);
         }
     }
 
     /// Set a variable.
     /// Will not add the variable if not already present.
     /// Sets current scope or above variables!
-    pub(crate) fn set_variable(&mut self, pid: &str, name: &str, value: &SVal) -> bool {
+    pub(crate) fn set_variable(&mut self, pid: &str, name: &str, value: &SVal, force: bool) -> Result<bool, String> {
         if let Some(process) = self.processes.get_mut(pid) {
-            process.set_variable(name, value)
+            process.set_variable(name, value, force)
         } else {
-            false
+            Ok(false)
         }
     }
 

@@ -274,7 +274,7 @@ impl Expr {
                             let field = SField::new(name, val);
                             SData::insert_new(&mut doc.graph, &stof_object, Box::new(field));
                         },
-                        Statement::Declare(name, expr, _allow_void) => {
+                        Statement::Declare(_is_const, name, expr, _allow_void) => {
                             if name == "self" || name == "super" || name.contains('.') {
                                 let error = SError::custom(pid, &doc, "NewObjectFieldError", &format!("invalid field name '{name}' for new object"));
                                 doc.pop_new_obj(pid);
@@ -539,7 +539,7 @@ impl Expr {
                         if func_params.len() > 0 {
                             let new_symbol_val = func_params.first().unwrap();
                             if new_symbol_val.stype(&doc.graph) == stype {
-                                doc.set_variable(pid, &scope, new_symbol_val);
+                                let _ = doc.set_variable(pid, &scope, new_symbol_val, true);
                             }
                         }
 

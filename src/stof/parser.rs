@@ -525,7 +525,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                                         new_func.attributes = attributes;
                                                         
                                                         let old_statments = new_func.statements.clone();
-                                                        new_func.statements = Statements::from(vec![Statement::Declare(funcparamname, Expr::Literal(SVal::FnPtr(func_ref)), false)]);
+                                                        new_func.statements = Statements::from(vec![Statement::Declare(false, funcparamname, Expr::Literal(SVal::FnPtr(func_ref)), false)]);
                                                         new_func.statements.absorb(old_statments);
 
                                                         SData::insert_new(&mut doc.graph, &scope, Box::new(new_func)); // make sure it's in the new scope
@@ -788,7 +788,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                                                     new_func.attributes = attributes;
                                                                     
                                                                     let old_statments = new_func.statements.clone();
-                                                                    new_func.statements = Statements::from(vec![Statement::Declare(funcparamname, Expr::Literal(SVal::FnPtr(func_ref)), false)]);
+                                                                    new_func.statements = Statements::from(vec![Statement::Declare(false, funcparamname, Expr::Literal(SVal::FnPtr(func_ref)), false)]);
                                                                     new_func.statements.absorb(old_statments);
             
                                                                     //SData::insert_new(&mut doc.graph, &scope, Box::new(new_func)); // make sure it's in the new scope
@@ -1160,12 +1160,25 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                 let mut inner_statements = Statements::default();
                 let mut iterable_expr = Expr::Literal(SVal::Null);
                 let mut atype = SType::Void;
+                let mut is_const = false;
+                let mut ident_str = String::new();
                 for pair in pair.into_inner() {
                     match pair.as_rule() {
+                        Rule::dec_pref => {
+                            is_const = pair.as_str() == "const";
+                        },
                         Rule::atype => {
                             atype = parse_atype(pair);
                         },
                         Rule::ident => {
+                            ident_str = pair.as_str().to_owned();
+                        },
+                        Rule::expr => {
+                            // Array (or iterable) expression!
+                            iterable_expr = parse_expression(doc, env, pair)?;
+                        },
+                        Rule::single_block |
+                        Rule::block => {
                             // Set the expression to declare with
                             let mut dec_expr = Expr::Call {
                                 scope: "iterable".to_string(),
@@ -1177,31 +1190,24 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
                             if atype != SType::Void {
                                 dec_expr = Expr::Cast(atype.clone(), Box::new(dec_expr));
                             }
+                            inner_statements.push(Statement::Declare(is_const, ident_str.clone(), dec_expr, false));
 
-                            let var_name = pair.as_str().to_owned();
-                            inner_statements.push(Statement::Declare(var_name.into(), dec_expr, false));
-                        },
-                        Rule::expr => {
-                            // Array (or iterable) expression!
-                            iterable_expr = parse_expression(doc, env, pair)?;
-                        },
-                        Rule::single_block |
-                        Rule::block => {
+                            // Now absorb the parsed block
                             inner_statements.absorb(parse_block(doc, env, pair)?);
                         },
                         _ => return Err(SError::parse(&env.pid, &doc, "unrecognized rule for for-in loop"))
                     }
                 }
                 let mut outer_statements = vec![
-                    Statement::Declare("iterable".into(), iterable_expr, false),
-                    Statement::Declare("length".into(), Expr::Call {
+                    Statement::Declare(true, "iterable".into(), iterable_expr, false),
+                    Statement::Declare(false, "length".into(), Expr::Call {
                         scope: "iterable".to_string(),
                         name: "len".to_string(),
                         params: vec![],
                     }, false),
-                    Statement::Declare("index".into(), Expr::Literal(0.into()), false),
-                    Statement::Declare("first".into(), Expr::Literal(true.into()), false),
-                    Statement::Declare("last".into(), Expr::Literal(false.into()), false),
+                    Statement::Declare(false, "index".into(), Expr::Literal(0.into()), false),
+                    Statement::Declare(false, "first".into(), Expr::Literal(true.into()), false),
+                    Statement::Declare(false, "last".into(), Expr::Literal(false.into()), false),
                 ];
                 // Put finally statements together that increases "index" by one on the end of the inner statements
                 let finally_statements = Statements::from(vec![
@@ -1470,8 +1476,12 @@ fn parse_declare(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<
     let mut void_expr = true;
     let mut expr = Expr::Literal(SVal::Void);
     let mut atype = SType::Void;
+    let mut is_const = false;
     for pair in pair.into_inner() {
         match pair.as_rule() {
+            Rule::dec_pref => {
+                is_const = pair.as_str() == "const";
+            },
             Rule::ident => {
                 ident = pair.as_str().to_owned();
             },
@@ -1496,7 +1506,10 @@ fn parse_declare(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<
                 expr = Expr::Cast(atype, Box::new(expr));
             }
         }
-        return Ok(Statement::Declare(ident, expr, void_expr));
+        if is_const && void_expr {
+            return Err(SError::parse(&env.pid, &doc, "cannot declare a const void variable"));
+        }
+        return Ok(Statement::Declare(is_const, ident, expr, void_expr));
     }
     Err(SError::parse(&env.pid, &doc, "could not parse declare statement"))
 }
@@ -1871,7 +1884,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         }
                         if !declared {
                             declared = true;
-                            block_statements.push(Statement::Declare("tmp".into(), Expr::Call { scope: scope.clone(), name: "at".into(), params }, false));
+                            block_statements.push(Statement::Declare(false, "tmp".into(), Expr::Call { scope: scope.clone(), name: "at".into(), params }, false));
                         } else {
                             block_statements.push(Statement::Assign("tmp".into(), Expr::Call { scope: scope.clone(), name: "at".into(), params }));
                         }
@@ -1898,7 +1911,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         block_statements.push(Statement::Return(expr));
                     },
                     _ => {
-                        block_statements.push(Statement::Declare("tmp".into(), parse_expr_pair(doc, env, pair)?, false));
+                        block_statements.push(Statement::Declare(false, "tmp".into(), parse_expr_pair(doc, env, pair)?, false));
                     }
                 }
             }
@@ -1922,7 +1935,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         }
                         if !declared {
                             declared = true;
-                            block_statements.push(Statement::Declare("tmp".into(), expr, false));
+                            block_statements.push(Statement::Declare(false, "tmp".into(), expr, false));
                         } else {
                             block_statements.push(Statement::Assign("tmp".into(), expr));
                         }
@@ -1992,9 +2005,9 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                             .replace("\\`", "`")
                             .replace("\\\\", "\\");*/ // TODO - regex or different string replace strategy
                         let mut statements = Vec::new();
-                        statements.push(Statement::Declare("tmp".into(), Expr::Literal(SVal::String(format.to_owned())), false));
-                        statements.push(Statement::Declare("res".into(), Expr::Literal(SVal::String(format.to_owned())), false));
-                        statements.push(Statement::Declare("sub".into(), Expr::Literal(SVal::Null), false));
+                        statements.push(Statement::Declare(false, "tmp".into(), Expr::Literal(SVal::String(format.to_owned())), false));
+                        statements.push(Statement::Declare(false, "res".into(), Expr::Literal(SVal::String(format.to_owned())), false));
+                        statements.push(Statement::Declare(false, "sub".into(), Expr::Literal(SVal::Null), false));
 
                         let fmt_span = pair.as_span();
                         let fmt_start = fmt_span.start();

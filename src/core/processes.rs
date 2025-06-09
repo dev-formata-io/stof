@@ -141,16 +141,16 @@ impl SProcess {
     }
 
     /// Add a variable to the current scope.
-    pub fn add_variable<T>(&mut self, name: &str, value: T) where T: Into<SVal> {
-        let symbol = Symbol::Variable(value.into());
+    pub fn add_variable<T>(&mut self, name: &str, value: T, is_const: bool) where T: Into<SVal> {
+        let symbol = Symbol::Variable((is_const, value.into()));
         self.table.insert(name, symbol);
     }
 
     /// Set a variable.
     /// Will not add the variable if not already present.
     /// Sets current scope or above variables!
-    pub fn set_variable(&mut self, name: &str, value: &SVal) -> bool {
-        self.table.set_variable(name, value)
+    pub fn set_variable(&mut self, name: &str, value: &SVal, force: bool) -> Result<bool, String> {
+        self.table.set_variable(name, value, force)
     }
 
     /// Drop a symbol from the current scope.

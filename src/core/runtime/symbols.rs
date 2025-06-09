@@ -46,12 +46,12 @@ impl SymbolScope {
 
     /// Set a variable by name.
     /// Will not insert if not present!
-    pub fn set_variable(&mut self, name: &str, value: &SVal) -> bool {
+    pub fn set_variable(&mut self, name: &str, value: &SVal, force: bool) -> Result<bool, String> {
         if let Some(var) = self.get_mut(name) {
-            var.set(value.clone());
-            return true;
+            var.set(value.clone(), force)?;
+            return Ok(true);
         }
-        false
+        Ok(false)
     }
 }
 
@@ -59,20 +59,24 @@ impl SymbolScope {
 /// Symbol.
 #[derive(Debug, Clone)]
 pub enum Symbol {
-    Variable(SVal),
+    Variable((bool, SVal)), // const, value
 }
 impl Symbol {
     /// Get variable value.
     pub fn var(&self) -> SVal {
         match self {
-            Symbol::Variable(val) => val.clone(),
+            Symbol::Variable(val) => val.1.clone(),
         }
     }
 
     /// Set variable.
-    pub fn set(&mut self, val: SVal) {
+    pub fn set(&mut self, val: SVal, force: bool) -> Result<(), String> {
         match self {
-            Symbol::Variable(var) => {
+            Symbol::Variable((is_const, var)) => {
+                if !force && *is_const {
+                    return Err(format!("cannot set const variable"));
+                }
+                
                 if var.is_boxed() && !val.is_boxed() { // set for everyone!
                     match var {
                         SVal::Boxed(var) => {
@@ -85,6 +89,7 @@ impl Symbol {
                 }
             }
         }
+        Ok(())
     }
 }
 
@@ -155,14 +160,14 @@ impl SymbolTable {
 
     /// Set a variable by name.
     /// Will not insert if not present!
-    pub fn set_variable(&mut self, name: &str, value: &SVal) -> bool {
+    pub fn set_variable(&mut self, name: &str, value: &SVal, force: bool) -> Result<bool, String> {
         for i in (0..self.scope + 1).rev() {
             if let Some(scope) = self.scopes.get_mut(&i) {
-                if scope.set_variable(name, value) {
-                    return true;
+                if scope.set_variable(name, value, force)? {
+                    return Ok(true);
                 }
             }
         }
-        false
+        Ok(false)
     }
 }

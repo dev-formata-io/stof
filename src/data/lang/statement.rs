@@ -48,7 +48,7 @@ impl Statements {
     pub fn exec(&self, pid: &str, doc: &mut SDoc) -> Result<StatementsRes, SError> {
         for statement in &self.statements {
             match statement {
-                Statement::Declare(name, rhs, allow_void) => {
+                Statement::Declare(is_const, name, rhs, allow_void) => {
                     // Check to see if the symbol already exists in the current scope
                     if doc.has_var_with_name_in_current(pid, name) {
                         let error = SError::custom(pid, &doc, "VarDeclare", &format!("cannot declare a variable twice within the same scope: {}", &name));
@@ -67,7 +67,7 @@ impl Statements {
                         let error = SError::custom(pid, &doc, "VarDeclare", "cannot declare variables that are paths, use an assignment operation if intending to create/assign fields");
                         return Err(error);
                     } else {
-                        doc.add_variable(pid, &name, val);
+                        doc.add_variable(pid, &name, val, *is_const);
                     }
                 },
                 Statement::Assign(name, rhs) => {
@@ -79,7 +79,12 @@ impl Statements {
                     }
 
                     // Try setting a variable in the symbol table
-                    if doc.set_variable(pid, &name, &val) {
+                    let set_res = doc.set_variable(pid, name, &val, false);
+                    if set_res.is_err() { // Errors when trying to set a const symbol
+                        return Err(SError::custom(pid, &doc, "AssignError", &format!("cannot assign to const variable '{name}'")));
+                    }
+
+                    if set_res.unwrap() {
                         // Nada..
                     } else if name.contains('.') && !name.ends_with('.') && !name.starts_with('.') {
                         // Try assigning via an absolute path to a field first
@@ -173,7 +178,7 @@ impl Statements {
                         match &dropped_val {
                             SVal::Object(nref) => {
                                 if !doc.perms.can_write_scope(&doc.graph, &nref, doc.self_ptr(pid).as_ref()) {
-                                    doc.add_variable(pid, &name, dropped_val);
+                                    doc.add_variable(pid, &name, dropped_val, false);
                                 } else {
                                     doc.types.drop_types_for(&nref, &doc.graph);
                                     doc.graph.remove_node(nref);
@@ -183,7 +188,7 @@ impl Statements {
                                 if doc.perms.can_write_func(&doc.graph, dref, doc.self_ptr(pid).as_ref()) {
                                     doc.graph.remove_data(dref, None);
                                 } else {
-                                    doc.add_variable(pid, &name, dropped_val);
+                                    doc.add_variable(pid, &name, dropped_val, false);
                                 }
                             },
                             SVal::Data(dref) => {
@@ -525,11 +530,11 @@ impl Statements {
                             if !catch_type.is_empty() && catch_var.len() > 0 {
                                 match catch_type {
                                     SType::String => {
-                                        doc.add_variable(pid, catch_var, SVal::String(error.message));
+                                        doc.add_variable(pid, catch_var, SVal::String(error.message), false);
                                     },
                                     SType::Tuple(types) => {
                                         if types.len() == 2 && types[0].is_string() && types[1].is_string() {
-                                            doc.add_variable(pid, catch_var, SVal::Tuple(vec![SVal::String(error.error_type.to_string()), SVal::String(error.message)]));
+                                            doc.add_variable(pid, catch_var, SVal::Tuple(vec![SVal::String(error.error_type.to_string()), SVal::String(error.message)]), false);
                                         } else {
                                             return Err(SError::type_error(pid, &doc, "try-catch block tuple error must be in the form (type: str, message: str)"));
                                         }
@@ -539,7 +544,7 @@ impl Statements {
                                         map.insert(SVal::String("type".into()), SVal::String(error.error_type.to_string()));
                                         map.insert(SVal::String("message".into()), SVal::String(error.message));
                                         map.insert(SVal::String("stack".into()), SVal::Array(error.call_stack.into_iter().map(|dref| SVal::FnPtr(dref)).collect::<Vec<SVal>>()));
-                                        doc.add_variable(pid, catch_var, SVal::Map(map));
+                                        doc.add_variable(pid, catch_var, SVal::Map(map), false);
                                     },
                                     _ => {
                                         return Err(SError::type_error(pid, &doc, "try-catch block has an incompatable type for catching an error"));
@@ -676,7 +681,7 @@ impl From<Vec<Statement>> for Statements {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Statement {
     // Variables.
-    Declare(String, Expr, bool), // name, val, allow_void (for init only)
+    Declare(bool, String, Expr, bool), // const, name, val, allow_void (for init only)
     Assign(String, Expr),
 
     // Field & Variable ops

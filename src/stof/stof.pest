@@ -121,13 +121,13 @@ empty_statement   = _{ ";" }
 
 // For loop
 for_loop           =  { "for" ~ "(" ~ declare? ~ ";" ~ expr? ~ ";" ~ (assign | add_assign | sub_assign | mul_assign | div_assign | rem_assign)? ~ ";"? ~ ")" ~ (block | single_block) }
-for_in_loop        =  { "for" ~ "(" ~ (for_in_inner | for_in_typed_inner) ~ ")" ~ (block | single_block) }
-for_in_inner       = _{ ident ~ "in" ~ expr }
-for_in_typed_inner = _{ atype ~ ident ~ "in" ~ expr }
+for_in_loop        =  { "for" ~ "(" ~ for_in_inner ~ ")" ~ (block | single_block) }
+for_in_inner       = _{ dec_pref? ~ ident ~ (":" ~ atype)? ~ "in" ~ expr }
 
 // Statements
 statement  = _{ (declare | assign | drop | add_assign | sub_assign | mul_assign | div_assign | rem_assign | expr) ~ ";" }
-declare    =  { "let" ~ ident ~ (":" ~ atype)? ~ ("=" ~ expr)? }
+dec_pref   =  { "let" | "const" }
+declare    =  { dec_pref ~ ident ~ (":" ~ atype)? ~ ("=" ~ expr)? }
 assign     =  { ident ~ "=" ~ expr }
 drop       =  { "drop" ~ ident ~ ("," ~ ident)* }
 add_assign =  { ident ~ "+=" ~ expr }

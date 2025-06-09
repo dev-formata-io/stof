@@ -18,7 +18,7 @@
 #[test([2, 3, 4, 5, 6])]
 fn mutate(): vec {
     let array = [1, 2, 3, 4, 5];
-    for (int i in array) {
+    for (i: int in array) {
         // For-in loops have a few helpful "hidden" variables defined:
         // "index"  - the current index we are at in the array
         // "first"  - true if this element is the first element in the array

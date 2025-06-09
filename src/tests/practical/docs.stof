@@ -69,7 +69,7 @@ example: {
     #[test(['Bob Smith', 'Jane Doe', 'Jerry Smith'])]
     fn full_names(): vec {
         let names = [];
-        for (User user in self.users) {
+        for (const user: User in self.users) {
             names.push(user.fullName());
         }
         return names;
