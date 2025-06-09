@@ -371,7 +371,7 @@ impl Expr {
                                 }
                             }
                         }
-
+                        
                         // Look for a prototype on this object next
                         if let Some(prototype) = SPrototype::get(&doc.graph, nref) {
                             let prototype = prototype.node_ref();
@@ -402,8 +402,9 @@ impl Expr {
                                     }
                                 }
                                 if !found {
-                                    let error = SError::type_error(pid, &doc, "cannot find the requested type in the extends stack of this object in resolving function call");
-                                    return Err(error);
+                                    // Just because we have a prototype doesn't mean we can't look for static functions by object location...
+                                    // Keep in mind, though, that with a prototype, all supertypes have priority over static lookups
+                                    current = None;
                                 }
                             } else if type_scope_resolution.len() > 1 {
                                 let error = SError::type_error(pid, &doc, "cannot specify more than one type to resolve a function call");
@@ -444,6 +445,40 @@ impl Expr {
                                     }
                                 } else {
                                     break;
+                                }
+                            }
+                        }
+                    
+                        // Look for a static function from this object location next - lower priority than a prototype function
+                        if name.contains("::") {
+                            let mut split = name.split("::").collect::<Vec<&str>>();
+                            let typename = split.remove(0);
+                            let funcname = split.join("::");
+                            let mut prototype = None;
+                            if let Some(ctype) = doc.types.find(&doc.graph, typename, nref) {
+                                prototype = Some(SNodeRef::from(&ctype.locid));
+                            }
+                            if let Some(prototype) = prototype {
+                                if let Some(func_ref) = SFunc::func_ref(&doc.graph, &funcname, '.', Some(&prototype)) {
+                                    let mut func_params = Vec::new();
+                                    for expr in params {
+                                        let val = expr.exec(pid, doc)?;
+                                        if !val.is_void() {
+                                            func_params.push(val);
+                                        }
+                                    }
+                                    let current_symbol_table = doc.new_table(pid);
+                                    let res = SFunc::call(&func_ref, pid, doc, func_params, false, true);
+                                    match res {
+                                        Ok(val) => {
+                                            doc.set_table(pid, current_symbol_table);
+                                            return Ok(val);
+                                        },
+                                        Err(error) => {
+                                            doc.set_table(pid, current_symbol_table);
+                                            return Err(error);
+                                        }
+                                    }
                                 }
                             }
                         }

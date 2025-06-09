@@ -30,7 +30,7 @@ type StaticType {
 
 #[test]
 fn type_call() {
-    let msg = StaticType::hello();
+    let msg = Types.Static.StaticType::hello();
     assertEq(msg, 'hello, world');
 }
 

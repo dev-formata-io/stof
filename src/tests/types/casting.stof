@@ -152,11 +152,12 @@ default_values: {
     }
 
     #[test]
-    fn create_defaults() {
+    fn create_defaults(): self.Defaults {
         let inst = new Defaults {};
         assertEq(inst.x, 20cm);
         assertEq(inst.y, 2m);
         assertEq(inst.z, 10mm);
+        return inst;
     }
 
     #[test]
