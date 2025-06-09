@@ -307,7 +307,7 @@ impl Expr {
                 }
                 return Ok(value.cast(target, pid, doc)?);
             },
-            Expr::TypeOf(expr) => {  // always generic type (ex. float, int, obj), but can be boxed
+            Expr::TypeOf(expr) => {  // always generic type (ex. float, int, obj, data), but can be boxed
                 let value = expr.exec(pid, doc)?;
                 
                 if value.is_number() {
@@ -328,6 +328,12 @@ impl Expr {
                         return Ok(SVal::String("Box<obj>".to_string()));
                     }
                     return Ok(SVal::String("obj".to_string()));
+                }
+                if value.is_data() {
+                    if value.is_boxed() {
+                        return Ok(SVal::String("Box<data>".to_string()));
+                    }
+                    return Ok(SVal::String("data".to_string()));
                 }
 
                 let value_type = value.stype(&doc.graph);

@@ -351,7 +351,7 @@ fn parse_atype(pair: Pair<Rule>) -> SType {
                     "set" => SType::Set,
                     "obj" => SType::Object("obj".to_string()),
                     "fn" => SType::FnPtr,
-                    "data" => SType::Data,
+                    "data" => SType::Data("data".to_string()),
                     "unknown" => SType::Unknown,
                     _ => {
                         let units = SUnits::from(pair.as_str());
@@ -374,6 +374,18 @@ fn parse_atype(pair: Pair<Rule>) -> SType {
                     }
                 }
                 atype = SType::Boxed(Box::new(inner_type));
+            },
+            Rule::cdata => {
+                let mut inner_type = String::from("data");
+                for pair in pair.into_inner() {
+                    match pair.as_rule() {
+                        Rule::ident => {
+                            inner_type = pair.as_str().to_owned();
+                        },
+                        _ => {}
+                    }
+                }
+                atype = SType::Data(inner_type);
             },
             Rule::tuple => {
                 let mut types = Vec::new();

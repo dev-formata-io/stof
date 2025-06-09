@@ -25,6 +25,14 @@ StofPDF: {
     }
 
     #[test]
+    fn types() {
+        let dta: data = self.pdf as Data<PDF>;
+        assertEq(typeof dta, 'data');
+        assertEq(typename dta, "Data<PDF>");
+        assertEq(dta.tagname(), 'PDF');
+    }
+
+    #[test]
     fn extract_text() {
         let page_text = self.pdf.extractPageText(1);
         let text = PDF.extractText(self.pdf);

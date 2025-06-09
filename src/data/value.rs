@@ -905,7 +905,16 @@ impl SVal {
                 SType::Tuple(types)
             },
             Self::FnPtr(_) => SType::FnPtr,
-            Self::Data(_) => SType::Data,
+            Self::Data(dref) => {
+                if let Some(cd) = SData::core_data(graph, dref) {
+                    if !cd { // core data are fields, functions, prototypes, etc. - they should all be "data" types
+                        if let Some(tagname) = SData::tagname(graph, dref) {
+                            return SType::Data(tagname);
+                        }
+                    }
+                }
+                SType::Data(String::from("data"))
+            },
             Self::Object(nref) => {
                 if let Some(prototype) = SPrototype::get(graph, nref) {
                     // Use the full typepath here, so taht we arrive at the correct type when casting, etc...
@@ -1304,7 +1313,10 @@ impl SVal {
             },
             Self::FnPtr(dref) => {
                 match target {
-                    SType::Data => {
+                    SType::Data(inner_type) => {
+                        if inner_type != "data" && inner_type != "_SFunc" {
+                            return Err(SError::val(pid, &doc, "cast", &format!("cannot cast a fn pointer to Data<{}>", inner_type)));
+                        }
                         if let Some(_func) = SData::get::<SFunc>(&doc.graph, dref) {
                             return Ok(SVal::Data(dref.clone()));
                         }
@@ -1315,6 +1327,17 @@ impl SVal {
             },
             Self::Data(dref) => {
                 match target {
+                    SType::Data(tagname) => {
+                        if tagname == "data" {
+                            return Ok(Self::Data(dref.clone()));
+                        }
+                        if let Some(dtn) = SData::tagname(&doc.graph, dref) {
+                            if tagname == dtn {
+                                return Ok(Self::Data(dref.clone()));
+                            }
+                            return Err(SError::val(pid, &doc, "cast", &format!("cannot cast data pointer of type Data<{dtn}> to Data<{tagname}>")));
+                        }
+                    },
                     SType::FnPtr => {
                         if let Some(_func) = SData::get::<SFunc>(&doc.graph, dref) {
                             return Ok(SVal::FnPtr(dref.clone()));

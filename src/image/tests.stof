@@ -30,7 +30,11 @@ StofImages: {
         let bytes = Image.png(self.image);
         assert(isBlob(bytes));
         
-        let image = Image.from(bytes);
+        // Image is the tagname, so it is the Library name, and specific Data type (Data<Image>)
+        // Generic "data" type can accept any specific Data type
+        let image: Box<data> = Image.from(bytes) as Data<Image>; // cast order and parsing
+        assertEq(typeof image, "Box<data>"); // always generic and can be boxed
+        assertEq(typename image, "Data<Image>"); // never boxed and always specific
         assert(Image.isImage(image));
         image.drop();
     }

@@ -60,7 +60,8 @@ literal = { bool | null | string | semver | number | ident }
 // Types
 tuple = { "(" ~ atype ~ ("," ~ atype)+ ~ ")" }
 boxed = { "Box" ~ "<" ~ atype ~ ">" }
-atype = { boxed | tuple | ident }
+cdata = { "Data" ~ "<" ~ ident ~ ">" }
+atype = { boxed | cdata | tuple | ident }
 
 // Document statements
 doc_statement = _{ line_comment | block_comment | NEWLINE | stof_type_declaration | import | function | field | ref_field | json_fields }

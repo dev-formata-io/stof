@@ -24,6 +24,9 @@ object: {
 fn field_data() {
     let dref = Data.from('self.field');
     assertEq(dref, Data.from('self.object.field'));
+
+    assertEq(typeof dref, 'data');
+    assertEq(typename dref, 'data');
 }
 
 #[test]

@@ -345,6 +345,14 @@ impl SData {
         None
     }
 
+    /// Core data?
+    pub fn core_data(graph: &SGraph, into_ref: impl IntoDataRef) -> Option<bool> {
+        if let Some(data) = into_ref.data_ref().data(graph) {
+            return Some(data.data.core_data());
+        }
+        None
+    }
+
     /// Get data from the graph with a specific ID.
     pub fn get<T: Any>(graph: &SGraph, into_ref: impl IntoDataRef) -> Option<&T> {
         if let Some(data) = into_ref.data_ref().data(graph) {
