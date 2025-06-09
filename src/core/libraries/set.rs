@@ -401,6 +401,60 @@ impl SetLibrary {
                     }
                 }
             },
+            // Test to see if the set is of uniform type (typename).
+            // Ignores Box types, but captures unique types (custom objects, units, etc.).
+            "isUniformType" => {
+                if set.len() < 1 {
+                    return Ok(SVal::Bool(true));
+                }
+                let type_of;
+                if parameters.len() > 0 {
+                    type_of = parameters[0].type_name(&doc.graph);
+                } else {
+                    type_of = set.first().unwrap().type_name(&doc.graph);
+                }
+                for val in set.iter() {
+                    if val.type_name(&doc.graph) != type_of {
+                        return Ok(SVal::Bool(false));
+                    }
+                }
+                Ok(SVal::Bool(true))
+            },
+            // Try to convert to uniform type.
+            // Returns true if all elements were able to be converted, false otherwise.
+            // Will cast as many values as possible in the set.
+            "toUniformType" => {
+                if set.len() < 1 {
+                    return Ok(SVal::Bool(true));
+                }
+                let stype;
+                if parameters.len() > 0 {
+                    stype = parameters[0].stype(&doc.graph);
+                } else {
+                    stype = set.first().unwrap().stype(&doc.graph);
+                }
+                let mut res = true;
+                let mut new_set = BTreeSet::new();
+                for val in set.clone() {
+                    let vtype = val.stype(&doc.graph);
+                    if vtype != stype {
+                        let nval = val.cast(stype.clone(), pid, doc);
+                        match nval {
+                            Ok(v) => {
+                                new_set.insert(v);
+                            },
+                            Err(_) => {
+                                res = false;
+                                new_set.insert(val);
+                            }
+                        }
+                    } else {
+                        new_set.insert(val);
+                    }
+                }
+                *set = new_set;
+                Ok(SVal::Bool(res))
+            },
             _ => {
                 Err(SError::set(pid, &doc, "NotFound", &format!("{} is not a function in the Set Library", name)))
             }

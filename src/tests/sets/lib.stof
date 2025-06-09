@@ -235,3 +235,53 @@ fn superset() {
     assertNot(a.superset(b));
     assert(b.superset(a));
 }
+
+uniform: {
+    #[test]
+    fn is_uniform_empty() {
+        let v = set();
+        assert(v.isUniformType());
+        assert(v.toUniformType());
+    }
+
+    #[test]
+    fn is_uniform_int() {
+        let v = set(1, 2, 3, 4, 5);
+        assert(v.isUniformType());
+        
+        v.insert(5.5);
+        assertNot(v.isUniformType());
+
+        v.toUniformType();
+        assert(v.isUniformType());
+    }
+
+    #[test]
+    fn is_uniform_units() {
+        let v = set(1m, 33mm, 234cm, 5m);
+        assertNot(v.isUniformType());
+        v.toUniformType(0cm);
+
+        assert(v.isUniformType());
+        assertEq(v.toString(), '{3.3cm, 100cm, 234cm, 500cm}');
+
+        v.toUniformType(0m);
+        assertEq(v.toString(), '{0.033m, 1m, 2.34m, 5m}');
+    }
+
+    type UniformObj {}
+
+    #[test]
+    fn is_uniform_obj() {
+        let v = set(new UniformObj {}, new {});
+        assertNot(v.isUniformType());
+
+        let tmp = new UniformObj {};
+        v.toUniformType(tmp);
+        drop tmp;
+
+        assert(v.isUniformType());
+        assert(v.first().instanceOf('UniformObj'));
+        assert(v.last().instanceOf('UniformObj'));
+    }
+}

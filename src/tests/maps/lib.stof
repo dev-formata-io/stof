@@ -20,7 +20,7 @@ fn empty_constructor() {
     map.insert('first', 'wohoo');
     map.insert('second', 'IT WORKS');
     map -= 'first';
-    assertEq(map.toString(), '{String("second"): String("IT WORKS")}');
+    assertEq(map.toString(), "{(\"second\" -> \"IT WORKS\")}");
 }
 
 #[test]
@@ -215,7 +215,7 @@ set_operations: {
         let a = map(('a', 'A'));
         let b = map(('b', 'B'));
         let c = a + b; // union operation
-        assertEq(c.toString(), '{String("a"): String("A"), String("b"): String("B")}');
+        assertEq(c.toString(), "{(\"a\" -> \"A\"), (\"b\" -> \"B\")}");
     }
 
     #[test]
@@ -223,7 +223,7 @@ set_operations: {
         let a = map(('a', 'A'), ('b', 'B'));
         let b = map(('b', 'B'));
         let c = a - b;
-        assertEq(c.toString(), '{String("a"): String("A")}');
+        assertEq(c.toString(), "{(\"a\" -> \"A\")}");
     }
 
     #[test]
@@ -231,7 +231,7 @@ set_operations: {
         let a = map(('a', 'A'), ('b', 'B'));
         let b = ['b'];
         let c = a - b;
-        assertEq(c.toString(), '{String("a"): String("A")}');
+        assertEq(c.toString(), "{(\"a\" -> \"A\")}");
     }
 
     #[test]
@@ -239,7 +239,7 @@ set_operations: {
         let a = map(('a', 'A'), ('b', 'B'), ('c', 'C'));
         let b = map(('c', 'C'), ('d', 'D'), ('e', 'E'));
         let c = a * b;
-        assertEq(c.toString(), '{String("c"): String("C")}');
+        assertEq(c.toString(), "{(\"c\" -> \"C\")}");
     }
 
     #[test]
@@ -247,7 +247,7 @@ set_operations: {
         let a = map(('a', 'A'), ('b', 'B'), ('c', 'C'));
         let b = vec('c', 'd', 'e');
         let c = a * b;
-        assertEq(c.toString(), '{String("c"): String("C")}');
+        assertEq(c.toString(), "{(\"c\" -> \"C\")}");
     }
 
     #[test]
@@ -263,7 +263,7 @@ set_operations: {
         let a = map(('a', 'A'), ('b', 'B'), ('c', 'C'));
         let b = map(('c', 'C'), ('d', 'D'), ('e', 'E'));
         let c = a % b;
-        assertEq(c.toString(), '{String("a"): String("A"), String("b"): String("B"), String("d"): String("D"), String("e"): String("E")}');
+        assertEq(c.toString(), "{(\"a\" -> \"A\"), (\"b\" -> \"B\"), (\"d\" -> \"D\"), (\"e\" -> \"E\")}");
     }
 }
 

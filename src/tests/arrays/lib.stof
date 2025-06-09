@@ -242,6 +242,53 @@ fn sort_by(): vec {
     return res;
 }
 
+uniform: {
+    #[test]
+    fn is_uniform_empty() {
+        let v = [];
+        assert(v.isUniformType());
+        assert(v.toUniformType());
+    }
+
+    #[test]
+    fn is_uniform_int() {
+        let v = [1, 2, 3, 4, 5];
+        assert(v.isUniformType());
+        
+        v.push(5.5);
+        assertNot(v.isUniformType());
+
+        v.toUniformType();
+        assert(v.isUniformType());
+    }
+
+    #[test]
+    fn is_uniform_units() {
+        let v = [1m, 33mm, 234cm, 5m];
+        assertNot(v.isUniformType());
+        v.toUniformType(0cm);
+
+        assert(v.isUniformType());
+        assertEq(v.toString(), '[100cm, 3.3cm, 234cm, 500cm]');
+
+        v.toUniformType(0m);
+        assertEq(v.toString(), '[1m, 0.033m, 2.34m, 5m]');
+    }
+
+    type UniformObj {}
+
+    #[test]
+    fn is_uniform_obj() {
+        let v = [new UniformObj {}, new {}];
+        assertNot(v.isUniformType());
+
+        v.toUniformType();
+        assert(v.isUniformType());
+        assert(v.first().instanceOf('UniformObj'));
+        assert(v.last().instanceOf('UniformObj'));
+    }
+}
+
 boxed_values: {
     #[test([2, 3, 4, 4, 'hi', true, 33])]
     fn boxed_array(): vec {

@@ -1621,24 +1621,76 @@ impl SVal {
                 "null".to_string()
             },
             Self::Map(map) => {
-                format!("{:?}", map)
+                let mut res = String::default();
+                let mut first = true;
+                for (key, val) in map {
+                    let key_str;
+                    if key.is_string() { key_str = format!("\"{}\"", key.print(doc)); }
+                    else { key_str = key.print(doc); }
+                    
+                    let val_str;
+                    if val.is_string() { val_str = format!("\"{}\"", val.print(doc)); }
+                    else { val_str = val.print(doc); }
+
+                    if first {
+                        res.push_str(&format!("({} -> {})", key_str, val_str));
+                        first = false;
+                    } else {
+                        res.push_str(&format!(", ({} -> {})", key_str, val_str));
+                    }
+                }
+                format!("{{{}}}", res)
             },
             Self::Set(set) => {
-                format!("{:?}", set)
+                let mut res = String::default();
+                let mut first = true;
+                for val in set {
+                    let val_str;
+                    if val.is_string() { val_str = format!("\"{}\"", val.print(doc)); }
+                    else { val_str = val.print(doc); }
+
+                    if first {
+                        res.push_str(&val_str);
+                        first = false;
+                    } else {
+                        res.push_str(&format!(", {}", val_str));
+                    }
+                }
+                format!("{{{}}}", res)
             },
             Self::Array(vals) => {
-                let mut arr = Vec::new();
+                let mut res = String::default();
+                let mut first = true;
                 for val in vals {
-                    arr.push(val.print(doc));
+                    let val_str;
+                    if val.is_string() { val_str = format!("\"{}\"", val.print(doc)); }
+                    else { val_str = val.print(doc); }
+
+                    if first {
+                        res.push_str(&val_str);
+                        first = false;
+                    } else {
+                        res.push_str(&format!(", {}", val_str));
+                    }
                 }
-                format!("{:?}", arr)
+                format!("[{}]", res)
             },
             Self::Tuple(vals) => {
-                let mut arr = Vec::new();
+                let mut res = String::default();
+                let mut first = true;
                 for val in vals {
-                    arr.push(val.print(doc));
+                    let val_str;
+                    if val.is_string() { val_str = format!("\"{}\"", val.print(doc)); }
+                    else { val_str = val.print(doc); }
+
+                    if first {
+                        res.push_str(&val_str);
+                        first = false;
+                    } else {
+                        res.push_str(&format!(", {}", val_str));
+                    }
                 }
-                format!("({:?})", arr)
+                format!("({})", res)
             },
             Self::FnPtr(dref) => {
                 format!("fn({})", dref.id)
@@ -1676,10 +1728,10 @@ impl SVal {
                 "null".to_string()
             },
             Self::Map(map) => {
-                format!("{:?}", map)
+                format!("Map({:?})", map)
             },
             Self::Set(set) => {
-                format!("{:?}", set)
+                format!("Set({:?})", set)
             },
             Self::Bool(val) => {
                 format!("{:?}", val)
@@ -1694,18 +1746,10 @@ impl SVal {
                 format!("{:?}", val)
             },
             Self::Array(vals) => {
-                let mut arr = Vec::new();
-                for val in vals {
-                    arr.push(val.print(doc));
-                }
-                format!("Array({:?})", arr)
+                format!("Array({:?})", vals)
             },
             Self::Tuple(vals) => {
-                let mut arr = Vec::new();
-                for val in vals {
-                    arr.push(val.print(doc));
-                }
-                format!("Tuple({:?})", arr)
+                format!("Tuple({:?})", vals)
             },
             Self::FnPtr(dref) => {
                 format!("Fn({})", dref.id)

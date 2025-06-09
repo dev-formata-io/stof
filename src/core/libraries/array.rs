@@ -416,6 +416,53 @@ impl ArrayLibrary {
                     }
                 }
             },
+            // Test to see if the array is of uniform type (typename).
+            // Ignores Box types, but captures unique types (custom objects, units, etc.).
+            "isUniformType" => {
+                if array.len() < 1 {
+                    return Ok(SVal::Bool(true));
+                }
+                let type_of;
+                if parameters.len() > 0 {
+                    type_of = parameters[0].type_name(&doc.graph);
+                } else {
+                    type_of = array[0].type_name(&doc.graph);
+                }
+                for val in array {
+                    if val.type_name(&doc.graph) != type_of {
+                        return Ok(SVal::Bool(false));
+                    }
+                }
+                Ok(SVal::Bool(true))
+            },
+            // Try to convert to uniform type.
+            // Returns true if all elements were able to be converted, false otherwise.
+            // Will cast as many values as possible in the array.
+            "toUniformType" => {
+                if array.len() < 1 {
+                    return Ok(SVal::Bool(true));
+                }
+                let stype;
+                if parameters.len() > 0 {
+                    stype = parameters[0].stype(&doc.graph);
+                } else {
+                    stype = array[0].stype(&doc.graph);
+                }
+                let mut res = true;
+                for val in array {
+                    let vtype = val.stype(&doc.graph);
+                    if vtype != stype {
+                        let nval = val.cast(stype.clone(), pid, doc);
+                        match nval {
+                            Ok(v) => *val = v,
+                            Err(_) => {
+                                res = false;
+                            }
+                        }
+                    }
+                }
+                Ok(SVal::Bool(res))
+            },
             _ => {
                 return Err(SError::array(pid, &doc, "NotFound", &format!("{} is not a function in the Array Library", name)));
             }
