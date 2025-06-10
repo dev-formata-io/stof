@@ -23,12 +23,14 @@ fn on_created() {
 }
 
 sub: {}
+sub_msg: 'hello'
 #[test('sub')]
 fn on_field(): str {
     let a = new {
-        message: 'hello'
+        message: self.sub_msg
     } on self.sub;
     assertEq(a.parent().name(), self.sub.name());
+    assertEq(a.message, 'hello');
     return self.sub.name();
 }
 
@@ -43,4 +45,28 @@ fn on_on() {
 #[errors]
 fn on_error() {
     let b = new {} on 45;
+}
+
+types: {
+    type NestedType {
+        sub: obj = new {} on self;
+    }
+
+    type TestType {
+        info: obj = new {};
+        other: obj = new {} on self;
+        another: obj = new {
+            fdup: new NestedType {} on super; // super interpreted as outer
+        } on super;
+    }
+
+    #[test]
+    fn create_subobj() {
+        const test = new TestType {};
+        assertEq(test.info.parent(), test);
+        assertEq(test.other.parent(), test);
+        assertEq(test.another.parent(), self);
+        assertEq(test.another.fdup.parent(), self);
+        assertEq(test.another.fdup.sub.parent(), test.another.fdup);
+    }
 }

@@ -305,7 +305,20 @@ impl Expr {
                 if value.stype(&doc.graph) == target {
                     return Ok(value);
                 }
-                return Ok(value.cast(target, pid, doc)?);
+                
+                // Push new obj ref here for potential default values when casting objects
+                // Self pointer needs to stay the same, but if casting Obj to NewObj with default, "self" in the
+                // default expr should evaluate to the new object...
+                let mut pushed_new_obj = false;
+                if let Some(nref) = value.try_object() {
+                    doc.push_new_obj(pid, nref);
+                    pushed_new_obj = true;
+                }
+                let res = value.cast(target, pid, doc);
+                if pushed_new_obj {
+                    doc.pop_new_obj(pid);
+                }
+                return res;
             },
             Expr::TypeOf(expr) => {  // always generic type (ex. float, int, obj, data), but can be boxed
                 let value = expr.exec(pid, doc)?;

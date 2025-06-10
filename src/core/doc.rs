@@ -761,7 +761,7 @@ impl SDoc {
                                 }
 
                                 let err_str = format!("{:?} does not equal {:?}", res_val, res_test_val);
-                                failures.push((func, format!("\t{}: {} at {}: {}", "failed".bold().red(), name.blue(), func_path.italic().dimmed(), err_str.bold())));
+                                failures.push((func, format!("\t{}: {} @ {}: {}", "failed".bold().red(), name.blue(), func_path.italic().dimmed(), err_str.bold())));
                             } else {
                                 if !silent {
                                     println!("{} {} {} ... {}", "test".purple(), func_path.italic().dimmed(), name.blue(), "ok".bold().green());
@@ -800,7 +800,7 @@ impl SDoc {
                             }
 
                             let err_str = err.to_string(&self.graph);
-                            failures.push((func, format!("{}: {} at {} ...\n{}", "failed".bold().red(), name.blue(), func_path.italic().dimmed(), err_str.bold())));
+                            failures.push((func, format!("{}: {} @ {} ...\n{}", "failed".bold().red(), name.blue(), func_path.italic().dimmed(), err_str.bold())));
                         }
                     }
                 }

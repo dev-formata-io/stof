@@ -145,7 +145,13 @@ default_values: {
     type Defaults {
         x: float = 20cm;
         y: float = 2m;
-        z: float = 10mm;
+        z: float = { // block expr init (cool sh#t)
+            return self.init_z();
+        };
+
+        fn init_z(): float {
+            return 10mm;
+        }
     }
     type ExtendsDefaults extends Defaults {
         q: int = 2;

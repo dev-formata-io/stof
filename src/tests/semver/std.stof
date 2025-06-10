@@ -15,7 +15,7 @@
 //
 
 
-version: 1.2.24-release.beta+120
+semver version: 1.2.24-release.beta+120
 
 #[test]
 fn type_of_semver() {
@@ -24,7 +24,7 @@ fn type_of_semver() {
 
 #[test]
 fn eq_semver() {
-    let a = 1.0.0;
+    let a: semver = 1.0.0;
     let b = 1.0.0;
     assert(a == b);
 
@@ -90,7 +90,7 @@ fn cast_string() {
 
 #[test]
 fn major_version() {
-    let a = 3.34.222;
+    let a: semver = 3.34.222;
     assertEq(a.major(), 3);
 
     a.setMajor(4);
