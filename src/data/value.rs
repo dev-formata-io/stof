@@ -1591,18 +1591,11 @@ impl SVal {
                                         field_ref.invalidate_val(&mut doc.graph);
                                     }
                                 } else if let Some(default) = &typefield.default {
-                                    let mut pushed_new_obj_self = false;
-                                    if let Some(new_obj) = doc.new_obj_ptr(pid) {
-                                        doc.push_self(pid, new_obj);
-                                        pushed_new_obj_self = true;
-                                    }
+                                    doc.push_self(pid, nref);
+                                    let default_value = default.exec(pid, doc);
+                                    doc.pop_self(pid);
 
-                                    let default_value = default.exec(pid, doc)?;
-                                    if pushed_new_obj_self {
-                                        doc.pop_self(pid);
-                                    }
-
-                                    let mut field = SField::new(&typefield.name, default_value);
+                                    let mut field = SField::new(&typefield.name, default_value?);
                                     field.attributes = typefield.attributes;
                                     SData::insert_new(&mut doc.graph, nref, Box::new(field));
                                 } else if !typefield.optional {
