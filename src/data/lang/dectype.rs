@@ -14,8 +14,9 @@
 // limitations under the License.
 //
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
 use nanoid::nanoid;
+use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 use crate::{SData, SField, SFunc, SGraph, SNodeRef, SPrototype, SType, SVal};
 use super::Expr;
@@ -64,8 +65,8 @@ impl CustomType {
     }
 
     /// Field names.
-    pub fn fieldnames(&self) -> HashSet<String> {
-        let mut names = HashSet::new();
+    pub fn fieldnames(&self) -> FxHashSet<String> {
+        let mut names = FxHashSet::default();
         for param in &self.fields {
             names.insert(param.name.clone());
         }

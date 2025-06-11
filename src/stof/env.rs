@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use crate::{lang::SError, IntoNodeRef, SData, SDataRef, SDoc, SField, SFunc, SNodeRef, SType, SVal};
 
 
@@ -32,7 +32,7 @@ pub struct StofEnv {
     pub relative_import_path: String,
 
     /// Assign type stack (keep track of variable types for casting when declared with type).
-    pub assign_type_stack: Vec<HashMap<String, SType>>,
+    pub assign_type_stack: Vec<FxHashMap<String, SType>>,
 
     /// Init functions to execute (in order) after parse is complete.
     pub init_funcs: Vec<(SDataRef, Vec<SVal>)>,
@@ -40,7 +40,7 @@ pub struct StofEnv {
     /// "Compile" time field names per node.
     /// Used for collision handling.
     /// NodeRef->(FieldName->FieldDataRef)
-    node_field_collisions: HashMap<String, HashMap<String, SDataRef>>,
+    node_field_collisions: FxHashMap<String, FxHashMap<String, SDataRef>>,
 }
 impl StofEnv {
     /// Construct a new Stof env from a document.
@@ -82,7 +82,7 @@ impl StofEnv {
     pub(crate) fn insert_field(&mut self, doc: &mut SDoc, node: impl IntoNodeRef, field: SField) -> Result<(), SError> {
         let node_ref = node.node_ref();
         if !self.node_field_collisions.contains_key(&node_ref.id) {
-            let mut map = HashMap::new();
+            let mut map = FxHashMap::default();
             for existing_ref in SField::field_refs(&doc.graph, &node_ref) {
                 if let Some(field) = SData::get::<SField>(&doc.graph, &existing_ref) {
                     map.insert(field.name.clone(), existing_ref);

@@ -14,7 +14,8 @@
 // limitations under the License.
 //
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
+use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 use crate::{lang::{CustomType, ErrorType, SError}, IntoNodeRef, SFunc, SGraph, SNodeRef};
 
@@ -31,7 +32,7 @@ impl CustomTypes {
             if !self.types.contains_key(name) {
                 self.types.insert(name.clone(), types.clone());
             } else if let Some(type_vec) = self.types.get_mut(name) {
-                let type_ids = type_vec.iter().map(|ct| ct.id.clone()).collect::<HashSet<_>>();
+                let type_ids = type_vec.iter().map(|ct| ct.id.clone()).collect::<FxHashSet<_>>();
                 for ty in types {
                     if !type_ids.contains(&ty.id) {
                         type_vec.push(ty.clone());
@@ -43,7 +44,7 @@ impl CustomTypes {
 
     /// Drop types for an associated node, removing all types defined at or under it.
     pub fn drop_types_for(&mut self, node: &SNodeRef, graph: &SGraph) {
-        let mut children = graph.all_children(node).into_iter().collect::<HashSet<SNodeRef>>();
+        let mut children = graph.all_children(node).into_iter().collect::<FxHashSet<SNodeRef>>();
         children.insert(node.clone());
         let mut to_remove = Vec::new();
         for (name, custom_types) in &mut self.types {
@@ -59,7 +60,7 @@ impl CustomTypes {
 
     /// Get all types associated with a node, either defined by it or under it (all children).
     pub fn declared_types_for(&self, node: &SNodeRef, graph: &SGraph) -> Self {
-        let mut children = graph.all_children(node).into_iter().collect::<HashSet<SNodeRef>>();
+        let mut children = graph.all_children(node).into_iter().collect::<FxHashSet<SNodeRef>>();
         children.insert(node.clone());
         let mut new_types = BTreeMap::new();
         for (name, custom_types) in &self.types {

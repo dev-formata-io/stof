@@ -15,7 +15,8 @@
 //
 
 use core::str;
-use std::{cmp::Ordering, collections::{BTreeMap, BTreeSet, HashSet}, hash::{Hash, Hasher}, ops::{Deref, DerefMut}, sync::{Arc, Mutex}};
+use std::{cmp::Ordering, collections::{BTreeMap, BTreeSet}, hash::{Hash, Hasher}, ops::{Deref, DerefMut}, sync::{Arc, Mutex}};
+use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 use crate::{parse_semver, SData, SDataRef, SDoc, SGraph, SNodeRef};
 use super::{lang::SError, SField, SFunc, SNumType, SPrototype, SType, SUnits};
@@ -2786,7 +2787,7 @@ impl SVal {
                     Self::Array(vals) => {
                         // Perform an intersection with this array
                         // Keep only the keys that are in this array
-                        let hashset = vals.into_iter().collect::<HashSet<SVal>>();
+                        let hashset = vals.into_iter().collect::<FxHashSet<SVal>>();
                         let mut to_remove = Vec::new();
                         for (k, _v) in &map {
                             if !hashset.contains(k) {
@@ -3208,7 +3209,7 @@ impl SVal {
                     Self::Map(omap) => {
                         // Perform symmetric diff with this other map
                         // Keep only the keys that don't intersect
-                        let mut intersections = HashSet::new();
+                        let mut intersections = FxHashSet::default();
                         let mut to_remove = Vec::new();
                         for (k, _v) in &map {
                             if omap.contains_key(k) {

@@ -14,9 +14,10 @@
 // limitations under the License.
 //
 
-use std::{collections::HashSet, sync::Arc, time::SystemTime};
+use std::{collections::HashSet, mem::swap, sync::Arc, time::SystemTime};
 use bytes::Bytes;
 use colored::Colorize;
+use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 use crate::{bytes::BYTES, lang::SError, text::TEXT, SData, SField, SFunc, SVal, BSTOF, STOF};
 use super::{runtime::{DocPermissions, Library, Symbol, SymbolTable}, ArrayLibrary, BlobLibrary, SemVerLibrary, BoolLibrary, CustomTypes, DataLibrary, Format, FunctionLibrary, IntoDataRef, IntoNodeRef, MapLibrary, NumberLibrary, ObjectLibrary, SDataRef, SFormats, SGraph, SLibraries, SNodeRef, SProcesses, SetLibrary, StdLibrary, StringLibrary, TupleLibrary};
@@ -98,7 +99,7 @@ pub struct SDoc {
     pub processes: SProcesses,
 
     #[serde(skip)]
-    pub env_compiled_paths: HashSet<String>,
+    pub env_compiled_paths: FxHashSet<String>,
 }
 impl Default for SDoc {
     fn default() -> Self {
@@ -734,7 +735,6 @@ impl SDoc {
                 if let Some(res_test_val) = func.attributes.get("test") {
                     let silent = func.attributes.contains_key("silent");
                     let mut result = SFunc::call_internal(&func_ref, "main", self, vec![], true, &func.params, &func.statements, &func.rtype, false);
-                    self.clean("main");
 
                     let func_nodes = func_ref.nodes(&self.graph);
                     let func_path;
@@ -780,8 +780,8 @@ impl SDoc {
 
                                         let profile_start = SystemTime::now();
                                         for _ in 0..iterations {
-                                            let _ = SFunc::call_internal(&func_ref, "main", self, vec![], true, &func.params, &func.statements, &func.rtype, false);
-                                            self.clean("main");
+                                            let res = SFunc::call_internal(&func_ref, "main", self, vec![], true, &func.params, &func.statements, &func.rtype, false);
+                                            if res.is_err() { self.clean("main"); }
                                         }
                                         let total_duration = profile_start.elapsed().unwrap();
                                         let total_ns = total_duration.as_nanos();
@@ -801,6 +801,7 @@ impl SDoc {
 
                             let err_str = err.to_string(&self.graph);
                             failures.push((func, format!("{}: {} @ {} ...\n{}", "failed".bold().red(), name.blue(), func_path.italic().dimmed(), err_str.bold())));
+                            self.clean("main");
                         }
                     }
                 }
@@ -1066,19 +1067,9 @@ impl SDoc {
     }
 
     /// Funcstart bubble control.
-    pub(crate) fn funcstart_bubble_control(&mut self, pid: &str) -> u8 {
+    pub(crate) fn funcstart_bubble_control(&mut self, pid: &str, v: &mut u8) {
         if let Some(process) = self.processes.get_mut(pid) {
-            let res = process.bubble_control_flow;
-            process.bubble_control_flow = 0;
-            return res;
-        }
-        0
-    }
-
-    /// Funcset bubble control.
-    pub(crate) fn funcset_bubble_control(&mut self, pid: &str, bc: u8) {
-        if let Some(process) = self.processes.get_mut(pid) {
-            process.bubble_control_flow = bc;
+            swap(&mut process.bubble_control_flow, v);
         }
     }
 }

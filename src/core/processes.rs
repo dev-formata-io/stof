@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, mem::swap};
 use nanoid::nanoid;
 use crate::SVal;
 use super::{IntoDataRef, SDataRef, SNodeRef, Symbol, SymbolTable};
@@ -23,7 +23,8 @@ use super::{IntoDataRef, SDataRef, SNodeRef, Symbol, SymbolTable};
 /// Stof processes.
 #[derive(Debug, Clone)]
 pub struct SProcesses {
-    pub processes: BTreeMap<String, SProcess>,
+    main: SProcess,
+    processes: BTreeMap<String, SProcess>,
 }
 impl Default for SProcesses {
     fn default() -> Self {
@@ -33,10 +34,9 @@ impl Default for SProcesses {
 impl SProcesses {
     /// Create a new block of preccesses.
     pub fn new() -> Self {
-        let mut processes = BTreeMap::new();
-        processes.insert("main".to_string(), SProcess::new("main"));
         Self {
-            processes
+            main: SProcess::new("main"),
+            processes: BTreeMap::new(),
         }
     }
 
@@ -50,27 +50,38 @@ impl SProcesses {
 
     /// Kill a process.
     pub fn kill(&mut self, pid: &str) {
-        self.processes.remove(pid);
+        if pid == "main" {
+            self.main.clean();
+        } else {
+            self.processes.remove(pid);
+        }
     }
 
     /// Get a process.
     pub fn get(&self, pid: &str) -> Option<&SProcess> {
-        self.processes.get(pid)
+        if pid == "main" {
+            Some(&self.main)
+        } else {
+            self.processes.get(pid)
+        }
     }
 
     /// Get a mutable process.
     pub fn get_mut(&mut self, pid: &str) -> Option<&mut SProcess> {
-        self.processes.get_mut(pid)
+        if pid == "main" {
+            Some(&mut self.main)
+        } else {
+            self.processes.get_mut(pid)
+        }
     }
 
-    /// Get the main process.
-    pub fn main(&self) -> Option<&SProcess> {
-        self.get("main")
-    }
-
-    /// Get the mutable main process.
-    pub fn main_mut(&mut self) -> Option<&mut SProcess> {
-        self.get_mut("main")
+    /// Set a process.
+    pub fn set_proc(&mut self, pid: &str, mut proc: SProcess) {
+        if pid == "main" {
+            swap(&mut self.main, &mut proc);
+        } else {
+            self.processes.insert(pid.to_owned(), proc);
+        }
     }
 }
 
@@ -186,6 +197,8 @@ impl SProcess {
         self.stack.clear();
         self.table = Default::default();
         self.self_stack.clear();
+        self.call_stack.clear();
+        self.new_obj_stack.clear();
         self.bubble_control_flow = 0;
     }
 }

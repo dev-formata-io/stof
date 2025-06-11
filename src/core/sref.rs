@@ -14,7 +14,8 @@
 // limitations under the License.
 //
 
-use std::{collections::HashSet, fmt::Display, mem::swap};
+use std::{fmt::Display, mem::swap};
+use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 use crate::{SField, SVal};
 use super::{SData, SGraph, SNode, Store};
@@ -221,7 +222,7 @@ impl SNodeRef {
         let mut node = self.node(graph);
         if node.is_some() {
             let mut res: Vec<&str> = vec![];
-            let mut seen: HashSet<String> = HashSet::new();
+            let mut seen: FxHashSet<String> = FxHashSet::default();
             while node.is_some() {
                 let node_inner = node.unwrap();
                 if seen.contains(&node_inner.id) { break; }
@@ -245,7 +246,7 @@ impl SNodeRef {
         let mut node = self.node(graph);
         if node.is_some() {
             let mut res: Vec<String> = vec![];
-            let mut seen: HashSet<String> = HashSet::new();
+            let mut seen: FxHashSet<String> = FxHashSet::default();
             while node.is_some() {
                 let node_inner = node.unwrap();
                 if seen.contains(&node_inner.id) { break; }
@@ -281,7 +282,7 @@ impl SNodeRef {
             swap(&mut node_a_id_path, &mut node_b_id_path);
         }
 
-        let mut to_remove: HashSet<String> = HashSet::new();
+        let mut to_remove: FxHashSet<String> = FxHashSet::default();
         let mut last: String = String::new();
         for i in 0..node_a_id_path.len() {
             let aid = &node_a_id_path[i];
@@ -336,7 +337,7 @@ impl SNodeRef {
 
         if let Some(first_node) = first_node {
             names.reverse();
-            let mut seen = HashSet::new();
+            let mut seen = FxHashSet::default();
             let mut res = Vec::new();
             loop {
                 let mut new_names = names.clone();
@@ -391,13 +392,13 @@ impl SNodeRef {
         }
 
         if let Some(first_node) = first_node {
-            return Self::path_constructor(graph, first_node, &mut names, &mut HashSet::new());
+            return Self::path_constructor(graph, first_node, &mut names, &mut FxHashSet::default());
         }
         None
     }
 
     /// Internal path constructor.
-    fn path_constructor(graph: &SGraph, current: &SNode, names: &mut Vec<&str>, seen: &mut HashSet<String>) -> Option<Self> {
+    fn path_constructor(graph: &SGraph, current: &SNode, names: &mut Vec<&str>, seen: &mut FxHashSet<String>) -> Option<Self> {
         let next = names.pop();
         if let Some(next) = next {
             // Look in current node's children

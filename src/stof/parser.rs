@@ -19,6 +19,7 @@ use lazy_static::lazy_static;
 use nanoid::nanoid;
 use pest_derive::Parser;
 use pest::{iterators::{Pair, Pairs}, pratt_parser::PrattParser, Parser};
+use rustc_hash::FxHashMap;
 use crate::{lang::{CustomType, CustomTypeField, ErrorType, Expr, SError, Statement, Statements}, SData, SDoc, SField, SFunc, SNum, SNumType, SParam, SType, SUnits, SVal};
 use super::StofEnv;
 
@@ -512,7 +513,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                     let funcparamname = decorator.params[0].name.clone();
                                     let funcname = func.name.clone();
                                     let attributes = func.attributes;
-                                    func.attributes = BTreeMap::new();
+                                    func.attributes = FxHashMap::default();
                                     func.name = format!("decfn_{}", nanoid!(7));
                                     if let Some(func_ref) = SData::insert_new(&mut doc.graph, &scope, Box::new(func)) {
                                         // Call the decorator function with the func as the parameter
@@ -775,7 +776,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                                 let funcparamname = decorator.params[0].name.clone();
                                                 let funcname = func.name.clone();
                                                 let attributes = func.attributes;
-                                                func.attributes = BTreeMap::new();
+                                                func.attributes = FxHashMap::default();
                                                 func.name = format!("decfn_{}", nanoid!(7));
                                                 if let Some(func_ref) = SData::insert_new(&mut doc.graph, &scope, Box::new(func)) {
                                                     // Call the decorator function with the func as the parameter
@@ -1035,7 +1036,7 @@ fn parse_function(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result
     let mut params = Vec::new();
     let mut rtype = SType::Void;
     let mut statements = Statements::default();
-    let mut attributes = BTreeMap::new();
+    let mut attributes = FxHashMap::default();
     for pair in pair.into_inner() {
         match pair.as_rule() {
             Rule::func_attribute => {
@@ -1304,7 +1305,7 @@ fn parse_block(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<St
             },
             Rule::switch_statement => {
                 let mut match_on = Expr::Literal(SVal::Void);
-                let mut match_map = HashMap::new();
+                let mut match_map = FxHashMap::default();
                 let mut default = None;
                 for pair in pair.into_inner() {
                     match pair.as_rule() {

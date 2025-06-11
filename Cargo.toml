@@ -69,3 +69,4 @@ zip = { version = "3.0.0", optional = true }
 chrono = "0.4.41"
 tokio = { version = "1.45.0", features = ["rt", "macros", "sync", "time"], optional = true }
 reqwest = { version = "0.12.15", features = ["blocking"], optional = true }
+rustc-hash = "2.1.1"

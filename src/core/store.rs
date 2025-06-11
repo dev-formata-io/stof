@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::collections::{BTreeMap, HashMap};
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use super::{SData, SNode};
 
@@ -54,11 +54,11 @@ pub trait Store<T> {
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct SNodeStore {
     /// Nodes.
-    pub store: BTreeMap<String, SNode>,
+    pub store: FxHashMap<String, SNode>,
 
     /// Deadpool.
     #[serde(skip)]
-    pub deadpool: HashMap<String, SNode>,
+    pub deadpool: FxHashMap<String, SNode>,
 }
 impl Store<SNode> for SNodeStore {
     /// Get by ID.
@@ -126,11 +126,11 @@ impl Store<SNode> for SNodeStore {
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct SDataStore {
     /// Data.
-    pub store: BTreeMap<String, SData>,
+    pub store: FxHashMap<String, SData>,
 
     /// Deadpool.
     #[serde(skip)]
-    pub deadpool: HashMap<String, SData>,
+    pub deadpool: FxHashMap<String, SData>,
 }
 impl Store<SData> for SDataStore {
     /// Get by ID.

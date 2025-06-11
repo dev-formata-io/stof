@@ -14,8 +14,9 @@
 // limitations under the License.
 //
 
-use std::{any::Any, collections::HashSet};
+use std::any::Any;
 use nanoid::nanoid;
+use rustc_hash::FxHashSet;
 use serde::{ser::Error, Deserialize, Serialize};
 use super::{IntoDataRef, IntoNodeRef, SDataRef, SGraph, SNodeRef};
 
@@ -118,7 +119,7 @@ pub struct SData {
     pub data: Box<dyn Data>,
 
     #[serde(skip)]
-    pub dirty: HashSet<String>,
+    pub dirty: FxHashSet<String>,
 }
 impl SData {
     /// Create a new SData with an ID.

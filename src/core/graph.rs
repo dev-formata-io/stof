@@ -18,6 +18,7 @@ use std::{collections::{HashMap, HashSet}, ops::{Index, IndexMut}};
 use anyhow::Result;
 use colored::Colorize;
 use nanoid::nanoid;
+use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 use crate::{lang::SError, SField};
 use super::{IntoDataRef, IntoNodeRef, SData, SDataRef, SDataStore, SNode, SNodeRef, SNodeStore, SRef, Store, DATA_DIRTY_NODES};
@@ -862,7 +863,7 @@ impl SGraph {
         let collisions = self.get_collisions(&other);
 
         if add_unique_other {
-            let other_collided: HashSet<SNodeRef> = collisions.1.iter().cloned().collect();
+            let other_collided: FxHashSet<SNodeRef> = collisions.1.iter().cloned().collect();
             for (_, node) in &other.nodes.store {
                 if !other_collided.contains(&node.node_ref()) {
                     // Transfer data over
@@ -887,7 +888,7 @@ impl SGraph {
             }
         }
 
-        let self_collided: HashSet<SNodeRef> = collisions.0.iter().cloned().collect();
+        let self_collided: FxHashSet<SNodeRef> = collisions.0.iter().cloned().collect();
         let mut unique_self = Vec::new();
         for (_, node) in &self.nodes.store {
             if !self_collided.contains(&node.node_ref()) {

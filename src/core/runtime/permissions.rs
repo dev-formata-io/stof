@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use crate::{SData, SDataRef, SField, SFunc, SGraph, SNodeRef};
 
@@ -195,7 +195,7 @@ pub struct Permissions {
     /// Scope permissions.
     /// Each scope can have it's own permissions.
     /// Overrides general permissions.
-    pub scope: HashMap<SNodeRef, ScopePermissions>,
+    pub scope: FxHashMap<SNodeRef, ScopePermissions>,
 }
 impl Permissions {
     /// Merge permissions.
@@ -300,7 +300,7 @@ impl Permissions {
 /// Scope Permissions.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct ScopePermissions {
-    pub scopes: HashMap<SNodeRef, Access>,
+    pub scopes: FxHashMap<SNodeRef, Access>,
 }
 impl ScopePermissions {
     /// Merge scope permissions.

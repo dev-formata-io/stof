@@ -14,7 +14,8 @@
 // limitations under the License.
 //
 
-use std::{collections::{BTreeMap, HashMap}, ops::Deref};
+use std::{collections::BTreeMap, ops::Deref};
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use crate::{SData, SDoc, SField, SFunc, SType, SVal};
 use super::{Expr, SError};
@@ -706,7 +707,7 @@ pub enum Statement {
         elif_exprs: Vec<(Expr, Statements)>,
         else_expr: Option<Statements>
     },
-    Switch(Expr, HashMap<SVal, Statements>, Option<Statements>),
+    Switch(Expr, FxHashMap<SVal, Statements>, Option<Statements>),
     TryCatch(Statements, Statements, SType, String),
     While(Expr, Statements),
     Break,

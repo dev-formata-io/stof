@@ -14,14 +14,14 @@
 // limitations under the License.
 //
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use crate::SVal;
 
 
 /// Scope of symbols.
 #[derive(Debug, Default, Clone)]
 pub struct SymbolScope {
-    symbols: HashMap<String, Symbol>,
+    symbols: FxHashMap<String, Symbol>,
 }
 impl SymbolScope {
     /// Insert a symbol.
@@ -97,7 +97,7 @@ impl Symbol {
 /// This is where the current call scope exists.
 #[derive(Debug, Clone)]
 pub struct SymbolTable {
-    scopes: HashMap<i32, SymbolScope>,
+    scopes: FxHashMap<i32, SymbolScope>,
     scope: i32,
 }
 impl Default for SymbolTable {

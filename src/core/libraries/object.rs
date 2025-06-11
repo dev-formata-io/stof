@@ -14,7 +14,9 @@
 // limitations under the License.
 //
 
-use std::{cmp::Ordering, collections::{BTreeMap, BTreeSet, HashMap, HashSet}, ops::Deref, sync::Arc};
+use std::{cmp::Ordering, collections::{BTreeMap, BTreeSet, HashSet}, ops::Deref, sync::Arc};
+use rustc_hash::{FxHashMap, FxHashSet};
+
 use crate::{lang::SError, IntoNodeRef, Library, SData, SDoc, SField, SFunc, SMutex, SNodeRef, SNum, SPrototype, SVal};
 
 
@@ -448,7 +450,7 @@ impl ObjectLibrary {
                                 SVal::Object(nref) => {
                                     doc.graph.rename_node(nref, new_field_name);
 
-                                    let id_path: HashSet<String> = HashSet::from_iter(nref.id_path(&doc.graph).into_iter());
+                                    let id_path: FxHashSet<String> = FxHashSet::from_iter(nref.id_path(&doc.graph).into_iter());
                                     if !id_path.contains(&dest_ref.id) && !dest_ref.is_child_of(&doc.graph, &nref) {
                                         doc.graph.move_node(nref, &dest_ref);
                                     }
@@ -566,7 +568,7 @@ impl ObjectLibrary {
                 }
                 match &parameters[0] {
                     SVal::Object(dest) => {
-                        let id_path: HashSet<String> = HashSet::from_iter(obj.id_path(&doc.graph).into_iter());
+                        let id_path: FxHashSet<String> = FxHashSet::from_iter(obj.id_path(&doc.graph).into_iter());
                         if id_path.contains(&dest.id) { // already a child of the destination
                             return Ok(SVal::Bool(false));
                         }
@@ -581,7 +583,7 @@ impl ObjectLibrary {
                         let val = val.deref();
                         match val {
                             SVal::Object(dest) => {
-                                let id_path: HashSet<String> = HashSet::from_iter(obj.id_path(&doc.graph).into_iter());
+                                let id_path: FxHashSet<String> = FxHashSet::from_iter(obj.id_path(&doc.graph).into_iter());
                                 if id_path.contains(&dest.id) { // already a child of the destination
                                     return Ok(SVal::Bool(false));
                                 }
@@ -1068,7 +1070,7 @@ impl ObjectLibrary {
 
                 // Get all of the fields on this schema to apply on the target object
                 // Field name -> #[schema] attribute value
-                let mut schema_fields: HashMap<String, SVal> = HashMap::new();
+                let mut schema_fields: FxHashMap<String, SVal> = FxHashMap::default();
                 let mut schema_field_names = HashSet::new();
                 for schema_field in SField::fields(&doc.graph, obj) {
                     if let Some(schema_val) = schema_field.attributes.get("schema") {

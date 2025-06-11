@@ -266,7 +266,7 @@ impl Format for STOF {
 
         // Undo the clean that happens...
         if let Some(process) = process {
-            doc.processes.processes.insert(pid.to_owned(), process);
+            doc.processes.set_proc(pid, process);
         }
 
         Ok(())
@@ -300,7 +300,7 @@ impl Format for STOF {
 
         // Undo the clean that happens...
         if let Some(process) = process {
-            doc.processes.processes.insert(pid.to_owned(), process);
+            doc.processes.set_proc(pid, process);
         }
 
         Ok(())

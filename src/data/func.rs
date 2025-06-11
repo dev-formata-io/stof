@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::collections::{BTreeMap, HashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 use crate::{Data, SData, SDataRef, SDoc, SGraph, SNodeRef};
 use super::{lang::{Expr, SError, Statements, StatementsRes}, SType, SVal};
@@ -27,7 +27,7 @@ pub struct SFunc {
     pub params: Vec<SParam>,
     pub statements: Statements,
     pub rtype: SType,
-    pub attributes: BTreeMap<String, SVal>,
+    pub attributes: FxHashMap<String, SVal>,
 }
 
 #[typetag::serde(name = "_SFunc")]
@@ -51,8 +51,8 @@ impl SFunc {
     }
 
     /// Get all functions in a graph.
-    pub fn all_funcs(graph: &SGraph) -> HashSet<SDataRef> {
-        let mut funcs = HashSet::new();
+    pub fn all_funcs(graph: &SGraph) -> FxHashSet<SDataRef> {
+        let mut funcs = FxHashSet::default();
         for (_, node) in &graph.nodes.store {
             for func in node.data_refs::<Self>(graph) {
                 funcs.insert(func);
@@ -62,8 +62,8 @@ impl SFunc {
     }
 
     /// Get all function references on a node.
-    pub fn func_refs(graph: &SGraph, node: &SNodeRef) -> HashSet<SDataRef> {
-        let mut res = HashSet::new();
+    pub fn func_refs(graph: &SGraph, node: &SNodeRef) -> FxHashSet<SDataRef> {
+        let mut res = FxHashSet::default();
         if let Some(node) = node.node(graph) {
             for func in node.data_refs::<Self>(graph) {
                 res.insert(func);
@@ -73,7 +73,7 @@ impl SFunc {
     }
 
     /// Get all function refs on a node recursively.
-    pub fn recursive_func_refs(graph: &SGraph, node: &SNodeRef) -> HashSet<SDataRef> {
+    pub fn recursive_func_refs(graph: &SGraph, node: &SNodeRef) -> FxHashSet<SDataRef> {
         let mut res = Self::func_refs(graph, node);
         if let Some(node) = node.node(graph) {
             for child in &node.children {
@@ -310,11 +310,12 @@ impl SFunc {
 
         // Execute all of the statements with this doc in a scope (block)
         doc.push_call_stack(pid, dref);
-        let bcs = doc.funcstart_bubble_control(pid);
+        let mut fsbc = 0u8;
+        doc.funcstart_bubble_control(pid, &mut fsbc);
         doc.new_scope(pid);
         let statements_res = statements.exec(pid, doc);
         doc.end_scope(pid);
-        doc.funcset_bubble_control(pid, bcs);
+        doc.funcstart_bubble_control(pid, &mut fsbc);
         doc.pop_call_stack(pid);
 
         // Pop the self stack!
