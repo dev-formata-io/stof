@@ -154,10 +154,11 @@ impl SFunc {
             use crate::TokioPool;
             if allow_async && doc.libraries.libraries.contains_key("Async") {
                 use tokio::runtime::Handle;
+                use std::collections::HashSet;
                 if Handle::try_current().is_ok() {
                     if let Some(func) = SData::get::<Self>(&doc.graph, dref) {
                         if let Some(async_context) = func.attributes.get("async") {
-                            let mut contexts = HashSet::new();
+                            let mut contexts = HashSet::default();
 
                             let data = dref.data(&doc.graph).unwrap();
                             for node in &data.nodes {

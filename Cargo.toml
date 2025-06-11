@@ -1,6 +1,6 @@
 [package]
 name = "stof"
-version = "0.7.5"
+version = "0.7.6"
 edition = "2021"
 authors = ["CJ Cummings <cj@formata.io>"]
 description = "A simple and embeddable data runtime."
