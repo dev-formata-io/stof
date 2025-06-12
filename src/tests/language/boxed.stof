@@ -26,8 +26,22 @@ fn boxed_unknown_as() {
     assertEq(typeof box, 'Box<int>');
 }
 
+#[test]
+fn box_box() {
+    // Cannot cast to box<box<>> - only one box
+    let box: Box<Box<Box<int>>> = box(box(42));
+    assertEq(typeof box, 'Box<int>');
+    assertEq(box.pow(2), 1764);
+    
+    let val = unbox(box);
+    assertEq(typeof val, 'int');
+    box -= 32;
+    assertEq(val, 42);
+    assertEq(box, 10);
+}
+
 add_one: {
-    fn add_one(val: Box<int>) {
+    fn add_one(val: Box<Box<int>>) {
         val += 1;
     }
 

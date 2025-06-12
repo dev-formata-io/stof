@@ -463,6 +463,69 @@ impl Library for StdLibrary {
             },
 
             /*****************************************************************************
+             * Min & Max. tes1_@ccoun7
+             *****************************************************************************/
+            "max" => {
+                let mut res = SVal::Void;
+                for param in parameters.drain(..) {
+                    match param {
+                        SVal::Array(mut vals) => {
+                            let mx = self.call(pid, doc, "max", &mut vals)?;
+                            if mx > res { res = mx; }
+                        },
+                        SVal::Tuple(mut vals) => {
+                            let mx = self.call(pid, doc, "max", &mut vals)?;
+                            if mx > res { res = mx; }
+                        },
+                        SVal::Set(mut set) => {
+                            if let Some(mx) = set.pop_last() {
+                                if mx > res { res = mx; }
+                            }
+                        }
+                        SVal::Map(mut map) => {
+                            if let Some(pair) = map.pop_last() {
+                                if pair.1 > res { res = pair.1; }
+                            }
+                        },
+                        param => {
+                            if param > res { res = param; }
+                        }
+                    }
+                }
+                if res.is_void() { return Ok(SVal::Null); }
+                Ok(res)
+            },
+            "min" => {
+                let mut res = SVal::Null;
+                for param in parameters.drain(..) {
+                    match param {
+                        SVal::Array(mut vals) => {
+                            let mx = self.call(pid, doc, "min", &mut vals)?;
+                            if mx < res { res = mx; }
+                        },
+                        SVal::Tuple(mut vals) => {
+                            let mx = self.call(pid, doc, "min", &mut vals)?;
+                            if mx < res { res = mx; }
+                        },
+                        SVal::Set(mut set) => {
+                            if let Some(mx) = set.pop_first() {
+                                if mx < res { res = mx; }
+                            }
+                        }
+                        SVal::Map(mut map) => {
+                            if let Some(pair) = map.pop_last() {
+                                if pair.1 < res { res = pair.1; }
+                            }
+                        },
+                        param => {
+                            if param < res { res = param; }
+                        }
+                    }
+                }
+                Ok(res)
+            },
+
+            /*****************************************************************************
              * Tracing & Debugging.
              *****************************************************************************/
             // Return the current callstack functions.

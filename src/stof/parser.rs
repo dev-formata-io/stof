@@ -374,7 +374,11 @@ fn parse_atype(pair: Pair<Rule>) -> SType {
                         _ => {}
                     }
                 }
-                atype = SType::Boxed(Box::new(inner_type));
+                if inner_type.is_boxed() {
+                    atype = inner_type;
+                } else {
+                    atype = SType::Boxed(Box::new(inner_type));
+                }
             },
             Rule::cdata => {
                 let mut inner_type = String::from("data");

@@ -227,8 +227,8 @@ impl Ord for SVal {
             Self::Boxed(val) => {
                 val.lock().unwrap().cmp(other)
             },
-            Self::Void |
-            Self::Null => Ordering::Less,
+            Self::Void => Ordering::Less,
+            Self::Null => Ordering::Greater,
             Self::Bool(val) => {
                 match other {
                     Self::Bool(oval) => {
@@ -237,22 +237,26 @@ impl Ord for SVal {
                     Self::Boxed(oval) => {
                         self.cmp(oval.lock().unwrap().deref())
                     },
-                    Self::Void |
-                    Self::Null => Ordering::Greater,
+                    Self::Void => Ordering::Greater,
                     _ => Ordering::Less,
                 }
             },
             Self::Number(num) => {
                 match other {
                     Self::Number(onum) => {
-                        num.float().total_cmp(&onum.float())
+                        if num.gt(onum) {
+                            Ordering::Greater
+                        } else if num.lt(onum) {
+                            Ordering::Less
+                        } else {
+                            Ordering::Equal
+                        }
                     },
                     Self::Boxed(oval) => {
                         self.cmp(oval.lock().unwrap().deref())
                     },
                     Self::Bool(_) |
-                    Self::Void |
-                    Self::Null => Ordering::Greater,
+                    Self::Void => Ordering::Greater,
                     _ => Ordering::Less,
                 }
             },
@@ -263,7 +267,6 @@ impl Ord for SVal {
                         self.cmp(oval.lock().unwrap().deref())
                     },
                     Self::Void |
-                    Self::Null |
                     Self::Bool(_) |
                     Self::Number(_) => Ordering::Greater,
                     _ => Ordering::Less,
@@ -276,7 +279,6 @@ impl Ord for SVal {
                         self.cmp(oval.lock().unwrap().deref())
                     },
                     Self::Void |
-                    Self::Null |
                     Self::Bool(_) |
                     Self::Number(_) |
                     Self::String(_) => Ordering::Greater,
@@ -290,7 +292,6 @@ impl Ord for SVal {
                         self.cmp(oval.lock().unwrap().deref())
                     },
                     Self::Void |
-                    Self::Null |
                     Self::Bool(_) |
                     Self::Number(_) |
                     Self::String(_) |
@@ -305,7 +306,6 @@ impl Ord for SVal {
                         self.cmp(oval.lock().unwrap().deref())
                     },
                     Self::Void |
-                    Self::Null |
                     Self::Bool(_) |
                     Self::Number(_) |
                     Self::String(_) |
@@ -321,7 +321,6 @@ impl Ord for SVal {
                         self.cmp(oval.lock().unwrap().deref())
                     },
                     Self::Void |
-                    Self::Null |
                     Self::Bool(_) |
                     Self::Number(_) |
                     Self::String(_) |
@@ -338,7 +337,6 @@ impl Ord for SVal {
                         self.cmp(oval.lock().unwrap().deref())
                     },
                     Self::Void |
-                    Self::Null |
                     Self::Bool(_) |
                     Self::Number(_) |
                     Self::String(_) |
@@ -356,7 +354,6 @@ impl Ord for SVal {
                         self.cmp(oval.lock().unwrap().deref())
                     },
                     Self::Void |
-                    Self::Null |
                     Self::Bool(_) |
                     Self::Number(_) |
                     Self::String(_) |
@@ -375,7 +372,6 @@ impl Ord for SVal {
                         self.cmp(oval.lock().unwrap().deref())
                     },
                     Self::Void |
-                    Self::Null |
                     Self::Bool(_) |
                     Self::Number(_) |
                     Self::String(_) |
@@ -395,7 +391,6 @@ impl Ord for SVal {
                         self.cmp(oval.lock().unwrap().deref())
                     },
                     Self::Void |
-                    Self::Null |
                     Self::Bool(_) |
                     Self::Number(_) |
                     Self::String(_) |
@@ -431,7 +426,6 @@ impl Ord for SVal {
                         self.cmp(oval.lock().unwrap().deref())
                     },
                     Self::Void |
-                    Self::Null |
                     Self::Bool(_) |
                     Self::Number(_) |
                     Self::String(_) |
@@ -443,6 +437,7 @@ impl Ord for SVal {
                     Self::Map(_) |
                     Self::Blob(_) |
                     Self::Data(_) => Ordering::Greater,
+                    _ => Ordering::Less,
                 }
             }
         }
@@ -1208,9 +1203,12 @@ impl SVal {
                 let target_type = target.deref().clone();
                 let self_type = self.stype(&doc.graph);
                 if target_type != self_type {
-                    let value = self.cast(target.deref().clone(), pid, doc)?;
+                    let value = self.cast(target_type, pid, doc)?;
+                    
+                    if value.is_boxed() { return Ok(value); }
                     return Ok(Self::Boxed(Arc::new(SMutex(Mutex::new(value)))));
                 } else {
+                    if self.is_boxed() { return Ok(self.clone()); }
                     return Ok(Self::Boxed(Arc::new(SMutex(Mutex::new(self.clone())))));
                 }
             },
@@ -1870,8 +1868,8 @@ impl SVal {
             Self::Bool(_) => Ok(Self::Bool(false)),
             Self::FnPtr(_) => Ok(Self::Bool(false)),
             Self::Data(_) => Ok(Self::Bool(false)),
-            Self::Void |
-            Self::Null => Ok(Self::Bool(false)),
+            Self::Void => Ok(Self::Bool(false)),
+            Self::Null => Ok(Self::Bool(true)),
             Self::Blob(blob) => {
                 match other {
                     Self::Blob(other_blob) => Ok(Self::Bool(blob.len() > other_blob.len())),
@@ -1970,7 +1968,7 @@ impl SVal {
             Self::Bool(_) => Ok(Self::Bool(false)),
             Self::FnPtr(_) => Ok(Self::Bool(false)),
             Self::Data(_) => Ok(Self::Bool(false)),
-            Self::Void |
+            Self::Void => Ok(Self::Bool(true)),
             Self::Null => Ok(Self::Bool(false)),
             Self::Blob(blob) => {
                 match other {

@@ -42,37 +42,64 @@ impl Library for NumberLibrary {
                     }
                     return Ok(SVal::Null);
                 },
-                // Maximum number value in parameters
                 "max" => {
-                    let mut maximum = f64::MIN;
+                    let mut res = SVal::Void;
                     for param in parameters.drain(..) {
                         match param {
-                            SVal::Number(num) => {
-                                let val = num.float();
-                                if val > maximum {
-                                    maximum = val;
+                            SVal::Array(mut vals) => {
+                                let mx = self.call(pid, doc, "max", &mut vals)?;
+                                if mx > res { res = mx; }
+                            },
+                            SVal::Tuple(mut vals) => {
+                                let mx = self.call(pid, doc, "max", &mut vals)?;
+                                if mx > res { res = mx; }
+                            },
+                            SVal::Set(mut set) => {
+                                if let Some(mx) = set.pop_last() {
+                                    if mx > res { res = mx; }
+                                }
+                            }
+                            SVal::Map(mut map) => {
+                                if let Some(pair) = map.pop_last() {
+                                    if pair.1 > res { res = pair.1; }
                                 }
                             },
-                            _ => {}
+                            param => {
+                                if param > res { res = param; }
+                            }
                         }
                     }
-                    return Ok(SVal::from(maximum));
+                    if res.is_void() { return Ok(SVal::Null); }
+                    return Ok(res);
                 },
-                // Minimum number value in parameters
                 "min" => {
-                    let mut minimum = f64::MAX;
+                    let mut res = SVal::Null;
                     for param in parameters.drain(..) {
                         match param {
-                            SVal::Number(num) => {
-                                let val = num.float();
-                                if val < minimum {
-                                    minimum = val;
+                            SVal::Array(mut vals) => {
+                                let mx = self.call(pid, doc, "min", &mut vals)?;
+                                if mx < res { res = mx; }
+                            },
+                            SVal::Tuple(mut vals) => {
+                                let mx = self.call(pid, doc, "min", &mut vals)?;
+                                if mx < res { res = mx; }
+                            },
+                            SVal::Set(mut set) => {
+                                if let Some(mx) = set.pop_first() {
+                                    if mx < res { res = mx; }
+                                }
+                            }
+                            SVal::Map(mut map) => {
+                                if let Some(pair) = map.pop_last() {
+                                    if pair.1 < res { res = pair.1; }
                                 }
                             },
-                            _ => {}
+                            param => {
+                                if param < res { res = param; }
+                            }
                         }
                     }
-                    return Ok(SVal::from(minimum));
+                    return Ok(res);
                 },
                 // parse a string into a number
                 "parse" => {

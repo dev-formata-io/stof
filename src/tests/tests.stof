@@ -475,6 +475,16 @@ stdlib: {
         assertNot(isBoxed(32));
     }
 
+    #[test]
+    fn max_min_value(): void {
+        assertEq(max(10, 33m, 'hello', 'zed'), 'zed');
+        assertEq(max(10mm, 10cm, 10nm, 10m, 10um), 10m);
+        assertEq(min(10mm, 10cm, 10nm, 10m, 10um), 10nm);
+        assertEq(max([10, 20], set(30, 10), [[[[31]]]]), 31);
+        assertEq(min(set(34kg, 10g, 66mg)), 66mg);
+        assertEq(min([10s, 3min, 100000ns, 300ms]), 100000ns);
+    }
+
     func_search: {
         #[example_attr]
         fn first() {}
