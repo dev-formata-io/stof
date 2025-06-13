@@ -130,3 +130,66 @@ fn practical_or() {
     let x = self.return_null().or(null, 0, 10, 10, 23);
     assertEq(x, 0);
 }
+
+#[test]
+fn void_check() {
+    let x;
+    let res = x?.func_dne();
+    assertEq(res, null);
+}
+
+#[test]
+fn null_check() {
+    let x = null;
+    let res = x?.func_dne();
+    assertEq(res, null);
+}
+
+#[test]
+fn chained_void_check() {
+    let f = ():void=>{};
+    let x = f.call()?.func_dne();
+    assertEq(x, null);
+}
+
+#[test]
+fn chained_null_check() {
+    let f = ():unknown=>null;
+    let x = f.call()?.func_dne();
+    assertEq(x, null);
+}
+
+#[test]
+fn long_chain_call() {
+    let f = ():obj=>new {
+        func: ():unknown=>null;
+    } on self;
+    
+    let tst = f.call()?.at('func');
+    assert(tst);
+    
+    let x = f.call()?.at('func')?.call()?.func_dne();
+    assertNull(x);
+}
+
+#[test]
+fn null_op() {
+    let f = ():unknown=>null;
+    let x = f.call() ?? 'default';
+    assertEq(x, 'default');
+
+    x = 'hi' ?? 'hello';
+    assertEq(x, 'hi');
+}
+
+#[test]
+fn chained_null_op() {
+    const f = ():str=>null;
+    const ff = ():str=>'yo';
+
+    let x = null ?? f.call() as NonExist ?? null ?? null ?? 'hi';
+    assertEq(x, 'hi');
+
+    x = null ?? ff.call() ?? null ?? null ?? 'hi';
+    assertEq(x, 'yo');
+}

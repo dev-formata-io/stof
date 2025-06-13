@@ -1680,11 +1680,36 @@ fn parse_expression(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resu
     let mut res: Expr = Expr::Literal(SVal::Null);
     for pair in pair.into_inner() {
         match pair.as_rule() {
+            // As expr is the only way to get here "expr as atype"
             Rule::atype => {
                 // Cast this expression to another type (if possible)!
                 let stype = parse_atype(pair);
                 res = Expr::Cast(stype, Box::new(res));
             },
+
+            // Null Op is the only way to get here "??"
+            Rule::expr => {
+                let null_expr = parse_expression(doc, env, pair)?;
+                let block_statements = vec![
+                    Statement::Declare(false, "tmp".into(), res, true),
+                    Statement::If {
+                        if_expr: (
+                            Expr::Or(vec![
+                                Expr::Eq(Box::new(Expr::Variable("tmp".into())), Box::new(Expr::Literal(SVal::Null))),
+                                Expr::Eq(Box::new(Expr::Variable("tmp".into())), Box::new(Expr::Literal(SVal::Void))),
+                            ]),
+                            vec![
+                                Statement::Return(null_expr),
+                            ].into()
+                        ),
+                        elif_exprs: vec![],
+                        else_expr: None
+                    },
+                    Statement::Return(Expr::Variable("tmp".into())),
+                ];
+                res = Expr::Block(block_statements.into());
+            },
+
             _ => {
                 res = parse_expr_pair(doc, env, pair)?;
             }
@@ -1915,8 +1940,24 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         }
                         block_statements.push(Statement::Return(expr));
                     },
+                    Rule::call_null_check => {
+                        let if_statement = Statement::If {
+                            if_expr: (
+                                Expr::Or(vec![
+                                    Expr::Eq(Box::new(Expr::Variable("tmp".into())), Box::new(Expr::Literal(SVal::Null))),
+                                    Expr::Eq(Box::new(Expr::Variable("tmp".into())), Box::new(Expr::Literal(SVal::Void))),
+                                ]),
+                                vec![
+                                    Statement::Return(Expr::Literal(SVal::Null)),
+                                ].into()
+                            ),
+                            elif_exprs: vec![],
+                            else_expr: None
+                        };
+                        block_statements.push(if_statement);
+                    },
                     _ => {
-                        block_statements.push(Statement::Declare(false, "tmp".into(), parse_expr_pair(doc, env, pair)?, false));
+                        block_statements.push(Statement::Declare(false, "tmp".into(), parse_expr_pair(doc, env, pair)?, true));
                     }
                 }
             }
@@ -1940,10 +1981,26 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                         }
                         if !declared {
                             declared = true;
-                            block_statements.push(Statement::Declare(false, "tmp".into(), expr, false));
+                            block_statements.push(Statement::Declare(false, "tmp".into(), expr, true));
                         } else {
                             block_statements.push(Statement::Assign("tmp".into(), expr));
                         }
+                    },
+                    Rule::call_null_check => {
+                        let if_statement = Statement::If {
+                            if_expr: (
+                                Expr::Or(vec![
+                                    Expr::Eq(Box::new(Expr::Variable("tmp".into())), Box::new(Expr::Literal(SVal::Null))),
+                                    Expr::Eq(Box::new(Expr::Variable("tmp".into())), Box::new(Expr::Literal(SVal::Void))),
+                                ]),
+                                vec![
+                                    Statement::Return(Expr::Literal(SVal::Null)),
+                                ].into()
+                            ),
+                            elif_exprs: vec![],
+                            else_expr: None
+                        };
+                        block_statements.push(if_statement);
                     },
                     _ => {}
                 }
