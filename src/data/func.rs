@@ -37,6 +37,103 @@ impl Data for SFunc {
     }
 }
 
+
+/// Stof extern block doc.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SExternDoc {
+    pub extern_id: String,
+    pub libname: String,
+    pub link_expr: Option<(String, Option<Expr>)>,
+    pub docs: Option<String>,
+}
+impl SExternDoc {
+    /// Get references to all func docs on a node.
+    pub fn extern_docs<'a>(graph: &'a SGraph, node: &SNodeRef, recursive: bool) -> Vec<&'a Self> {
+        if let Some(node) = node.node(graph) {
+            if recursive {
+                return node.data_recursive::<Self>(graph);
+            }
+            return node.data::<Self>(graph);
+        }
+        vec![]
+    }
+}
+
+#[typetag::serde(name = "_SExternDoc")]
+impl Data for SExternDoc {
+    fn core_data(&self) -> bool {
+        return true;
+    }
+}
+
+
+/// Stof extern func doc.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SExternFuncDoc {
+    pub extern_id: String,
+    pub name: String,
+    pub params: Vec<SParam>,
+    pub rtype: SType,
+    pub attributes: FxHashMap<String, SVal>,
+    pub docs: Option<String>,
+}
+impl SExternFuncDoc {
+    /// Get references to all extern func docs on a node.
+    pub fn extern_func_docs<'a>(graph: &'a SGraph, node: &SNodeRef, recursive: bool) -> Vec<&'a Self> {
+        if let Some(node) = node.node(graph) {
+            if recursive {
+                return node.data_recursive::<Self>(graph);
+            }
+            return node.data::<Self>(graph);
+        }
+        vec![]
+    }
+}
+
+#[typetag::serde(name = "_SExternFuncDoc")]
+impl Data for SExternFuncDoc {
+    fn core_data(&self) -> bool {
+        return true;
+    }
+}
+
+
+/// Stof func doc.
+/// Optionally added in parallel to the function to document it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SFuncDoc {
+    pub func: SDataRef,
+    pub docs: String,
+}
+impl SFuncDoc {
+    /// Create a new funcdoc.
+    pub fn new(func: SDataRef, docs: String) -> Self {
+        Self {
+            func,
+            docs
+        }
+    }
+
+    /// Get references to all func docs on a node.
+    pub fn func_docs<'a>(graph: &'a SGraph, node: &SNodeRef, recursive: bool) -> Vec<&'a Self> {
+        if let Some(node) = node.node(graph) {
+            if recursive {
+                return node.data_recursive::<Self>(graph);
+            }
+            return node.data::<Self>(graph);
+        }
+        vec![]
+    }
+}
+
+#[typetag::serde(name = "_SFuncDoc")]
+impl Data for SFuncDoc {
+    fn core_data(&self) -> bool {
+        return true;
+    }
+}
+
+
 impl SFunc {
     /// New function.
     /// AFunction::new("myFunc", vec![("name", SType::string()).into()], SType::string(), vec![].into());

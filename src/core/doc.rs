@@ -19,7 +19,7 @@ use bytes::Bytes;
 use colored::Colorize;
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
-use crate::{bytes::BYTES, lang::SError, text::TEXT, SData, SField, SFunc, SVal, BSTOF, STOF};
+use crate::{bytes::BYTES, gitbook::Gitbook, lang::SError, text::TEXT, SData, SField, SFunc, SVal, BSTOF, STOF};
 use super::{runtime::{DocPermissions, Library, Symbol, SymbolTable}, ArrayLibrary, BlobLibrary, SemVerLibrary, BoolLibrary, CustomTypes, DataLibrary, Format, FunctionLibrary, IntoDataRef, IntoNodeRef, MapLibrary, NumberLibrary, ObjectLibrary, SDataRef, SFormats, SGraph, SLibraries, SNodeRef, SProcesses, SetLibrary, StdLibrary, StringLibrary, TupleLibrary};
 
 #[cfg(not(feature = "wasm"))]
@@ -175,7 +175,7 @@ impl SDoc {
         self.load_format(Arc::new(BYTES{}));// "bytes" import "bytes" field
 
         // STOF format ".stof" text files
-        self.load_format(Arc::new(STOF{}));
+        self.load_format(Arc::new(STOF(false)));
 
         // BSTOF format ".bstof" binary files
         self.load_format(Arc::new(BSTOF{}));
@@ -220,6 +220,12 @@ impl SDoc {
         // PDF format (.pdf)
         #[cfg(feature = "pdf")]
         self.load_format(Arc::new(PDF{}));
+    }
+
+    /// Load StofDocs format.
+    /// Replaces the STOF format with a version that gererates documentation information.
+    pub fn load_stof_docs(&mut self) {
+        self.load_format(Arc::new(STOF(true)));
     }
 
     /// Load a format into this document.
@@ -428,6 +434,43 @@ impl SDoc {
     /// Path is dot '.' separated.
     pub fn field(&self, path: &str, start: Option<&SNodeRef>) -> Option<&SField> {
         SField::field(&self.graph, path, '.', start)
+    }
+
+
+    /*****************************************************************************
+     * Docs interface.
+     *****************************************************************************/
+    
+    /// Generate docs from a file.
+    pub fn gitbook_md_from_file(file: &str) -> Result<String, String> {
+        let mut doc = Self::default();
+        doc.load_stof_docs();
+        doc.load_format(Arc::new(Gitbook{}));
+        let doc_res = doc.file_import("main", "stof", file, "stof", "");
+        match doc_res {
+            Ok(_) => {
+                match doc.export_string("main", "gitbook", None) {
+                    Ok(md) => {
+                        Ok(md)
+                    },
+                    Err(err) => {
+                        Err(err.to_string(&doc.graph))
+                    }
+                }
+            },
+            Err(err) => {
+                let message = format!("{}: {} - {}", "parse error".red(), err.error_type.to_string().blue(), err.message.dimmed());
+                Err(message)
+            },
+        }
+    }
+
+
+    #[cfg(feature = "markdown-lib")]
+    /// gitbook HTML.
+    pub fn gitbook_html_from_file(file: &str) -> Result<String, String> {
+        let md = Self::gitbook_md_from_file(file)?;
+        Ok(markdown::to_html(&md))
     }
 
 

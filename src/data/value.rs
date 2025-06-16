@@ -1612,7 +1612,7 @@ impl SVal {
     }
 
     /// Print this value.
-    pub fn print(&self, doc: &mut SDoc) -> String {
+    pub fn print(&self, doc: &SDoc) -> String {
         match self {
             Self::Boxed(val) => {
                 val.lock().unwrap().print(doc)
@@ -1731,7 +1731,7 @@ impl SVal {
     }
 
     /// Debug this value to console.
-    pub fn debug(&self, doc: &mut SDoc) -> String {
+    pub fn debug(&self, doc: &SDoc) -> String {
         match self {
             Self::Boxed(val) => {
                 val.lock().unwrap().debug(doc)

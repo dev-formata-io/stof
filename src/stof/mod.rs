@@ -195,29 +195,16 @@ impl Format for BSTOF {
     }
 }
 
-/// Stof string format interface.
-pub struct STOF;
-impl STOF {
-    /// Parse a STOF string into a new document.
-    pub fn parse_new(pid: &str, stof: &str, env: Option<&mut StofEnv>) -> Result<SDoc, SError> {
-        let mut doc = SDoc::default();
-        Self::parse(pid, &mut doc, stof, env)?;
-        Ok(doc)
-    }
 
+/// Stof string format interface.
+/// STOF(true) for documentation, STOF(false) for no docs
+pub struct STOF(pub bool);
+impl STOF {
     /// Parse a STOF string into a Stof graph.
-    pub fn parse(pid: &str, doc: &mut SDoc, stof: &str, env: Option<&mut StofEnv>) -> Result<(), SError> {
-        let res;
-        if let Some(env_ref) = env {
-            env_ref.before_parse(doc);
-            res = parse_internal(stof, doc, env_ref);
-            env_ref.after_parse(doc);
-        } else {
-            let mut internal_env = StofEnv::new(pid, doc);
-            internal_env.before_parse(doc);
-            res = parse_internal(stof, doc, &mut internal_env);
-            internal_env.after_parse(doc);
-        }
+    pub fn parse(doc: &mut SDoc, stof: &str, env: &mut StofEnv) -> Result<(), SError> {
+        env.before_parse(doc);
+        let res = parse_internal(stof, doc, env);
+        env.after_parse(doc);
         res
     }
 }
@@ -261,8 +248,8 @@ impl Format for STOF {
 
 
         let process = doc.processes.get(pid).cloned();
-        let mut env = StofEnv::new_at_node(pid, doc, &location).unwrap();
-        STOF::parse(pid, doc, src, Some(&mut env))?;
+        let mut env = StofEnv::new_at_node(pid, doc, &location, self.0).unwrap();
+        Self::parse(doc, src, &mut env)?;
 
         // Undo the clean that happens...
         if let Some(process) = process {
@@ -290,13 +277,13 @@ impl Format for STOF {
 
 
         let process = doc.processes.get(pid).cloned();
-        let mut env = StofEnv::new_at_node(pid, doc, &location).unwrap();
+        let mut env = StofEnv::new_at_node(pid, doc, &location, self.0).unwrap();
         
         let mut relative_path = full_path.trim().split('/').collect::<Vec<&str>>();
         relative_path.pop(); // pop the file name
         env.relative_import_path = relative_path.join("/");
         
-        STOF::parse(pid, doc, &src, Some(&mut env))?;
+        Self::parse(doc, &src, &mut env)?;
 
         // Undo the clean that happens...
         if let Some(process) = process {

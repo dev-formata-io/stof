@@ -1,0 +1,74 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+/*!
+ * These are internal docs.
+ * They document the thing that holds them (object or type).
+ */
+
+
+/**
+ * This is a doc comment.
+ * At first glance, it is just like a block comment, but is different in the parser, hence tested here.
+ */
+#[testing] // not a real #[test] func
+fn documented_before_func() {
+
+}
+
+
+#[testing]
+/**
+ * This is a doc comment also, just below an attribute.
+ */
+fn documented_after() -> void { /* Arrow return syntax helps distinguish funcs from fields for the eyes. */
+
+}
+
+
+/**
+ * Here is an extern block.
+ */
+extern Library {
+    /*!
+     * This is a doc comment further describing this external library.
+     */
+    
+    /**
+     * Here is a doc comment over an extern function.
+     */
+    fn extern_function() -> void;
+    async fn another();
+    fn atype_func(): int;
+}
+
+
+/**
+ * This is also a doc comment for this type.
+ */
+type MyTestingDocType {
+    /*!
+     * Here is an internal doc comment, acting as the docs for this type.
+     */
+
+    /**
+     * Here is a doc comment for a function on this type.
+     */
+    fn my_func() -> int {
+        return 42;
+    }
+}

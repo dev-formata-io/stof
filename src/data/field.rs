@@ -35,6 +35,40 @@ impl Data for SField {
     }
 }
 
+
+/// Stof field doc.
+/// Optionally added in parallel to the field to document it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SFieldDoc {
+    pub field: SDataRef,
+    pub docs: String,
+}
+impl SFieldDoc {
+    /// Create a new fielddoc.
+    pub fn new(field: SDataRef, docs: String) -> Self {
+        Self {
+            field,
+            docs
+        }
+    }
+
+    /// Get references to all field docs on a node.
+    pub fn field_docs<'a>(graph: &'a SGraph, node: &SNodeRef) -> Vec<&'a Self> {
+        if let Some(node) = node.node(graph) {
+            return node.data::<Self>(graph);
+        }
+        vec![]
+    }
+}
+
+#[typetag::serde(name = "_SFieldDoc")]
+impl Data for SFieldDoc {
+    fn core_data(&self) -> bool {
+        return true;
+    }
+}
+
+
 impl PartialOrd for SField {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.name.partial_cmp(&other.name)

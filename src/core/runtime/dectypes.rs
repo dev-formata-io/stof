@@ -82,7 +82,7 @@ impl CustomTypes {
     }
 
     /// Declare a new type (not inserted into graph yet).
-    pub fn declare(&mut self, mut custom_type: CustomType, graph: &mut SGraph, extends: &str, functions: Vec<SFunc>) -> Result<(), SError> {
+    pub fn declare(&mut self, mut custom_type: CustomType, graph: &mut SGraph, extends: &str, functions: Vec<(SFunc, Option<String>)>, doc_comments: Option<String>, param_docs: Vec<(String, String)>) -> Result<(), SError> {
         // Insert path for this new custom type
         let mut insert_path = format!("__stof__/prototypes/{}", &custom_type.locid);
 
@@ -126,7 +126,7 @@ impl CustomTypes {
         }
 
         // Insert the custom type into the graph
-        custom_type.insert(graph, &insert_path, functions);
+        custom_type.insert(graph, &insert_path, functions, doc_comments, param_docs);
 
         // Insert into types by name
         if let Some(types) = self.types.get_mut(&custom_type.name) {

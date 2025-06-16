@@ -20,14 +20,14 @@ use nanoid::nanoid;
 use pest_derive::Parser;
 use pest::{iterators::{Pair, Pairs}, pratt_parser::PrattParser, Parser};
 use rustc_hash::FxHashMap;
-use crate::{lang::{CustomType, CustomTypeField, ErrorType, Expr, SError, Statement, Statements}, SData, SDoc, SField, SFunc, SNum, SNumType, SParam, SType, SUnits, SVal};
+use crate::{lang::{CustomType, CustomTypeField, ErrorType, Expr, SError, SInnerDoc, Statement, Statements}, SData, SDoc, SExternDoc, SExternFuncDoc, SField, SFieldDoc, SFunc, SFuncDoc, SNum, SNumType, SParam, SType, SUnits, SVal};
 use super::StofEnv;
 
 
 /// Pest Parser for Stof
 #[derive(Parser)]
 #[grammar = "src/stof/stof.pest"]
-struct StofParser;
+pub(crate) struct StofParser;
 
 
 lazy_static! {
@@ -501,8 +501,27 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                 }
             },
             Rule::function => {
-                let mut func = parse_function(doc, env, pair)?;
+                let (mut func, doc_comments) = parse_function(doc, env, pair)?;
                 let scope = env.scope(doc);
+
+                // Is an init function?
+                let mut init_params = None;
+                if let Some(init_param_val) = func.attributes.get("init") {
+                    if init_param_val.is_empty() { // null or void
+                        init_params = Some(vec![]);
+                    } else {
+                        init_params = Some(vec![init_param_val.clone()]);
+                    }
+                }
+
+                // Is a field also?
+                let mut field_name = None;
+                if let Some(field_val) = func.attributes.get("field") {
+                    let add = field_val.is_empty() || field_val.truthy();
+                    if add {
+                        field_name = Some(func.name.clone());
+                    }
+                }
 
                 // Function decorators - before func gets attached to the graph
                 let mut dec_val = func.attributes.remove("@");
@@ -533,7 +552,25 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                                         new_func.statements = Statements::from(vec![Statement::Declare(false, funcparamname, Expr::Literal(SVal::FnPtr(func_ref)), false)]);
                                                         new_func.statements.absorb(old_statments);
 
-                                                        SData::insert_new(&mut doc.graph, &scope, Box::new(new_func)); // make sure it's in the new scope
+                                                        if let Some(func_ref) = SData::insert_new(&mut doc.graph, &scope, Box::new(new_func)) {
+                                                            // Is this func an init func?
+                                                            if let Some(init_params) = init_params {
+                                                                env.init_funcs.push((func_ref.clone(), init_params));
+                                                            }
+
+                                                            // Does this function also have func docs with it?
+                                                            if let Some(docs) = doc_comments {
+                                                                SData::insert_new(&mut doc.graph, &scope, Box::new(SFuncDoc::new(func_ref.clone(), docs)));
+                                                            }
+
+                                                            // Is a field also?
+                                                            if let Some(field_name) = field_name {
+                                                                let mut field = SField::new(&field_name, SVal::FnPtr(func_ref));
+                                                                field.attributes.insert("export".to_owned(), SVal::Bool(false));
+                                                                let scope = env.scope(&doc);
+                                                                SData::insert_new(&mut doc.graph, &scope, Box::new(field));
+                                                            }
+                                                        }
                                                         success = true;
                                                     }
                                                 },
@@ -552,29 +589,15 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                         return Err(SError::parse(&env.pid, &doc, "cannot decorate a function with any value other than another function"));
                     }
                 } else {
-                    // Is an init function?
-                    let mut init_params = None;
-                    if let Some(init_param_val) = func.attributes.get("init") {
-                        if init_param_val.is_empty() { // null or void
-                            init_params = Some(vec![]);
-                        } else {
-                            init_params = Some(vec![init_param_val.clone()]);
-                        }
-                    }
-
-                    // Is a field also?
-                    let mut field_name = None;
-                    if let Some(field_val) = func.attributes.get("field") {
-                        let add = field_val.is_empty() || field_val.truthy();
-                        if add {
-                            field_name = Some(func.name.clone());
-                        }
-                    }
-
                     if let Some(func_ref) = SData::insert_new(&mut doc.graph, &scope, Box::new(func)) {
                         // Is this func an init func?
                         if let Some(init_params) = init_params {
                             env.init_funcs.push((func_ref.clone(), init_params));
+                        }
+
+                        // Does this function also have func docs with it?
+                        if let Some(docs) = doc_comments {
+                            SData::insert_new(&mut doc.graph, &scope, Box::new(SFuncDoc::new(func_ref.clone(), docs)));
                         }
 
                         // Is a field also?
@@ -629,8 +652,10 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                 let mut ident = String::default();
                 let mut extends = String::default();
                 let mut params = Vec::new();
+                let mut param_docs = Vec::new();
                 let mut functions = Vec::new();
                 let mut attributes = BTreeMap::new();
+                let mut doc_comments: Option<String> = None;
                 for pair in pair.into_inner() {
                     match pair.as_rule() {
                         Rule::stof_type_attribute => {
@@ -671,6 +696,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                             let mut field_name = String::default();
                             let mut stype = SType::Void;
                             let mut default = None;
+                            let mut docs = None;
                             let mut attributes = BTreeMap::new();
                             for pair in pair.into_inner() {
                                 match pair.as_rule() {
@@ -709,16 +735,25 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                             }
                                         }
                                         attributes.insert(key, value);
+                                    },
+                                    Rule::doc_comment => {
+                                        if env.documentation {
+                                            docs = Some(parse_doc_comment(doc, env, pair)?);
+                                        }
                                     },
                                     _ => {}
                                 }
                             }
                             params.push(CustomTypeField::new(&field_name, stype, default, attributes, false));
+                            if let Some(docs) = docs {
+                                param_docs.push((field_name, docs));
+                            }
                         },
                         Rule::optional_type_field => {
                             let mut field_name = String::default();
                             let mut stype = SType::Void;
                             let mut default = None;
+                            let mut docs = None;
                             let mut attributes = BTreeMap::new();
                             for pair in pair.into_inner() {
                                 match pair.as_rule() {
@@ -758,13 +793,21 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                         }
                                         attributes.insert(key, value);
                                     },
+                                    Rule::doc_comment => {
+                                        if env.documentation {
+                                            docs = Some(parse_doc_comment(doc, env, pair)?);
+                                        }
+                                    },
                                     _ => {}
                                 }
                             }
                             params.push(CustomTypeField::new(&field_name, stype, default, attributes, true));
+                            if let Some(docs) = docs {
+                                param_docs.push((field_name, docs));
+                            }
                         },
                         Rule::function => {
-                            let mut func = parse_function(doc, env, pair)?;
+                            let (mut func, doc_comments) = parse_function(doc, env, pair)?;
                             let scope = env.scope(doc);
 
                             // Function decorators - before func gets attached to the graph
@@ -797,7 +840,7 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                                                     new_func.statements.absorb(old_statments);
             
                                                                     //SData::insert_new(&mut doc.graph, &scope, Box::new(new_func)); // make sure it's in the new scope
-                                                                    functions.push(new_func);
+                                                                    functions.push((new_func, doc_comments));
                                                                     success = true;
                                                                 }
                                                             },
@@ -816,7 +859,25 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                     return Err(SError::parse(&env.pid, &doc, "cannot decorate a function with any value other than another function"));
                                 }
                             } else {
-                                functions.push(func);
+                                functions.push((func, doc_comments));
+                            }
+                        },
+                        Rule::doc_inner_comment => {
+                            if env.documentation {
+                                if let Some(comments) = &mut doc_comments {
+                                    comments.push_str(&parse_doc_comment(doc, env, pair)?);
+                                } else {
+                                    doc_comments = Some(parse_doc_comment(doc, env, pair)?);
+                                }
+                            }
+                        },
+                        Rule::doc_comment => {
+                            if env.documentation {
+                                if let Some(comments) = &mut doc_comments {
+                                    comments.push_str(&parse_doc_comment(doc, env, pair)?);
+                                } else {
+                                    doc_comments = Some(parse_doc_comment(doc, env, pair)?);
+                                }
                             }
                         },
                         _ => {}
@@ -825,7 +886,179 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                 if ident.len() > 0 {
                     let mut ctype = CustomType::new(&env.scope(doc).id, &ident, params);
                     ctype.attributes = attributes;
-                    doc.types.declare(ctype, &mut doc.graph, &extends, functions)?;
+                    doc.types.declare(ctype, &mut doc.graph, &extends, functions, doc_comments, param_docs)?;
+                }
+            },
+            Rule::stof_extern_block => {
+                let extern_scope = env.scope(&doc);
+                let extern_id = format!("extern_{}", nanoid!());
+                let mut libname = String::default();
+                let mut link_expr = None;
+                let mut doc_comments: Option<String> = None;
+                for pair in pair.into_inner() {
+                    match pair.as_rule() {
+                        Rule::ident => {
+                            libname = pair.as_str().to_owned();
+                        },
+                        Rule::stof_extern_expr => {
+                            // (ident and expr) key and value for linking, etc...
+                            let mut name = String::default();
+                            let mut expr = None;
+                            for pair in pair.into_inner() {
+                                match pair.as_rule() {
+                                    Rule::ident => {
+                                        name = pair.as_str().to_owned();
+                                    },
+                                    Rule::expr => {
+                                        expr = Some(parse_expression(doc, env, pair)?);
+                                    },
+                                    _ => {}
+                                }
+                            }
+                            link_expr = Some((name, expr));
+                        },
+                        Rule::doc_comment => {
+                            if env.documentation {
+                                if let Some(comments) = &mut doc_comments {
+                                    comments.push_str(&parse_doc_comment(doc, env, pair)?);
+                                } else {
+                                    doc_comments = Some(parse_doc_comment(doc, env, pair)?);
+                                }
+                            }
+                        },
+                        Rule::doc_inner_comment => {
+                            if env.documentation {
+                                if let Some(comments) = &mut doc_comments {
+                                    comments.push_str(&parse_doc_comment(doc, env, pair)?);
+                                } else {
+                                    doc_comments = Some(parse_doc_comment(doc, env, pair)?);
+                                }
+                            }
+                        },
+                        Rule::stof_extern_func => {
+                            let mut name = String::default();
+                            let mut params = Vec::new();
+                            let mut rtype = SType::Void;
+                            let mut func_comments: Option<String> = None;
+                            let mut attributes = FxHashMap::default();
+                            for pair in pair.into_inner() {
+                                match pair.as_rule() {
+                                    Rule::doc_comment => {
+                                        if env.documentation {
+                                            if let Some(comments) = &mut func_comments {
+                                                comments.push_str(&parse_doc_comment(doc, env, pair)?);
+                                            } else {
+                                                func_comments = Some(parse_doc_comment(doc, env, pair)?);
+                                            }
+                                        }
+                                    },
+                                    Rule::func_attribute => {
+                                        let mut key = String::default();
+                                        let mut value = SVal::Null;
+                                        for pair in pair.into_inner() {
+                                            match pair.as_rule() {
+                                                Rule::ident => {
+                                                    key = pair.as_str().to_string();
+                                                },
+                                                Rule::expr => {
+                                                    let value_expr = parse_expression(doc, env, pair)?;
+                                                    let result = value_expr.exec(&env.pid, doc);
+                                                    match result {
+                                                        Ok(sval) => {
+                                                            value = sval;
+                                                        },
+                                                        Err(message) => {
+                                                            return Err(SError::parse(&env.pid, &doc, &format!("unable to execute attribute expression: {}", message.message)));
+                                                        }
+                                                    }
+                                                },
+                                                _ => {
+                                                    return Err(SError::parse(&env.pid, &doc, "unrecognized rule for function attribute"));
+                                                }
+                                            }
+                                        }
+                                        attributes.insert(key, value);
+                                    },
+                                    Rule::async_fn => {
+                                        let scope = pair.as_str();
+                                        if scope.contains("local") {
+                                            attributes.insert("async".into(), SVal::String("local".into()));
+                                        } else {
+                                            attributes.insert("async".into(), SVal::Null);
+                                        }
+                                    },
+                                    Rule::ident => {
+                                        name = pair.as_str().to_owned();
+                                    },
+                                    Rule::func_param => {
+                                        let mut id = String::default();
+                                        let mut atype = SType::Void;
+                                        let mut default = None;
+                                        for pair in pair.into_inner() {
+                                            match pair.as_rule() {
+                                                Rule::ident => {
+                                                    id = pair.as_str().to_owned();
+                                                },
+                                                Rule::atype => {
+                                                    atype = parse_atype(pair);
+                                                },
+                                                Rule::expr => {
+                                                    default = Some(parse_expression(doc, env, pair)?);
+                                                },
+                                                _ => {
+                                                    return Err(SError::parse(&env.pid, &doc, "unrecognized rule for function parameter"));
+                                                }
+                                            }
+                                        }
+                                        params.push(SParam::new(&id, atype, default));
+                                    },
+                                    Rule::atype => {
+                                        rtype = parse_atype(pair);
+                                    },
+                                    _ => {}
+                                }
+                            }
+
+                            let mut doc_only = link_expr.is_none();
+                            if let Some((name, _expr)) = &link_expr {
+                                match name.as_str() {
+                                    // TODO: use name and expr to link this function with an external library...
+                                    _ => {
+                                        doc_only = true;
+                                    }
+                                }
+                            }
+                            if doc_only && env.documentation {
+                                SData::insert_new(&mut doc.graph, &extern_scope, Box::new(SExternFuncDoc {
+                                    extern_id: extern_id.clone(),
+                                    name,
+                                    params,
+                                    rtype,
+                                    attributes,
+                                    docs: func_comments,
+                                }));
+                            }
+                        },
+                        rule => {
+                            return Err(SError::parse(&env.pid, &doc, &format!("unrecognized extern block rule: {rule:?}")));
+                        }
+                    }
+                }
+
+                if env.documentation {
+                    SData::insert_new(&mut doc.graph, &extern_scope, Box::new(SExternDoc {
+                        extern_id,
+                        libname,
+                        link_expr,
+                        docs: doc_comments,
+                    }));
+                }
+            },
+            Rule::doc_inner_comment => {
+                if env.documentation {
+                    let scope = env.scope(&doc);
+                    let docs = parse_doc_comment(doc, env, pair)?;
+                    SData::insert_new(&mut doc.graph, &scope, Box::new(SInnerDoc::new(docs)));
                 }
             },
             Rule::EOI => {
@@ -848,8 +1081,18 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, attributes: 
             let mut field_value = SVal::Null;
             let mut object_declaration = false;
             let mut stype = SType::Void;
+            let mut doc_comments: Option<String> = None;
             for pair in pair.into_inner() {
                 match pair.as_rule() {
+                    Rule::doc_comment => {
+                        if env.documentation {
+                            if let Some(comments) = &mut doc_comments {
+                                comments.push_str(&parse_doc_comment(doc, env, pair)?);
+                            } else {
+                                doc_comments = Some(parse_doc_comment(doc, env, pair)?);
+                            }
+                        }
+                    },
                     Rule::field_attribute => {
                         let mut key = String::default();
                         let mut value = SVal::Null;
@@ -902,8 +1145,8 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, attributes: 
 
                 let mut field = SField::new(&last, field_value);
                 field.attributes = attributes.clone();
-                env.insert_field(doc, &env.scope(&doc), field)?;
-            } else if field_name.len() > 0 && object_declaration && attributes.len() > 0 {
+                env.insert_field(doc, &env.scope(&doc), field, doc_comments)?;
+            } else if field_name.len() > 0 && object_declaration && (attributes.len() > 0 || doc_comments.is_some()) {
                 // Check for a field for this object and make sure the attributes exist on it!
                 match field_value {
                     SVal::Object(nref) => {
@@ -919,6 +1162,11 @@ fn parse_field(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>, attributes: 
                                     for (key, value) in attributes {
                                         field.attributes.insert(key.clone(), value.clone());
                                     }
+                                }
+
+                                // Insert field doc comments if we have any
+                                if let Some(comments) = doc_comments {
+                                    SData::insert_new(&mut doc.graph, &parent, Box::new(SFieldDoc::new(field_ref, comments)));
                                 }
                             }
                         }
@@ -1035,14 +1283,24 @@ fn parse_value(field_type: SType, field_name: &str, doc: &mut SDoc, env: &mut St
 
 
 /// Parse a function to declare in the current scope.
-fn parse_function(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<SFunc, SError> {
+fn parse_function(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result<(SFunc, Option<String>), SError> {
     let mut name = String::from("arrow");
     let mut params = Vec::new();
     let mut rtype = SType::Void;
     let mut statements = Statements::default();
     let mut attributes = FxHashMap::default();
+    let mut doc_comments: Option<String> = None;
     for pair in pair.into_inner() {
         match pair.as_rule() {
+            Rule::doc_comment => {
+                if env.documentation {
+                    if let Some(comments) = &mut doc_comments {
+                        comments.push_str(&parse_doc_comment(doc, env, pair)?);
+                    } else {
+                        doc_comments = Some(parse_doc_comment(doc, env, pair)?);
+                    }
+                }
+            },
             Rule::func_attribute => {
                 let mut key = String::default();
                 let mut value = SVal::Null;
@@ -1121,7 +1379,40 @@ fn parse_function(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result
 
     let mut func = SFunc::new(&name, params, rtype, statements);
     func.attributes = attributes.clone();
-    Ok(func)
+    Ok((func, doc_comments))
+}
+
+
+/// Parse doc comments.
+fn parse_doc_comment(_doc: &mut SDoc, _env: &mut StofEnv, pair: Pair<Rule>) -> Result<String, SError> {
+    let mut comments = String::default();
+    match pair.as_rule() {
+        Rule::doc_inner_comment |
+        Rule::doc_comment => {
+            for pair in pair.into_inner() {
+                match pair.as_rule() {
+                    Rule::docs => {
+                        for line in pair.as_str().split("\n") {
+                            let mut trimmed = line.trim();
+                            if trimmed == "*" {
+                                continue;
+                            }
+                            if trimmed.starts_with("* ") && trimmed.len() > 2 {
+                                trimmed = &trimmed[2..];
+                            } else if trimmed.starts_with('*') && trimmed.len() > 1 {
+                                trimmed = &trimmed[1..];
+                            }
+                            comments.push_str(trimmed);
+                            comments.push('\n');
+                        }
+                    },
+                    _ => {}
+                }
+            }
+        },
+        _ => {}
+    }
+    Ok(comments)
 }
 
 
@@ -2272,7 +2563,7 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
             }
         },
         Rule::arrow_function => {
-            let mut function = parse_function(doc, env, pair)?;
+            let (mut function, _) = parse_function(doc, env, pair)?;
             // Set anonymous name for function
             let func_name = format!("func{}", nanoid!(7));
             function.name = func_name;

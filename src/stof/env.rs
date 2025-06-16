@@ -15,7 +15,7 @@
 //
 
 use rustc_hash::FxHashMap;
-use crate::{lang::SError, IntoNodeRef, SData, SDataRef, SDoc, SField, SFunc, SNodeRef, SType, SVal};
+use crate::{lang::SError, IntoNodeRef, SData, SDataRef, SDoc, SField, SFieldDoc, SFunc, SNodeRef, SType, SVal};
 
 
 /// Stof parse environment.
@@ -37,6 +37,10 @@ pub struct StofEnv {
     /// Init functions to execute (in order) after parse is complete.
     pub init_funcs: Vec<(SDataRef, Vec<SVal>)>,
 
+    /// Parse documentation data into the document?
+    /// If a function has doc comments, will add SFuncDoc to the document as well.
+    pub documentation: bool,
+
     /// "Compile" time field names per node.
     /// Used for collision handling.
     /// NodeRef->(FieldName->FieldDataRef)
@@ -44,7 +48,7 @@ pub struct StofEnv {
 }
 impl StofEnv {
     /// Construct a new Stof env from a document.
-    pub fn new(pid: &str, doc: &mut SDoc) -> Self {
+    pub fn new(pid: &str, doc: &mut SDoc, documentation: bool) -> Self {
         let main;
         if doc.graph.roots.len() < 1 {
             main = doc.graph.insert_root("root");
@@ -53,6 +57,7 @@ impl StofEnv {
         }
         Self {
             main,
+            documentation,
             pid: pid.to_owned(),
             assign_type_stack: vec![Default::default()],
             init_funcs: Default::default(),
@@ -62,11 +67,12 @@ impl StofEnv {
     }
 
     /// Construct a new Stof env from a document and main node.
-    pub fn new_at_node(pid: &str, doc: &mut SDoc, node: impl IntoNodeRef) -> Option<Self> {
+    pub fn new_at_node(pid: &str, doc: &mut SDoc, node: impl IntoNodeRef, documentation: bool) -> Option<Self> {
         let nref = node.node_ref();
         if nref.exists(&doc.graph) {
             return Some(Self {
                 main: nref,
+                documentation,
                 pid: pid.to_owned(),
                 init_funcs: Default::default(),
                 assign_type_stack: vec![Default::default()],
@@ -79,7 +85,7 @@ impl StofEnv {
 
     /// Insert a field onto a node.
     /// Check for field collisions on the node, merging fields if necessary.
-    pub(crate) fn insert_field(&mut self, doc: &mut SDoc, node: impl IntoNodeRef, field: SField) -> Result<(), SError> {
+    pub(crate) fn insert_field(&mut self, doc: &mut SDoc, node: impl IntoNodeRef, field: SField, comments: Option<String>) -> Result<(), SError> {
         let node_ref = node.node_ref();
         if !self.node_field_collisions.contains_key(&node_ref.id) {
             let mut map = FxHashMap::default();
@@ -101,7 +107,12 @@ impl StofEnv {
                 // We have not collided with any field names on this node, so insert the field into the collisions
                 let name = field.name.clone();
                 if let Some(dref) = SData::insert_new(&mut doc.graph, &node_ref, Box::new(field)) {
-                    existing.insert(name, dref);
+                    existing.insert(name, dref.clone());
+
+                    // Insert field comments if we have any
+                    if let Some(comments) = comments {
+                        SData::insert_new(&mut doc.graph, &node_ref, Box::new(SFieldDoc::new(dref, comments)));
+                    }
                 }
             }
         }

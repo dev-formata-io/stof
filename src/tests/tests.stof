@@ -133,6 +133,7 @@ import './language/trace' as Language.Trace;
 import './language/ternary' as Language.Ternary;
 import './language/typeof' as Language.TypeOf;
 import './language/const' as Language.Const;
+import './language/docs' as Language.Docs;
 
 
 /**

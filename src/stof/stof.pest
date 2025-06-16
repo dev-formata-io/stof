@@ -64,17 +64,27 @@ cdata = { "Data" ~ "<" ~ ident ~ ">" }
 atype = { boxed | cdata | tuple | ident }
 
 // Document statements
-doc_statement = _{ line_comment | block_comment | NEWLINE | stof_type_declaration | import | function | field | ref_field | json_fields }
+doc_statement = _{ stof_type_declaration | stof_extern_block | import | function | field | ref_field | json_fields | doc_inner_comment | line_comment | block_comment | NEWLINE }
 line_comment  = _{ "//" ~ (!NEWLINE ~ ANY)* }
 block_comment = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 import        =  { "import" ~ import_format? ~ path ~ ("as" ~ ident)? ~ (";" | ",")? }
 import_format =  { ident }
 
+// Doc comments
+docs              = { (!"*/" ~ ANY)* }
+doc_comment       = { "/**" ~ docs ~ "*/" }
+doc_inner_comment = { "/*!" ~ docs ~ "*/" }
+
+// External definitions
+stof_extern_expr = { "[" ~ ident ~ ("(" ~ expr ~ ")")? ~ "]" }
+stof_extern_block     = { doc_comment* ~ "extern" ~ (ident ~ stof_extern_expr?)? ~ "{" ~ (stof_extern_func | doc_statement)* ~ "}" }
+stof_extern_func      = { doc_comment* ~ func_attribute* ~ doc_comment* ~ async_fn? ~ "fn" ~ ident ~ "(" ~ func_params? ~ ")" ~ ((":" | "->") ~ atype)? ~ ";" }
+
 // Object type declaration
 stof_type_attribute = { "#" ~ "[" ~ ident ~ ("(" ~ expr ~ ")")? ~ "]" }
-stof_type_declaration = { stof_type_attribute* ~ "type" ~ ident ~ ("extends" ~ ident)? ~ "{" ~ (stof_type_field | optional_type_field | function | NEWLINE | block_comment | line_comment)* ~ "}" }
-stof_type_field       = { field_attribute* ~ ident ~ ":" ~ atype ~ ("=" ~ expr)? ~ (";" | ",")? }
-optional_type_field   = { field_attribute* ~ ident ~ "?" ~ ":" ~ atype ~ ("=" ~ expr)? ~ (";" | ",")? }
+stof_type_declaration = { doc_comment* ~ stof_type_attribute* ~ doc_comment* ~ "type" ~ ident ~ ("extends" ~ ident)? ~ "{" ~ (stof_type_field | optional_type_field | function | doc_inner_comment | NEWLINE | block_comment | line_comment)* ~ "}" }
+stof_type_field       = { doc_comment* ~ field_attribute* ~ doc_comment* ~ ident ~ ":" ~ atype ~ ("=" ~ expr)? ~ (";" | ",")? }
+optional_type_field   = { doc_comment* ~ field_attribute* ~ doc_comment* ~ ident ~ "?" ~ ":" ~ atype ~ ("=" ~ expr)? ~ (";" | ",")? }
 
 // Field attribute
 field_attribute = { "#" ~ "[" ~ ident ~ ("(" ~ expr ~ ")")? ~ "]" }
@@ -82,7 +92,7 @@ field_attribute = { "#" ~ "[" ~ ident ~ ("(" ~ expr ~ ")")? ~ "]" }
 // Fields in the document
 json_fields  = { "{" ~ doc_statement* ~ "}" }
 ref_field    = { "ref" ~ (string | ident) ~ ("," | ";")? }
-field        = { field_attribute* ~ (atype ~ (string | ident) | (string | ident)) ~ ":" ~ value ~ ("," | ";")? }
+field        = { doc_comment* ~ field_attribute* ~ doc_comment* ~ (atype ~ (string | ident) | (string | ident)) ~ ":" ~ value ~ ("," | ";")? }
 value        = { (object_value | array_value | expr) ~ ("as" ~ atype)? }
 object_value = { "{" ~ doc_statement* ~ "}" }
 array_value  = {
@@ -95,7 +105,7 @@ func_attribute = { "#" ~ "[" ~ ident ~ ("(" ~ expr ~ ")")? ~ "]" }
 
 // Functions
 async_fn    =  { "async" | "local" ~ "async" }
-function    =  { func_attribute* ~ async_fn? ~ "fn" ~ ident ~ "(" ~ func_params? ~ ")" ~ (":" ~ atype)? ~ block }
+function    =  { doc_comment* ~ func_attribute* ~ doc_comment* ~ async_fn? ~ "fn" ~ ident ~ "(" ~ func_params? ~ ")" ~ ((":" | "->") ~ atype)? ~ block }
 func_params = _{ func_param ~ ("," ~ func_param)* }
 func_param  =  { ident ~ ":" ~ atype ~ ("=" ~ expr)? }
 
@@ -157,7 +167,7 @@ if_expr           = { "if" ~ ("(" ~ expr ~ ")" | expr) ~ "?" ~ expr ~ ":" ~ expr
 await_expr        = { "await" ~ expr }
 
 // Arrow function expression
-arrow_function = { "(" ~ func_params? ~ ")" ~ (":" ~ atype)? ~ "=>" ~ (block | expr) }
+arrow_function = { "(" ~ func_params? ~ ")" ~ ((":" | "->") ~ atype)? ~ "=>" ~ (block | expr) }
 
 // String format expression
 fmt_expr   =  { "`" ~ fmt_expr_i ~ "`" }

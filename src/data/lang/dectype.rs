@@ -18,7 +18,7 @@ use std::collections::BTreeMap;
 use nanoid::nanoid;
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
-use crate::{SData, SField, SFunc, SGraph, SNodeRef, SPrototype, SType, SVal};
+use crate::{Data, SData, SField, SFunc, SFuncDoc, SGraph, SNodeRef, SPrototype, SType, SVal};
 use super::Expr;
 
 
@@ -80,15 +80,34 @@ impl CustomType {
     }
 
     /// Insert this custom type into the graph.
-    pub fn insert(&mut self, graph: &mut SGraph, location: &str, functions: Vec<SFunc>) {
+    pub fn insert(&mut self, graph: &mut SGraph, location: &str, functions: Vec<(SFunc, Option<String>)>, doc_comments: Option<String>, param_docs: Vec<(String, String)>) {
         let nref = graph.ensure_nodes(location, '/', true, None);
         
         // Set the location of this custom type so it is not lost
         self.locid = nref.id.clone();
 
-        // Insert functions into the graph
-        for f in functions {
-            SData::insert_new(graph, &nref, Box::new(f));
+        // Insert functions into the graph (with docs if available)
+        for (f, docs) in functions {
+            if let Some(func_ref) = SData::insert_new(graph, &nref, Box::new(f)) {
+                if let Some(doc) = docs {
+                    SData::insert_new(graph, &nref, Box::new(SFuncDoc::new(func_ref, doc)));
+                }
+            }
+        }
+
+        // Insert doc comments into the graph
+        if let Some(comments) = doc_comments {
+            SData::insert_new(graph, &nref, Box::new(SInnerDoc::new(comments)));
+        }
+
+        // Insert param doc comments if provided
+        for (field_name, comments) in param_docs {
+            SData::insert_new(graph, &nref, Box::new(SCustomTypeFieldDoc {
+                field: field_name,
+                type_id: self.id.clone(),
+                type_name: self.name.clone(),
+                docs: comments,
+            }));
         }
 
         // Insert typename into the graph
@@ -134,5 +153,73 @@ impl CustomTypeField {
             optional,
             attributes: attrs,
         }
+    }
+}
+
+
+/// Stof custom type field doc.
+/// Optionally added to the prototype to document a field.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SCustomTypeFieldDoc {
+    /// CustomType ID.
+    pub type_id: String,
+    
+    /// CustomType Name.
+    pub type_name: String,
+    
+    /// CustomTypeField name.
+    pub field: String,
+    
+    /// Docs.
+    pub docs: String,
+}
+impl SCustomTypeFieldDoc {
+    /// Get references to all custom type field docs on a node.
+    pub fn ct_field_docs<'a>(graph: &'a SGraph, node: &SNodeRef) -> Vec<&'a Self> {
+        if let Some(node) = node.node(graph) {
+            return node.data::<Self>(graph);
+        }
+        vec![]
+    }
+}
+
+#[typetag::serde(name = "_SCustomTypeFieldDoc")]
+impl Data for SCustomTypeFieldDoc {
+    fn core_data(&self) -> bool {
+        return true;
+    }
+}
+
+
+/// Stof inner doc comment.
+/// Pure documentation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SInnerDoc {
+    pub docs: String,
+}
+impl SInnerDoc {
+    /// Create a new inner doc.
+    pub fn new(docs: String) -> Self {
+        Self {
+            docs
+        }
+    }
+
+    /// Get references to all inner docs on a node.
+    pub fn inner_docs<'a>(graph: &'a SGraph, node: &SNodeRef, recursive: bool) -> Vec<&'a Self> {
+        if let Some(node) = node.node(graph) {
+            if recursive {
+                return node.data_recursive::<Self>(graph);
+            }
+            return node.data::<Self>(graph);
+        }
+        vec![]
+    }
+}
+
+#[typetag::serde(name = "_SInnerDoc")]
+impl Data for SInnerDoc {
+    fn core_data(&self) -> bool {
+        return true;
     }
 }

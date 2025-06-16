@@ -26,6 +26,8 @@ pub use stof::*;
 pub mod text;
 pub mod bytes;
 
+pub mod gitbook;
+
 #[cfg(feature = "pkg")]
 pub mod pkg;
 
