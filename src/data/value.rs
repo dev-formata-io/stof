@@ -1594,7 +1594,12 @@ impl SVal {
                                     let default_value = default.exec(pid, doc);
                                     doc.pop_self(pid);
 
-                                    let mut field = SField::new(&typefield.name, default_value?);
+                                    let mut default = default_value?;
+                                    if default.stype(&doc.graph) != typefield.ptype {
+                                        default = default.cast(typefield.ptype, pid, doc)?;
+                                    }
+
+                                    let mut field = SField::new(&typefield.name, default);
                                     field.attributes = typefield.attributes;
                                     SData::insert_new(&mut doc.graph, nref, Box::new(field));
                                 } else if !typefield.optional {

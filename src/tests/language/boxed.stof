@@ -105,7 +105,7 @@ field_types: {
     }
 
     type CustomType {
-        field: Box<int> = 42 as Box<int>
+        field: Box<int> = 42 // cast to box from default value
     }
     CustomType object: {}
 
