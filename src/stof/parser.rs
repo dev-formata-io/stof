@@ -2330,6 +2330,24 @@ fn parse_expr_pair(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Resul
                                     let expr = parse_expression(doc, env, pair)?;
                                     params.push(expr);
                                 },
+                                Rule::named_call_param => {
+                                    let mut name = String::default();
+                                    let mut expr = Expr::Literal(SVal::Null);
+                                    for pair in pair.into_inner() {
+                                        match pair.as_rule() {
+                                            Rule::ident => {
+                                                name = pair.as_str().to_owned();
+                                            },
+                                            Rule::expr => {
+                                                expr = parse_expression(doc, env, pair)?;
+                                            },
+                                            _ => {}
+                                        }
+                                    }
+                                    if name.len() > 0 {
+                                        params.push(Expr::NamedParam(name, Box::new(expr)));
+                                    }
+                                },
                                 _ => {
                                     return Err(SError::parse(&env.pid, &doc, "can not have a non-expression call parameter"));
                                 }

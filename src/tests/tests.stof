@@ -45,6 +45,7 @@ import './semver/std' as SemVer.StdLib;
 import './functions/decorators' as Functions.Decorators;
 import './functions/arrows' as Functions.Arrows;
 import './functions/std' as Functions.StdLib;
+import './functions/params' as Functions.Parameters;
 
 
 /**

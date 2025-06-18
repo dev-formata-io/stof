@@ -38,6 +38,7 @@ pub enum Expr {
     TypeOf(Box<Expr>),
     TypeName(Box<Expr>),
 
+    NamedParam(String, Box<Expr>),
     Call {
         scope: String,
         name: String,
@@ -347,6 +348,10 @@ impl Expr {
                 let value = expr.exec(pid, doc)?;
                 Ok(SVal::Bool(!value.truthy()))
             },
+            Expr::NamedParam(_, expr) => {
+                // Passthrough expression for naming parameters...
+                expr.exec(pid, doc)
+            },
             Expr::Call { scope, name, params } => {
                 // Scope can be a symbol, library name, or path to a field, object, or function
                 let variable = Self::Variable(scope.replace('/', "."));
@@ -358,12 +363,47 @@ impl Expr {
                         // Look for a function on the object itself first! Always higher priority than a prototype
                         if let Some(func_ref) = SFunc::func_ref(&doc.graph, name, '.', Some(&nref)) {
                             let mut func_params = Vec::new();
+                            let mut named_params = Vec::new();
+
+                            let mut func_name_params = Vec::new();
+                            if let Some(func) = SData::get::<SFunc>(&doc.graph, &func_ref) {
+                                for p in &func.params { func_name_params.push(p.name.clone()); }   
+                            }
                             for expr in params {
-                                let val = expr.exec(pid, doc)?;
-                                if !val.is_void() {
-                                    func_params.push(val);
+                                match expr {
+                                    Expr::NamedParam(name, expr) => {
+                                        let mut index = 0;
+                                        let mut found = false;
+                                        for pn in &func_name_params {
+                                            if pn == name {
+                                                let val = expr.exec(pid, doc)?;
+                                                if !val.is_void() {
+                                                    named_params.push((index, val));
+                                                    found = true;
+                                                }
+                                                break;
+                                            }
+                                            index += 1;
+                                        }
+                                        if !found {
+                                            return Err(SError::custom(pid, &doc, "ExprCall", &format!("function does not have a parameter named '{}'", name)));
+                                        }
+                                    },
+                                    expr => {
+                                        let val = expr.exec(pid, doc)?;
+                                        if !val.is_void() {
+                                            func_params.push(val);
+                                        }
+                                    }
                                 }
                             }
+                            if named_params.len() > 0 {
+                                named_params.sort_by(|a, b| a.0.cmp(&b.0));
+                                for (index, val) in named_params {
+                                    func_params.insert(index, val);
+                                }
+                            }
+
                             let current_symbol_table = doc.new_table(pid);
                             let res = SFunc::call(&func_ref, pid, doc, func_params, true, true);
                             match res {
@@ -420,12 +460,47 @@ impl Expr {
                             while current.is_some() {
                                 if let Some(func_ref) = SFunc::func_ref(&doc.graph, &func_name, '.', current.as_ref()) {
                                     let mut func_params = Vec::new();
+                                    let mut named_params = Vec::new();
+
+                                    let mut func_name_params = Vec::new();
+                                    if let Some(func) = SData::get::<SFunc>(&doc.graph, &func_ref) {
+                                        for p in &func.params { func_name_params.push(p.name.clone()); }   
+                                    }
                                     for expr in params {
-                                        let val = expr.exec(pid, doc)?;
-                                        if !val.is_void() {
-                                            func_params.push(val);
+                                        match expr {
+                                            Expr::NamedParam(name, expr) => {
+                                                let mut index = 0;
+                                                let mut found = false;
+                                                for pn in &func_name_params {
+                                                    if pn == name {
+                                                        let val = expr.exec(pid, doc)?;
+                                                        if !val.is_void() {
+                                                            named_params.push((index, val));
+                                                            found = true;
+                                                        }
+                                                        break;
+                                                    }
+                                                    index += 1;
+                                                }
+                                                if !found {
+                                                    return Err(SError::custom(pid, &doc, "ExprCall", &format!("function does not have a parameter named '{}'", name)));
+                                                }
+                                            },
+                                            expr => {
+                                                let val = expr.exec(pid, doc)?;
+                                                if !val.is_void() {
+                                                    func_params.push(val);
+                                                }
+                                            }
                                         }
                                     }
+                                    if named_params.len() > 0 {
+                                        named_params.sort_by(|a, b| a.0.cmp(&b.0));
+                                        for (index, val) in named_params {
+                                            func_params.insert(index, val);
+                                        }
+                                    }
+
                                     let current_symbol_table = doc.new_table(pid);
                                     // Set self to the object still...
                                     doc.push_self(pid, nref.clone());
@@ -467,10 +542,44 @@ impl Expr {
                             if let Some(prototype) = prototype {
                                 if let Some(func_ref) = SFunc::func_ref(&doc.graph, &funcname, '.', Some(&prototype)) {
                                     let mut func_params = Vec::new();
+                                    let mut named_params = Vec::new();
+
+                                    let mut func_name_params = Vec::new();
+                                    if let Some(func) = SData::get::<SFunc>(&doc.graph, &func_ref) {
+                                        for p in &func.params { func_name_params.push(p.name.clone()); }   
+                                    }
                                     for expr in params {
-                                        let val = expr.exec(pid, doc)?;
-                                        if !val.is_void() {
-                                            func_params.push(val);
+                                        match expr {
+                                            Expr::NamedParam(name, expr) => {
+                                                let mut index = 0;
+                                                let mut found = false;
+                                                for pn in &func_name_params {
+                                                    if pn == name {
+                                                        let val = expr.exec(pid, doc)?;
+                                                        if !val.is_void() {
+                                                            named_params.push((index, val));
+                                                            found = true;
+                                                        }
+                                                        break;
+                                                    }
+                                                    index += 1;
+                                                }
+                                                if !found {
+                                                    return Err(SError::custom(pid, &doc, "ExprCall", &format!("function does not have a parameter named '{}'", name)));
+                                                }
+                                            },
+                                            expr => {
+                                                let val = expr.exec(pid, doc)?;
+                                                if !val.is_void() {
+                                                    func_params.push(val);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if named_params.len() > 0 {
+                                        named_params.sort_by(|a, b| a.0.cmp(&b.0));
+                                        for (index, val) in named_params {
+                                            func_params.insert(index, val);
                                         }
                                     }
                                     let current_symbol_table = doc.new_table(pid);
@@ -559,10 +668,44 @@ impl Expr {
                     if let Some(prototype) = prototype {
                         if let Some(func_ref) = SFunc::func_ref(&doc.graph, &funcname, '.', Some(&prototype)) {
                             let mut func_params = Vec::new();
+                            let mut named_params = Vec::new();
+
+                            let mut func_name_params = Vec::new();
+                            if let Some(func) = SData::get::<SFunc>(&doc.graph, &func_ref) {
+                                for p in &func.params { func_name_params.push(p.name.clone()); }   
+                            }
                             for expr in params {
-                                let val = expr.exec(pid, doc)?;
-                                if !val.is_void() {
-                                    func_params.push(val);
+                                match expr {
+                                    Expr::NamedParam(name, expr) => {
+                                        let mut index = 0;
+                                        let mut found = false;
+                                        for pn in &func_name_params {
+                                            if pn == name {
+                                                let val = expr.exec(pid, doc)?;
+                                                if !val.is_void() {
+                                                    named_params.push((index, val));
+                                                    found = true;
+                                                }
+                                                break;
+                                            }
+                                            index += 1;
+                                        }
+                                        if !found {
+                                            return Err(SError::custom(pid, &doc, "ExprCall", &format!("function does not have a parameter named '{}'", name)));
+                                        }
+                                    },
+                                    expr => {
+                                        let val = expr.exec(pid, doc)?;
+                                        if !val.is_void() {
+                                            func_params.push(val);
+                                        }
+                                    }
+                                }
+                            }
+                            if named_params.len() > 0 {
+                                named_params.sort_by(|a, b| a.0.cmp(&b.0));
+                                for (index, val) in named_params {
+                                    func_params.insert(index, val);
                                 }
                             }
                             let current_symbol_table = doc.new_table(pid);
