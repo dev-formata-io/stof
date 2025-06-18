@@ -444,6 +444,11 @@ impl SType {
             Self::Object(ctype) => ctype.clone(),
         }
     }
+
+    /// MD compatable type of (makes sure to escape the < to avoid tags in types).
+    pub fn md_type_of(&self) -> String {
+        self.type_of().replace("<", "\\<")
+    }
 }
 impl From<&str> for SType {
     fn from(value: &str) -> Self {

@@ -108,19 +108,19 @@ impl Gitbook {
                     for param in &func.params {
                         if first {
                             first = false;
-                            params.push_str(&format!("{}:{}", param.name, param.ptype.type_of()));
+                            params.push_str(&format!("{}: {}", param.name, param.ptype.md_type_of()));
                             if param.default.is_some() {
                                 params.push_str(" = (default expr)");
                             }
                         } else {
-                            params.push_str(&format!(", {}:{}", param.name, param.ptype.type_of()));
+                            params.push_str(&format!(", {}: {}", param.name, param.ptype.md_type_of()));
                             if param.default.is_some() {
                                 params.push_str(" = (default expr)");
                             }
                         }
                     }
 
-                    extern_docs.push_str(&format!("## {}({params}) -> {}\n", func.name, func.rtype.type_of()));
+                    extern_docs.push_str(&format!("## {}({params}) -> {}\n", func.name, func.rtype.md_type_of()));
 
                     if func.attributes.len() > 0 {
                         extern_docs.push_str("\n**Attributes**\n```\n");
@@ -130,7 +130,7 @@ impl Gitbook {
                             if stype.is_empty() {
                                 attributes.push_str(&format!("{}: {}\n", attr.0, attr.1.print(doc)));
                             } else {
-                                attributes.push_str(&format!("{} {}: {}\n", stype.type_of(), attr.0, attr.1.print(doc)));
+                                attributes.push_str(&format!("{} {}: {}\n", stype.md_type_of(), attr.0, attr.1.print(doc)));
                             }
                         }
                         extern_docs.push_str(&format!("{attributes}```\n\n"));
@@ -182,7 +182,7 @@ impl Gitbook {
                         if stype.is_empty() {
                             attributes.push_str(&format!("{}: {}\n", attr.0, attr.1.print(doc)));
                         } else {
-                            attributes.push_str(&format!("{} {}: {}\n", stype.type_of(), attr.0, attr.1.print(doc)));
+                            attributes.push_str(&format!("{} {}: {}\n", stype.md_type_of(), attr.0, attr.1.print(doc)));
                         }
                     }
                     type_docs.push_str(&format!("{attributes}```\n"));
@@ -208,22 +208,22 @@ impl Gitbook {
                                 if stype.is_empty() {
                                     type_docs.push_str(&format!("[{}({})]\n", attr.0, attr.1.print(doc)));
                                 } else {
-                                    type_docs.push_str(&format!("[{}({}:{})]\n", attr.0, attr.1.print(doc), stype.type_of()));
+                                    type_docs.push_str(&format!("[{}({}:{})]\n", attr.0, attr.1.print(doc), stype.md_type_of()));
                                 }
                             }
                         }
 
                         if field.optional {
                             if field.default.is_some() {
-                                type_docs.push_str(&format!("{}?: {} = (default expr)\n", field.name, field.ptype.type_of()));
+                                type_docs.push_str(&format!("{}?: {} = (default expr)\n", field.name, field.ptype.md_type_of()));
                             } else {
-                                type_docs.push_str(&format!("{}?: {}\n", field.name, field.ptype.type_of()));
+                                type_docs.push_str(&format!("{}?: {}\n", field.name, field.ptype.md_type_of()));
                             }
                         } else {
                             if field.default.is_some() {
-                                type_docs.push_str(&format!("{}: {} = (default expr)\n", field.name, field.ptype.type_of()));
+                                type_docs.push_str(&format!("{}: {} = (default expr)\n", field.name, field.ptype.md_type_of()));
                             } else {
-                                type_docs.push_str(&format!("{}: {}\n", field.name, field.ptype.type_of()));
+                                type_docs.push_str(&format!("{}: {}\n", field.name, field.ptype.md_type_of()));
                             }
                         }
                         type_docs.push('\n');
@@ -303,12 +303,12 @@ impl Gitbook {
                 for param in &func.params {
                     if first {
                         first = false;
-                        params.push_str(&format!("{}:{}", param.name, param.ptype.type_of()));
+                        params.push_str(&format!("{}: {}", param.name, param.ptype.md_type_of()));
                         if param.default.is_some() {
                             params.push_str(" = (default expr)");
                         }
                     } else {
-                        params.push_str(&format!(", {}:{}", param.name, param.ptype.type_of()));
+                        params.push_str(&format!(", {}: {}", param.name, param.ptype.md_type_of()));
                         if param.default.is_some() {
                             params.push_str(" = (default expr)");
                         }
@@ -318,18 +318,18 @@ impl Gitbook {
                 if types {
                     if func_path.len() > 0 {
                         if func_path.starts_with("__stof__") {
-                            func_doc.push_str(&format!("### super.{}({params}) -> {}\n", &func.name, &func.rtype.type_of()));
+                            func_doc.push_str(&format!("### super.{}({params}) -> {}\n", &func.name, &func.rtype.md_type_of()));
                         } else {
-                            func_doc.push_str(&format!("### {func_path}.{}({params}) -> {}\n", &func.name, &func.rtype.type_of()));
+                            func_doc.push_str(&format!("### {func_path}.{}({params}) -> {}\n", &func.name, &func.rtype.md_type_of()));
                         }
                     } else {
-                        func_doc.push_str(&format!("### {}({params}) -> {}\n", &func.name, &func.rtype.type_of()));
+                        func_doc.push_str(&format!("### {}({params}) -> {}\n", &func.name, &func.rtype.md_type_of()));
                     }
                 } else {
                     if func_path.len() > 0 {
-                        func_doc.push_str(&format!("## {func_path}.{}({params}) -> {}\n", &func.name, &func.rtype.type_of()));
+                        func_doc.push_str(&format!("## {func_path}.{}({params}) -> {}\n", &func.name, &func.rtype.md_type_of()));
                     } else {
-                        func_doc.push_str(&format!("## {}({params}) -> {}\n", &func.name, &func.rtype.type_of()));
+                        func_doc.push_str(&format!("## {}({params}) -> {}\n", &func.name, &func.rtype.md_type_of()));
                     }
                 }
 
@@ -345,7 +345,7 @@ impl Gitbook {
                         if stype.is_empty() {
                             attributes.push_str(&format!("{}: {}\n", attr.0, attr.1.print(doc)));
                         } else {
-                            attributes.push_str(&format!("{} {}: {}\n", stype.type_of(), attr.0, attr.1.print(doc)));
+                            attributes.push_str(&format!("{} {}: {}\n", stype.md_type_of(), attr.0, attr.1.print(doc)));
                         }
                     }
                     func_doc.push_str(&format!("{attributes}```\n"));
@@ -388,7 +388,7 @@ impl Gitbook {
                 }
             }
             if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
-                let field_type = field.value.stype(&doc.graph).type_of();
+                let field_type = field.value.stype(&doc.graph).md_type_of();
 
                 if let Some(nref) = field.value.try_object() {
                     docs.push_str(&format!("{indent}{} {}: {{\n", field_type, &field.name));
