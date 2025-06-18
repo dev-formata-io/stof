@@ -23,7 +23,7 @@ use super::{IntoDataRef, SDataRef, SNodeRef, Symbol, SymbolTable};
 /// Stof processes.
 #[derive(Debug, Clone)]
 pub struct SProcesses {
-    main: SProcess,
+    main: Box<SProcess>,
     processes: BTreeMap<String, SProcess>,
 }
 impl Default for SProcesses {
@@ -35,7 +35,7 @@ impl SProcesses {
     /// Create a new block of preccesses.
     pub fn new() -> Self {
         Self {
-            main: SProcess::new("main"),
+            main: Box::new(SProcess::new("main")),
             processes: BTreeMap::new(),
         }
     }
@@ -76,8 +76,9 @@ impl SProcesses {
     }
 
     /// Set a process.
-    pub fn set_proc(&mut self, pid: &str, mut proc: SProcess) {
+    pub fn set_proc(&mut self, pid: &str, proc: SProcess) {
         if pid == "main" {
+            let mut proc = Box::new(proc);
             swap(&mut self.main, &mut proc);
         } else {
             self.processes.insert(pid.to_owned(), proc);

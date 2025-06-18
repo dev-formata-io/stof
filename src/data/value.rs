@@ -1212,6 +1212,22 @@ impl SVal {
                     return Ok(Self::Boxed(Arc::new(SMutex(Mutex::new(self.clone())))));
                 }
             },
+            SType::Union(types) => {
+                // Special case for objects, where we have to check instance ofs first
+                // For example B -> A | B would cast to A here because of the typestacks...
+                if !self.is_object() {
+                    // Try casting to each type in order
+                    for ty in types {
+                        match self.cast(ty.clone(), pid, doc) {
+                            Ok(value) => {
+                                return Ok(value);
+                            },
+                            Err(_) => {}
+                        }
+                    }
+                    return Err(SError::val(pid, &doc, "cast", &format!("cannot cast '{}' to '{}'", self.stype(&doc.graph).type_of(), target.type_of())));
+                }
+            },
             _ => {}
         }
         match self {
@@ -1494,6 +1510,68 @@ impl SVal {
             },
             Self::Object(nref) => {
                 match target {
+                    SType::Union(types) => {
+                        // Special case for objects, where we have to check instance ofs first
+                        // For example B -> A | B would cast to A here because of the typestacks...
+
+                        let current_scope;
+                        if let Some(scope) = doc.self_ptr(pid) {
+                            current_scope = scope;
+                        } else if let Some(main) = doc.graph.main_root() {
+                            current_scope = main;
+                        } else {
+                            current_scope = doc.graph.insert_root("root");
+                        }
+                        for ty in &types {
+                            match ty {
+                                SType::Object(typepath) => {
+                                    if typepath == "obj" || typepath == "root" {
+                                        return Ok(self.clone());
+                                    }
+
+                                    let mut type_path: Vec<&str> = typepath.split('.').collect();
+                                    let custom_type_name = type_path.pop().unwrap();
+
+                                    // Find a scope to use other than our own?
+                                    let mut type_scope = current_scope.clone();
+                                    if type_path.len() > 0 {
+                                        let path = type_path.join("/");
+                                        if path.starts_with("self") || path.starts_with("super") {
+                                            if let Some(nref) = doc.graph.node_ref(&path, Some(&type_scope)) {
+                                                type_scope = nref;
+                                            } else {
+                                                return Err(SError::val(pid, &doc, "cast", &format!("cannot find referenced type scope for casting an object to {}", typepath)));
+                                            }
+                                        } else {
+                                            if let Some(nref) = doc.graph.node_ref(&path, None) {
+                                                type_scope = nref;
+                                            } else {
+                                                return Err(SError::val(pid, &doc, "cast", &format!("cannot find referenced type scope for casting an object to {}", typepath)));
+                                            }
+                                        }
+                                    }
+                                    if let Some(custom_type) = doc.types.find(&doc.graph, custom_type_name, &type_scope) {
+                                        // Check the current type of the object, to see if we already are an instance of this custom type
+                                        if self.instance_of_typepath(&doc.graph, &custom_type.typepath(&doc.graph)) {
+                                            return Ok(self.clone());
+                                        }
+                                    }
+                                },
+                                _ => {}
+                            }
+                        }
+
+                        // Regular union casting logic because we didn't find a match
+                        for ty in &types {
+                            match self.cast(ty.clone(), pid, doc) {
+                                Ok(value) => {
+                                    return Ok(value);
+                                },
+                                Err(_) => {}
+                            }
+                        }
+                        Err(SError::val(pid, &doc, "cast", &format!("cannot cast '{}' to '{}'", self.stype(&doc.graph).type_of(), SType::Union(types).type_of())))
+                    },
                     SType::Object(typepath) => {
                         if typepath == "obj" || typepath == "root" { // Any object can cast to an obj, shouldn't hit "root" case though
                             return Ok(self.clone());

@@ -39,13 +39,62 @@ pub enum SType {
     Blob,
     Unknown,
     Boxed(Box<Self>),
+    Union(Vec<Self>),
 }
 impl PartialEq for SType {
     fn eq(&self, other: &Self) -> bool {
         if other.is_unknown() {
             return true; // unknown always matches...
+        } else if other.is_union() {
+            match other {
+                Self::Union(types) => {
+                    match self {
+                        Self::Union(otypes) => {
+                            for ty in types {
+                                for oty in otypes {
+                                    if ty.eq(oty) {
+                                        return true;
+                                    }
+                                }
+                            }
+                            return false;
+                        },
+                        sf => {
+                            for ty in types {
+                                if ty.eq(sf) {
+                                    return true;
+                                }
+                            }
+                            return false;
+                        }
+                    }
+                },
+                _ => {},
+            }
         }
         match self {
+            Self::Union(types) => {
+                match other {
+                    Self::Union(otypes) => {
+                        for ty in types {
+                            for oty in otypes {
+                                if ty.eq(oty) {
+                                    return true;
+                                }
+                            }
+                        }
+                        return false;
+                    },
+                    other => {
+                        for ty in types {
+                            if ty.eq(other) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
+                }
+            },
             Self::Boxed(val) => {
                 match other {
                     Self::Boxed(oval) => {
@@ -101,6 +150,14 @@ impl SType {
             SType::Set |
             SType::Tuple(_) => true,
             _ => false
+        }
+    }
+
+    /// Is union?
+    pub fn is_union(&self) -> bool {
+        match self {
+            Self::Union(_) => true,
+            _ => false,
         }
     }
 
@@ -303,6 +360,7 @@ impl SType {
         match self {
             SType::Unknown |
             SType::Null |
+            SType::Union(_) |
             SType::Void => String::default(),
             SType::Array => "Array".to_owned(),
             SType::Map => "Map".to_owned(),
@@ -337,6 +395,17 @@ impl SType {
         match self {
             Self::Boxed(boxed) => {
                 format!("Box<{}>", boxed.type_of())
+            },
+            Self::Union(types) => {
+                let mut geo = String::default();
+                for ty in types {
+                    if geo.len() < 1 {
+                        geo.push_str(&ty.type_of());
+                    } else {
+                        geo.push_str(&format!(" | {}", ty.type_of()));
+                    }
+                }
+                format!("{}", geo)
             },
             Self::Unknown => "unknown".into(),
             Self::Map => "map".into(),

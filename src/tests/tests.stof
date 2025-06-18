@@ -112,6 +112,7 @@ import './types/unknown' as Types.Unknown;
 import './types/optional_fields' as Types.Optional;
 import './types/static' as Types.Static;
 import './types/new' as Types.New;
+import './types/union' as Types.Union;
 
 
 /**

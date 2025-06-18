@@ -336,73 +336,94 @@ pub fn parse_type(src: &str) -> Result<SType, SError> {
 fn parse_atype(pair: Pair<Rule>) -> SType {
     let mut atype = SType::Null;
     for pair in pair.into_inner() {
-        match pair.as_rule() {
-            Rule::ident => {
-                atype = match pair.as_str() {
-                    "int" => SType::Number(SNumType::I64),
-                    "float" => SType::Number(SNumType::F64),
-                    "str" => SType::String,
-                    "semver" => SType::SemVer,
-                    "blob" => SType::Blob,
-                    "bool" => SType::Bool,
-                    "null" => SType::Null,
-                    "void" => SType::Void,
-                    "vec" => SType::Array,
-                    "map" => SType::Map,
-                    "set" => SType::Set,
-                    "obj" => SType::Object("obj".to_string()),
-                    "fn" => SType::FnPtr,
-                    "data" => SType::Data("data".to_string()),
-                    "unknown" => SType::Unknown,
-                    _ => {
-                        let units = SUnits::from(pair.as_str());
-                        if units.has_units() && !units.is_undefined() {
-                            SType::Number(SNumType::Units(units))
-                        } else {
-                            SType::Object(pair.as_str().to_string())
-                        }
-                    }
-                };
-            },
-            Rule::boxed => {
-                let mut inner_type = SType::Null;
-                for pair in pair.into_inner() {
-                    match pair.as_rule() {
-                        Rule::atype => {
-                            inner_type = parse_atype(pair);
-                        },
-                        _ => {}
-                    }
-                }
-                if inner_type.is_boxed() {
-                    atype = inner_type;
-                } else {
-                    atype = SType::Boxed(Box::new(inner_type));
-                }
-            },
-            Rule::cdata => {
-                let mut inner_type = String::from("data");
-                for pair in pair.into_inner() {
-                    match pair.as_rule() {
-                        Rule::ident => {
-                            inner_type = pair.as_str().to_owned();
-                        },
-                        _ => {}
-                    }
-                }
-                atype = SType::Data(inner_type);
-            },
-            Rule::tuple => {
-                let mut types = Vec::new();
-                for pair in pair.into_inner() {
-                    types.push(parse_atype(pair));
-                }
-                atype = SType::Tuple(types);
-            },
-            _ => {}
-        }
+        atype = parse_atype_inner(pair);
     }
     atype
+}
+
+
+/// Parse atype inner.
+fn parse_atype_inner(pair: Pair<Rule>) -> SType {
+    match pair.as_rule() {
+        Rule::ident => {
+            return match pair.as_str() {
+                "int" => SType::Number(SNumType::I64),
+                "float" => SType::Number(SNumType::F64),
+                "str" => SType::String,
+                "semver" => SType::SemVer,
+                "blob" => SType::Blob,
+                "bool" => SType::Bool,
+                "null" => SType::Null,
+                "void" => SType::Void,
+                "vec" => SType::Array,
+                "map" => SType::Map,
+                "set" => SType::Set,
+                "obj" => SType::Object("obj".to_string()),
+                "fn" => SType::FnPtr,
+                "data" => SType::Data("data".to_string()),
+                "unknown" => SType::Unknown,
+                _ => {
+                    let units = SUnits::from(pair.as_str());
+                    if units.has_units() && !units.is_undefined() {
+                        SType::Number(SNumType::Units(units))
+                    } else {
+                        SType::Object(pair.as_str().to_string())
+                    }
+                }
+            };
+        },
+        Rule::boxed => {
+            let mut inner_type = SType::Null;
+            for pair in pair.into_inner() {
+                match pair.as_rule() {
+                    Rule::atype => {
+                        inner_type = parse_atype(pair);
+                    },
+                    _ => {}
+                }
+            }
+            if inner_type.is_boxed() {
+                inner_type
+            } else {
+                SType::Boxed(Box::new(inner_type))
+            }
+        },
+        Rule::cdata => {
+            let mut inner_type = String::from("data");
+            for pair in pair.into_inner() {
+                match pair.as_rule() {
+                    Rule::ident => {
+                        inner_type = pair.as_str().to_owned();
+                    },
+                    _ => {}
+                }
+            }
+            SType::Data(inner_type)
+        },
+        Rule::tuple => {
+            let mut types = Vec::new();
+            for pair in pair.into_inner() {
+                types.push(parse_atype(pair));
+            }
+            SType::Tuple(types)
+        },
+        Rule::geo => {
+            let mut types = Vec::new();
+            for pair in pair.into_inner() {
+                let ty = parse_atype_inner(pair);
+                if !ty.is_empty() {
+                    types.push(ty);
+                }
+            }
+            SType::Union(types)
+        },
+        Rule::atype => {
+            parse_atype(pair)
+        },
+        _ => {
+            SType::Null
+        }
+    }
 }
 
 

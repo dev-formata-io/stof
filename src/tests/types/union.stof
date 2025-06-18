@@ -1,0 +1,108 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+fn accepts(val: int | semver) -> str {
+    return val;
+}
+
+#[test]
+fn simple_union() {
+    assertEq(self.accepts(10), '10');
+    assertEq(self.accepts(1.0.0), '1.0.0');
+}
+
+#[test]
+fn cast_to_union() {
+    assertEq(self.accepts('20'), '20'); // casts the string into an int
+    assertEq(self.accepts('0'), '0');
+    assertEq(self.accepts('0.4.3'), '0.4.3');
+}
+
+#[test]
+#[errors]
+fn only_geo_types() {
+    self.accepts('hi'); // cannot cast to int or semver
+}
+
+#[test]
+fn var_type() {
+    let a: int | str = 10;
+    assertEq(typeof a, 'int');
+
+    a = 'hello'; // would throw an error without geo type
+    assertEq(typeof a, 'str');
+}
+
+#[test]
+fn return_type() {
+    const func = (a: str|int)->str|int => a;
+    assertEq(func.call('hi'), 'hi');
+    assertEq(func.call(10), 10);
+}
+
+#[test]
+fn box_union() {
+    let a: Box<str|int> = 10;
+    assertEq(typeof a, 'Box<int>');
+
+    a = 'hello';
+    assertEq(typeof a, 'Box<str>');
+
+    a = true; // casts in order, so now a Box<str>
+    assertEq(a, 'true');
+    assertEq(typeof a, 'Box<str>');
+}
+
+#[test]
+fn union_box() {
+    let a: int | Box<int> = 42;
+    assertEq(typeof a, 'int');
+
+    a = box(22);
+    assertEq(typeof a, 'Box<int>');
+
+    // a = 'hi'; // errors, 'hi' cannot be cast to int|Box<int>
+}
+
+object_types: {
+    type A {
+
+    }
+    type B {
+
+    }
+
+    #[test]
+    fn object_union_types() {
+        const a: A | B = new A {};
+        assertEq(typename a, 'A');
+    }
+
+    fn both(val: bool) -> A | B {
+        if (val) return new A{};
+        return new B{};
+    }
+
+    #[test]
+    fn doesnt_cast_out() {
+        const a = self.both(true);
+        assertEq(typename a, 'A');
+
+        const b = self.both(false);
+        assertEq(typename b, 'B'); // tests special case object casting
+    }
+}

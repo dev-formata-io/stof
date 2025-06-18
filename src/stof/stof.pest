@@ -61,7 +61,8 @@ literal = { bool | null | string | semver | number | ident }
 tuple = { "(" ~ atype ~ ("," ~ atype)+ ~ ")" }
 boxed = { "Box" ~ "<" ~ atype ~ ">" }
 cdata = { "Data" ~ "<" ~ ident ~ ">" }
-atype = { boxed | cdata | tuple | ident }
+geo   = { (boxed | cdata | tuple | ident) ~ ("|" ~ atype)+ }
+atype = { geo | boxed | cdata | tuple | ident }
 
 // Document statements
 doc_statement = _{ stof_type_declaration | stof_extern_block | import | function | field | ref_field | json_fields | doc_inner_comment | line_comment | block_comment | NEWLINE }
