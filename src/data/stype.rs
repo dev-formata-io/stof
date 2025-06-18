@@ -35,7 +35,7 @@ pub enum SType {
     Array,
     Map,
     Set,
-    Tuple(Vec<SType>),
+    Tuple(Vec<Self>),
     Blob,
     Unknown,
     Boxed(Box<Self>),

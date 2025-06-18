@@ -999,6 +999,9 @@ fn parse_statements(doc: &mut SDoc, env: &mut StofEnv, pairs: Pairs<Rule>) -> Re
                                                 Rule::ident => {
                                                     id = pair.as_str().to_owned();
                                                 },
+                                                Rule::opt_param => {
+                                                    default = Some(Expr::Literal(SVal::Null));
+                                                },
                                                 Rule::atype => {
                                                     atype = parse_atype(pair);
                                                 },
@@ -1347,6 +1350,9 @@ fn parse_function(doc: &mut SDoc, env: &mut StofEnv, pair: Pair<Rule>) -> Result
                     match pair.as_rule() {
                         Rule::ident => {
                             id = pair.as_str().to_owned();
+                        },
+                        Rule::opt_param => {
+                            default = Some(Expr::Literal(SVal::Null));
                         },
                         Rule::atype => {
                             atype = parse_atype(pair);

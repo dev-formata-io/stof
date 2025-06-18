@@ -107,7 +107,8 @@ func_attribute = { "#" ~ "[" ~ ident ~ ("(" ~ expr ~ ")")? ~ "]" }
 async_fn    =  { "async" | "local" ~ "async" }
 function    =  { doc_comment* ~ func_attribute* ~ doc_comment* ~ async_fn? ~ "fn" ~ ident ~ "(" ~ func_params? ~ ")" ~ ((":" | "->") ~ atype)? ~ block }
 func_params = _{ func_param ~ ("," ~ func_param)* }
-func_param  =  { ident ~ ":" ~ atype ~ ("=" ~ expr)? }
+opt_param   =  { "?:" }
+func_param  =  { ident ~ (opt_param | ":") ~ atype ~ ("=" ~ expr)? }
 
 // A block of statements
 block             =  { "{" ~ (line_comment | block_comment | NEWLINE | block_statement)* ~ "}" }

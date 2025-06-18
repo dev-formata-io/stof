@@ -193,3 +193,8 @@ fn chained_null_op() {
     x = null ?? ff.call() ?? null ?? null ?? 'hi';
     assertEq(x, 'yo');
 }
+
+#[test]
+fn optional_func_parameter(param?: str) {
+    assertNull(param);
+}
