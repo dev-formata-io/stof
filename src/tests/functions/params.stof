@@ -39,3 +39,18 @@ fn mixed_named() {
     assertEq(self.operate(20, 5, c = 10), 25);
     assertEq(self.operate(20, 5, 10), 25);
 }
+
+fn defaults(a: int = 10, b: int = 20, c: int = 30): int {
+    return a - b + c;
+}
+
+#[test]
+fn order_defaults() {
+    assertEq(self.defaults(b = 10), 30);
+    assertEq(self.defaults(c = 10), 0);
+
+    assertEq(self.defaults(20, 5, 5), 20);
+    assertEq(self.defaults(20, c = 13), 13);
+    assertEq(self.defaults(c = 4, b = 12), 2);
+    assertEq(self.defaults(c = 4, b = 22, a = 44), 26);
+}

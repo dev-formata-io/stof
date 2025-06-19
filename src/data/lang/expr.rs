@@ -400,6 +400,23 @@ impl Expr {
                             if named_params.len() > 0 {
                                 named_params.sort_by(|a, b| a.0.cmp(&b.0));
                                 for (index, val) in named_params {
+                                    while index > func_params.len() {
+                                        let expr;
+                                        if let Some(func) = SData::get::<SFunc>(&doc.graph, &func_ref) {
+                                            if let Some(param) = func.params.get(func_params.len()) {
+                                                if let Some(default) = &param.default {
+                                                    expr = default.clone();
+                                                } else {
+                                                    return Err(SError::custom(pid, &doc, "ExprCall", "default parameters not found while inserting named parameter (no default expr)"));
+                                                }
+                                            } else {
+                                                return Err(SError::custom(pid, &doc, "ExprCall", "default parameters not found while inserting named parameter (index out of range)"));
+                                            }
+                                        } else {
+                                            return Err(SError::custom(pid, &doc, "ExprCall", "default parameters not found while inserting named parameter"));
+                                        }
+                                        func_params.push(expr.exec(pid, doc)?);
+                                    }
                                     func_params.insert(index, val);
                                 }
                             }
@@ -497,6 +514,23 @@ impl Expr {
                                     if named_params.len() > 0 {
                                         named_params.sort_by(|a, b| a.0.cmp(&b.0));
                                         for (index, val) in named_params {
+                                            while index > func_params.len() {
+                                                let expr;
+                                                if let Some(func) = SData::get::<SFunc>(&doc.graph, &func_ref) {
+                                                    if let Some(param) = func.params.get(func_params.len()) {
+                                                        if let Some(default) = &param.default {
+                                                            expr = default.clone();
+                                                        } else {
+                                                            return Err(SError::custom(pid, &doc, "ExprCall", "default parameters not found while inserting named parameter (no default expr)"));
+                                                        }
+                                                    } else {
+                                                        return Err(SError::custom(pid, &doc, "ExprCall", "default parameters not found while inserting named parameter (index out of range)"));
+                                                    }
+                                                } else {
+                                                    return Err(SError::custom(pid, &doc, "ExprCall", "default parameters not found while inserting named parameter"));
+                                                }
+                                                func_params.push(expr.exec(pid, doc)?);
+                                            }
                                             func_params.insert(index, val);
                                         }
                                     }
@@ -579,6 +613,23 @@ impl Expr {
                                     if named_params.len() > 0 {
                                         named_params.sort_by(|a, b| a.0.cmp(&b.0));
                                         for (index, val) in named_params {
+                                            while index > func_params.len() {
+                                                let expr;
+                                                if let Some(func) = SData::get::<SFunc>(&doc.graph, &func_ref) {
+                                                    if let Some(param) = func.params.get(func_params.len()) {
+                                                        if let Some(default) = &param.default {
+                                                            expr = default.clone();
+                                                        } else {
+                                                            return Err(SError::custom(pid, &doc, "ExprCall", "default parameters not found while inserting named parameter (no default expr)"));
+                                                        }
+                                                    } else {
+                                                        return Err(SError::custom(pid, &doc, "ExprCall", "default parameters not found while inserting named parameter (index out of range)"));
+                                                    }
+                                                } else {
+                                                    return Err(SError::custom(pid, &doc, "ExprCall", "default parameters not found while inserting named parameter"));
+                                                }
+                                                func_params.push(expr.exec(pid, doc)?);
+                                            }
                                             func_params.insert(index, val);
                                         }
                                     }
@@ -705,6 +756,23 @@ impl Expr {
                             if named_params.len() > 0 {
                                 named_params.sort_by(|a, b| a.0.cmp(&b.0));
                                 for (index, val) in named_params {
+                                    while index > func_params.len() {
+                                        let expr;
+                                        if let Some(func) = SData::get::<SFunc>(&doc.graph, &func_ref) {
+                                            if let Some(param) = func.params.get(func_params.len()) {
+                                                if let Some(default) = &param.default {
+                                                    expr = default.clone();
+                                                } else {
+                                                    return Err(SError::custom(pid, &doc, "ExprCall", "default parameters not found while inserting named parameter (no default expr)"));
+                                                }
+                                            } else {
+                                                return Err(SError::custom(pid, &doc, "ExprCall", "default parameters not found while inserting named parameter (index out of range)"));
+                                            }
+                                        } else {
+                                            return Err(SError::custom(pid, &doc, "ExprCall", "default parameters not found while inserting named parameter"));
+                                        }
+                                        func_params.push(expr.exec(pid, doc)?);
+                                    }
                                     func_params.insert(index, val);
                                 }
                             }
