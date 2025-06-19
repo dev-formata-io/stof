@@ -607,6 +607,11 @@ impl ObjectLibrary {
                 doc.graph.remove_node(obj);
                 Ok(SVal::Void)
             },
+            // Does this object exist on the graph?
+            // Because objects are just pointers, they could be dangling... I know...
+            "exists" => {
+                Ok(SVal::Bool(obj.exists(&doc.graph)))
+            },
             // Return this objects prototype object (if any)
             "prototype" => {
                 if let Some(prototype) = SPrototype::get(&doc.graph, obj) {

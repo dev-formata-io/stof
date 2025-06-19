@@ -130,7 +130,7 @@ impl Gitbook {
                             if stype.is_empty() {
                                 attributes.push_str(&format!("{}: {}\n", attr.0, attr.1.print(doc)));
                             } else {
-                                attributes.push_str(&format!("{} {}: {}\n", stype.md_type_of(), attr.0, attr.1.print(doc)));
+                                attributes.push_str(&format!("{} {}: {}\n", stype.type_of(), attr.0, attr.1.print(doc)));
                             }
                         }
                         extern_docs.push_str(&format!("{attributes}```\n\n"));
@@ -182,7 +182,7 @@ impl Gitbook {
                         if stype.is_empty() {
                             attributes.push_str(&format!("{}: {}\n", attr.0, attr.1.print(doc)));
                         } else {
-                            attributes.push_str(&format!("{} {}: {}\n", stype.md_type_of(), attr.0, attr.1.print(doc)));
+                            attributes.push_str(&format!("{} {}: {}\n", stype.type_of(), attr.0, attr.1.print(doc)));
                         }
                     }
                     type_docs.push_str(&format!("{attributes}```\n"));
@@ -208,22 +208,22 @@ impl Gitbook {
                                 if stype.is_empty() {
                                     type_docs.push_str(&format!("[{}({})]\n", attr.0, attr.1.print(doc)));
                                 } else {
-                                    type_docs.push_str(&format!("[{}({}:{})]\n", attr.0, attr.1.print(doc), stype.md_type_of()));
+                                    type_docs.push_str(&format!("[{}({}:{})]\n", attr.0, attr.1.print(doc), stype.type_of()));
                                 }
                             }
                         }
 
                         if field.optional {
                             if field.default.is_some() {
-                                type_docs.push_str(&format!("{}?: {} = (default expr)\n", field.name, field.ptype.md_type_of()));
+                                type_docs.push_str(&format!("{}?: {} = (default expr)\n", field.name, field.ptype.type_of()));
                             } else {
-                                type_docs.push_str(&format!("{}?: {}\n", field.name, field.ptype.md_type_of()));
+                                type_docs.push_str(&format!("{}?: {}\n", field.name, field.ptype.type_of()));
                             }
                         } else {
                             if field.default.is_some() {
-                                type_docs.push_str(&format!("{}: {} = (default expr)\n", field.name, field.ptype.md_type_of()));
+                                type_docs.push_str(&format!("{}: {} = (default expr)\n", field.name, field.ptype.type_of()));
                             } else {
-                                type_docs.push_str(&format!("{}: {}\n", field.name, field.ptype.md_type_of()));
+                                type_docs.push_str(&format!("{}: {}\n", field.name, field.ptype.type_of()));
                             }
                         }
                         type_docs.push('\n');
@@ -345,7 +345,7 @@ impl Gitbook {
                         if stype.is_empty() {
                             attributes.push_str(&format!("{}: {}\n", attr.0, attr.1.print(doc)));
                         } else {
-                            attributes.push_str(&format!("{} {}: {}\n", stype.md_type_of(), attr.0, attr.1.print(doc)));
+                            attributes.push_str(&format!("{} {}: {}\n", stype.type_of(), attr.0, attr.1.print(doc)));
                         }
                     }
                     func_doc.push_str(&format!("{attributes}```\n"));
@@ -388,7 +388,7 @@ impl Gitbook {
                 }
             }
             if let Some(field) = SData::get::<SField>(&doc.graph, &field_ref) {
-                let field_type = field.value.stype(&doc.graph).md_type_of();
+                let field_type = field.value.stype(&doc.graph).type_of();
 
                 if let Some(nref) = field.value.try_object() {
                     docs.push_str(&format!("{indent}{} {}: {{\n", field_type, &field.name));
