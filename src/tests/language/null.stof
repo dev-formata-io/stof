@@ -74,6 +74,13 @@ fn array_or() {
 }
 
 #[test]
+fn box_array_or() {
+    let x = box(vec());
+    x = x.or(42);
+    assertEq(typeof x, 'Box<vec>');
+}
+
+#[test]
 fn blob_or() {
     let x = null;
     x = x.or(null, [111, 10] as blob);

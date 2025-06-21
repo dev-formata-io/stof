@@ -15,8 +15,7 @@
 //
 
 use std::{cmp::Ordering, collections::{BTreeMap, BTreeSet, HashSet}, ops::Deref, sync::Arc};
-use rustc_hash::{FxHashMap, FxHashSet};
-
+use rustc_hash::FxHashMap;
 use crate::{lang::SError, IntoNodeRef, Library, SData, SDoc, SField, SFunc, SMutex, SNodeRef, SNum, SPrototype, SVal};
 
 
@@ -450,8 +449,7 @@ impl ObjectLibrary {
                                 SVal::Object(nref) => {
                                     doc.graph.rename_node(nref, new_field_name);
 
-                                    let id_path: FxHashSet<String> = FxHashSet::from_iter(nref.id_path(&doc.graph).into_iter());
-                                    if !id_path.contains(&dest_ref.id) && !dest_ref.is_child_of(&doc.graph, &nref) {
+                                    if !dest_ref.is_child_of(&doc.graph, &nref) {
                                         doc.graph.move_node(nref, &dest_ref);
                                     }
                                 },
@@ -481,6 +479,15 @@ impl ObjectLibrary {
                     return Ok(SVal::Bool(true));
                 }
                 Ok(SVal::Bool(false))
+            },
+            // Remove a field or function.
+            "remove" => {
+                let mut cloned = parameters.clone();
+                let mut res = self.operate(pid, doc, "removeField", obj, &mut cloned)?;
+                if !res.truthy() {
+                    res = self.operate(pid, doc, "removeFunc", obj, parameters)?;
+                }
+                Ok(res)
             },
             // Delete a field (path), starting at this object.
             // Signature: Object.removeField(obj, path: str, remove_obj: bool): bool
@@ -559,6 +566,31 @@ impl ObjectLibrary {
                 }
                 Ok(SVal::Null)
             },
+            "parentOf" => {
+                if parameters.len() < 1 {
+                    return Err(SError::obj(pid, &doc, "isParentOf", "expecting an object argument to compare this object to"));
+                }
+                match &parameters[0] {
+                    SVal::Object(nref) => {
+                        Ok(SVal::Bool(nref.id != obj.id && nref.is_child_of(&doc.graph, obj)))
+                    },
+                    SVal::Boxed(val) => {
+                        let val = val.lock().unwrap();
+                        let val = val.deref();
+                        match val {
+                            SVal::Object(nref) => {
+                                Ok(SVal::Bool(nref.id != obj.id && nref.is_child_of(&doc.graph, obj)))
+                            },
+                            _ => {
+                                Err(SError::obj(pid, &doc, "isParentOf", "expecting an object argument to compare this object to"))
+                            }
+                        }
+                    },
+                    _ => {
+                        Err(SError::obj(pid, &doc, "isParentOf", "expecting an object argument to compare this object to"))
+                    }
+                }
+            },
             // Move this object to another object.
             // Destination cannot be a descendant of this object.
             // Returns false if already a child of the destination object, true if moved successfully.
@@ -568,10 +600,6 @@ impl ObjectLibrary {
                 }
                 match &parameters[0] {
                     SVal::Object(dest) => {
-                        let id_path: FxHashSet<String> = FxHashSet::from_iter(obj.id_path(&doc.graph).into_iter());
-                        if id_path.contains(&dest.id) { // already a child of the destination
-                            return Ok(SVal::Bool(false));
-                        }
                         if dest.is_child_of(&doc.graph, obj) { // cannot be a child destination
                             return Err(SError::obj(pid, &doc, "moveTo", "destination cannot be a descendant"));
                         }
@@ -583,10 +611,6 @@ impl ObjectLibrary {
                         let val = val.deref();
                         match val {
                             SVal::Object(dest) => {
-                                let id_path: FxHashSet<String> = FxHashSet::from_iter(obj.id_path(&doc.graph).into_iter());
-                                if id_path.contains(&dest.id) { // already a child of the destination
-                                    return Ok(SVal::Bool(false));
-                                }
                                 if dest.is_child_of(&doc.graph, obj) { // cannot be a child destination
                                     return Err(SError::obj(pid, &doc, "moveTo", "destination cannot be a descendant"));
                                 }

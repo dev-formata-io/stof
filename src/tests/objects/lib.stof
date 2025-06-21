@@ -131,6 +131,29 @@ fn get_children() {
     assert(self.children().len() > 0);
 }
 
+#[test]
+fn parent_of() {
+    let o = new {};
+    assert(self.parentOf(o));
+    assertNot(o.parentOf(o));
+    assertNot(o.parentOf(self));
+    assert(super.parentOf(o));
+}
+
+to_remove: 44
+#[test]
+fn remove_general() {
+    const func = ()=>{};
+    assert(func.data().exists());
+
+    self.remove(func.name());
+    assertNot(func.data().exists());
+
+    assert(self.to_remove);
+    self.remove('to_remove');
+    assertNull(self.to_remove);
+}
+
 set_prototype: {
     type CustomType {
         fn hey(): str { return 'hey'; }

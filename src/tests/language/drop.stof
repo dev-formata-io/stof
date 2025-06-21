@@ -73,3 +73,17 @@ fn drop_data() {
     drop dta;
     assertNull(self.data_drop);
 }
+
+dead_obj: {
+    fn destroy() {
+        drop self;
+    }
+}
+#[test]
+fn drop_self_obj() {
+    const ptr = self.dead_obj;
+    self.dead_obj.destroy();
+
+    assertNot(ptr.exists());
+    assertNull(self.dead_obj);
+}

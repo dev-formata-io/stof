@@ -26,6 +26,26 @@ type StaticType {
     fn getInternal(): str {
         return StaticType::hello();
     }
+
+    fn check_self(): obj {
+        return self;
+    }
+
+    fn check_self_param(sf: obj = self): obj {
+        return sf;
+    }
+}
+
+#[test]
+fn check_self() {
+    const sf = Static.StaticType::check_self();
+    assertEq(sf, self);
+}
+
+#[test]
+fn check_self_param() {
+    const sf = Static.StaticType::check_self_param();
+    assertEq(sf, self);
 }
 
 #[test]

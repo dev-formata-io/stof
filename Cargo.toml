@@ -1,6 +1,6 @@
 [package]
 name = "stof"
-version = "0.7.12"
+version = "0.7.13"
 edition = "2021"
 authors = ["CJ Cummings <cj@formata.io>"]
 description = "A simple and embeddable data runtime."
@@ -51,8 +51,8 @@ lazy_static = "1.5.0"
 markdown = { version = "1.0.0", features = ["serde"], optional = true }
 nanoid = "0.4.0"
 lopdf = { version = "0.36.0", features = ["serde"], optional = true }
-pest = "2.7.15"
-pest_derive = "2.7.15"
+pest = "2.8.1"
+pest_derive = "2.8.1"
 quick-xml = { version = "0.37.1", optional = true }
 regex = { version = "1.11.1", optional = true }
 serde = { version = "1.0.215", features = ["derive", "rc"] }
