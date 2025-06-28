@@ -40,6 +40,17 @@ impl NodeRef {
         graph.nodes.get_mut(self)
     }
 
+    #[inline]
+    /// Is a root node?
+    pub fn is_root(&self, graph: &Graph) -> bool {
+        for root in &graph.roots {
+            if root == self {
+                return true;
+            }
+        }
+        false
+    }
+    
     /// Root node ref for this ref.
     pub fn root(&self, graph: &Graph) -> Option<NodeRef> {
         if let Some(node) = self.node(graph) {
@@ -62,6 +73,15 @@ impl NodeRef {
         false
     }
 
+    /// Set name of this node.
+    pub fn rename_node(&self, graph: &mut Graph, name: impl Into<SId>) -> bool {
+        if let Some(node) = self.node_mut(graph) {
+            node.set_name(name.into())
+        } else {
+            false
+        }
+    }
+    
     /// Child of, but return the distance.
     /// Returns distance if a child, -1 otherwise.
     pub fn child_of_distance(&self, graph: &Graph, other: &NodeRef) -> i32 {
@@ -88,7 +108,7 @@ impl NodeRef {
         -1
     }
 
-    /// Node path.
+    /// Node path - either IDs or names.
     pub fn node_path(&self, graph: &Graph, names: bool) -> Option<SPath> {
         let mut node = self.node(graph);
         if node.is_some() {
@@ -182,5 +202,27 @@ impl DataRef {
     /// Get a mutable data.
     pub fn data_mut<'a>(&self, graph: &'a mut Graph) -> Option<&'a mut Data> {
         graph.data.get_mut(self)
+    }
+
+    #[inline]
+    /// All of the nodes that reference this data.
+    pub fn data_nodes(&self, graph: &Graph) -> FxHashSet<DataRef> {
+        if let Some(data) = self.data(graph) {
+            data.nodes.clone()
+        } else {
+            Default::default()
+        }
+    }
+
+    /// Any available data path.
+    pub fn data_any_path(&self, graph: &Graph, sep: &str) -> String {
+        if let Some(data) = self.data(graph) {
+            for node in &data.nodes {
+                if let Some(path) = node.node_path(graph, true) {
+                    return path.join(sep);
+                }
+            }
+        }
+        Default::default()
     }
 }

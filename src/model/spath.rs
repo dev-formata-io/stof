@@ -16,7 +16,6 @@
 
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
-
 use crate::model::{Graph, NodeRef, SId};
 
 
@@ -36,6 +35,21 @@ pub struct SPath {
     pub path: Vec<SId>,
 }
 impl SPath {
+    /// Find a node from a string path.
+    /// Can be names or IDs to a node only, optionally starting at a specific node.
+    pub fn find(graph: &Graph, path: &str, names: bool, sep: &str, start: Option<NodeRef>) -> Option<NodeRef> {
+        let path = Self::string(path, names, sep);
+        if names {
+            if let Some(path) = path.to_id_path(graph, start) {
+                path.node(graph)
+            } else {
+                None
+            }
+        } else {
+            path.node(graph)
+        }
+    }
+
     /// Create a new path.
     pub fn new(path: Vec<SId>, names: bool) -> Self {
         Self {
@@ -66,7 +80,7 @@ impl SPath {
     }
 
     /// ID path for this named path.
-    pub fn to_id_path(mut self, graph: &Graph) -> Option<Self> {
+    pub fn to_id_path(mut self, graph: &Graph, start: Option<NodeRef>) -> Option<Self> {
         if !self.names {
             Some(self)
         } else {
@@ -79,22 +93,29 @@ impl SPath {
             self.path.reverse();
             
             let mut current = None;
-            let first = self.path.pop().unwrap();
-
-            // common to be a root, so look there first
-            for root in &graph.roots {
-                if let Some(node) = root.node(graph) {
-                    if node.name == first {
-                        current = Some(node);
-                        break;
-                    }
+            if let Some(start) = start {
+                if let Some(node) = start.node(graph) {
+                    current = Some(node);
                 }
             }
             if current.is_none() {
-                for (_, node) in &graph.nodes {
-                    if node.name == first {
-                        current = Some(node);
-                        break;
+                let first = self.path.pop().unwrap();
+
+                // common to be a root, so look there first
+                for root in &graph.roots {
+                    if let Some(node) = root.node(graph) {
+                        if node.name == first {
+                            current = Some(node);
+                            break;
+                        }
+                    }
+                }
+                if current.is_none() {
+                    for (_, node) in &graph.nodes {
+                        if node.name == first {
+                            current = Some(node);
+                            break;
+                        }
                     }
                 }
             }
@@ -176,7 +197,7 @@ impl SPath {
         if self.path.len() < 1 { return None; }
         if !self.names {
             Some(self.path[self.path.len() - 1].clone())
-        } else if let Some(mut cpy) = self.clone().to_id_path(graph) {
+        } else if let Some(mut cpy) = self.clone().to_id_path(graph, None) {
             if cpy.path.len() < 1 {
                 None
             } else {
