@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::mem::swap;
+use std::{any::Any, mem::swap};
 use rustc_hash::FxHashSet;
 use crate::model::{Data, Graph, Node, SId, SPath};
 
@@ -38,6 +38,33 @@ impl NodeRef {
     /// Get a mutable node.
     pub fn node_mut<'a>(&self, graph: &'a mut Graph) -> Option<&'a mut Node> {
         graph.nodes.get_mut(self)
+    }
+
+    /// Node name.
+    pub fn node_name(&self, graph: &Graph) -> Option<SId> {
+        if let Some(node) = self.node(graph) {
+            Some(node.name.clone())
+        } else {
+            None
+        }
+    }
+
+    /// Node parent.
+    pub fn node_parent(&self, graph: &Graph) -> Option<NodeRef> {
+        if let Some(node) = self.node(graph) {
+            node.parent.clone()
+        } else {
+            None
+        }
+    }
+
+    /// Node data named.
+    pub fn node_data_named<'a>(&self, graph: &'a Graph, name: impl Into<SId>) -> Option<&'a DataRef> {
+        if let Some(node) = self.node(graph) {
+            node.get_data(&name.into())
+        } else {
+            None
+        }
     }
 
     #[inline]
@@ -224,5 +251,41 @@ impl DataRef {
             }
         }
         Default::default()
+    }
+
+    /// Stof data type for this ref.
+    pub fn type_of<T: Any>(&self, graph: &Graph) -> bool {
+        if let Some(data) = self.data(graph) {
+            data.is_type::<T>()
+        } else {
+            false
+        }
+    }
+
+    /// Data name.
+    pub fn data_name(&self, graph: &Graph) -> Option<SId> {
+        if let Some(data) = self.data(graph) {
+            Some(data.name.clone())
+        } else {
+            None
+        }
+    }
+
+    /// Tagname for this data.
+    pub fn tagname(&self, graph: &Graph) -> Option<String> {
+        if let Some(data) = self.data(graph) {
+            Some(data.tagname())
+        } else {
+            None
+        }
+    }
+
+    /// Core data?
+    pub fn core_data(&self, graph: &Graph) -> bool {
+        if let Some(data) = self.data(graph) {
+            data.core_data()
+        } else {
+            false
+        }
     }
 }

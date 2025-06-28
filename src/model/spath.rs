@@ -148,7 +148,7 @@ impl SPath {
                         if let Some(node) = root.node(graph) {
                             if node.name == next_name {
                                 current = Some(node);
-                                break 'node_loop;
+                                continue 'node_loop;
                             }
                         }
                     }

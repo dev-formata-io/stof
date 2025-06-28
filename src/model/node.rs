@@ -15,7 +15,7 @@
 //
 
 use bytes::Bytes;
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 use crate::model::{DataRef, NodeRef, SId};
 
@@ -42,7 +42,7 @@ pub struct Node {
     pub name: SId,
     pub parent: Option<NodeRef>,
     pub children: FxHashSet<NodeRef>,
-    pub data: FxHashSet<DataRef>,
+    pub data: FxHashMap<SId, DataRef>,
 
     #[serde(skip)]
     pub dirty: FxHashSet<SId>,
@@ -181,30 +181,54 @@ impl Node {
     }
 
     #[inline(always)]
+    /// Has data by name?
+    pub fn has_data_named(&self, name: &SId) -> bool {
+        self.data.contains_key(name)
+    }
+
+    #[inline]
     /// Has data?
     pub fn has_data(&self, data: &DataRef) -> bool {
-        self.data.contains(data)
+        for (_, id) in &self.data {
+            if id == data { return true; }
+        }
+        false
     }
 
     #[inline]
     /// Add data.
-    pub fn add_data(&mut self, data: DataRef) -> bool {
-        if self.data.insert(data) {
-            self.invalidate_data();
-            true
+    /// If this name already exists on this node, the old ref is returned.
+    pub fn add_data(&mut self, name: SId, data: DataRef) -> Option<DataRef> {
+        let old = self.data.insert(name, data);
+        self.invalidate_data();
+        old
+    }
+
+    /// Remove data.
+    pub fn remove_data(&mut self, data: &DataRef) -> bool {
+        let mut remove_name = None;
+        for (name, id) in &self.data {
+            if id == data {
+                remove_name = Some(name.clone());
+                break;
+            }
+        }
+        if let Some(name) = remove_name {
+            self.data.remove(&name).is_some()
         } else {
             false
         }
     }
 
-    #[inline]
-    /// Remove data.
-    pub fn remove_data(&mut self, data: &DataRef) -> bool {
-        if self.data.remove(data) {
-            self.invalidate_data();
-            true
-        } else {
-            false
-        }
+    #[inline(always)]
+    /// Remove data by name.
+    pub fn remove_data_named(&mut self, name: &SId) -> Option<DataRef> {
+        self.data.remove(name)
+    }
+
+    #[inline(always)]
+    /// Get named data.
+    pub fn get_data(&self, name: &SId) -> Option<&DataRef> {
+        self.data.get(name)
     }
 }
