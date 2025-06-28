@@ -18,6 +18,9 @@
 pub mod sid;
 pub use sid::*;
 
+pub mod spath;
+pub use spath::*;
+
 pub mod graph;
 pub use graph::*;
 
@@ -28,7 +31,7 @@ pub mod node;
 pub use node::*;
 
 pub mod data;
-//pub use data::*;
+pub use data::*;
 
 
 /*****************************************************************************
@@ -51,11 +54,6 @@ pub trait StofData: AsDynAny + std::fmt::Debug + DataClone + Send + Sync {
     /// Is this a conainer data?
     /// Used to determin deserialize behavior.
     fn is_container(&self) -> bool {
-        false
-    }
-
-    /// Allow name collisions on a node?
-    fn allow_name_collisions(&self) -> bool {
         false
     }
 }

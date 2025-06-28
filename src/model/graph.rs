@@ -16,7 +16,7 @@
 
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
-use crate::{graph::data::Data, DataRef, Node, NodeRef, SId};
+use crate::model::{Data, DataRef, Node, NodeRef, SId};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

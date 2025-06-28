@@ -69,7 +69,7 @@ impl<T: ?Sized + ToString> From<&T> for SId {
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
-    use crate::SId;
+    use crate::model::SId;
 
     #[test]
     fn default() {

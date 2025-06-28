@@ -17,7 +17,7 @@
 use bytes::Bytes;
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
-use crate::{DataRef, NodeRef, SId};
+use crate::model::{DataRef, NodeRef, SId};
 
 /// Invalid/dirty name symbol.
 pub const INVALID_NODE_NAME: SId = SId(Bytes::from_static(b"name"));

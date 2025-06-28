@@ -19,7 +19,7 @@ use std::any::Any;
 use bytes::Bytes;
 use rustc_hash::FxHashSet;
 use serde::{ser::Error, Deserialize, Serialize};
-use crate::{StofDataContainer, DataRef, NodeRef, SId, StofData};
+use crate::model::{StofDataContainer, DataRef, NodeRef, SId, StofData};
 
 
 /// Invalid/dirty name.
