@@ -1,6 +1,6 @@
 [package]
 name = "stof"
-version = "0.7.13"
+version = "0.8.0"
 edition = "2021"
 authors = ["CJ Cummings <cj@formata.io>"]
 description = "A simple and embeddable data runtime."
@@ -70,3 +70,6 @@ chrono = "0.4.41"
 tokio = { version = "1.45.0", features = ["rt", "macros", "sync", "time"], optional = true }
 reqwest = { version = "0.12.15", features = ["blocking"], optional = true }
 rustc-hash = "2.1.1"
+imbl = { version = "5.0.0", features = ["serde", "triomphe"] }
+arcstr = { version = "1.2.0", features = ["serde"] }
+nom = "8.0.0"
