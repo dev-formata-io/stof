@@ -16,9 +16,27 @@
 
 use arcstr::{literal, ArcStr};
 use imbl::Vector;
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, peek, value}, error::{Error, ErrorKind}, multi::{separated_list0, separated_list1}, sequence::delimited, IResult, Parser};
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, peek, value}, error::{Error, ErrorKind}, multi::{separated_list0, separated_list1}, sequence::{delimited, preceded, terminated}, IResult, Parser};
 use serde::{Deserialize, Serialize};
 use crate::{parser::ident, runtime::Units};
+
+
+// Literal string types.
+const NULL: ArcStr = literal!("null");
+const VOID: ArcStr = literal!("void");
+const UNKNOWN: ArcStr = literal!("unknown");
+const MAP: ArcStr = literal!("map");
+const SET: ArcStr = literal!("set");
+const LIST: ArcStr = literal!("list");
+const BOOL: ArcStr = literal!("bool");
+const BLOB: ArcStr = literal!("blob");
+const FUNC: ArcStr = literal!("fn");
+const DATA: ArcStr = literal!("data");
+const OBJ: ArcStr = literal!("obj");
+const VER: ArcStr = literal!("ver");
+const STR: ArcStr = literal!("str");
+const INT: ArcStr = literal!("int");
+const FLOAT: ArcStr = literal!("float");
 
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
@@ -210,24 +228,24 @@ impl Type {
                 }
                 geo.into()
             },
-            Self::Unknown => literal!("unknown"),
-            Self::Map => literal!("map"),
-            Self::Set => literal!("set"),
-            Self::List => literal!("list"),
-            Self::Bool => literal!("bool"),
-            Self::Blob => literal!("blob"),
-            Self::Fn => literal!("fn"),
+            Self::Unknown => UNKNOWN,
+            Self::Map => MAP,
+            Self::Set => SET,
+            Self::List => LIST,
+            Self::Bool => BOOL,
+            Self::Blob => BLOB,
+            Self::Fn => FUNC,
             Self::Data(tname) => {
-                let dta = literal!("data");
+                let dta = DATA;
                 if tname == &dta {
                     return dta;
                 }
                 format!("Data<{}>", tname).into()
             },
-            Self::Null => literal!("null"),
+            Self::Null => NULL,
             Self::Num(num) => num.type_of(),
-            Self::Ver => literal!("ver"),
-            Self::Str => literal!("str"),
+            Self::Ver => VER,
+            Self::Str => STR,
             Self::Tup(vals) => {
                 let mut res = "(".to_string();
                 for i in 0..vals.len() {
@@ -242,13 +260,23 @@ impl Type {
                 res.push_str(")");
                 res.into()
             },
-            Self::Void => literal!("void"),
+            Self::Void => VOID,
             Self::Obj(ctype) => ctype.clone(),
         }
     }
 
     pub fn md_type_of(&self) -> String {
         self.type_of().replace("<", "\\<")
+    }
+}
+impl<T: AsRef<str>> From<T> for Type {
+    fn from(value: T) -> Self {
+        parse_type_complete(value.as_ref()).expect(&format!("failed to parse stof type string '{}' into a valid Type", value.as_ref()))
+    }
+}
+impl ToString for Type {
+    fn to_string(&self) -> String {
+        self.type_of().to_string()
     }
 }
 
@@ -291,8 +319,8 @@ impl Eq for NumT {}
 impl NumT {
     pub fn type_of(&self) -> ArcStr {
         match self {
-            Self::Float => literal!("float"),
-            Self::Int => literal!("int"),
+            Self::Float => FLOAT,
+            Self::Int => INT,
             Self::Units(units) => units.to_string(),
         }
     }
@@ -334,6 +362,8 @@ pub fn parse_type(input: &str) -> IResult<&str, Type> {
     ), |(_, ty, _)| ty).parse(input)
 }
 
+/// Inner types do not contain the Union as a possibility
+/// Unions cannot contain unions, nor can tuples
 fn parse_inner_type(input: &str) -> IResult<&str, Type> {
     map((
         multispace0,
@@ -362,6 +392,7 @@ fn parse_inner_type(input: &str) -> IResult<&str, Type> {
     ), |(_, ty, _)| ty).parse(input)
 }
 
+/// Parse unit type.
 fn parse_units(input: &str) -> IResult<&str, Type> {
     let units = Units::from(input);
     if units.has_units() && !units.is_undefined() {
@@ -371,6 +402,7 @@ fn parse_units(input: &str) -> IResult<&str, Type> {
     }
 }
 
+/// Parse object type.
 fn parse_obj(input: &str) -> IResult<&str, Type> {
     map(
         ident,
@@ -378,24 +410,30 @@ fn parse_obj(input: &str) -> IResult<&str, Type> {
     ).parse(input)
 }
 
+/// Parse tuple type.
 fn parse_tuple(input: &str) -> IResult<&str, Type> {
     map(
         delimited(
-            (char('('), multispace0),
-            separated_list0((multispace0, tag(","), multispace0), parse_type),
-            (multispace0, char(')'))
+            preceded(char('('), multispace0),
+            separated_list1(
+                delimited(multispace0, char(','), multispace0),
+                parse_inner_type
+            ),
+            terminated(multispace0, char(')'))
         ),
         |list| Type::Tup(list.into_iter().collect())
     ).parse(input)
 }
 
+/// Parse union type.
 fn parse_union(input: &str) -> IResult<&str, Type> {
     peek(map(
-        separated_list1(tag("|"), parse_inner_type),
+        separated_list0(tag("|"), parse_inner_type),
         |list| Type::Union(list.into_iter().collect())
     )).parse(input)
 }
 
+/// Parse custom data type.
 fn parse_custom_data(input: &str) -> IResult<&str, Type> {
     map(
         delimited(tag("Data<"), ident, char('>')),
@@ -406,8 +444,22 @@ fn parse_custom_data(input: &str) -> IResult<&str, Type> {
 
 #[cfg(test)]
 mod tests {
+    use arcstr::literal;
     use imbl::vector;
-    use crate::runtime::{parse_type_complete, types::parse_tuple, NumT, Type, Units};
+    use crate::runtime::{parse_type_complete, NumT, Type, Units};
+
+    #[test]
+    fn from_str() {
+        assert_eq!(Type::from("str"), Type::Str);
+        assert_eq!(Type::from("\n\t\t\t\tbool\n\t\n\n\r"), Type::Bool);
+        assert_eq!(Type::from("ms|seconds|ns"), Type::Union(vector![
+            Type::Num(NumT::Units(Units::Milliseconds)),
+            Type::Num(NumT::Units(Units::Seconds)),
+            Type::Num(NumT::Units(Units::Nanoseconds))
+        ]));
+        assert_eq!(Type::from(literal!("blob")), Type::Blob);
+        assert_eq!(Type::from(String::from("fn")), Type::Fn);
+    }
 
     #[test]
     fn parse_custom_data() {
@@ -417,12 +469,21 @@ mod tests {
 
     #[test]
     fn parse_tuples() {
-        //println!("{:?}", parse_tuple("(int, str)"));
-        //assert_eq!(parse_type_complete("(int,str)").unwrap(), Type::Tup(vector![Type::Num(NumT::Int), Type::Str]));
+        assert_eq!(parse_type_complete("(int,str)").unwrap(), Type::Tup(vector![Type::Num(NumT::Int), Type::Str]));
+        assert_eq!(parse_type_complete("(  str    \n,  \n\tstr    )").unwrap(), Type::Tup(vector![Type::Str, Type::Str]));
+        assert_eq!(parse_type_complete("((bool, (str, str), blob), fn)").unwrap(), Type::Tup(vector![Type::Tup(vector![Type::Bool, Type::Tup(vector![Type::Str, Type::Str]), Type::Blob]), Type::Fn]));
+    }
+
+    #[test]
+    fn parse_union() {
+        assert_eq!(parse_type_complete("int | str").unwrap(), Type::Union(vector![Type::Num(NumT::Int), Type::Str]));
+        assert_eq!(parse_type_complete("(bool, fn, blob) \n\t\t| str    \n | fn\n\n").unwrap(), Type::Union(vector![Type::Tup(vector![Type::Bool, Type::Fn, Type::Blob]), Type::Str, Type::Fn]));
+        assert_eq!(parse_type_complete("bool|blob|fn|str").unwrap(), Type::Union(vector![Type::Bool, Type::Blob, Type::Fn, Type::Str]));
     }
 
     #[test]
     fn parse_littypes() {
+        assert_eq!(parse_type_complete("int, ").unwrap(), Type::Num(NumT::Int));
         assert_eq!(parse_type_complete("   null    ").unwrap(), Type::Null);
         assert_eq!(parse_type_complete(" null").unwrap(), Type::Null);
         assert_eq!(parse_type_complete("null    ").unwrap(), Type::Null);
