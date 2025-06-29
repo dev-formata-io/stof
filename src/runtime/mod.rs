@@ -21,6 +21,9 @@ pub use runtime::*;
 pub mod value;
 pub use value::*;
 
+pub mod num;
+pub use num::*;
+
 pub mod types;
 pub use types::*;
 
