@@ -80,3 +80,39 @@ impl Instruction for ConstDeclare {
         Ok(State::None)
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use std::{ops::Deref, sync::Arc};
+    use arcstr::ArcStr;
+    use crate::{model::Graph, runtime::{expr::Expr, instruction::Instructions, instructions::Declare, proc::Process, Runtime, Val}};
+
+    #[test]
+    fn declare() {
+        let mut graph = Graph::default();
+        let mut runtime = Runtime::default();
+        let mut instructions = Instructions::default();
+
+        instructions.push(Arc::new(Declare {
+            name: ArcStr::from("test"),
+            stype: None,
+            expr: Expr::Lit(Val::Str(ArcStr::from("hello, world"))),
+        }));
+
+        let mut proc = Process::default();
+        let pid = proc.env.pid.clone();
+        proc.instruction_stack.push(instructions);
+        runtime.running.insert(pid.clone(), proc);
+
+        runtime.run_to_complete(&mut graph);
+        let mut proc = runtime.done.remove(&pid).unwrap();
+
+        //println!("{:?}", proc.env.table);
+        assert!(proc.env.table.get("test").is_some());
+        assert_eq!(proc.env.table.get("test").unwrap().gen_type().type_of().deref(), "str");
+
+        assert!(proc.env.table.drop_var("test"));
+        assert!(proc.env.table.get("test").is_none());
+    }
+}

@@ -15,6 +15,7 @@
 //
 
 
+#[derive(Debug, Clone)]
 /// Error.
 /// TODO.
 pub enum Error {

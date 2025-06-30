@@ -14,10 +14,84 @@
 // limitations under the License.
 //
 
-use crate::model::Graph;
+use rustc_hash::FxHashMap;
+use crate::{model::{Graph, SId}, runtime::{proc::{ProcState, Process}}};
 
 
+#[derive(Default, Debug)]
 /// Runtime.
 pub struct Runtime {
-    
+    pub running: FxHashMap<SId, Process>,
+    pub done: FxHashMap<SId, Process>,
+    pub waiting: FxHashMap<SId, Process>,
+    pub errored: FxHashMap<SId, Process>,
+}
+impl Runtime {
+    /// Run to completion.
+    pub fn run_to_complete(&mut self, graph: &mut Graph) {
+        let mut to_done = Vec::new();
+        let mut to_wait = Vec::new();
+        let mut to_err = Vec::new();
+        let mut to_run = Vec::new();
+        while !self.running.is_empty() {
+            for (pid, proc) in self.running.iter_mut() {
+                match proc.progress(graph) {
+                    Ok(state) => {
+                        match state {
+                            ProcState::More => {
+                                // nada..
+                            },
+                            ProcState::Done => {
+                                to_done.push(pid.clone());
+                            },
+                            ProcState::Wait(opid) => {
+                                proc.waiting = Some(opid);
+                                to_wait.push(pid.clone());
+                            }
+                        }
+                    },
+                    Err(error) => {
+                        proc.error = Some(error);
+                        to_err.push(pid.clone());
+                    }
+                }
+            }
+
+            if !to_done.is_empty() {
+                for id in to_done.drain(..) {
+                    if let Some(proc) = self.running.remove(&id) {
+                        self.done.insert(id, proc);
+                    }
+                }
+
+                for (id, waiting_proc) in &mut self.waiting {
+                    if let Some(wait_id) = waiting_proc.waiting.clone() {
+                        if let Some(done_proc) = self.done.remove(&wait_id) {
+                            // If the completed process has a result, push that to the waiting processes stack
+                            if let Some(res) = done_proc.result {
+                                waiting_proc.env.stack.push(res);
+                            }
+                            to_run.push(id.clone());
+                        }
+                    }
+                }
+                for id in to_run.drain(..) {
+                    if let Some(proc) = self.waiting.remove(&id) {
+                        self.running.insert(id, proc);
+                    }
+                }
+            }
+
+            for id in to_wait.drain(..) {
+                if let Some(proc) = self.running.remove(&id) {
+                    self.waiting.insert(id, proc);
+                }
+            }
+            for id in to_err.drain(..) {
+                if let Some(proc) = self.running.remove(&id) {
+                    self.errored.insert(id, proc);
+                }
+            }
+        }
+    }
 }

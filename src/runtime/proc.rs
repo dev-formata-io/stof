@@ -17,7 +17,16 @@
 use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{instruction::{Instructions, State}, table::SymbolTable, Error, Variable}};
 
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
+/// Process State.
+pub enum ProcState {
+    Done,
+    More,
+    Wait(SId),
+}
+
+
+#[derive(Clone, Debug, Default)]
 /// Process Env.
 pub struct ProcEnv {
     pub pid: SId,
@@ -29,17 +38,82 @@ pub struct ProcEnv {
 }
 
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 /// Process.
 pub struct Process {
     pub env: ProcEnv,
-    pub instructions: Instructions,
+    pub instruction_stack: Vec<Instructions>,
+    pub result: Option<Variable>,
+    pub error: Option<Error>,
+    pub waiting: Option<SId>,
 }
 impl Process {
-    #[inline(always)]
     /// Progress this process by one.
     /// If there's more, a MoreProc state will be returned.
-    pub fn progress(&mut self, graph: &mut Graph) -> Result<State, Error> {
-        self.instructions.exec(&mut self.env, graph)
+    pub fn progress(&mut self, graph: &mut Graph) -> Result<ProcState, Error> {
+        if self.instruction_stack.is_empty() {
+            Ok(ProcState::Done)
+        } else {
+            match self.instruction_stack.last_mut().unwrap().exec(&mut self.env, graph) {
+                Ok(state) => {
+                    match state {
+                        State::None => {
+                            while !self.instruction_stack.is_empty() && !self.instruction_stack.last().unwrap().more() {
+                                self.instruction_stack.pop();
+                            }
+                            if self.instruction_stack.is_empty() {
+                                Ok(ProcState::Done)
+                            } else {
+                                Ok(ProcState::More)
+                            }
+                        },
+                        State::Return(pushed) => {
+                            self.instruction_stack.pop();
+                            while !self.instruction_stack.is_empty() && !self.instruction_stack.last().unwrap().more() {
+                                self.instruction_stack.pop();
+                            }
+                            if self.instruction_stack.is_empty() {
+                                if pushed {
+                                    if let Some(var) = self.env.stack.pop() {
+                                        self.result = Some(var);
+                                        Ok(ProcState::Done)
+                                    } else {
+                                        Ok(ProcState::Done)
+                                    }
+                                } else {
+                                    Ok(ProcState::Done)
+                                }
+                            } else {
+                                // In this case, it's like Pop.
+                                // Any function calls are expected to have the stack pop in thier instructions.
+                                Ok(ProcState::More)
+                            }
+                        },
+                        State::Push(instructions) => {
+                            self.instruction_stack.push(instructions);
+                            Ok(ProcState::More)
+                        },
+                        State::Pop => {
+                            self.instruction_stack.pop();
+                            while !self.instruction_stack.is_empty() && !self.instruction_stack.last().unwrap().more() {
+                                self.instruction_stack.pop();
+                            }
+                            if self.instruction_stack.is_empty() {
+                                Ok(ProcState::Done)
+                            } else {
+                                Ok(ProcState::More)
+                            }
+                        },
+                        State::StartOver => {
+                            self.instruction_stack.last_mut().unwrap().start_over();
+                            Ok(ProcState::More)
+                        },
+                    }
+                },
+                Err(error) => {
+                    Err(error)
+                }
+            }
+        }
     }
 }

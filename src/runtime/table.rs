@@ -18,7 +18,7 @@ use rustc_hash::FxHashMap;
 use crate::runtime::{Val, Variable};
 
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 /// Symbol table for a process.
 pub struct SymbolTable {
     scopes: Vec<Scope>,
@@ -53,7 +53,7 @@ impl SymbolTable {
 
     /// Remove a variable from this symbol table.
     /// Will only drop one if multiple exist (closest).
-    pub fn drop(&mut self, name: impl AsRef<str>) -> bool {
+    pub fn drop_var(&mut self, name: impl AsRef<str>) -> bool {
         let name = name.as_ref();
         for scope in self.scopes.iter_mut().rev() {
             if scope.remove(name).is_some() { return true; }
