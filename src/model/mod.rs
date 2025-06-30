@@ -33,6 +33,9 @@ pub use node::*;
 pub mod data;
 pub use data::*;
 
+pub mod components;
+pub use components::*;
+
 
 /*****************************************************************************
  * Stof Data Trait for Graph Data.
@@ -54,6 +57,12 @@ pub trait StofData: AsDynAny + std::fmt::Debug + DataClone + Send + Sync {
     /// Is this a conainer data?
     /// Used to determin deserialize behavior.
     fn is_container(&self) -> bool {
+        false
+    }
+
+    /// Does this data directly reference a node?
+    /// If so, and you want this data to be removed when the node is removed, say yes.
+    fn hard_node_ref(&self, _node: &NodeRef) -> bool {
         false
     }
 }

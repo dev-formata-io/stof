@@ -16,7 +16,7 @@
 
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
-use crate::model::{Graph, NodeRef, SId};
+use crate::model::{Field, Graph, NodeRef, SId};
 
 
 /// Const super keyword for paths.
@@ -85,6 +85,9 @@ impl SPath {
             Some(self)
         } else {
             if self.path.len() < 1 {
+                if let Some(start) = start {
+                    self.path.push(start);
+                }
                 return Some(Self {
                     names: false,
                     path: self.path,
@@ -134,6 +137,20 @@ impl SPath {
                     }
                 }
 
+                // Look for a field in the current node with a name that points to another object
+                // Children are already handled above, so just look for direct fields
+                // This is before parents because it is basically the same as looking for a child
+                if let Some(dref) = Field::direct_field(graph, &current_node.id, &next_name) {
+                    if let Some(field) = graph.get_stof_data::<Field>(&dref) {
+                        if let Some(nref) = field.value.try_obj() {
+                            if let Some(node) = nref.node(graph) {
+                                current = Some(node);
+                                continue 'node_loop;
+                            }
+                        }
+                    }
+                }
+
                 // Look at parent
                 if let Some(parent) = &current_node.parent {
                     if let Some(parent) = parent.node(graph) {
@@ -159,8 +176,6 @@ impl SPath {
                     current = Some(current_node);
                     continue 'node_loop;
                 }
-
-                // TODO: Look for a field in the current node that is an object here
 
                 current = None;
             }

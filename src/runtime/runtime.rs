@@ -21,7 +21,7 @@ use crate::{model::{Graph, SId}, runtime::{instruction::Instructions, proc::{Pro
 #[derive(Default, Debug)]
 /// Runtime.
 pub struct Runtime {
-    pub running: FxHashMap<SId, Process>,
+    pub running: FxHashMap<SId, Process>, // TODO: change to Vec
     pub done: FxHashMap<SId, Process>,
     pub waiting: FxHashMap<SId, Process>,
     pub errored: FxHashMap<SId, Process>,

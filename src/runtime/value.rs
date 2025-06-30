@@ -635,6 +635,17 @@ impl Val {
         }
     }
 
+    #[inline]
+    /// Is this value equal to the data reference?
+    /// Used for GC, etc.
+    pub fn is_data_ref(&self, data: &DataRef) -> bool {
+        match self {
+            Self::Data(dref) => dref == data,
+            Self::Fn(dref) => dref == data,
+            _ => false,
+        }
+    }
+
     /// Get the generic type for this value.
     pub fn gen_type(&self) -> Type {
         match self {

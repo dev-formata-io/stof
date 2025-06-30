@@ -14,10 +14,12 @@
 // limitations under the License.
 //
 
+use std::collections::{BTreeMap, BTreeSet};
 use bytes::Bytes;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::model::{DataRef, NodeRef, SId};
+use crate::{model::{DataRef, NodeRef, SId}, runtime::{Val, Variable}};
+
 
 /// Invalid/dirty new symbol.
 pub const INVALID_NODE_NEW: SId = SId(Bytes::from_static(b"new"));
@@ -34,6 +36,13 @@ pub const INVALID_NODE_CHILDREN: SId = SId(Bytes::from_static(b"children"));
 /// Invalid/dirty data symbol.
 pub const INVALID_NODE_DATA: SId = SId(Bytes::from_static(b"data"));
 
+/// Invalid/dirty attributes symbol.
+pub const INVALID_NODE_ATTRS: SId = SId(Bytes::from_static(b"attributes"));
+
+/// Field node attribute.
+/// Used for lazy field creation of nodes.
+const FIELD_NODE_ATTR: SId = SId(Bytes::from_static(b"field"));
+
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 /// Node.
@@ -41,15 +50,21 @@ pub struct Node {
     pub id: NodeRef,
     pub name: SId,
     pub parent: Option<NodeRef>,
-    pub children: FxHashSet<NodeRef>,
-    pub data: FxHashMap<SId, DataRef>,
+    pub children: BTreeSet<NodeRef>,  // keeps order
+    pub data: BTreeMap<SId, DataRef>, // keeps order
+    pub attributes: FxHashMap<SId, Variable>,
 
     #[serde(skip)]
     pub dirty: FxHashSet<SId>,
 }
 impl Node {
     /// Create a new node.
-    pub fn new(name: SId, id: NodeRef) -> Self {
+    pub fn new(name: SId, id: NodeRef, field: bool) -> Self {
+        let mut attributes = FxHashMap::default();
+        if field {
+            // marks this node as also a field
+            attributes.insert(FIELD_NODE_ATTR, Variable::Val(Val::Null));
+        }
         Self {
             id,
             name,
@@ -57,7 +72,38 @@ impl Node {
             children: Default::default(),
             data: Default::default(),
             dirty: Default::default(),
+            attributes,
         }
+    }
+
+    #[inline(always)]
+    /// Is this node also a field?
+    pub fn is_field(&self) -> bool {
+        self.attributes.contains_key(&FIELD_NODE_ATTR)
+    }
+
+    #[inline]
+    /// Make this node a field.
+    /// Returns whether this object was not previously a field (or if changed as thats easier to think about).
+    pub fn make_field(&mut self) -> bool {
+        let res = self.attributes.insert(FIELD_NODE_ATTR, Variable::Val(Val::Null)).is_none();
+        if res {
+            self.invalidate_attrs();
+        }
+        res
+    }
+
+    /// Make this node not a field.
+    /// Does not remove any fields if some have been created for this node.
+    /// Avoid switching nodes to and from fields... this is for the graph (external insert, etc.).
+    /// Returns whether this object was previously a field or not (or if changed).
+    #[inline]
+    pub fn not_field(&mut self) -> bool {
+        let res = self.attributes.remove(&FIELD_NODE_ATTR).is_some();
+        if res {
+            self.invalidate_attrs();
+        }
+        res
     }
 
     #[inline(always)]
@@ -70,6 +116,12 @@ impl Node {
     /// Invalidate name.
     pub fn invalidate_name(&mut self) -> bool {
         self.invalidate(INVALID_NODE_NAME)
+    }
+
+    #[inline(always)]
+    /// Invalidate attributes.
+    pub fn invalidate_attrs(&mut self) -> bool {
+        self.invalidate(INVALID_NODE_ATTRS)
     }
 
     #[inline(always)]
@@ -100,6 +152,12 @@ impl Node {
     /// Validate name.
     pub fn validate_name(&mut self) -> bool {
         self.validate(&INVALID_NODE_NAME)
+    }
+
+    #[inline(always)]
+    /// Validate attributes.
+    pub fn validate_attrs(&mut self) -> bool {
+        self.validate(&INVALID_NODE_ATTRS)
     }
 
     #[inline(always)]
@@ -138,6 +196,26 @@ impl Node {
     /// Any dirty symbols?
     pub fn any_dirty(&self) -> bool {
         self.dirty.len() > 0
+    }
+
+    #[inline]
+    /// Insert an attribute.
+    pub fn insert_attribute(&mut self, id: SId, var: Variable) -> bool {
+        let res = self.attributes.insert(id, var).is_none();
+        if res {
+            self.invalidate_attrs();
+        }
+        res
+    }
+
+    #[inline]
+    /// Remove an attribute.
+    pub fn remove_attribute(&mut self, id: &SId) -> bool {
+        let res = self.attributes.remove(id).is_some();
+        if res {
+            self.invalidate_attrs();
+        }
+        res
     }
 
     #[inline]

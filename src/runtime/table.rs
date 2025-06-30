@@ -15,7 +15,7 @@
 //
 
 use rustc_hash::FxHashMap;
-use crate::runtime::{Val, Variable};
+use crate::{model::{DataRef, NodeRef}, runtime::{Val, Variable}};
 
 
 #[derive(Debug, Default, Clone)]
@@ -84,6 +84,22 @@ impl SymbolTable {
         }
         Ok(false)
     }
+
+    #[inline]
+    /// Garbage collect variables in this symbol table that reference a node.
+    pub fn gc_node(&mut self, node: &NodeRef) {
+        for scope in &mut self.scopes {
+            scope.gc_node(node);
+        }
+    }
+
+    #[inline]
+    /// Garbage collect variables in this symbol table that reference data.
+    pub fn gc_data(&mut self, data: &DataRef) {
+        for scope in &mut self.scopes {
+            scope.gc_data(data);
+        }
+    }
 }
 
 
@@ -131,6 +147,34 @@ impl Scope {
             Ok(true)
         } else {
             Ok(false)
+        }
+    }
+
+    /// Garbage collect variables in this symbol table that reference a node.
+    pub fn gc_node(&mut self, node: &NodeRef) {
+        let mut to_remove = Vec::new();
+        for (name, var) in &self.variables {
+            if let Some(nref) = var.try_obj() {
+                if &nref == node {
+                    to_remove.push(name.clone());
+                }
+            }
+        }
+        for name in to_remove {
+            self.variables.remove(&name);
+        }
+    }
+
+    /// Garbage collect variables in this symbol table that reference data.
+    pub fn gc_data(&mut self, data: &DataRef) {
+        let mut to_remove = Vec::new();
+        for (name, var) in &self.variables {
+            if var.is_data_ref(data) {
+                to_remove.push(name.clone());
+            }
+        }
+        for name in to_remove {
+            self.variables.remove(&name);
         }
     }
 }

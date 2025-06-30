@@ -16,7 +16,7 @@
 
 use std::sync::{Arc, RwLock};
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{Error, Type, Val}};
+use crate::{model::{DataRef, Graph, NodeRef}, runtime::{Error, Type, Val}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,6 +69,24 @@ impl Variable {
             Self::Val(val) => val.cast(target, graph),
             Self::Ref(val) => val.write().unwrap().cast(target, graph),
             Self::Const(val) => val.cast(target, graph),
+        }
+    }
+
+    /// Try getting an object out of this variable.
+    pub fn try_obj(&self) -> Option<NodeRef> {
+        match self {
+            Self::Val(val) => val.try_obj(),
+            Self::Ref(val) => val.read().unwrap().try_obj(),
+            Self::Const(val) => val.try_obj(),
+        }
+    }
+
+    /// Is this variable equal to this data reference?
+    pub fn is_data_ref(&self, data: &DataRef) -> bool {
+        match self {
+            Self::Val(val) => val.is_data_ref(data),
+            Self::Ref(val) => val.read().unwrap().is_data_ref(data),
+            Self::Const(val) => val.is_data_ref(data),
         }
     }
 }

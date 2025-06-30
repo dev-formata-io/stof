@@ -18,7 +18,7 @@ use std::any::Any;
 use bytes::Bytes;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::model::{Data, DataRef, Node, NodeRef, SId, SPath, StofData, INVALID_NODE_NEW};
+use crate::{model::{Data, DataRef, Node, NodeRef, SId, SPath, StofData, INVALID_NODE_NEW}, runtime::table::SymbolTable};
 
 
 /// Root node name.
@@ -95,7 +95,7 @@ impl Graph {
     
     /// Insert a root node directly.
     pub fn insert_root(&mut self, name: impl Into<SId>) -> NodeRef {
-        let mut node = Node::new(name.into(), SId::default());
+        let mut node = Node::new(name.into(), SId::default(), false);
         node.invalidate(INVALID_NODE_NEW);
 
         let nref = node.id.clone();
@@ -106,20 +106,46 @@ impl Graph {
 
     #[inline(always)]
     /// Insert a child node directly.
-    pub fn insert_child(&mut self, name: impl Into<SId>, parent: impl Into<NodeRef>) -> NodeRef {
-        self.insert_node(name, Some(parent.into()))
+    pub fn insert_child(&mut self, name: impl Into<SId>, parent: impl Into<NodeRef>, field: bool) -> NodeRef {
+        self.insert_node(name, Some(parent.into()), field)
     }
     
     /// Insert a node.
     /// If a parent is not provided, the behavior is the same as insert root.
-    pub fn insert_node(&mut self, name: impl Into<SId>, parent: Option<NodeRef>) -> NodeRef {
-        let node = Node::new(name.into(), SId::default());
+    pub fn insert_node(&mut self, name: impl Into<SId>, parent: Option<NodeRef>, field: bool) -> NodeRef {
+        let node;
+        if field && parent.is_some() {
+            if let Some(nref) = &parent {
+                if !nref.node_exists(&self) {
+                    node = Node::new(name.into(), SId::default(), false);
+                } else {
+                    node = Node::new(name.into(), SId::default(), true);
+                }
+            } else {
+                unreachable!();
+            }
+        } else {
+            node = Node::new(name.into(), SId::default(), false);
+        }
         self.insert_stof_node(node, parent)
     }
 
     /// Insert a node with an ID.
-    pub fn insert_node_id(&mut self, name: impl Into<SId>, id: impl Into<SId>, parent: Option<NodeRef>) -> NodeRef {
-        let node = Node::new(name.into(), id.into());
+    pub fn insert_node_id(&mut self, name: impl Into<SId>, id: impl Into<SId>, parent: Option<NodeRef>, field: bool) -> NodeRef {
+        let node;
+        if field && parent.is_some() {
+            if let Some(nref) = &parent {
+                if !nref.node_exists(&self) {
+                    node = Node::new(name.into(), id.into(), false);
+                } else {
+                    node = Node::new(name.into(), id.into(), true);
+                }
+            } else {
+                unreachable!();
+            }
+        } else {
+            node = Node::new(name.into(), id.into(), false);
+        }
         self.insert_stof_node(node, parent)
     }
 
@@ -156,7 +182,8 @@ impl Graph {
     }
 
     /// Create nodes from a named path.
-    pub fn create_named_path_nodes(&mut self, path: SPath, start: Option<NodeRef>, custom_insert: Option<fn(&mut Self, &SId, &SId)->NodeRef>) -> Option<NodeRef> {
+    /// Param fields - if creating a new object to match the path, should it be a field (only applies to nodes that don't exist yet)?
+    pub fn create_named_path_nodes(&mut self, path: SPath, start: Option<NodeRef>, fields: bool, custom_insert: Option<fn(&mut Self, &SId, &SId)->NodeRef>) -> Option<NodeRef> {
         if path.path.len() < 1 { return None; }
         
         let mut current = start;
@@ -200,7 +227,7 @@ impl Graph {
                 if let Some(custom) = &custom_insert {
                     current = Some(custom(self, name, &nref));
                 } else {
-                    current = Some(self.insert_node(name, Some(nref)));
+                    current = Some(self.insert_node(name, Some(nref), fields));
                 }
             }
 
@@ -212,9 +239,10 @@ impl Graph {
 
     /// Remove a node from the graph.
     /// May or may not remove data completely, depending on where the data is referenced.
-    pub fn remove_node(&mut self, nref: &NodeRef) -> bool {
+    /// Note: if you pass gc and also are managing a symbol table, you have to do gc on that table as well.
+    pub fn remove_node(&mut self, nref: &NodeRef, gc: bool) -> bool {
         if let Some(node) = self.nodes.remove(nref) {
-            // Remove all data
+            // Remove all data on this node
             for (_, dref) in &node.data {
                 let mut remove_all = false;
                 if let Some(data) = dref.data_mut(self) {
@@ -241,7 +269,22 @@ impl Graph {
 
             // Remove all children
             for child in &node.children {
-                self.remove_node(child);
+                self.remove_node(child, gc);
+            }
+
+            // Remove all data in this graph that has a hard reference to this node
+            // Kind of expensive, so only do this when you know fields reference this node (data has hard reference to this node)
+            if gc {
+                let mut to_remove = Vec::new();
+                for (id, data) in &self.data {
+                    if data.data.hard_node_ref(&node.id) {
+                        to_remove.push(id.clone());
+                    }
+                }
+                for id in to_remove {
+                    // Have to take the long way here as this data might have other valid nodes that reference it
+                    self.remove_data(&id, None);
+                }
             }
 
             // Insert into the deadpool
@@ -322,14 +365,14 @@ impl Graph {
         if children_too {
             for nref in &node.children {
                 if let Some(child) = nref.node(other) {
-                    self.insert_external_node(other, child, Some(on.clone()), None);
+                    self.insert_external_node(other, child, Some(on.clone()), None, None);
                 }
             }
         }
     }
     
     /// Insert an external node (cloned), contained within another graph.
-    pub fn insert_external_node(&mut self, other: &Self, node: &Node, parent: Option<NodeRef>, rename: Option<SId>) -> bool {
+    pub fn insert_external_node(&mut self, other: &Self, node: &Node, parent: Option<NodeRef>, rename: Option<SId>, field: Option<bool>) -> bool {
         if let Some(parent) = &parent {
             if !parent.node_exists(&self) {
                 return false; // specified a parent that doesn't exist (instead of creating a root)
@@ -342,10 +385,17 @@ impl Graph {
         if let Some(new_name) = rename {
             cloned.name = new_name;
         }
+        if let Some(field) = field {
+            if field {
+                cloned.make_field();
+            } else {
+                cloned.not_field();
+            }
+        }
         let inserted = self.insert_stof_node(cloned, parent);
         for nref in &node.children {
             if let Some(child) = nref.node(other) {
-                self.insert_external_node(other, child, Some(inserted.clone()), None);
+                self.insert_external_node(other, child, Some(inserted.clone()), None, field);
             }
         }
 
@@ -671,10 +721,10 @@ impl Graph {
 
     /// Flush join.
     /// Joins another graph with this one via flushed nodes and data.
-    pub fn flush_join(&mut self, other: &Self) {
+    pub fn flush_join(&mut self, other: &Self, gc_removed_nodes: bool) {
         // Delete nodes that have been deleted in other first
         for (id, _) in &other.node_deadpool {
-            self.remove_node(id);
+            self.remove_node(id, gc_removed_nodes);
         }
 
         // Delete data that has been deleted in other next
@@ -692,6 +742,7 @@ impl Graph {
                     existing.parent = changed_node.parent.clone();
                     existing.children = changed_node.children.clone();
                     existing.data = changed_node.data.clone();
+                    existing.attributes = changed_node.attributes.clone();
                 } else {
                     self.nodes.insert(changed_node.id.clone(), changed_node.clone());
                 }
@@ -741,7 +792,7 @@ impl Graph {
                         parent = Some(prnt.clone());
                     }
                 }
-                clone.insert_external_node(self, node, parent, None);
+                clone.insert_external_node(self, node, parent, None, None);
             }
         }
 
@@ -774,6 +825,44 @@ impl Graph {
         }
 
         clone
+    }
+
+    /// Garbage collect for the graph and table, optionally flushing the deadpools.
+    /// Remove variables in the symbol table that no longer reference a valid object or data
+    /// Remove data that has any hard references to a dead node
+    ///
+    /// Ex. gc_table(table, true) - will clear the deadpools
+    pub fn gc_table(&mut self, table: &mut SymbolTable, flush_deadpools: bool) {
+        // For each node that has been removed, remove all data that has a
+        // hard reference to those nodes.
+        if !self.data_deadpool.is_empty() {
+            let mut to_remove = Vec::new(); // data IDs that have hard refs to dead nodes
+            for (dref, data) in &self.data {
+                for (dnref, _) in &self.node_deadpool {
+                    if data.data.hard_node_ref(dnref) {
+                        to_remove.push(dref.clone());
+                    }
+                }
+            }
+            for id in to_remove {
+                // Have to take the long way here as other valid nodes might be referencing this data
+                self.remove_data(&id, None);
+            }
+
+            for (dnref, _) in &self.node_deadpool {
+                table.gc_node(dnref);
+            }
+        }
+
+        // For each data that has been removed, remove all references in the table
+        for (did, _data) in &self.data_deadpool {
+            table.gc_data(did);
+        }
+
+        if flush_deadpools {
+            self.clear_node_deadpool();
+            self.clear_data_deadpool();
+        }
     }
 
 
@@ -819,7 +908,7 @@ mod tests {
     #[test]
     fn insert_node_as_root() {
         let mut graph = Graph::default();
-        let nref = graph.insert_node("root", None);
+        let nref = graph.insert_node("root", None, false);
 
         assert!(nref.node_exists(&graph));
         assert_eq!(graph.roots.len(), 1);
@@ -838,18 +927,18 @@ mod tests {
         let self_test;
         let super_test;
         {
-            base = graph.insert_node("base", Some(root.clone()));
+            base = graph.insert_node("base", Some(root.clone()), false);
             {
-                graph.insert_child("a", &base);
-                graph.insert_child("b", &base);
+                graph.insert_child("a", &base, false);
+                graph.insert_child("b", &base, false);
             }
-            top = graph.insert_child("top", &root);
+            top = graph.insert_child("top", &root, false);
             {
-                graph.insert_child("a", &top);
-                graph.insert_child("b", &top);
+                graph.insert_child("a", &top, false);
+                graph.insert_child("b", &top, false);
 
-                self_test = graph.insert_child("self", &top);
-                super_test = graph.insert_child("super", &top);
+                self_test = graph.insert_child("self", &top, false);
+                super_test = graph.insert_child("super", &top, false);
             }
         }
         assert_eq!(graph.find_node_named("root.base", ".", None).unwrap(), base);
@@ -871,10 +960,10 @@ mod tests {
     #[test]
     fn create_named_path() {
         let mut graph = Graph::default();
-        let a = graph.create_named_path_nodes(SPath::from("root.base.a"), None, None).unwrap();
+        let a = graph.create_named_path_nodes(SPath::from("root.base.a"), None, false, None).unwrap();
         assert_eq!(a.node_name(&graph).unwrap().as_ref(), "a");
 
-        let b = graph.create_named_path_nodes(SPath::from("root.base.b"), None, None).unwrap();
+        let b = graph.create_named_path_nodes(SPath::from("root.base.b"), None, false, None).unwrap();
         assert_eq!(b.node_name(&graph).unwrap().as_ref(), "b");
 
         assert!(graph.main_root().is_some());
@@ -886,16 +975,16 @@ mod tests {
     #[test]
     fn remove_node() {
         let mut graph = Graph::default();
-        graph.create_named_path_nodes(SPath::from("root.base.a"), None, None);
-        graph.create_named_path_nodes(SPath::from("root.base.b"), None, None);
-        graph.create_named_path_nodes(SPath::from("root.top.a"), None, None);
-        graph.create_named_path_nodes(SPath::from("root.top.b"), None, None);
+        graph.create_named_path_nodes(SPath::from("root.base.a"), None, false, None);
+        graph.create_named_path_nodes(SPath::from("root.base.b"), None, false, None);
+        graph.create_named_path_nodes(SPath::from("root.top.a"), None, false, None);
+        graph.create_named_path_nodes(SPath::from("root.top.b"), None, false, None);
 
         assert_eq!(graph.nodes.len(), 7);
         assert_eq!(graph.roots.len(), 1);
 
         let base = graph.find_node_named("root.base", ".", None).unwrap();
-        graph.remove_node(&base);
+        graph.remove_node(&base, false);
 
         assert!(!base.node_exists(&graph));
         assert_eq!(graph.nodes.len(), 4);
@@ -911,10 +1000,10 @@ mod tests {
     #[test]
     fn move_node_up() {
         let mut graph = Graph::default();
-        graph.create_named_path_nodes(SPath::from("root.base.a"), None, None);
-        graph.create_named_path_nodes(SPath::from("root.base.b"), None, None);
-        graph.create_named_path_nodes(SPath::from("root.top.a"), None, None);
-        graph.create_named_path_nodes(SPath::from("root.top.b"), None, None);
+        graph.create_named_path_nodes(SPath::from("root.base.a"), None, false, None);
+        graph.create_named_path_nodes(SPath::from("root.base.b"), None, false, None);
+        graph.create_named_path_nodes(SPath::from("root.top.a"), None, false, None);
+        graph.create_named_path_nodes(SPath::from("root.top.b"), None, false, None);
 
         let b = graph.find_node_named("root.base.b", ".", None).unwrap();
         let root = graph.ensure_main_root();
@@ -928,12 +1017,12 @@ mod tests {
     #[test]
     fn insert_external() {
         let mut graph = Graph::default();
-        graph.create_named_path_nodes("Hello.dude.another.Hi".into(), None, None);
+        graph.create_named_path_nodes("Hello.dude.another.Hi".into(), None, false, None);
 
         let mut other = Graph::default();
-        other.create_named_path_nodes("Dude.dude.created".into(), None, None);
+        other.create_named_path_nodes("Dude.dude.created".into(), None, false, None);
         let external = other.find_node_named("Dude.dude", ".", None).unwrap();
-        graph.insert_external_node(&other, external.node(&other).unwrap(), None, Some(ROOT_NODE_NAME));
+        graph.insert_external_node(&other, external.node(&other).unwrap(), None, Some(ROOT_NODE_NAME), None);
     
         assert!(graph.find_node_named("root.created", ".", None).is_some());
         assert_eq!(graph.nodes.len(), 6);
@@ -944,7 +1033,7 @@ mod tests {
     fn insert_attach_data() {
         let mut graph = Graph::default();
         let root = graph.ensure_main_root();
-        let child = graph.insert_child("child", &root);
+        let child = graph.insert_child("child", &root, false);
 
         let dref = graph.insert_data(&root, Data::from(Box::new("value".to_owned()) as Box<dyn StofData>)).unwrap();
         assert!(graph.attach_data(&child, &dref));
