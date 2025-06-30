@@ -16,7 +16,7 @@
 
 use std::sync::{Arc, RwLock};
 use serde::{Deserialize, Serialize};
-use crate::runtime::Val;
+use crate::{model::Graph, runtime::{Type, Val}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,6 +27,7 @@ pub enum Variable {
     Const(Box<Self>),
 }
 impl Variable {
+    /// Try to set this variable.
     pub fn set(&mut self, val: Val) -> Result<(), ()> {
         match self {
             Self::Val(v) => {
@@ -40,6 +41,24 @@ impl Variable {
             Self::Const(_) => {
                 Err(())
             }
+        }
+    }
+
+    /// Get the generic type for this variable.
+    pub fn gen_type(&self) -> Type {
+        match self {
+            Self::Val(val) => val.gen_type(),
+            Self::Ref(val) => val.read().unwrap().gen_type(),
+            Self::Const(val) => val.gen_type()
+        }
+    }
+
+    /// Get the specific type for this variable.
+    pub fn spec_type(&self, graph: &Graph) -> Type {
+        match self {
+            Self::Val(val) => val.spec_type(graph),
+            Self::Ref(val) => val.read().unwrap().spec_type(graph),
+            Self::Const(val) => val.spec_type(graph),
         }
     }
 }

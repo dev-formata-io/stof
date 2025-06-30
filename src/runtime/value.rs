@@ -661,7 +661,7 @@ impl Val {
 
     /// Get the complex type for this value.
     /// This only applies to data and objects, otherwise it is the same as gen_type.
-    pub fn comp_type(&self, graph: &Graph) -> Type {
+    pub fn spec_type(&self, graph: &Graph) -> Type {
         match self {
             Self::Data(dref) => {
                 if !dref.core_data(graph) { // non-core data are custom complex data types defined outside of this crate

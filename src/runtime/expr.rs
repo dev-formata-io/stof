@@ -14,30 +14,27 @@
 // limitations under the License.
 //
 
+use serde::{Deserialize, Serialize};
+use crate::{model::Graph, runtime::{Error, Val, Variable}};
 
-pub mod runtime;
-pub use runtime::*;
 
-pub mod proc;
-pub mod table;
-pub mod instruction;
-pub mod instructions;
-pub mod expr;
-
-pub mod error;
-pub use error::*;
-
-pub mod value;
-pub use value::*;
-
-pub mod num;
-pub use num::*;
-
-pub mod types;
-pub use types::*;
-
-pub mod variable;
-pub use variable::*;
-
-pub mod units;
-pub use units::*;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Expressions.
+pub enum Expr {
+    Lit(Val),
+}
+impl<T: Into<Val>> From<T> for Expr {
+    fn from(value: T) -> Self {
+        Self::Lit(value.into())
+    }
+}
+impl Expr {
+    /// Execute this expression to get another value.
+    pub fn exec(&self, graph: &mut Graph) -> Result<Variable, Error> {
+        match self {
+            Self::Lit(val) => {
+                Ok(Variable::Val(val.clone()))
+            }
+        }
+    }
+}

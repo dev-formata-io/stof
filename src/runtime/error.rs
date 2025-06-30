@@ -15,29 +15,21 @@
 //
 
 
-pub mod runtime;
-pub use runtime::*;
+/// Error.
+/// TODO.
+pub enum Error {
+    Custom(String),
 
-pub mod proc;
-pub mod table;
-pub mod instruction;
-pub mod instructions;
-pub mod expr;
-
-pub mod error;
-pub use error::*;
-
-pub mod value;
-pub use value::*;
-
-pub mod num;
-pub use num::*;
-
-pub mod types;
-pub use types::*;
-
-pub mod variable;
-pub use variable::*;
-
-pub mod units;
-pub use units::*;
+    /// Attempting to declare a variable that already exists.
+    DeclareExisting,
+    /// Attempting to declare a variable with an invalid name.
+    DeclareInvalidName,
+    /// Attempting to declare a variable with an invalid type.
+    DeclareInvalidType,
+}
+impl Error {
+    /// Custom error string.
+    pub fn custom(message: impl ToString) -> Self {
+        Self::Custom(message.to_string())
+    }
+}

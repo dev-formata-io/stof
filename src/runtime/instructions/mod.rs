@@ -15,29 +15,5 @@
 //
 
 
-pub mod runtime;
-pub use runtime::*;
-
-pub mod proc;
-pub mod table;
-pub mod instruction;
-pub mod instructions;
-pub mod expr;
-
-pub mod error;
-pub use error::*;
-
-pub mod value;
-pub use value::*;
-
-pub mod num;
-pub use num::*;
-
-pub mod types;
-pub use types::*;
-
-pub mod variable;
-pub use variable::*;
-
-pub mod units;
-pub use units::*;
+pub mod declare;
+pub use declare::*;
