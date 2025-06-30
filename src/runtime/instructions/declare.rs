@@ -14,7 +14,6 @@
 // limitations under the License.
 //
 
-use std::sync::Arc;
 use arcstr::ArcStr;
 use serde::{Deserialize, Serialize};
 use crate::{model::Graph, runtime::{expr::Expr, instruction::{Instruction, State}, proc::ProcEnv, Error, Type, Variable}};
@@ -26,7 +25,6 @@ pub struct Declare {
     pub name: ArcStr,
     pub stype: Option<Type>,
     pub expr: Expr,
-    pub next: Option<Arc<dyn Instruction>>,
 }
 
 #[typetag::serde(name = "Dec")]
@@ -39,24 +37,16 @@ impl Instruction for Declare {
             return Err(Error::DeclareInvalidName);
         }
 
-        let var = self.expr.exec(graph)?;
+        let mut var = self.expr.exec(graph)?;
         if let Some(stype) = &self.stype {
             if &var.spec_type(&graph) != stype {
-                return Err(Error::DeclareInvalidType);
+                if let Err(cast_error) = var.cast(stype, graph) {
+                    return Err(Error::DeclareInvalidType(Box::new(cast_error)));
+                }
             }
         }
         env.table.insert(&self.name, var);
-
-        if let Some(next) = &self.next {
-            Ok(State::More(next.clone()))
-        } else {
-            Ok(State::None)
-        }
-    }
-
-    fn push(&mut self, instruction: Arc<dyn Instruction>) -> bool {
-        self.next = Some(instruction);
-        true
+        Ok(State::None)
     }
 }
 
@@ -66,7 +56,6 @@ pub struct ConstDeclare {
     pub name: ArcStr,
     pub stype: Option<Type>,
     pub expr: Expr,
-    pub next: Option<Arc<dyn Instruction>>,
 }
 
 #[typetag::serde(name = "ConstDec")]
@@ -79,23 +68,15 @@ impl Instruction for ConstDeclare {
             return Err(Error::DeclareInvalidName);
         }
 
-        let var = self.expr.exec(graph)?;
+        let mut var = self.expr.exec(graph)?;
         if let Some(stype) = &self.stype {
             if &var.spec_type(&graph) != stype {
-                return Err(Error::DeclareInvalidType);
+                if let Err(cast_error) = var.cast(stype, graph) {
+                    return Err(Error::DeclareInvalidType(Box::new(cast_error)));
+                }
             }
         }
         env.table.insert(&self.name, Variable::Const(Box::new(var)));
-
-        if let Some(next) = &self.next {
-            Ok(State::More(next.clone()))
-        } else {
-            Ok(State::None)
-        }
-    }
-
-    fn push(&mut self, instruction: Arc<dyn Instruction>) -> bool {
-        self.next = Some(instruction);
-        true
+        Ok(State::None)
     }
 }

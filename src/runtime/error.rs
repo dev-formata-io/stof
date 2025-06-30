@@ -25,7 +25,7 @@ pub enum Error {
     /// Attempting to declare a variable with an invalid name.
     DeclareInvalidName,
     /// Attempting to declare a variable with an invalid type.
-    DeclareInvalidType,
+    DeclareInvalidType(Box<Self>),
 }
 impl Error {
     /// Custom error string.

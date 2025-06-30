@@ -14,8 +14,7 @@
 // limitations under the License.
 //
 
-use std::sync::Arc;
-use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{instruction::{Instruction, State}, table::SymbolTable, Error, Variable}};
+use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{instruction::{Instructions, State}, table::SymbolTable, Error, Variable}};
 
 
 #[derive(Debug, Default)]
@@ -24,15 +23,8 @@ pub struct ProcEnv {
     pub pid: SId,
     pub self_stack: Vec<NodeRef>,
     pub call_stack: Vec<DataRef>,
-    
-    // new stack is used for creating objects within creating of objects
-    // without modifying "self".
     pub new_stack: Vec<NodeRef>,
-
-    // used for operations and return values
     pub stack: Vec<Variable>,
-
-    // houses variables
     pub table: Box<SymbolTable>,
 }
 
@@ -41,26 +33,13 @@ pub struct ProcEnv {
 /// Process.
 pub struct Process {
     pub env: ProcEnv,
-    pub instruction: Option<Arc<dyn Instruction>>,
+    pub instructions: Instructions,
 }
 impl Process {
+    #[inline(always)]
     /// Progress this process by one.
     /// If there's more, a MoreProc state will be returned.
     pub fn progress(&mut self, graph: &mut Graph) -> Result<State, Error> {
-        if self.instruction.is_some() {
-            let instruction = self.instruction.as_ref().unwrap();
-            match instruction.exec(&mut self.env, graph)? {
-                State::More(next) => {
-                    self.instruction = Some(next);
-                    Ok(State::MoreProc)
-                },
-                state => {
-                    self.instruction = None;
-                    Ok(state)
-                }
-            }
-        } else {
-            Ok(State::None)
-        }
+        self.instructions.exec(&mut self.env, graph)
     }
 }

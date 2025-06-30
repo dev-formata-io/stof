@@ -19,7 +19,7 @@ use arcstr::ArcStr;
 use bytes::Bytes;
 use imbl::{vector, OrdMap, OrdSet, Vector};
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{Num, Type, DATA, OBJ}};
+use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{Error, Num, Type, DATA, OBJ}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Hash)]
@@ -677,5 +677,10 @@ impl Val {
             },
             _ => self.gen_type()
         }
+    }
+
+    /// Cast this value to a different type.
+    pub fn cast(&mut self, target: &Type, graph: &mut Graph) -> Result<(), Error> {
+        Err(Error::custom("not implemented"))
     }
 }

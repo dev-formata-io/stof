@@ -16,7 +16,7 @@
 
 use std::sync::{Arc, RwLock};
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{Type, Val}};
+use crate::{model::Graph, runtime::{Error, Type, Val}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,6 +59,16 @@ impl Variable {
             Self::Val(val) => val.spec_type(graph),
             Self::Ref(val) => val.read().unwrap().spec_type(graph),
             Self::Const(val) => val.spec_type(graph),
+        }
+    }
+
+    /// Cast this variable to a new type.
+    /// Manipulates this var in place (no copy).
+    pub fn cast(&mut self, target: &Type, graph: &mut Graph) -> Result<(), Error> {
+        match self {
+            Self::Val(val) => val.cast(target, graph),
+            Self::Ref(val) => val.write().unwrap().cast(target, graph),
+            Self::Const(val) => val.cast(target, graph),
         }
     }
 }
