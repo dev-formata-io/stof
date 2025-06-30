@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 
+use arcstr::ArcStr;
 use bytes::Bytes;
 use nanoid::nanoid;
 use std::{fmt::Display, ops::Deref};
@@ -64,7 +65,11 @@ impl<T: ?Sized + ToString> From<&T> for SId {
         Self(Bytes::from(value.to_string()))
     }
 }
-
+impl From<ArcStr> for SId {
+    fn from(value: ArcStr) -> Self {
+        Self(Bytes::from(value.to_string()))
+    }
+}
 
 #[cfg(test)]
 mod tests {

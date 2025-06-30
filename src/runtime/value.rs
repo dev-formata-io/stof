@@ -430,6 +430,13 @@ impl PartialEq for Val {
     }
 }
 impl Eq for Val {}
+
+impl ToString for Val {
+    fn to_string(&self) -> String {
+        format!("") // TODO
+    }
+}
+
 impl Val {
     #[inline(always)]
     /// Is void value?

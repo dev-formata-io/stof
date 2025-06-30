@@ -14,12 +14,23 @@
 // limitations under the License.
 //
 
+use serde::{Deserialize, Serialize};
+use crate::model::{NodeRef, StofData};
 
-pub mod func;
-pub use func::*;
 
-pub mod field;
-pub use field::*;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Prototype.
+pub struct Prototype {
+    pub node: NodeRef,
+}
 
-pub mod prototype;
-pub use prototype::*;
+#[typetag::serde(name = "_Proto")]
+impl StofData for Prototype {
+    fn core_data(&self) -> bool {
+        true
+    }
+}
+
+impl Prototype {
+    
+}

@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 
+use std::collections::BTreeMap;
 use bytes::Bytes;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
@@ -118,5 +119,38 @@ impl Field {
             }
         }
         None
+    }
+
+    /// Get all fields on a node.
+    /// Will create object fields as needed.
+    pub fn fields(graph: &mut Graph, node: &NodeRef) -> BTreeMap<SId, DataRef> {
+        let mut fields = BTreeMap::default();
+        let mut to_create = Vec::new();
+
+        if let Some(node) = node.node(&graph) {
+            for (name, dref) in &node.data {
+                if dref.type_of::<Self>(&graph) {
+                    fields.insert(name.clone(), dref.clone());
+                }
+            }
+
+            for child in &node.children {
+                if let Some(child) = child.node(&graph) {
+                    if child.is_field() && !fields.contains_key(&child.name) {
+                        let mut attrs = child.attributes.clone();
+                        attrs.insert(NOEXPORT_FIELD_ATTR, Variable::Val(Val::Null)); // don't export these lazily created fields
+                        to_create.push((child.name.clone(), Self::new(Variable::Val(Val::Obj(child.id.clone())), Some(attrs))));
+                    }
+                }
+            }
+        }
+
+        for (name, field) in to_create {
+            if let Some(dref) = graph.insert_stof_data(node, name.clone(), Box::new(field), None) {
+                fields.insert(name, dref);
+            }
+        }
+        
+        fields
     }
 }

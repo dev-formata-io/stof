@@ -15,11 +15,27 @@
 //
 
 
-pub mod func;
-pub use func::*;
+pub mod import;
+use arcstr::literal;
+pub use import::*;
 
-pub mod field;
-pub use field::*;
+pub mod export;
+pub use export::*;
 
-pub mod prototype;
-pub use prototype::*;
+use crate::model::{Format, SId};
+
+
+#[derive(Debug)]
+pub struct JsonFormat;
+impl JsonFormat {
+
+}
+impl Format for JsonFormat {
+    fn identifiers(&self) -> Vec<SId> {
+        vec![literal!("json").into()]
+    }
+    fn content_type(&self) -> SId {
+        literal!("application/json").into()
+    }
+    // TODO
+}

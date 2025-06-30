@@ -36,6 +36,9 @@ pub use data::*;
 pub mod components;
 pub use components::*;
 
+pub mod formats;
+pub use formats::*;
+
 
 /*****************************************************************************
  * Stof Data Trait for Graph Data.
