@@ -47,6 +47,14 @@ pub struct Process {
     pub error: Option<Error>,
     pub waiting: Option<SId>,
 }
+impl From<Instructions> for Process {
+    fn from(value: Instructions) -> Self {
+        Self {
+            instruction_stack: vec![value],
+            ..Default::default()
+        }
+    }
+}
 impl Process {
     /// Progress this process by one.
     /// If there's more, a MoreProc state will be returned.

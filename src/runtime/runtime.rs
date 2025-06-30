@@ -15,7 +15,7 @@
 //
 
 use rustc_hash::FxHashMap;
-use crate::{model::{Graph, SId}, runtime::{proc::{ProcState, Process}}};
+use crate::{model::{Graph, SId}, runtime::{instruction::Instructions, proc::{ProcState, Process}}};
 
 
 #[derive(Default, Debug)]
@@ -26,7 +26,22 @@ pub struct Runtime {
     pub waiting: FxHashMap<SId, Process>,
     pub errored: FxHashMap<SId, Process>,
 }
+impl From<Instructions> for Runtime {
+    fn from(value: Instructions) -> Self {
+        let mut rt = Self::default();
+        rt.push_running_proc(Process::from(value));
+        rt
+    }
+}
 impl Runtime {
+    #[inline]
+    /// Push a process to this runtime.
+    pub fn push_running_proc(&mut self, proc: Process) -> SId {
+        let id = proc.env.pid.clone();
+        self.running.insert(id.clone(), proc);
+        id
+    }
+
     /// Run to completion.
     pub fn run_to_complete(&mut self, graph: &mut Graph) {
         let mut to_done = Vec::new();
@@ -75,21 +90,28 @@ impl Runtime {
                         }
                     }
                 }
-                for id in to_run.drain(..) {
-                    if let Some(proc) = self.waiting.remove(&id) {
-                        self.running.insert(id, proc);
+                if !to_run.is_empty() {
+                    for id in to_run.drain(..) {
+                        if let Some(proc) = self.waiting.remove(&id) {
+                            self.running.insert(id, proc);
+                        }
                     }
                 }
             }
 
-            for id in to_wait.drain(..) {
-                if let Some(proc) = self.running.remove(&id) {
-                    self.waiting.insert(id, proc);
+            if !to_wait.is_empty() {
+                for id in to_wait.drain(..) {
+                    if let Some(proc) = self.running.remove(&id) {
+                        self.waiting.insert(id, proc);
+                    }
                 }
             }
-            for id in to_err.drain(..) {
-                if let Some(proc) = self.running.remove(&id) {
-                    self.errored.insert(id, proc);
+
+            if !to_err.is_empty() {
+                for id in to_err.drain(..) {
+                    if let Some(proc) = self.running.remove(&id) {
+                        self.errored.insert(id, proc);
+                    }
                 }
             }
         }

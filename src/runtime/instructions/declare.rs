@@ -100,11 +100,7 @@ mod tests {
             expr: Expr::Lit(Val::Str(ArcStr::from("hello, world"))),
         }));
 
-        let mut proc = Process::default();
-        let pid = proc.env.pid.clone();
-        proc.instruction_stack.push(instructions);
-        runtime.running.insert(pid.clone(), proc);
-
+        let pid = runtime.push_running_proc(Process::from(instructions));
         runtime.run_to_complete(&mut graph);
         let mut proc = runtime.done.remove(&pid).unwrap();
 
