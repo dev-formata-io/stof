@@ -16,7 +16,7 @@
 
 use imbl::Vector;
 use serde_json::{Map, Number, Value};
-use crate::{model::{Field, Graph, NodeRef, NOEXPORT_FIELD_ATTR}, runtime::{Num, Val, Variable}};
+use crate::{model::{Field, Graph, NodeRef, NOEXPORT_FIELD_ATTR}, runtime::{Num, Val}};
 
 
 /// Export a serde_json Value from a node in the graph.
@@ -27,7 +27,7 @@ pub(crate) fn json_value_from_node(graph: &Graph, node: &NodeRef) -> Value {
             if let Some(field) = graph.get_stof_data::<Field>(dref) {
                 if !field.attributes.contains_key(&NOEXPORT_FIELD_ATTR) {
                     // could still be objects... just not child object fields (unles you create another reference...)
-                    map.insert(name.to_string(), json_var_value(graph, field.value.clone()));
+                    map.insert(name.to_string(), json_value(graph, field.value.get()));
                 }
             }
         }
@@ -40,15 +40,6 @@ pub(crate) fn json_value_from_node(graph: &Graph, node: &NodeRef) -> Value {
         }
     }
     Value::Object(map)
-}
-
-/// Get a JSON value from a Variable.
-fn json_var_value(graph: &Graph, var: Variable) -> Value {
-    match var {
-        Variable::Val(val) => json_value(graph, val),
-        Variable::Ref(val) => json_value(graph, val.read().unwrap().clone()),
-        Variable::Const(val) => json_var_value(graph, *val),
-    }
 }
 
 /// Get a JSON value from a Val.

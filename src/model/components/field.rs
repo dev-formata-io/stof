@@ -30,7 +30,7 @@ pub const NOEXPORT_FIELD_ATTR: SId = SId(Bytes::from_static(b"no-export"));
 /// Name specified by the object.
 pub struct Field {
     pub value: Variable,
-    pub attributes: FxHashMap<SId, Variable>,
+    pub attributes: FxHashMap<SId, Val>,
 }
 
 #[typetag::serde(name = "_Field")]
@@ -52,7 +52,7 @@ impl StofData for Field {
 
 impl Field {
     /// Create a new field.
-    pub fn new(value: Variable, attrs: Option<FxHashMap<SId, Variable>>) -> Self {
+    pub fn new(value: Variable, attrs: Option<FxHashMap<SId, Val>>) -> Self {
         let mut attributes = FxHashMap::default();
         if let Some(attr) = attrs {
             attributes = attr;
@@ -84,8 +84,10 @@ impl Field {
     pub fn direct_field(graph: &Graph, node: &NodeRef, field_name: &SId) -> Option<DataRef> {
         if let Some(node) = node.node(graph) {
             if let Some(dref) = node.data.get(field_name) {
-                if dref.type_of::<Self>(&graph) {
-                    return Some(dref.clone());
+                if let Some(field) = graph.get_stof_data::<Self>(dref) {
+                    if !field.value.dangling_obj(graph) {
+                        return Some(dref.clone());
+                    }
                 }
             }
         }
@@ -98,16 +100,19 @@ impl Field {
         let mut created = None;
         if let Some(node) = node.node(&graph) {
             if let Some(dref) = node.data.get(field_name) {
-                if dref.type_of::<Self>(&graph) {
-                    return Some(dref.clone());
+                if let Some(field) = graph.get_stof_data::<Self>(dref) {
+                    if !field.value.dangling_obj(graph) {
+                        return Some(dref.clone());
+                    }
                 }
             }
             for child in &node.children {
                 if let Some(child) = child.node(&graph) {
                     if &child.name == field_name && child.is_field() {
                         let mut attrs = child.attributes.clone();
-                        attrs.insert(NOEXPORT_FIELD_ATTR, Variable::Val(Val::Null)); // don't export these lazily created fields
-                        created = Some(Self::new(Variable::Val(Val::Obj(child.id.clone())), Some(attrs)));
+                        attrs.insert(NOEXPORT_FIELD_ATTR, Val::Null); // don't export these lazily created fields
+                        let var = Variable::new(true, Val::Obj(child.id.clone()));
+                        created = Some(Self::new(var, Some(attrs)));
                         break;
                     }
                 }
@@ -129,8 +134,10 @@ impl Field {
 
         if let Some(node) = node.node(&graph) {
             for (name, dref) in &node.data {
-                if dref.type_of::<Self>(&graph) {
-                    fields.insert(name.clone(), dref.clone());
+                if let Some(field) = graph.get_stof_data::<Self>(dref) {
+                    if !field.value.dangling_obj(graph) {
+                        fields.insert(name.clone(), dref.clone());
+                    }
                 }
             }
 
@@ -138,8 +145,9 @@ impl Field {
                 if let Some(child) = child.node(&graph) {
                     if child.is_field() && !fields.contains_key(&child.name) {
                         let mut attrs = child.attributes.clone();
-                        attrs.insert(NOEXPORT_FIELD_ATTR, Variable::Val(Val::Null)); // don't export these lazily created fields
-                        to_create.push((child.name.clone(), Self::new(Variable::Val(Val::Obj(child.id.clone())), Some(attrs))));
+                        attrs.insert(NOEXPORT_FIELD_ATTR, Val::Null); // don't export these lazily created fields
+                        let var = Variable::new(true, Val::Obj(child.id.clone()));
+                        to_create.push((child.name.clone(), Self::new(var, Some(attrs))));
                     }
                 }
             }

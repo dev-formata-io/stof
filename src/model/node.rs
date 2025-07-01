@@ -18,7 +18,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use bytes::Bytes;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, NodeRef, SId}, runtime::{Val, Variable}};
+use crate::{model::{DataRef, NodeRef, SId}, runtime::Val};
 
 
 /// Invalid/dirty new symbol.
@@ -52,7 +52,7 @@ pub struct Node {
     pub parent: Option<NodeRef>,
     pub children: BTreeSet<NodeRef>,  // keeps order
     pub data: BTreeMap<SId, DataRef>, // keeps order
-    pub attributes: FxHashMap<SId, Variable>,
+    pub attributes: FxHashMap<SId, Val>,
 
     #[serde(skip)]
     pub dirty: FxHashSet<SId>,
@@ -63,7 +63,7 @@ impl Node {
         let mut attributes = FxHashMap::default();
         if field {
             // marks this node as also a field
-            attributes.insert(FIELD_NODE_ATTR, Variable::Val(Val::Null));
+            attributes.insert(FIELD_NODE_ATTR, Val::Null);
         }
         Self {
             id,
@@ -86,7 +86,7 @@ impl Node {
     /// Make this node a field.
     /// Returns whether this object was not previously a field (or if changed as thats easier to think about).
     pub fn make_field(&mut self) -> bool {
-        let res = self.attributes.insert(FIELD_NODE_ATTR, Variable::Val(Val::Null)).is_none();
+        let res = self.attributes.insert(FIELD_NODE_ATTR, Val::Null).is_none();
         if res {
             self.invalidate_attrs();
         }
@@ -200,8 +200,8 @@ impl Node {
 
     #[inline]
     /// Insert an attribute.
-    pub fn insert_attribute(&mut self, id: SId, var: Variable) -> bool {
-        let res = self.attributes.insert(id, var).is_none();
+    pub fn insert_attribute(&mut self, id: SId, val: Val) -> bool {
+        let res = self.attributes.insert(id, val).is_none();
         if res {
             self.invalidate_attrs();
         }

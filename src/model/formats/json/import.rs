@@ -37,7 +37,7 @@ pub(crate) fn parse_json_object_value(graph: &mut Graph, node: &NodeRef, value: 
 pub(crate) fn parse_json_field_value(graph: &mut Graph, node: &NodeRef, value: Value, field: &str) -> Field {
     match value {
         Value::Null => {
-            Field::new(Variable::Val(Val::Null), None)
+            Field::new(Variable::new(true, Val::Null), None)
         },
         Value::Number(v)  => {
             let val: Val;
@@ -50,26 +50,26 @@ pub(crate) fn parse_json_field_value(graph: &mut Graph, node: &NodeRef, value: V
             } else {
                 val = Val::Null
             }
-            Field::new(Variable::Val(val), None)
+            Field::new(Variable::new(true, val), None)
         },
         Value::String(v)  => {
-            Field::new(Variable::Val(Val::from(v.as_str())), None)
+            Field::new(Variable::new(true, Val::from(v.as_str())), None)
         },
         Value::Bool(v) => {
-            Field::new(Variable::Val(Val::from(v)), None)
+            Field::new(Variable::new(true, Val::from(v)), None)
         },
         Value::Array(vals) => {
             let mut jf_arr = Vector::default();
             parse_json_array_values(graph, node, vals, &mut jf_arr);
-            Field::new(Variable::Val(Val::List(jf_arr)), None)
+            Field::new(Variable::new(true, Val::List(jf_arr)), None)
         }
         Value::Object(_) => {
             let child_node = graph.insert_node(field, Some(node.clone()), true);
             parse_json_object_value(graph, &child_node, value);
 
             let mut attrs = FxHashMap::default();
-            attrs.insert(NOEXPORT_FIELD_ATTR, Variable::Val(Val::Null)); // don't export object fields
-            Field::new(Variable::Val(Val::Obj(child_node)), Some(attrs))
+            attrs.insert(NOEXPORT_FIELD_ATTR, Val::Null); // don't export object fields
+            Field::new(Variable::new(true, Val::Obj(child_node)), Some(attrs))
         },
     }
 }

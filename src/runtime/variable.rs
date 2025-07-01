@@ -16,77 +16,74 @@
 
 use std::sync::{Arc, RwLock};
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Graph, NodeRef}, runtime::{Error, Type, Val}};
+use crate::{model::{DataRef, Graph, NodeRef}, runtime::{Type, Val}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// Variable.
-pub enum Variable {
-    Val(Val),
-    Ref(Arc<RwLock<Val>>),
-    Const(Box<Self>),
+/// Used in symbol tables and for fields.
+pub struct Variable {
+    val: Arc<RwLock<Val>>,
+    mutable: bool,
 }
 impl Variable {
+    /// Create a new variable.
+    pub fn new(mutable: bool, val: Val) -> Self {
+        Self {
+            mutable,
+            val: Arc::new(RwLock::new(val)),
+        }
+    }
+
     /// Try to set this variable.
+    /// Will error if not able to set.
     pub fn set(&mut self, val: Val) -> Result<(), ()> {
-        match self {
-            Self::Val(v) => {
-                *v = val;
-                Ok(())
-            },
-            Self::Ref(r) => {
-                *r.write().unwrap() = val;
-                Ok(())
-            },
-            Self::Const(_) => {
-                Err(())
-            }
+        if self.mutable {
+            *self.val.write().unwrap() = val;
+            Ok(())
+        } else {
+            Err(())
         }
     }
 
-    /// Get the generic type for this variable.
-    pub fn gen_type(&self) -> Type {
-        match self {
-            Self::Val(val) => val.gen_type(),
-            Self::Ref(val) => val.read().unwrap().gen_type(),
-            Self::Const(val) => val.gen_type()
-        }
+    #[inline]
+    /// Get a value from this variable.
+    /// Vals are pretty cheap to clone.
+    pub fn get(&self) -> Val {
+        self.val.read().unwrap().clone()
     }
 
-    /// Get the specific type for this variable.
-    pub fn spec_type(&self, graph: &Graph) -> Type {
-        match self {
-            Self::Val(val) => val.spec_type(graph),
-            Self::Ref(val) => val.read().unwrap().spec_type(graph),
-            Self::Const(val) => val.spec_type(graph),
-        }
-    }
-
-    /// Cast this variable to a new type.
-    /// Manipulates this var in place (no copy).
-    pub fn cast(&mut self, target: &Type, graph: &mut Graph) -> Result<(), Error> {
-        match self {
-            Self::Val(val) => val.cast(target, graph),
-            Self::Ref(val) => val.write().unwrap().cast(target, graph),
-            Self::Const(val) => val.cast(target, graph),
-        }
-    }
-
-    /// Try getting an object out of this variable.
+    #[inline]
+    /// Try extracting an object reference from this var.
     pub fn try_obj(&self) -> Option<NodeRef> {
-        match self {
-            Self::Val(val) => val.try_obj(),
-            Self::Ref(val) => val.read().unwrap().try_obj(),
-            Self::Const(val) => val.try_obj(),
+        self.val.read().unwrap().try_obj()
+    }
+
+    #[inline]
+    /// Is this variable a dangling object reference?
+    pub fn dangling_obj(&self, graph: &Graph) -> bool {
+        if let Some(obj) = self.try_obj() {
+            !obj.node_exists(graph)
+        } else {
+            false
         }
     }
 
-    /// Is this variable equal to this data reference?
+    #[inline]
+    /// Is this variable a data reference?
     pub fn is_data_ref(&self, data: &DataRef) -> bool {
-        match self {
-            Self::Val(val) => val.is_data_ref(data),
-            Self::Ref(val) => val.read().unwrap().is_data_ref(data),
-            Self::Const(val) => val.is_data_ref(data),
-        }
+        self.val.read().unwrap().is_data_ref(data)
+    }
+
+    #[inline]
+    /// Variables generic type.
+    pub fn gen_type(&self) -> Type {
+        self.val.read().unwrap().gen_type()
+    }
+
+    #[inline]
+    /// Specific type.
+    pub fn spec_type(&self, graph: &Graph) -> Type {
+        self.val.read().unwrap().spec_type(graph)
     }
 }

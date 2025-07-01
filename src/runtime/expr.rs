@@ -14,14 +14,16 @@
 // limitations under the License.
 //
 
+use arcstr::ArcStr;
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{Error, Val, Variable}};
+use crate::{model::Graph, runtime::{instruction::Instructions, proc::ProcEnv, Error, Val}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// Expressions.
 pub enum Expr {
     Lit(Val),
+    Var(ArcStr),
 }
 impl<T: Into<Val>> From<T> for Expr {
     fn from(value: T) -> Self {
@@ -30,11 +32,20 @@ impl<T: Into<Val>> From<T> for Expr {
 }
 impl Expr {
     /// Execute this expression to get another value.
-    pub fn exec(&self, graph: &mut Graph) -> Result<Variable, Error> {
+    pub fn exec(&self, instructions: &mut Instructions, env: &mut ProcEnv, graph: &mut Graph) -> Result<Val, Error> {
         match self {
             Self::Lit(val) => {
-                Ok(Variable::Val(val.clone()))
-            }
+                Ok(val.clone())
+            },
+            Self::Var(val) => {
+                if let Some(var) = env.table.get(val) {
+                    return Ok(var.get());
+                }
+
+                
+
+                Err(Error::NotImplemented)
+            },
         }
     }
 }

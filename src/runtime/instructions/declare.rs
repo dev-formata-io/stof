@@ -16,7 +16,7 @@
 
 use arcstr::ArcStr;
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{expr::Expr, instruction::{Instruction, State}, proc::ProcEnv, Error, Type, Variable}};
+use crate::{model::Graph, runtime::{expr::Expr, instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Type, Variable}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,7 +29,7 @@ pub struct Declare {
 
 #[typetag::serde(name = "Dec")]
 impl Instruction for Declare {
-    fn exec(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<State, Error> {
+    fn exec(&self, instructions: &mut Instructions, env: &mut ProcEnv, graph: &mut Graph) -> Result<(), Error> {
         if !env.table.can_declare(&self.name) {
             return Err(Error::DeclareExisting);
         }
@@ -37,16 +37,16 @@ impl Instruction for Declare {
             return Err(Error::DeclareInvalidName);
         }
 
-        let mut var = self.expr.exec(graph)?;
+        let mut val = self.expr.exec(instructions, env, graph)?;
         if let Some(stype) = &self.stype {
-            if &var.spec_type(&graph) != stype {
-                if let Err(cast_error) = var.cast(stype, graph) {
+            if &val.spec_type(&graph) != stype {
+                if let Err(cast_error) = val.cast(stype, graph) {
                     return Err(Error::DeclareInvalidType(Box::new(cast_error)));
                 }
             }
         }
-        env.table.insert(&self.name, var);
-        Ok(State::None)
+        env.table.insert(&self.name, Variable::new(true, val));
+        Ok(())
     }
 }
 
@@ -60,7 +60,7 @@ pub struct ConstDeclare {
 
 #[typetag::serde(name = "ConstDec")]
 impl Instruction for ConstDeclare {
-    fn exec(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<State, Error> {
+    fn exec(&self, instructions: &mut Instructions, env: &mut ProcEnv, graph: &mut Graph) -> Result<(), Error> {
         if !env.table.can_declare(&self.name) {
             return Err(Error::DeclareExisting);
         }
@@ -68,16 +68,16 @@ impl Instruction for ConstDeclare {
             return Err(Error::DeclareInvalidName);
         }
 
-        let mut var = self.expr.exec(graph)?;
+        let mut val = self.expr.exec(instructions, env, graph)?;
         if let Some(stype) = &self.stype {
-            if &var.spec_type(&graph) != stype {
-                if let Err(cast_error) = var.cast(stype, graph) {
+            if &val.spec_type(&graph) != stype {
+                if let Err(cast_error) = val.cast(stype, graph) {
                     return Err(Error::DeclareInvalidType(Box::new(cast_error)));
                 }
             }
         }
-        env.table.insert(&self.name, Variable::Const(Box::new(var)));
-        Ok(State::None)
+        env.table.insert(&self.name, Variable::new(false, val));
+        Ok(())
     }
 }
 

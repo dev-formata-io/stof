@@ -20,18 +20,6 @@ use serde::{Deserialize, Serialize};
 use crate::{model::Graph, runtime::{proc::ProcEnv, Error}};
 
 
-/// Instruction state return type.
-pub enum State {
-    None,
-    Return(bool),
-    
-    Pop,       // Break
-    StartOver, // Continue
-
-    Push(Instructions),
-}
-
-
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 /// Instructions.
 pub struct Instructions {
@@ -56,12 +44,12 @@ impl Instructions {
     #[inline]
     /// Execute one instruction, in order.
     /// This will pop the first instruction, leaving the next ready to be consumed later.
-    pub fn exec(&mut self, env: &mut ProcEnv, graph: &mut Graph) -> Result<State, Error> {
+    pub fn exec(&mut self, env: &mut ProcEnv, graph: &mut Graph) -> Result<(), Error> {
         if let Some(ins) = self.instructions.pop_front() {
             self.executed.push_back(ins.clone());
-            return ins.exec(env, graph);
+            return ins.exec(self, env, graph);
         }
-        Ok(State::Return(false))
+        Ok(())
     }
 
     /// Start over (used with loops, etc.)
@@ -94,7 +82,7 @@ impl Instructions {
 /// Instruction trait for an operation within the runtime.
 pub trait Instruction: InsDynAny + std::fmt::Debug + InsClone + Send + Sync {
     /// Execute this instruction given the process it's running on and the graph.
-    fn exec(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<State, Error>;
+    fn exec(&self, instructions: &mut Instructions, env: &mut ProcEnv, graph: &mut Graph) -> Result<(), Error>;
 }
 
 

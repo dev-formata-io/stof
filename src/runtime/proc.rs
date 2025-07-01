@@ -14,15 +14,14 @@
 // limitations under the License.
 //
 
-use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{instruction::{Instructions, State}, table::SymbolTable, Error, Variable}};
+use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{instruction::Instructions, table::SymbolTable, Error, Val}};
 
 
 #[derive(Debug)]
-/// Process State.
-pub enum ProcState {
+/// Process Result.
+pub enum ProcRes {
     Done,
     More,
-    Wait(SId),
 }
 
 
@@ -33,8 +32,17 @@ pub struct ProcEnv {
     pub self_stack: Vec<NodeRef>,
     pub call_stack: Vec<DataRef>,
     pub new_stack: Vec<NodeRef>,
-    pub stack: Vec<Variable>,
+    pub stack: Vec<Val>,
     pub table: Box<SymbolTable>,
+
+    // Setting this will put the process into a waiting mode
+    pub spawn: Option<Box<Process>>,
+}
+impl ProcEnv {
+    // Get the current self ptr.
+    //pub fn self_ptr(graph: &Graph) -> NodeRef {
+
+    //}
 }
 
 
@@ -42,85 +50,33 @@ pub struct ProcEnv {
 /// Process.
 pub struct Process {
     pub env: ProcEnv,
-    pub instruction_stack: Vec<Instructions>,
-    pub result: Option<Variable>,
+    pub instructions: Instructions,
+    pub result: Option<Val>,
     pub error: Option<Error>,
     pub waiting: Option<SId>,
 }
 impl From<Instructions> for Process {
     fn from(value: Instructions) -> Self {
         Self {
-            instruction_stack: vec![value],
+            instructions: value,
             ..Default::default()
         }
     }
 }
 impl Process {
-    /// Progress this process by one.
-    /// If there's more, a MoreProc state will be returned.
-    pub fn progress(&mut self, graph: &mut Graph) -> Result<ProcState, Error> {
-        if self.instruction_stack.is_empty() {
-            Ok(ProcState::Done)
-        } else {
-            match self.instruction_stack.last_mut().unwrap().exec(&mut self.env, graph) {
-                Ok(state) => {
-                    match state {
-                        State::None => {
-                            while !self.instruction_stack.is_empty() && !self.instruction_stack.last().unwrap().more() {
-                                self.instruction_stack.pop();
-                            }
-                            if self.instruction_stack.is_empty() {
-                                Ok(ProcState::Done)
-                            } else {
-                                Ok(ProcState::More)
-                            }
-                        },
-                        State::Return(pushed) => {
-                            self.instruction_stack.pop();
-                            while !self.instruction_stack.is_empty() && !self.instruction_stack.last().unwrap().more() {
-                                self.instruction_stack.pop();
-                            }
-                            if self.instruction_stack.is_empty() {
-                                if pushed {
-                                    if let Some(var) = self.env.stack.pop() {
-                                        self.result = Some(var);
-                                        Ok(ProcState::Done)
-                                    } else {
-                                        Ok(ProcState::Done)
-                                    }
-                                } else {
-                                    Ok(ProcState::Done)
-                                }
-                            } else {
-                                // In this case, it's like Pop.
-                                // Any function calls are expected to have the stack pop in thier instructions.
-                                Ok(ProcState::More)
-                            }
-                        },
-                        State::Push(instructions) => {
-                            self.instruction_stack.push(instructions);
-                            Ok(ProcState::More)
-                        },
-                        State::Pop => {
-                            self.instruction_stack.pop();
-                            while !self.instruction_stack.is_empty() && !self.instruction_stack.last().unwrap().more() {
-                                self.instruction_stack.pop();
-                            }
-                            if self.instruction_stack.is_empty() {
-                                Ok(ProcState::Done)
-                            } else {
-                                Ok(ProcState::More)
-                            }
-                        },
-                        State::StartOver => {
-                            self.instruction_stack.last_mut().unwrap().start_over();
-                            Ok(ProcState::More)
-                        },
-                    }
-                },
-                Err(error) => {
-                    Err(error)
+    #[inline(always)]
+    /// Progress this process by one instruction.
+    pub(super) fn progress(&mut self, graph: &mut Graph) -> Result<ProcRes, Error> {
+        match self.instructions.exec(&mut self.env, graph) {
+            Ok(_) => {
+                if !self.instructions.more() {
+                    Ok(ProcRes::Done)
+                } else {
+                    Ok(ProcRes::More)
                 }
+            },
+            Err(error) => {
+                Err(error)
             }
         }
     }
