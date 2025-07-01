@@ -18,11 +18,14 @@ use std::collections::BTreeMap;
 use bytes::Bytes;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Graph, NodeRef, SId, SPath, StofData, SELF_KEYWORD, SUPER_KEYWORD}, runtime::{Val, Variable}};
+use crate::{model::{DataRef, Graph, NodeRef, SId, SPath, StofData, SELF_KEYWORD, SUPER_KEYWORD}, runtime::{Error, Val, Variable}};
 
 /// Marks a field as no export.
 /// Used in export formats.
 pub const NOEXPORT_FIELD_ATTR: SId = SId(Bytes::from_static(b"no-export"));
+
+/// Can the field be set?
+pub const PRIVATE_FIELD_ATTR: SId = SId(Bytes::from_static(b"private"));
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,6 +66,14 @@ impl Field {
         }
     }
 
+    /// Try setting this field.
+    pub fn try_set(&mut self, val: Val) -> Result<(), Error> {
+        if self.attributes.contains_key(&PRIVATE_FIELD_ATTR) {
+            return Err(Error::FieldPrivateSet);
+        }
+        self.value.set(val)
+    }
+
     /// Get a field from a dot separated name path string.
     /// Ex. "root.hello" -> root object with a field named "hello". If hello is an object, a field might get created for it.
     pub fn field_from_path(graph: &mut Graph, path: &str, start: Option<NodeRef>) -> Option<DataRef> {
@@ -70,10 +81,8 @@ impl Field {
         if spath.path.is_empty() { return None; }
         
         let field_name = spath.path.pop().unwrap();
-        if let Some(id_path) = spath.to_id_path(&graph, start) {
-            if let Some(node) = id_path.node(&graph) {
-                return Self::field(graph, &node, &field_name);
-            }
+        if let Some(node) = SPath::node(&graph, spath, start) {
+            return Self::field(graph, &node, &field_name);
         }
         None
     }

@@ -68,8 +68,8 @@ impl Graph {
 
     #[inline]
     /// Find a node with a named path, optionally starting from an existing node.
-    pub fn find_node_named(&self, path: &str, sep: &str, start: Option<NodeRef>) -> Option<NodeRef> {
-        SPath::find(self, path, true, sep, start)
+    pub fn find_node_named(&self, path: impl Into<SPath>, start: Option<NodeRef>) -> Option<NodeRef> {
+        SPath::node(self, path, start)
     }
 
     #[inline(always)]
@@ -199,57 +199,25 @@ impl Graph {
 
     /// Create nodes from a named path.
     /// Param fields - if creating a new object to match the path, should it be a field (only applies to nodes that don't exist yet)?
-    pub fn create_named_path_nodes(&mut self, path: SPath, start: Option<NodeRef>, fields: bool, custom_insert: Option<fn(&mut Self, &SId, &SId)->NodeRef>) -> Option<NodeRef> {
-        if path.path.len() < 1 { return None; }
-        
+    pub fn ensure_named_nodes(&mut self, path: impl Into<SPath>, start: Option<NodeRef>, fields: bool, custom_insert: Option<fn(&mut Self, &SId, Option<NodeRef>)->NodeRef>) -> Option<NodeRef> {
+        let path: SPath = path.into();
+        if path.path.is_empty() { return None; }
+        if !path.names {
+            return None;
+        }
+
         let mut current = start;
-        let path = path.path;
-        let mut start = 0;
-        if current.is_none() {
-            start += 1;
-            let first = &path[0];
-
-            // needs to be a root, so look before inserting
-            for root in &self.roots {
-                if let Some(node) = root.node(&self) {
-                    if &node.name == first {
-                        current = Some(node.id.clone());
-                        break;
-                    }
-                }
-            }
-            if current.is_none() {
-                current = Some(self.insert_root(first));
-            }
-        }
-        
-        while current.is_some() && start < path.len() {
-            let name = &path[start];
-            let nref = current.unwrap();
-            current = None;
-
-            if let Some(node) = nref.node(&self) {
-                for child in &node.children {
-                    if let Some(child_node) = child.node(&self) {
-                        if &child_node.name == name {
-                            current = Some(child.clone());
-                            break;
-                        }
-                    }
-                }
-            }
-            if current.is_none() {
-                // create a new node with the given name here
+        for segment in path.path {
+            if let Some(node) = SPath::node(&self, (segment.clone(), true), current.clone()) {
+                current = Some(node);
+            } else {
                 if let Some(custom) = &custom_insert {
-                    current = Some(custom(self, name, &nref));
+                    current = Some(custom(self, &segment, current));
                 } else {
-                    current = Some(self.insert_node(name, Some(nref), fields));
+                    current = Some(self.insert_node(&segment, current, fields));
                 }
             }
-
-            start += 1;
         }
-
         current
     }
 
@@ -1056,7 +1024,7 @@ mod tests {
         assert_eq!(graph.roots.len(), 1);
         assert_eq!(graph.nodes.len(), 1);
         assert_eq!(graph.data.len(), 0);
-        assert!(graph.find_node_named("root", ".", None).is_some());
+        assert!(graph.find_node_named("root", None).is_some());
     }
 
     #[test]
@@ -1083,29 +1051,26 @@ mod tests {
                 super_test = graph.insert_child("super", &top, false);
             }
         }
-        assert_eq!(graph.find_node_named("root.base", ".", None).unwrap(), base);
-        assert_eq!(graph.find_node_named("root/base", "/", None).unwrap(), base);
+        assert_eq!(graph.find_node_named("root.base", None).unwrap(), base);
+        assert_eq!(graph.find_node_named("root.base", Some(root.clone())).unwrap(), base);
 
-        assert_eq!(graph.find_node_named("root.base", ".", Some(root.clone())).unwrap(), base);
-        assert_eq!(graph.find_node_named("root/base", "/", Some(root.clone())).unwrap(), base);
+        assert_eq!(graph.find_node_named("base", Some(root.clone())).unwrap(), base);
+        assert_eq!(graph.find_node_named("base", Some(base.clone())).unwrap(), base);
+        assert_eq!(graph.find_node_named("self", Some(base.clone())).unwrap(), base);
+        assert_eq!(graph.find_node_named("super", Some(base.clone())).unwrap(), root);
 
-        assert_eq!(graph.find_node_named("base", ".", Some(root.clone())).unwrap(), base);
-        assert_eq!(graph.find_node_named("base", "/", Some(base.clone())).unwrap(), base);
-        assert_eq!(graph.find_node_named("self", "/", Some(base.clone())).unwrap(), base);
-        assert_eq!(graph.find_node_named("super", "/", Some(base.clone())).unwrap(), root);
-
-        assert_eq!(graph.find_node_named("self.self", ".", Some(top.clone())).unwrap(), self_test);
-        assert_eq!(graph.find_node_named("super/super", "/", Some(top.clone())).unwrap(), top);
-        assert_eq!(graph.find_node_named("super", ".", Some(top.clone())).unwrap(), super_test);
+        assert_eq!(graph.find_node_named("self.self", Some(top.clone())).unwrap(), self_test);
+        assert_eq!(graph.find_node_named("super.super", Some(top.clone())).unwrap(), top);
+        assert_eq!(graph.find_node_named("super", Some(top.clone())).unwrap(), super_test);
     }
 
     #[test]
     fn create_named_path() {
         let mut graph = Graph::default();
-        let a = graph.create_named_path_nodes(SPath::from("root.base.a"), None, false, None).unwrap();
+        let a = graph.ensure_named_nodes("root.base.a", None, false, None).unwrap();
         assert_eq!(a.node_name(&graph).unwrap().as_ref(), "a");
 
-        let b = graph.create_named_path_nodes(SPath::from("root.base.b"), None, false, None).unwrap();
+        let b = graph.ensure_named_nodes("root.base.b", None, false, None).unwrap();
         assert_eq!(b.node_name(&graph).unwrap().as_ref(), "b");
 
         assert!(graph.main_root().is_some());
@@ -1117,15 +1082,15 @@ mod tests {
     #[test]
     fn remove_node() {
         let mut graph = Graph::default();
-        graph.create_named_path_nodes(SPath::from("root.base.a"), None, false, None);
-        graph.create_named_path_nodes(SPath::from("root.base.b"), None, false, None);
-        graph.create_named_path_nodes(SPath::from("root.top.a"), None, false, None);
-        graph.create_named_path_nodes(SPath::from("root.top.b"), None, false, None);
+        graph.ensure_named_nodes(SPath::from("root.base.a"), None, false, None);
+        graph.ensure_named_nodes(SPath::from("root.base.b"), None, false, None);
+        graph.ensure_named_nodes(SPath::from("root.top.a"), None, false, None);
+        graph.ensure_named_nodes(SPath::from("root.top.b"), None, false, None);
 
         assert_eq!(graph.nodes.len(), 7);
         assert_eq!(graph.roots.len(), 1);
 
-        let base = graph.find_node_named("root.base", ".", None).unwrap();
+        let base = graph.find_node_named("root.base", None).unwrap();
         graph.remove_node(&base, false);
 
         assert!(!base.node_exists(&graph));
@@ -1133,7 +1098,7 @@ mod tests {
         assert_eq!(graph.roots.len(), 1);
         assert_eq!(graph.node_deadpool.len(), 3);
 
-        let top = graph.find_node_named("top", ".", None).unwrap();
+        let top = graph.find_node_named("top", None).unwrap();
         assert!(top.node_exists(&graph));
 
         assert_eq!(graph.all_child_nodes(&graph.main_root().unwrap(), true).len(), 4);
@@ -1142,12 +1107,12 @@ mod tests {
     #[test]
     fn move_node_up() {
         let mut graph = Graph::default();
-        graph.create_named_path_nodes(SPath::from("root.base.a"), None, false, None);
-        graph.create_named_path_nodes(SPath::from("root.base.b"), None, false, None);
-        graph.create_named_path_nodes(SPath::from("root.top.a"), None, false, None);
-        graph.create_named_path_nodes(SPath::from("root.top.b"), None, false, None);
+        graph.ensure_named_nodes(SPath::from("root.base.a"), None, false, None);
+        graph.ensure_named_nodes(SPath::from("root.base.b"), None, false, None);
+        graph.ensure_named_nodes(SPath::from("root.top.a"), None, false, None);
+        graph.ensure_named_nodes(SPath::from("root.top.b"), None, false, None);
 
-        let b = graph.find_node_named("root.base.b", ".", None).unwrap();
+        let b = graph.find_node_named("root.base.b", None).unwrap();
         let root = graph.ensure_main_root();
         assert!(graph.move_node(&b, &root));
         assert_eq!(b.node_path(&graph, true).unwrap().join("."), "root.b");
@@ -1159,14 +1124,14 @@ mod tests {
     #[test]
     fn insert_external() {
         let mut graph = Graph::default();
-        graph.create_named_path_nodes("Hello.dude.another.Hi".into(), None, false, None);
+        graph.ensure_named_nodes("Hello.dude.another.Hi", None, false, None);
 
         let mut other = Graph::default();
-        other.create_named_path_nodes("Dude.dude.created".into(), None, false, None);
-        let external = other.find_node_named("Dude.dude", ".", None).unwrap();
+        other.ensure_named_nodes("Dude.dude.created", None, false, None);
+        let external = other.find_node_named("Dude.dude", None).unwrap();
         graph.insert_external_node(&other, external.node(&other).unwrap(), None, Some(ROOT_NODE_NAME), None);
     
-        assert!(graph.find_node_named("root.created", ".", None).is_some());
+        assert!(graph.find_node_named("root.created", None).is_some());
         assert_eq!(graph.nodes.len(), 6);
         assert_eq!(graph.roots.len(), 2);
     }

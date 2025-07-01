@@ -16,7 +16,7 @@
 
 use std::sync::{Arc, RwLock};
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Graph, NodeRef}, runtime::{Type, Val}};
+use crate::{model::{DataRef, Graph, NodeRef}, runtime::{Error, Type, Val}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,12 +37,12 @@ impl Variable {
 
     /// Try to set this variable.
     /// Will error if not able to set.
-    pub fn set(&mut self, val: Val) -> Result<(), ()> {
+    pub fn set(&mut self, val: Val) -> Result<(), Error> {
         if self.mutable {
             *self.val.write().unwrap() = val;
             Ok(())
         } else {
-            Err(())
+            Err(Error::AssignConst)
         }
     }
 

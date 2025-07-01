@@ -91,8 +91,15 @@ pub enum Base {
 impl Instruction for Base {
     fn exec(&self, instructions: &mut Instructions, env: &mut ProcEnv, graph: &mut Graph) -> Result<(), Error> {
         match self {
+            /*****************************************************************************
+             * Suspend.
+             *****************************************************************************/
             Self::Suspend => {}, // Nothing here...
             
+
+            /*****************************************************************************
+             * Special stacks.
+             *****************************************************************************/
             Self::PushSelf => {
                 if let Some(val) = env.stack.pop() {
                     if let Some(obj) = val.try_obj() {
@@ -103,7 +110,7 @@ impl Instruction for Base {
                 return Err(Error::SelfStackError);
             },
             Self::PopSelf => { env.self_stack.pop(); },
-            
+
             Self::PushCall => {
                 if let Some(val) = env.stack.pop() {
                     if let Some(func) = val.try_func() {
@@ -128,14 +135,24 @@ impl Instruction for Base {
             
             Self::PushStack(val) => env.stack.push(val.clone()),
             Self::PopStack => { env.stack.pop(); },
+            
+
+            /*****************************************************************************
+             * Spawn a new process.
+             *****************************************************************************/
+            
             Self::Spawn(proc) => {
                 env.spawn = Some(Box::new(proc.clone()));
                 instructions.push(SUSPEND.clone()); // make sure to suspend this proc after a spawn!
             },
             
+
+            /*****************************************************************************
+             * Variables.
+             *****************************************************************************/
+            
             Self::PushSymbolScope => env.table.push(),
             Self::PopSymbolScope => { env.table.pop(); },
-
             Self::DeclareVar(name) => {
                 if !env.table.can_declare(name) { return Err(Error::DeclareExisting); }
                 if name.contains('.') { return Err(Error::DeclareInvalidName); }
@@ -154,14 +171,15 @@ impl Instruction for Base {
                     return Err(Error::StackError);
                 }
             },
-
             Self::DropVariable(name) => {
-                if let Some(var) = env.table.drop_var(name) {
-                    var.drop_data(graph);
-                    return Ok(());
+                if !name.contains('.') {
+                    if let Some(var) = env.table.drop_var(name) {
+                        var.drop_data(graph);
+                        return Ok(());
+                    }
                 }
                 
-                if !name.contains('.') || name.starts_with(SELF_STR_KEYWORD.as_str()) || name.starts_with(SUPER_STR_KEYWORD.as_str()) {
+                if name.starts_with(SELF_STR_KEYWORD.as_str()) || name.starts_with(SUPER_STR_KEYWORD.as_str()) {
                     let self_ptr = env.self_ptr();
                     if let Some(field) = Field::field_from_path(graph, &name, Some(self_ptr.clone())) {
                         // Special case for this instruction - we drop the object/data behind the field
@@ -173,7 +191,7 @@ impl Instruction for Base {
                             val.read().unwrap().drop_data(graph);
                         }
                         graph.remove_data(&field, None);
-                    } else if let Some(node) = SPath::find(&graph, &name, true, ".", Some(self_ptr.clone())) {
+                    } else if let Some(node) = SPath::node(&graph, &name, Some(self_ptr.clone())) {
                         // TODO remove types for node
                         graph.remove_node(&node, false);
                     } else if let Some(func) = Func::func_from_path(graph, &name, Some(self_ptr.clone())) {
@@ -189,7 +207,7 @@ impl Instruction for Base {
                         val.read().unwrap().drop_data(graph);
                     }
                     graph.remove_data(&field, None);
-                } else if let Some(node) = SPath::find(&graph, &name, true, ".", None) {
+                } else if let Some(node) = SPath::node(&graph, &name, None) {
                         // TODO remove types for node
                         graph.remove_node(&node, false);
                 } else if let Some(func) = Func::func_from_path(graph, &name, None) {
@@ -203,14 +221,14 @@ impl Instruction for Base {
                         return Ok(());
                     }
                 }
-                if !name.contains('.') || name.starts_with(SELF_STR_KEYWORD.as_str()) || name.starts_with(SUPER_STR_KEYWORD.as_str()) {
+                if name.starts_with(SELF_STR_KEYWORD.as_str()) || name.starts_with(SUPER_STR_KEYWORD.as_str()) {
                     let self_ptr = env.self_ptr();
                     if let Some(field) = Field::field_from_path(graph, &name, Some(self_ptr.clone())) {
                         if let Some(field) = graph.get_stof_data::<Field>(&field) {
                             env.stack.push(field.value.get());
                             return Ok(());
                         }
-                    } else if let Some(node) = SPath::find(&graph, &name, true, ".", Some(self_ptr.clone())) {
+                    } else if let Some(node) = SPath::node(&graph, &name, Some(self_ptr.clone())) {
                         env.stack.push(Val::Obj(node));
                         return Ok(());
                     } else if let Some(func) = Func::func_from_path(graph, &name, Some(self_ptr.clone())) {
@@ -222,7 +240,7 @@ impl Instruction for Base {
                         env.stack.push(field.value.get());
                         return Ok(());
                     }
-                } else if let Some(node) = SPath::find(&graph, &name, true, ".", None) {
+                } else if let Some(node) = SPath::node(&graph, &name, None) {
                     env.stack.push(Val::Obj(node));
                     return Ok(());
                 } else if let Some(func) = Func::func_from_path(graph, &name, None) {
@@ -233,14 +251,70 @@ impl Instruction for Base {
                 return Ok(());
             },
             Self::SetVariable(name) => {
+                if let Some(val) = env.stack.pop() {
+                    if !name.contains('.') && env.table.set(name, &val)? {
+                        return Ok(());
+                    }
 
+                    if name.starts_with(SELF_STR_KEYWORD.as_str()) || name.starts_with(SUPER_STR_KEYWORD.as_str()) {
+                        if name == &SELF_STR_KEYWORD {
+                            return Err(Error::AssignSelf);
+                        }
+                        if name == &SUPER_STR_KEYWORD {
+                            return Err(Error::AssignSuper);
+                        }
+                        
+                        let self_ptr = env.self_ptr();
+                        if let Some(field_ref) = Field::field_from_path(graph, &name, Some(self_ptr.clone())) {
+                            if let Some(field) = graph.get_mut_stof_data::<Field>(&field_ref) {
+                                field.try_set(val)?;
+                            }
+                            if let Some(field) = field_ref.data_mut(graph) {
+                                field.invalidate_value();
+                            }
+                            return Ok(());
+                        } else {
+                            // creating a new field with a path from self
+                            let mut path = SPath::from(name);
+                            let field_name = path.path.pop().unwrap();
+                            if path.path.len() < 1 { return Err(Error::AssignSelf); }
+                            if let Some(node) = graph.ensure_named_nodes(path, Some(self_ptr.clone()), true, None) {
+                                
+                            } else {
+                                return Err(Error::AssignSelf);
+                            }
+                        }
+                    } else if let Some(field_ref) = Field::field_from_path(graph, &name, None) {
+                        if let Some(field) = graph.get_mut_stof_data::<Field>(&field_ref) {
+                            field.try_set(val)?;
+                        }
+                        if let Some(field) = field_ref.data_mut(graph) {
+                            field.invalidate_value();
+                        }
+                        return Ok(());
+                    } else {
+
+                    }
+
+                } else {
+                    return Err(Error::StackError);
+                }
             },
 
-            Self::Literal(val) => {
 
+            /*****************************************************************************
+             * Values.
+             *****************************************************************************/
+            Self::Literal(val) => {
+                env.stack.push(val.clone());
             },
             Self::Cast(target) => {
-
+                if let Some(mut val) = env.stack.pop() {
+                    val.cast(target, graph)?;
+                    env.stack.push(val);
+                } else {
+                    return Err(Error::CastStackError);
+                }
             },
         };
         Ok(())

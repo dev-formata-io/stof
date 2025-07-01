@@ -22,19 +22,21 @@ use serde::{Deserialize, Serialize};
 /// TODO.
 pub enum Error {
     Custom(String),
-
-    /// Not implemented error.
     NotImplemented,
 
-    /// Attempting to declare a variable that already exists.
     DeclareExisting,
-    /// Attempting to declare a variable with an invalid name.
     DeclareInvalidName,
+    AssignConst,
+    VariableSet,
+    FieldPrivateSet,
+    AssignSelf,
+    AssignSuper,
 
     StackError,
     SelfStackError,
     NewStackError,
     CallStackError,
+    CastStackError,
 
     // Function calling errors
     FuncDne,

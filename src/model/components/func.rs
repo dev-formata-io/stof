@@ -75,10 +75,8 @@ impl Func {
         if spath.path.is_empty() { return None; }
         
         let func_name = spath.path.pop().unwrap();
-        if let Some(id_path) = spath.to_id_path(&graph, start) {
-            if let Some(node) = id_path.node(&graph) {
-                return Self::func(graph, &node, &func_name);
-            }
+        if let Some(node) = SPath::node(&graph, spath, start) {
+            return Self::func(graph, &node, &func_name);
         }
         None
     }

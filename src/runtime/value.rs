@@ -653,6 +653,11 @@ impl Val {
         }
     }
 
+
+    /*****************************************************************************
+     * Drop.
+     *****************************************************************************/
+    
     /// Drop data in this val (this is like a heap).
     /// Only remove if a primitive val allocated in the graph (node, field, func, etc..)
     pub fn drop_data(&self, graph: &mut Graph) {
@@ -672,6 +677,11 @@ impl Val {
         }
     }
 
+
+    /*****************************************************************************
+     * Types.
+     *****************************************************************************/
+    
     /// Get the generic type for this value.
     pub fn gen_type(&self) -> Type {
         match self {
@@ -716,8 +726,24 @@ impl Val {
         }
     }
 
+    #[inline]
+    /// Is this value of a type?
+    pub fn is_type(&self, target: &Type, graph: &Graph) -> bool {
+        if target == &self.gen_type() { 
+            true
+        } else if target == &self.spec_type(graph) {
+            true
+        } else {
+            false
+        }
+    }
+
     /// Cast this value to a different type.
     pub fn cast(&mut self, target: &Type, graph: &mut Graph) -> Result<(), Error> {
+        if self.is_type(target, &graph) {
+            return Ok(());
+        }
+        
         Err(Error::custom("not implemented"))
     }
 }

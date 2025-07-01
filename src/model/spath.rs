@@ -37,22 +37,31 @@ pub struct SPath {
     pub names: bool,
     pub path: Vec<SId>,
 }
-impl SPath {
-    /// Find a node from a string path.
-    /// Can be names or IDs to a node only, optionally starting at a specific node.
-    pub fn find(graph: &Graph, path: &str, names: bool, sep: &str, start: Option<NodeRef>) -> Option<NodeRef> {
-        let path = Self::string(path, names, sep);
-        if names {
-            if let Some(path) = path.to_id_path(graph, start) {
-                path.node(graph)
-            } else {
-                None
-            }
-        } else {
-            path.node(graph)
+impl From<(Vec<SId>, bool)> for SPath {
+    fn from(value: (Vec<SId>, bool)) -> Self {
+        Self {
+            names: value.1,
+            path: value.0,
         }
     }
-
+}
+impl From<(&Vec<SId>, bool)> for SPath {
+    fn from(value: (&Vec<SId>, bool)) -> Self {
+        Self {
+            names: value.1,
+            path: value.0.clone(),
+        }
+    }
+}
+impl From<(SId, bool)> for SPath {
+    fn from(value: (SId, bool)) -> Self {
+        Self {
+            names: value.1,
+            path: vec![value.0],
+        }
+    }
+}
+impl SPath {
     /// Create a new path.
     pub fn new(path: Vec<SId>, names: bool) -> Self {
         Self {
@@ -82,112 +91,117 @@ impl SPath {
             .join(sep)
     }
 
-    /// ID path for this named path.
-    pub fn to_id_path(mut self, graph: &Graph, start: Option<NodeRef>) -> Option<Self> {
-        if !self.names {
-            Some(self)
-        } else {
-            if self.path.len() < 1 {
-                if let Some(start) = start {
-                    self.path.push(start);
-                }
-                return Some(Self {
-                    names: false,
-                    path: self.path,
-                })
+    /// Named path to a node.
+    pub fn node(graph: &Graph, path: impl Into<Self>, start: Option<NodeRef>) -> Option<NodeRef> {
+        let mut named_path: Self = path.into();
+        if named_path.path.is_empty() {
+            return start;
+        }
+        if !named_path.names {
+            return Some(named_path.path[named_path.path.len() - 1].clone());
+        }
+
+        named_path.path.reverse();
+        let mut current = None;
+        if let Some(start) = start {
+            if let Some(node) = start.node(graph) {
+                current = Some(node);
             }
-            self.path.reverse();
-            
-            let mut current = None;
-            if let Some(start) = start {
-                if let Some(node) = start.node(graph) {
-                    current = Some(node);
+        }
+        if current.is_none() {
+            let first = named_path.path.pop().unwrap();
+
+            // common to be a root, so look there first
+            for root in &graph.roots {
+                if let Some(node) = root.node(graph) {
+                    if node.name == first {
+                        current = Some(node);
+                        break;
+                    }
                 }
             }
             if current.is_none() {
-                let first = self.path.pop().unwrap();
+                for (_, node) in &graph.nodes {
+                    if node.name == first {
+                        current = Some(node);
+                        break;
+                    }
+                }
+            }
+        }
 
-                // common to be a root, so look there first
+        'node_loop: while current.is_some() && !named_path.path.is_empty() {
+            let current_node = current.unwrap();
+            let next_name = named_path.path.pop().unwrap();
+
+            // Look in current node's children
+            for child in &current_node.children {
+                if let Some(child) = child.node(graph) {
+                    if child.name == next_name {
+                        current = Some(child);
+                        continue 'node_loop;
+                    }
+                }
+            }
+
+            // Look for a field in the current node with a name that points to another object
+            // Children are already handled above, so just look for direct fields
+            // This is before parents because it is basically the same as looking for a child
+            if let Some(dref) = Field::direct_field(graph, &current_node.id, &next_name) {
+                if let Some(field) = graph.get_stof_data::<Field>(&dref) {
+                    if let Some(nref) = field.value.try_obj() {
+                        if let Some(node) = nref.node(graph) {
+                            current = Some(node);
+                            continue 'node_loop;
+                        }
+                    }
+                }
+            }
+
+            // Look at parent
+            if let Some(parent) = &current_node.parent {
+                if let Some(parent) = parent.node(graph) {
+                    if next_name == SUPER_KEYWORD || next_name == parent.name {
+                        current = Some(parent);
+                        continue 'node_loop;
+                    }
+                }
+            } else {
+                // Look at roots
                 for root in &graph.roots {
                     if let Some(node) = root.node(graph) {
-                        if node.name == first {
+                        if node.name == next_name {
                             current = Some(node);
-                            break;
-                        }
-                    }
-                }
-                if current.is_none() {
-                    for (_, node) in &graph.nodes {
-                        if node.name == first {
-                            current = Some(node);
-                            break;
-                        }
-                    }
-                }
-            }
-
-            'node_loop: while current.is_some() && self.path.len() > 0 {
-                let current_node = current.unwrap();
-                let next_name = self.path.pop().unwrap();
-
-                // Look in current node's children
-                for child in &current_node.children {
-                    if let Some(child) = child.node(graph) {
-                        if child.name == next_name {
-                            current = Some(child);
                             continue 'node_loop;
                         }
                     }
                 }
-
-                // Look for a field in the current node with a name that points to another object
-                // Children are already handled above, so just look for direct fields
-                // This is before parents because it is basically the same as looking for a child
-                if let Some(dref) = Field::direct_field(graph, &current_node.id, &next_name) {
-                    if let Some(field) = graph.get_stof_data::<Field>(&dref) {
-                        if let Some(nref) = field.value.try_obj() {
-                            if let Some(node) = nref.node(graph) {
-                                current = Some(node);
-                                continue 'node_loop;
-                            }
-                        }
-                    }
-                }
-
-                // Look at parent
-                if let Some(parent) = &current_node.parent {
-                    if let Some(parent) = parent.node(graph) {
-                        if next_name == SUPER_KEYWORD || next_name == parent.name {
-                            current = Some(parent);
-                            continue 'node_loop;
-                        }
-                    }
-                } else {
-                    // Look at roots
-                    for root in &graph.roots {
-                        if let Some(node) = root.node(graph) {
-                            if node.name == next_name {
-                                current = Some(node);
-                                continue 'node_loop;
-                            }
-                        }
-                    }
-                }
-
-                // Handle self (or duplicate) next
-                if next_name == SELF_KEYWORD || current_node.name == next_name {
-                    current = Some(current_node);
-                    continue 'node_loop;
-                }
-
-                current = None;
             }
 
-            if let Some(node) = current {
-                node.id.node_path(graph, false)
-            } else {
-                None
+            // Handle self (or duplicate) next
+            if next_name == SELF_KEYWORD || current_node.name == next_name {
+                current = Some(current_node);
+                continue 'node_loop;
             }
+
+            current = None;
+        }
+
+        if let Some(node) = current {
+            Some(node.id.clone())
+        } else {
+            None
+        }
+    }
+    
+    /// ID path for this named path.
+    pub fn to_id_path(&self, graph: &Graph, start: Option<NodeRef>) -> Option<Self> {
+        if !self.names {
+            Some(self.clone())
+        } else if let Some(node) = Self::node(graph, (&self.path, true), start) {
+            node.node_path(graph, false)
+        } else {
+            None
         }
     }
 
@@ -206,23 +220,6 @@ impl SPath {
                 names: true,
                 path: names
             }
-        }
-    }
-
-    /// Node ID that this path points to (ref).
-    /// More efficient to convert to ID path first.
-    pub fn node(&self, graph: &Graph) -> Option<NodeRef> {
-        if self.path.len() < 1 { return None; }
-        if !self.names {
-            Some(self.path[self.path.len() - 1].clone())
-        } else if let Some(mut cpy) = self.clone().to_id_path(graph, None) {
-            if cpy.path.len() < 1 {
-                None
-            } else {
-                Some(cpy.path.pop().unwrap())
-            }
-        } else {
-            None
         }
     }
 }
