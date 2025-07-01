@@ -14,10 +14,11 @@
 // limitations under the License.
 //
 
-use std::{any::Any, mem::swap, sync::Arc};
-use imbl::Vector;
+use std::{any::Any, sync::Arc};
+use arcstr::ArcStr;
+use imbl::{vector, Vector};
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{proc::ProcEnv, Error}};
+use crate::{model::Graph, runtime::{instructions::Base, proc::ProcEnv, Error}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -27,6 +28,14 @@ pub struct Instructions {
     /// Store instructions in a Func, then clone into the proc without any copies.
     pub instructions: Vector<Arc<dyn Instruction>>,
     executed: Vector<Arc<dyn Instruction>>,
+}
+impl From<Arc<dyn Instruction>> for Instructions {
+    fn from(value: Arc<dyn Instruction>) -> Self {
+        Self {
+            instructions: vector![value],
+            ..Default::default()
+        }
+    }
 }
 impl Instructions {
     #[inline(always)]
@@ -41,18 +50,66 @@ impl Instructions {
         !self.instructions.is_empty()
     }
 
+    /// Backup to a specific tag in these instructions.
+    pub fn back_to(&mut self, tag: &ArcStr) {
+        'unwind: while let Some(ins) = self.executed.pop_back() {
+            if let Some(base) = ins.as_dyn_any().downcast_ref::<Base>() {
+                match base {
+                    Base::Tag(tagged) => {
+                        if tagged == tag {
+                            self.executed.push_back(ins);
+                            break 'unwind;
+                        }
+                    },
+                    _ => {}
+                }
+            }
+            self.instructions.push_front(ins);
+        }
+    }
+
+    /// Backup to a specific tag in these instructions.
+    pub fn forward_to(&mut self, tag: &ArcStr) {
+        'fast_forward: while let Some(ins) = self.instructions.pop_front() {
+            self.executed.push_back(ins.clone());
+            if let Some(base) = ins.as_dyn_any().downcast_ref::<Base>() {
+                match base {
+                    Base::Tag(tagged) => {
+                        if tagged == tag {
+                            break 'fast_forward;
+                        }
+                    },
+                    _ => {}
+                }
+            }
+        }
+    }
+
     #[inline]
     /// Execute one instruction, in order.
     /// This will pop the first instruction, leaving the next ready to be consumed later.
     pub fn exec(&mut self, env: &mut ProcEnv, graph: &mut Graph) -> Result<(), Error> {
-        loop {
+        'exec_loop: loop {
             if let Some(ins) = self.instructions.pop_front() {
-                // Go to the next processes instructions
-                if ins.suspend_op() {
-                    break;
-                }
-
                 self.executed.push_back(ins.clone());
+
+                if let Some(base) = ins.as_dyn_any().downcast_ref::<Base>() {
+                    match base {
+                        Base::CtrlSuspend => {
+                            // Go to the next processes instructions
+                            break 'exec_loop;
+                        },
+                        Base::CtrlBackTo(tag) => {
+                            self.back_to(tag);
+                            continue 'exec_loop;
+                        },
+                        Base::CtrlForwardTo(tag) => {
+                            self.forward_to(tag);
+                            continue 'exec_loop;
+                        },
+                        _ => {}
+                    }
+                }
 
                 // Some fresh instructions for ya
                 let mut dynamic = Self::default();
@@ -69,22 +126,10 @@ impl Instructions {
         Ok(())
     }
 
-    /// Start over (used with loops, etc.)
-    pub fn start_over(&mut self) -> bool {
-        let res = !self.executed.is_empty();
-        if res {
-            while !self.instructions.is_empty() {
-                self.executed.push_back(self.instructions.pop_front().unwrap());
-            }
-            swap(&mut self.executed, &mut self.instructions);
-        }
-        res
-    }
-
     #[inline(always)]
     /// Append instructions.
-    pub fn append(&mut self, instructions: Vector<Arc<dyn Instruction>>) {
-        self.instructions.append(instructions);
+    pub fn append(&mut self, instructions: &Vector<Arc<dyn Instruction>>) {
+        self.instructions.append(instructions.clone());
     }
 
     #[inline(always)]
@@ -100,13 +145,6 @@ impl Instructions {
 pub trait Instruction: InsDynAny + std::fmt::Debug + InsClone + Send + Sync {
     /// Execute this instruction given the process it's running on and the graph.
     fn exec(&self, instructions: &mut Instructions, env: &mut ProcEnv, graph: &mut Graph) -> Result<(), Error>;
-
-    /// Is a suspend operation?
-    /// This kind of operation will not get executed, nor will it be placed in the instruction stack.
-    /// It will prompt the rotating of processes though... so make sure to include them!
-    fn suspend_op(&self) -> bool {
-        false
-    }
 }
 
 

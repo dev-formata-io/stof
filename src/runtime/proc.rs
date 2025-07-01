@@ -14,9 +14,9 @@
 // limitations under the License.
 //
 
+use std::sync::Arc;
 use serde::{Deserialize, Serialize};
-
-use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{instruction::Instructions, table::SymbolTable, Error, Val}};
+use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{instruction::{Instruction, Instructions}, table::SymbolTable, Error, Val}};
 
 
 #[derive(Debug)]
@@ -61,6 +61,14 @@ impl From<Instructions> for Process {
     fn from(value: Instructions) -> Self {
         Self {
             instructions: value,
+            ..Default::default()
+        }
+    }
+}
+impl From<Arc<dyn Instruction>> for Process {
+    fn from(value: Arc<dyn Instruction>) -> Self {
+        Self {
+            instructions: Instructions::from(value),
             ..Default::default()
         }
     }

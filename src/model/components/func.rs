@@ -28,6 +28,9 @@ pub const MAIN_FUNC_ATTR: SId = SId(Bytes::from_static(b"main"));
 /// Attribute used to denote a test function.
 pub const TEST_FUNC_ATTR: SId = SId(Bytes::from_static(b"test"));
 
+/// Attribute used to denote an async function.
+pub const ASYNC_FUNC_ATTR: SId = SId(Bytes::from_static(b"async"));
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// Function.

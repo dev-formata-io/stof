@@ -31,6 +31,7 @@ pub enum Error {
     FieldPrivateSet,
     AssignSelf,
     AssignSuper,
+    AssignRootNonObj,
 
     StackError,
     SelfStackError,

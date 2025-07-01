@@ -15,18 +15,23 @@
 //
 
 use std::sync::Arc;
-use arcstr::ArcStr;
+use arcstr::{literal, ArcStr};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Field, Func, Graph, NodeRef, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, proc::{ProcEnv, Process}, Error, Type, Val, Variable}};
+use crate::{model::{Field, Func, Graph, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, proc::{ProcEnv, Process}, Error, Type, Val, Variable}};
 
-//pub mod declare;
-//pub mod call;
+pub mod call;
+pub mod block;
 
 
 // static instructions for efficiency
 lazy_static! {
-    pub static ref SUSPEND: Arc<dyn Instruction> = Arc::new(Base::Suspend);
+    pub static ref SUSPEND: Arc<dyn Instruction> = Arc::new(Base::CtrlSuspend);
+
+    pub static ref START_TAG: Arc<dyn Instruction> = Arc::new(Base::Tag(literal!("start")));
+    pub static ref END_TAG: Arc<dyn Instruction> = Arc::new(Base::Tag(literal!("end")));
+    pub static ref CONTINUE: Arc<dyn Instruction> = Arc::new(Base::CtrlBackTo(literal!("start")));
+    pub static ref BREAK: Arc<dyn Instruction> = Arc::new(Base::CtrlForwardTo(literal!("end")));
 
     pub static ref PUSH_SELF: Arc<dyn Instruction> = Arc::new(Base::PushSelf);
     pub static ref POP_SELF: Arc<dyn Instruction> = Arc::new(Base::PopSelf);
@@ -51,7 +56,13 @@ pub enum Base {
     // Suspend instruction.
     // Used to denote going to another process now.
     // Place these after runs of instructions to make sure we keep making progress on other processes too.
-    Suspend,
+    CtrlSuspend,
+
+    // Tag a place in the instructions.
+    // This is a form of GOTO, used for looping & control flow
+    Tag(ArcStr),
+    CtrlBackTo(ArcStr), // start next on instruction right after tag
+    CtrlForwardTo(ArcStr), // start next on instruction right after tag
 
     // Self stack.
     PushSelf,
@@ -89,13 +100,20 @@ pub enum Base {
 }
 #[typetag::serde(name = "Base")]
 impl Instruction for Base {
+    #[allow(unused)]
     fn exec(&self, instructions: &mut Instructions, env: &mut ProcEnv, graph: &mut Graph) -> Result<(), Error> {
         match self {
             /*****************************************************************************
              * Suspend.
              *****************************************************************************/
-            Self::Suspend => {}, // Nothing here...
+            Self::CtrlSuspend => {}, // Nothing here...
             
+            /*****************************************************************************
+             * Tags.
+             *****************************************************************************/
+            Self::Tag(_id) => {}, // Nothing here... just goes on through to mark a place
+            Self::CtrlBackTo(_id) => {}, // Nothing here... used by instructions...
+            Self::CtrlForwardTo(_id) => {}, // Nothing here... used by instructions...
 
             /*****************************************************************************
              * Special stacks.
@@ -136,17 +154,14 @@ impl Instruction for Base {
             Self::PushStack(val) => env.stack.push(val.clone()),
             Self::PopStack => { env.stack.pop(); },
             
-
             /*****************************************************************************
              * Spawn a new process.
              *****************************************************************************/
             
             Self::Spawn(proc) => {
                 env.spawn = Some(Box::new(proc.clone()));
-                instructions.push(SUSPEND.clone()); // make sure to suspend this proc after a spawn!
             },
             
-
             /*****************************************************************************
              * Variables.
              *****************************************************************************/
@@ -274,12 +289,13 @@ impl Instruction for Base {
                             }
                             return Ok(());
                         } else {
-                            // creating a new field with a path from self
                             let mut path = SPath::from(name);
                             let field_name = path.path.pop().unwrap();
                             if path.path.len() < 1 { return Err(Error::AssignSelf); }
                             if let Some(node) = graph.ensure_named_nodes(path, Some(self_ptr.clone()), true, None) {
-                                
+                                let field = Field::new(Variable::new(true, val), None);
+                                graph.insert_stof_data(&node, field_name, Box::new(field), None);
+                                return Ok(());
                             } else {
                                 return Err(Error::AssignSelf);
                             }
@@ -292,15 +308,36 @@ impl Instruction for Base {
                             field.invalidate_value();
                         }
                         return Ok(());
+                    } else if name.contains('.') {
+                        let mut path = SPath::from(name);
+                        let field_name = path.path.pop().unwrap();
+                        if path.path.len() < 1 { return Err(Error::AssignSelf); }
+                        if let Some(node) = graph.ensure_named_nodes(path, None, true, None) {
+                            let field = Field::new(Variable::new(true, val), None);
+                            graph.insert_stof_data(&node, field_name, Box::new(field), None);
+                            return Ok(());
+                        } else {
+                            return Err(Error::AssignSelf);
+                        }
                     } else {
-
+                        match val {
+                            Val::Obj(nref) => {
+                                // TODO: drop old root?
+                                if let Some(node) = nref.node_mut(graph) {
+                                    node.name = name.into();
+                                }
+                                graph.roots.insert(nref);
+                                return Ok(());
+                            },
+                            _ => {
+                                return Err(Error::AssignRootNonObj);
+                            }
+                        }
                     }
-
                 } else {
                     return Err(Error::StackError);
                 }
             },
-
 
             /*****************************************************************************
              * Values.
@@ -318,15 +355,5 @@ impl Instruction for Base {
             },
         };
         Ok(())
-    }
-
-    /// Is a suspend operation?
-    /// This kind of operation will not get executed, nor will it be placed in the instruction stack.
-    /// It will prompt the rotating of processes though... so make sure to include them!
-    fn suspend_op(&self) -> bool {
-        match self {
-            Self::Suspend => true,
-            _ => false,
-        }
     }
 }

@@ -14,13 +14,17 @@
 // limitations under the License.
 //
 
+use std::sync::Arc;
+use imbl::Vector;
 use rustc_hash::FxHashMap;
-use crate::{model::{Graph, SId}, runtime::proc::{ProcRes, Process}};
+use crate::{model::{DataRef, Func, Graph, SId}, runtime::{instruction::Instruction, instructions::{call::FuncCall, Base}, proc::{ProcRes, Process}, Error, Val}};
 
 
 #[derive(Default, Debug)]
 /// Runtime.
 pub struct Runtime {
+    // TODO: queued - move to running when a proc is moved to done (max running & Config)
+
     running: Vec<Process>,
     waiting: FxHashMap<SId, Process>,
     pub done: FxHashMap<SId, Process>,
@@ -149,6 +153,55 @@ impl Runtime {
                     self.push_running_proc(*proc, graph);
                 }
             }
+        }
+    }
+
+
+    /*****************************************************************************
+     * Static functions.
+     *****************************************************************************/
+    
+    /// Call a singular function with this runtime.
+    pub fn call(graph: &mut Graph, func: &DataRef, args: Vec<Val>) -> Result<Val, Error> {
+        if !func.type_of::<Func>(&graph) {
+            return Err(Error::FuncDne);
+        }
+        let mut arguments: Vector<Arc<dyn Instruction>> = Vector::default();
+        for arg in args { arguments.push_back(Arc::new(Base::Literal(arg))); }
+        let instruction = Arc::new(FuncCall {
+            add_self: true,
+            func: Some(func.clone()),
+            func_lookup: None,
+            args: arguments,
+        });
+        Self::eval(graph, instruction)
+    }
+    
+    /// Evaluate a single instruction.
+    /// Creates a new runtime and process just for this (lightweight).
+    /// Use this while parsing if needed.
+    pub fn eval(graph: &mut Graph, instruction: Arc<dyn Instruction>) -> Result<Val, Error> {
+        let mut runtime = Self::default();
+        let proc = Process::from(instruction);
+        let pid = proc.env.pid.clone();
+        
+        runtime.push_running_proc(proc, graph);
+        runtime.run_to_complete(graph);
+
+        if let Some(proc) = runtime.done.remove(&pid) {
+            if let Some(res) = proc.result {
+                Ok(res)
+            } else {
+                Ok(Val::Void)
+            }
+        } else if let Some(proc) = runtime.errored.remove(&pid) {
+            if let Some(err) = proc.error {
+                Err(err)
+            } else {
+                Err(Error::NotImplemented)
+            }
+        } else {
+            Err(Error::NotImplemented)
         }
     }
 }
