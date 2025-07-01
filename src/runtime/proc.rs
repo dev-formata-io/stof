@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+use serde::{Deserialize, Serialize};
+
 use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{instruction::Instructions, table::SymbolTable, Error, Val}};
 
 
@@ -25,7 +27,7 @@ pub enum ProcRes {
 }
 
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 /// Process Env.
 pub struct ProcEnv {
     pub pid: SId,
@@ -40,13 +42,13 @@ pub struct ProcEnv {
 }
 impl ProcEnv {
     // Get the current self ptr.
-    //pub fn self_ptr(graph: &Graph) -> NodeRef {
-
-    //}
+    pub fn self_ptr(&self) -> NodeRef {
+        self.self_stack.last().unwrap().clone()
+    }
 }
 
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 /// Process.
 pub struct Process {
     pub env: ProcEnv,

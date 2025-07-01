@@ -65,7 +65,8 @@ pub trait StofData: AsDynAny + std::fmt::Debug + DataClone + Send + Sync {
 
     /// Does this data directly reference a node?
     /// If so, and you want this data to be removed when the node is removed, say yes.
-    fn hard_node_ref(&self, _node: &NodeRef) -> bool {
+    #[allow(unused)]
+    fn hard_node_ref(&self, node: &NodeRef) -> bool {
         false
     }
 }

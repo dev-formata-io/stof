@@ -854,7 +854,7 @@ impl Graph {
     pub fn gc_table(&mut self, table: &mut SymbolTable, flush_deadpools: bool) {
         // For each node that has been removed, remove all data that has a
         // hard reference to those nodes.
-        if !self.data_deadpool.is_empty() {
+        if !self.node_deadpool.is_empty() {
             let mut to_remove = Vec::new(); // data IDs that have hard refs to dead nodes
             for (dref, data) in &self.data {
                 for (dnref, _) in &self.node_deadpool {

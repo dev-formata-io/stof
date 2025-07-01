@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 
+use arcstr::{literal, ArcStr};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use crate::model::{Field, Graph, NodeRef, SId};
@@ -21,9 +22,11 @@ use crate::model::{Field, Graph, NodeRef, SId};
 
 /// Const super keyword for paths.
 pub const SUPER_KEYWORD: SId = SId(Bytes::from_static(b"super"));
+pub const SUPER_STR_KEYWORD: ArcStr = literal!("super");
 
 /// Const self keyword for paths.
 pub const SELF_KEYWORD: SId = SId(Bytes::from_static(b"self"));
+pub const SELF_STR_KEYWORD: ArcStr = literal!("self");
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

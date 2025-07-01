@@ -18,7 +18,7 @@ use std::collections::BTreeMap;
 use bytes::Bytes;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Graph, NodeRef, SId, SPath, StofData}, runtime::{Val, Variable}};
+use crate::{model::{DataRef, Graph, NodeRef, SId, SPath, StofData, SELF_KEYWORD, SUPER_KEYWORD}, runtime::{Val, Variable}};
 
 /// Marks a field as no export.
 /// Used in export formats.
@@ -98,6 +98,8 @@ impl Field {
     /// Lazily creates a field for a child node if needed.
     pub fn field(graph: &mut Graph, node: &NodeRef, field_name: &SId) -> Option<DataRef> {
         let mut created = None;
+        let mut self_parent = None;
+        let mut self_name = None;
         if let Some(node) = node.node(&graph) {
             if let Some(dref) = node.data.get(field_name) {
                 if let Some(field) = graph.get_stof_data::<Self>(dref) {
@@ -116,6 +118,38 @@ impl Field {
                         break;
                     }
                 }
+            }
+
+            // Look for a parent with the field name (that is also a field)
+            let mut gp = None;
+            if let Some(parent) = &node.parent {
+                if let Some(parent) = parent.node(&graph) {
+                    if (&parent.name == field_name || field_name == &SUPER_KEYWORD) && parent.is_field() {
+                        if let Some(grand) = &parent.parent {
+                            if grand.node_exists(&graph) {
+                                gp = Some((grand.clone(), parent.name.clone()));
+                            }
+                        }
+                    }
+                }
+            }
+            if let Some((gp, field_name)) = gp {
+                return Self::field(graph, &gp, &field_name);
+            }
+
+            // Is this node the thing?
+            if (&node.name == field_name || field_name == &SELF_KEYWORD) && node.is_field() {
+                if let Some(parent) = &node.parent {
+                    if parent.node_exists(graph) {
+                        self_parent = Some(parent.clone());
+                        self_name = Some(node.name.clone());
+                    }
+                }
+            }
+        }
+        if let Some(parent) = self_parent {
+            if let Some(name) = self_name {
+                return Self::field(graph, &parent, &name);
             }
         }
         if let Some(field) = created {

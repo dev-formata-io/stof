@@ -19,7 +19,7 @@ use bytes::Bytes;
 use imbl::Vector;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Graph, NodeRef, SId, SPath, StofData}, runtime::{expr::Expr, instruction::{Instruction, Instructions}, Type, Val}};
+use crate::{model::{DataRef, Graph, NodeRef, SId, SPath, StofData}, runtime::{instruction::{Instruction, Instructions}, Type, Val}};
 
 
 /// Attribute used to denote a main function.
@@ -32,7 +32,7 @@ pub const TEST_FUNC_ATTR: SId = SId(Bytes::from_static(b"test"));
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// Function.
 pub struct Func {
-    pub params: Vec<Param>,
+    pub params: Vector<Param>,
     pub return_type: Type,
     pub attributes: FxHashMap<SId, Val>,
     pub instructions: Vector<Arc<dyn Instruction>>,
@@ -50,12 +50,12 @@ impl StofData for Func {
 pub struct Param {
     pub name: SId,
     pub param_type: Type,
-    pub default_expr: Option<Expr>,
+    pub default: Option<Arc<dyn Instruction>>,
 }
 
 impl Func {
     /// Create a new function.
-    pub fn new(params: Vec<Param>, return_type: Type, instructions: Instructions, attrs: Option<FxHashMap<SId, Val>>) -> Self {
+    pub fn new(params: Vector<Param>, return_type: Type, instructions: Instructions, attrs: Option<FxHashMap<SId, Val>>) -> Self {
         let mut attributes = FxHashMap::default();
         if let Some(attr) = attrs {
             attributes = attr;

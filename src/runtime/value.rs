@@ -653,6 +653,25 @@ impl Val {
         }
     }
 
+    /// Drop data in this val (this is like a heap).
+    /// Only remove if a primitive val allocated in the graph (node, field, func, etc..)
+    pub fn drop_data(&self, graph: &mut Graph) {
+        match self {
+            Self::Obj(nref) => {
+                // TODO: remove types for this node
+                // TODO: schedule GC?
+                graph.remove_node(nref, false);
+            },
+            Self::Data(dref) => {
+                graph.remove_data(dref, None);
+            },
+            Self::Fn(dref) => {
+                graph.remove_data(dref, None);
+            },
+            _ => {}
+        }
+    }
+
     /// Get the generic type for this value.
     pub fn gen_type(&self) -> Type {
         match self {

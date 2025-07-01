@@ -15,10 +15,11 @@
 //
 
 use rustc_hash::FxHashMap;
+use serde::{Deserialize, Serialize};
 use crate::{model::{DataRef, NodeRef}, runtime::{Val, Variable}};
 
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 /// Symbol table for a process.
 pub struct SymbolTable {
     scopes: Vec<Scope>,
@@ -53,12 +54,14 @@ impl SymbolTable {
 
     /// Remove a variable from this symbol table.
     /// Will only drop one if multiple exist (closest).
-    pub fn drop_var(&mut self, name: impl AsRef<str>) -> bool {
+    pub fn drop_var(&mut self, name: impl AsRef<str>) -> Option<Variable> {
         let name = name.as_ref();
         for scope in self.scopes.iter_mut().rev() {
-            if scope.remove(name).is_some() { return true; }
+            if let Some(var) = scope.remove(name) {
+                return Some(var);
+            }
         }
-        false
+        None
     }
 
     /// Get a variable from this symbol table.
@@ -103,7 +106,7 @@ impl SymbolTable {
 }
 
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 /// Symbol table scope.
 struct Scope {
     variables: FxHashMap<String, Variable>,

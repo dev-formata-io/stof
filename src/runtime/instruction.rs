@@ -45,9 +45,26 @@ impl Instructions {
     /// Execute one instruction, in order.
     /// This will pop the first instruction, leaving the next ready to be consumed later.
     pub fn exec(&mut self, env: &mut ProcEnv, graph: &mut Graph) -> Result<(), Error> {
-        if let Some(ins) = self.instructions.pop_front() {
-            self.executed.push_back(ins.clone());
-            return ins.exec(self, env, graph);
+        loop {
+            if let Some(ins) = self.instructions.pop_front() {
+                // Go to the next processes instructions
+                if ins.suspend_op() {
+                    break;
+                }
+
+                self.executed.push_back(ins.clone());
+
+                // Some fresh instructions for ya
+                let mut dynamic = Self::default();
+                let res = ins.exec(&mut dynamic, env, graph);
+                if res.is_ok() && dynamic.more() {
+                    while dynamic.more() {
+                        self.instructions.push_front(dynamic.instructions.pop_back().unwrap());
+                    }
+                }
+            } else {
+                break;
+            }
         }
         Ok(())
     }
@@ -83,6 +100,13 @@ impl Instructions {
 pub trait Instruction: InsDynAny + std::fmt::Debug + InsClone + Send + Sync {
     /// Execute this instruction given the process it's running on and the graph.
     fn exec(&self, instructions: &mut Instructions, env: &mut ProcEnv, graph: &mut Graph) -> Result<(), Error>;
+
+    /// Is a suspend operation?
+    /// This kind of operation will not get executed, nor will it be placed in the instruction stack.
+    /// It will prompt the rotating of processes though... so make sure to include them!
+    fn suspend_op(&self) -> bool {
+        false
+    }
 }
 
 

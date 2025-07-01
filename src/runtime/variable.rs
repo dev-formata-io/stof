@@ -23,8 +23,8 @@ use crate::{model::{DataRef, Graph, NodeRef}, runtime::{Type, Val}};
 /// Variable.
 /// Used in symbol tables and for fields.
 pub struct Variable {
-    val: Arc<RwLock<Val>>,
-    mutable: bool,
+    pub val: Arc<RwLock<Val>>,
+    pub mutable: bool,
 }
 impl Variable {
     /// Create a new variable.
@@ -85,5 +85,11 @@ impl Variable {
     /// Specific type.
     pub fn spec_type(&self, graph: &Graph) -> Type {
         self.val.read().unwrap().spec_type(graph)
+    }
+
+    #[inline]
+    /// Drop this variable (data held within).
+    pub fn drop_data(self, graph: &mut Graph) {
+        self.val.read().unwrap().drop_data(graph);
     }
 }

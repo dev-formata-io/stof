@@ -14,8 +14,10 @@
 // limitations under the License.
 //
 
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone)]
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 /// Error.
 /// TODO.
 pub enum Error {
@@ -28,8 +30,16 @@ pub enum Error {
     DeclareExisting,
     /// Attempting to declare a variable with an invalid name.
     DeclareInvalidName,
-    /// Attempting to declare a variable with an invalid type.
-    DeclareInvalidType(Box<Self>),
+
+    StackError,
+    SelfStackError,
+    NewStackError,
+    CallStackError,
+
+    // Function calling errors
+    FuncDne,
+    FuncDefaultArg(Box<Self>),
+    FuncArgs,
 }
 impl Error {
     /// Custom error string.

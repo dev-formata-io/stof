@@ -15,29 +15,28 @@
 //
 
 use rustc_hash::FxHashMap;
-use crate::{model::{Graph, SId}, runtime::{instruction::Instructions, proc::{ProcRes, Process}}};
+use crate::{model::{Graph, SId}, runtime::proc::{ProcRes, Process}};
 
 
 #[derive(Default, Debug)]
 /// Runtime.
 pub struct Runtime {
-    pub running: Vec<Process>,
+    running: Vec<Process>,
+    waiting: FxHashMap<SId, Process>,
     pub done: FxHashMap<SId, Process>,
-    pub waiting: FxHashMap<SId, Process>,
     pub errored: FxHashMap<SId, Process>,
-}
-impl From<Instructions> for Runtime {
-    fn from(value: Instructions) -> Self {
-        let mut rt = Self::default();
-        rt.push_running_proc(Process::from(value));
-        rt
-    }
 }
 impl Runtime {
     #[inline]
     /// Push a process to this runtime.
-    pub fn push_running_proc(&mut self, proc: Process) -> SId {
+    pub fn push_running_proc(&mut self, mut proc: Process, graph: &mut Graph) -> SId {
         let id = proc.env.pid.clone();
+        
+        // make sure the process has a self
+        if proc.env.self_stack.is_empty() {
+            proc.env.self_stack.push(graph.ensure_main_root());
+        }
+        
         self.running.push(proc);
         id
     }
@@ -147,7 +146,7 @@ impl Runtime {
             }
             if !to_spawn.is_empty() {
                 for proc in to_spawn.drain(..) {
-                    self.push_running_proc(*proc);
+                    self.push_running_proc(*proc, graph);
                 }
             }
         }

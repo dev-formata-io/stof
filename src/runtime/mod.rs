@@ -22,7 +22,6 @@ pub mod proc;
 pub mod table;
 pub mod instruction;
 pub mod instructions;
-pub mod expr;
 
 pub mod error;
 pub use error::*;

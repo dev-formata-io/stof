@@ -86,7 +86,7 @@ impl Instruction for ConstDeclare {
 mod tests {
     use std::{ops::Deref, sync::Arc};
     use arcstr::ArcStr;
-    use crate::{model::Graph, runtime::{expr::Expr, instruction::Instructions, instructions::Declare, proc::Process, Runtime, Val}};
+    use crate::{model::Graph, runtime::{expr::Expr, instruction::Instructions, instructions::declare::Declare, proc::Process, Runtime, Val}};
 
     #[test]
     fn declare() {
