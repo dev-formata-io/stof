@@ -38,6 +38,8 @@ pub enum Error {
     NewStackError,
     CallStackError,
     CastStackError,
+    
+    CastVal,
 
     // Function calling errors
     FuncDne,

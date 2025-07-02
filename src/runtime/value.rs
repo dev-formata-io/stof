@@ -14,12 +14,13 @@
 // limitations under the License.
 //
 
+use core::str;
 use std::{cmp::Ordering, hash::Hash};
-use arcstr::ArcStr;
+use arcstr::{literal, ArcStr};
 use bytes::Bytes;
 use imbl::{vector, OrdMap, OrdSet, Vector};
 use serde::{Deserialize, Serialize};
-use crate::{model::{json_value_from_node, DataRef, Graph, NodeRef, SId}, parser::parse_semver_alone, runtime::{Error, Num, Type, DATA, OBJ}};
+use crate::{model::{json_value_from_node, DataRef, Func, Graph, NodeRef, SId, ROOT_NODE_NAME}, parser::parse_semver_alone, runtime::{Error, Num, NumT, Type, DATA, OBJ}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Hash)]
@@ -32,18 +33,21 @@ pub enum Val {
     // A reference to another process (pid)
     Promise(SId, Type),
     
+    // Scalar types
     Bool(bool),
     Num(Num),
     Str(ArcStr),
+    Blob(Vec<u8>),
 
     // Semantic Versioning as a value
     Ver(i32, i32, i32, Option<ArcStr>, Option<ArcStr>),
 
+    // Reference types
     Obj(NodeRef),
     Fn(DataRef),
     Data(DataRef),
-    Blob(Vec<u8>),
 
+    // Compound types
     List(Vector<Self>),
     Tup(Vector<Self>),
     Map(OrdMap<Self, Self>),
@@ -807,22 +811,264 @@ impl Val {
     #[inline]
     /// Is this value of a type?
     pub fn is_type(&self, target: &Type, graph: &Graph) -> bool {
-        if target == &self.gen_type() { 
-            true
-        } else if target == &self.spec_type(graph) {
-            true
-        } else {
-            false
-        }
+        &self.gen_type() == target || &self.spec_type(graph) == target
     }
 
     /// Cast this value to a different type.
     pub fn cast(&mut self, target: &Type, graph: &mut Graph) -> Result<(), Error> {
+        // Cast object must come before type check here due to "obj" type
+        if self.obj() {
+            return self.cast_object(target, graph);
+        }
         if self.is_type(target, &graph) {
             return Ok(());
         }
-
-        Err(Error::custom("not implemented"))
+        match target {
+            Type::Union(types) => {
+                for ty in types {
+                    match self.cast(ty, graph) {
+                        Ok(_) => return Ok(()),
+                        Err(_) => {}
+                    }
+                }
+                return Err(Error::CastVal);
+            },
+            _ => {}
+        }
+        match self {
+            Self::Blob(blob) => {
+                match target {
+                    Type::List => {
+                        *self = Self::List(blob.iter().map(|byte| Self::Num(Num::Int((*byte) as i64))).collect());
+                        Ok(())
+                    },
+                    Type::Str => {
+                        match str::from_utf8(blob.as_slice()) {
+                            Ok(val) => {
+                                *self = Self::Str(val.into());
+                                Ok(())
+                            },
+                            Err(_) => Err(Error::NotImplemented)
+                        }
+                    },
+                    _ => Err(Error::NotImplemented)
+                }
+            },
+            Self::List(values) => {
+                match target {
+                    Type::Set => {
+                        let mut set = OrdSet::new();
+                        while !values.is_empty() { set.insert(values.pop_front().unwrap()); }
+                        *self = Self::Set(set);
+                        Ok(())
+                    },
+                    Type::Blob => {
+                        let mut blob: Vec<u8> = Vec::new();
+                        while !values.is_empty() {
+                            if let Some(val) = values.pop_front() {
+                                match val {
+                                    Self::Num(num) => {
+                                        let res: Result<u8, _> = num.int().try_into();
+                                        if res.is_err() { return Err(Error::CastVal); }
+                                        blob.push(res.unwrap());
+                                    },
+                                    _ => return Err(Error::CastVal)
+                                }
+                            }
+                        }
+                        *self = Self::Blob(blob);
+                        Ok(())
+                    },
+                    Type::Tup(types) => {
+                        let tup = Self::Tup(values.clone());
+                        if tup.gen_type() == Type::Tup(types.clone()) {
+                            *self = tup;
+                            return Ok(());
+                        }
+                        if values.len() == types.len() {
+                            for i in 0..values.len() {
+                                values[i].cast(&types[i], graph)?;
+                            }
+                            *self = Self::Tup(values.clone());
+                            return Ok(());
+                        }
+                        Err(Error::CastVal)
+                    },
+                    _ => Err(Error::NotImplemented)
+                }
+            },
+            Self::Bool(val) => {
+                match target {
+                    Type::Num(num) => {
+                        let v = *val as i64;
+                        match num {
+                            NumT::Int => *self = Self::Num(Num::Int(v)),
+                            NumT::Float => *self = Self::Num(Num::Float(v as f64)),
+                            NumT::Units(units) => *self = Self::Num(Num::Units(v as f64, *units)),
+                        }
+                        Ok(())
+                    },
+                    Type::Str => {
+                        *self = Self::Str(ArcStr::from(val.to_string()));
+                        Ok(())
+                    },
+                    _ => Err(Error::NotImplemented)
+                }
+            },
+            Self::Fn(dref) => {
+                match target {
+                    Type::Data(inner) => {
+                        if inner != &DATA && inner != &literal!("_Func") {
+                            Err(Error::NotImplemented)
+                        } else {
+                            *self = Self::Data(dref.clone());
+                            Ok(())
+                        }
+                    },
+                    _ => Err(Error::NotImplemented)
+                }
+            },
+            Self::Data(dref) => {
+                match target {
+                    Type::Data(tagname) => {
+                        if tagname == &DATA {
+                            Ok(())
+                        } else if let Some(dtn) = dref.tagname(&graph) {
+                            if tagname == &dtn {
+                                Ok(())
+                            } else {
+                                Err(Error::CastVal)
+                            }
+                        } else {
+                            Err(Error::CastVal)
+                        }
+                    },
+                    Type::Fn => {
+                        if dref.type_of::<Func>(graph) {
+                            *self = Self::Fn(dref.clone());
+                            Ok(())
+                        } else {
+                            Err(Error::CastVal)
+                        }
+                    },
+                    _ => Err(Error::NotImplemented)
+                }
+            },
+            Self::Null => Ok(()),
+            Self::Num(num) => {
+                match target {
+                    Type::Bool => {
+                        *self = Self::Bool(num.truthy());
+                        Ok(())
+                    },
+                    Type::Str => {
+                        *self = Self::Str(num.print().into());
+                        Ok(())
+                    },
+                    Type::Num(numt) => {
+                        *self = Self::Num(num.cast(*numt));
+                        Ok(())
+                    },
+                    _ => Err(Error::NotImplemented)
+                }
+            },
+            Self::Str(val) => {
+                match target {
+                    Type::List => {
+                        let mut list = Vector::new();
+                        for char in val.as_str().chars() {
+                            list.push_back(Self::Str(char.to_string().into()));
+                        }
+                        *self = Self::List(list);
+                        Ok(())
+                    },
+                    Type::Set => {
+                        let mut set = OrdSet::new();
+                        for char in val.as_str().chars() {
+                            set.insert(Self::Str(char.to_string().into()));
+                        }
+                        *self = Self::Set(set);
+                        Ok(())
+                    },
+                    Type::Blob => {
+                        *self = Self::Blob(str::as_bytes(&val).to_vec());
+                        Ok(())
+                    },
+                    Type::Bool => {
+                        *self = Self::Bool(val.len() > 0);
+                        Ok(())
+                    },
+                    Type::Ver => {
+                        if let Some(ver) = parse_semver_alone(&val) {
+                            *self = ver;
+                            Ok(())
+                        } else {
+                            Err(Error::CastVal)
+                        }
+                    },
+                    Type::Num(num) => {
+                        // TODO: parse number with nom
+                        match num {
+                            NumT::Int => {
+                                if let Ok(res) = val.replace('+', "").replace("_", "").parse::<i64>() {
+                                    *self = Self::Num(Num::Int(res));
+                                    Ok(())
+                                } else {
+                                    Err(Error::CastVal)
+                                }
+                            },
+                            NumT::Float => {
+                                if let Ok(res) = val.replace('+', "").replace("_", "").parse::<f64>() {
+                                    *self = Self::Num(Num::Float(res));
+                                    Ok(())
+                                } else {
+                                    Err(Error::CastVal)
+                                }
+                            },
+                            NumT::Units(units) => {
+                                if let Ok(res) = val.replace('+', "").replace("_", "").parse::<f64>() {
+                                    *self = Self::Num(Num::Units(res, *units));
+                                    Ok(())
+                                } else {
+                                    Err(Error::CastVal)
+                                }
+                            },
+                        }
+                    },
+                    _ => Err(Error::NotImplemented)
+                }
+            },
+            Self::Ver(..) => {
+                match target {
+                    Type::Str => {
+                        *self = Self::Str(self.to_string().into());
+                        Ok(())
+                    },
+                    Type::Ver => Ok(()),
+                    _ => Err(Error::NotImplemented)
+                }
+            },
+            Self::Tup(values) => {
+                Err(Error::NotImplemented) // todo
+            },
+            _ => Err(Error::NotImplemented)
+        }
+    }
+    fn cast_object(&self, target: &Type, graph: &mut Graph) -> Result<(), Error> {
+        match target {
+            Type::Union(types) => {
+                // TODO
+                Err(Error::NotImplemented)
+            },
+            Type::Obj(typepath) => {
+                if typepath == &OBJ || typepath == ROOT_NODE_NAME.as_ref() {
+                    return Ok(());
+                }
+                // TODO
+                Err(Error::NotImplemented)
+            },
+            _ => Err(Error::CastVal)
+        }
     }
 
 
