@@ -374,7 +374,7 @@ impl Instruction for Base {
                 let rhs = env.stack.pop();
                 if let Some(lhs) = lhs {
                     if let Some(rhs) = rhs {
-                        env.stack.push(lhs.add(rhs)?);
+                        env.stack.push(lhs.add(rhs, graph)?);
                     } else {
                         return Err(Error::Add);
                     }

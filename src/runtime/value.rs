@@ -20,7 +20,7 @@ use arcstr::{literal, ArcStr};
 use bytes::Bytes;
 use imbl::{vector, OrdMap, OrdSet, Vector};
 use serde::{Deserialize, Serialize};
-use crate::{model::{json_value_from_node, DataRef, Func, Graph, NodeRef, SId, ROOT_NODE_NAME}, parser::parse_semver_alone, runtime::{Error, Num, NumT, Type, DATA, OBJ}};
+use crate::{model::{json_value_from_node, DataRef, Func, Graph, NodeRef, SId}, parser::parse_semver_alone, runtime::{Error, Num, NumT, Type, DATA, OBJ}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Hash)]
@@ -772,7 +772,7 @@ impl Val {
             Self::Str(_) => Type::Str,
             Self::Blob(_) => Type::Blob,
             Self::Data(_) => Type::Data(DATA),
-            Self::Obj(_) => Type::Obj(OBJ),
+            Self::Obj(_) => Type::Obj(SId::from(&OBJ)),
             Self::Fn(_) => Type::Fn,
             Self::Ver(..) => Type::Ver,
             Self::List(_) => Type::List,
@@ -801,8 +801,8 @@ impl Val {
                 Type::Data(DATA)
             },
             Self::Obj(nref) => {
-                // TODO - prototype -> full typepath
-                Type::Obj(OBJ)
+                // TODO: prototype
+                Type::Obj(SId::from(&OBJ))
             },
             _ => self.gen_type()
         }
@@ -1049,7 +1049,31 @@ impl Val {
                 }
             },
             Self::Tup(values) => {
-                Err(Error::NotImplemented) // todo
+                match target {
+                    Type::Tup(types) => {
+                        if values.len() == types.len() {
+                            for i in 0..values.len() {
+                                values[i].cast(&types[i], graph)?;
+                            }
+                            return Ok(());
+                        }
+                        Err(Error::CastVal)
+                    },
+                    _ => Err(Error::NotImplemented)
+                }
+            },
+            Self::Set(set) => {
+                match target {
+                    Type::List => {
+                        let mut list = Vector::new();
+                        for val in set.iter() {
+                            list.push_back(val.clone());
+                        }
+                        *self = Self::List(list);
+                        Ok(())
+                    },
+                    _ => Err(Error::NotImplemented)
+                }
             },
             _ => Err(Error::NotImplemented)
         }
@@ -1060,8 +1084,8 @@ impl Val {
                 // TODO
                 Err(Error::NotImplemented)
             },
-            Type::Obj(typepath) => {
-                if typepath == &OBJ || typepath == ROOT_NODE_NAME.as_ref() {
+            Type::Obj(prototype) => {
+                if prototype == &SId::from(&OBJ) {
                     return Ok(());
                 }
                 // TODO
@@ -1238,13 +1262,12 @@ impl Val {
     }
 
     /// Runtime greater than another value?
-    pub fn gt(&self, other: &Self) -> Result<Self, Error> {
+    pub fn gt(&self, other: &Self, graph: &Graph) -> Result<Self, Error> {
         match self {
             Self::List(_) |
             Self::Tup(_) |
             Self::Data(_) |
             Self::Fn(_) |
-            Self::Obj(_) |
             Self::Promise(..) |
             Self::Void |
             Self::Null => Ok(false.into()),
@@ -1254,8 +1277,17 @@ impl Val {
                     _ => Ok(Self::Bool(false))
                 }
             },
+            Self::Obj(nref) => {
+                match other {
+                    Self::Obj(onref) => {
+                        // nref is a parent of onref and not the same node?
+                        Ok((onref.child_of(graph, nref) && onref != nref).into())
+                    },
+                    _ => Ok(false.into())
+                }
+            },
             Self::Bool(v) => {
-                Self::Num(Num::Int(*v as i64)).gt(other)
+                Self::Num(Num::Int(*v as i64)).gt(other, graph)
             },
             Self::Num(val) => {
                 match other {
@@ -1335,13 +1367,12 @@ impl Val {
     }
 
     /// Runtime less than another value?
-    pub fn lt(&self, other: &Self) -> Result<Self, Error> {
+    pub fn lt(&self, other: &Self, graph: &Graph) -> Result<Self, Error> {
         match self {
             Self::List(_) |
             Self::Tup(_) |
             Self::Data(_) |
             Self::Fn(_) |
-            Self::Obj(_) |
             Self::Promise(..) |
             Self::Void |
             Self::Null => Ok(true.into()),
@@ -1351,8 +1382,17 @@ impl Val {
                     _ => Ok(Self::Bool(false))
                 }
             },
+            Self::Obj(onref) => {
+                match other {
+                    Self::Obj(nref) => {
+                        // nref is a parent of onref and not the same node?
+                        Ok((onref.child_of(graph, nref) && onref != nref).into())
+                    },
+                    _ => Ok(false.into())
+                }
+            },
             Self::Bool(v) => {
-                Self::Num(Num::Int(*v as i64)).lt(other)
+                Self::Num(Num::Int(*v as i64)).lt(other, graph)
             },
             Self::Num(val) => {
                 match other {
@@ -1432,15 +1472,15 @@ impl Val {
     }
 
     /// Runtime greater or equal?
-    pub fn gte(&self, other: &Self) -> Result<Self, Error> {
-        let res = self.gt(other)?;
+    pub fn gte(&self, other: &Self, graph: &Graph) -> Result<Self, Error> {
+        let res = self.gt(other, graph)?;
         if res.truthy() { return Ok(res); }
         self.equal(other)
     }
 
     /// Runtime less than or equal?
-    pub fn lte(&self, other: &Self) -> Result<Self, Error> {
-        let res = self.lt(other)?;
+    pub fn lte(&self, other: &Self, graph: &Graph) -> Result<Self, Error> {
+        let res = self.lt(other, graph)?;
         if res.truthy() { return Ok(res); }
         self.equal(other)
     }
@@ -1451,18 +1491,122 @@ impl Val {
      *****************************************************************************/
     
     /// Add two values.
-    pub fn add(self, other: Self) -> Result<Self, Error> {
+    pub fn add(self, other: Self, graph: &mut Graph) -> Result<Self, Error> {
         if other.empty() { return Ok(self); }
-        /*match self {
+        match self {
             Self::Null |
             Self::Void => Ok(other),
-            Self::Bool(v) => {
+            Self::Blob(mut blob) => {
                 match other {
-                    _ => {}
+                    Self::Blob(mut other) => {
+                        blob.append(&mut other);
+                        Ok(Self::Blob(blob))
+                    },
+                    _ => Err(Error::NotImplemented)
                 }
             },
-        }*/
-        Ok(self)
+            Self::Bool(val) => {
+                match other {
+                    Self::Bool(other) => {
+                        Ok(Self::Bool(val && other))
+                    },
+                    Self::Num(num) => {
+                        let res;
+                        if val {
+                            res = num.add(&Num::Int(1));
+                        } else {
+                            res = num;
+                        }
+                        Ok(Self::Num(res))
+                    },
+                    Self::Str(other) => {
+                        Ok(Self::Str(format!("{}{}", val, other).into()))
+                    },
+                    _ => Err(Error::NotImplemented)
+                }
+            },
+            Self::Str(val) => {
+                match other {
+                    Self::Str(other) => {
+                        Ok(Self::Str(format!("{val}{other}").into()))
+                    },
+                    _ => Ok(Self::Str(format!("{val}{}", other.print(&graph)).into()))
+                }
+            },
+            Self::Num(val) => {
+                match other {
+                    Self::Num(other) => Ok(Self::Num(val.add(&other))),
+                    Self::Str(other) => {
+                        // TODO: parse string into a number here
+                        if let Ok(other) = other.parse::<f64>() {
+                            Ok(Self::Num(val.add(&Num::Float(other))))
+                        } else {
+                            Err(Error::NotImplemented)
+                        }
+                    },
+                    Self::Bool(other) => {
+                        let res;
+                        if other {
+                            res = val.add(&Num::Int(1));
+                        } else {
+                            res = val;
+                        }
+                        Ok(Self::Num(res))
+                    },
+                    _ => Err(Error::NotImplemented)
+                }
+            },
+            Self::List(mut vals) => {
+                match other {
+                    Self::List(mut other) => {
+                        vals.append(other);
+                        Ok(Self::List(vals))
+                    },
+                    Self::Tup(mut other) => {
+                        vals.append(other);
+                        Ok(Self::List(vals))
+                    },
+                    Self::Set(mut set) => {
+                        for val in set {
+                            vals.push_back(val);
+                        }
+                        Ok(Self::List(vals))
+                    },
+                    _ => {
+                        vals.push_back(other);
+                        Ok(Self::List(vals))
+                    }
+                }
+            },
+            Self::Map(mut map) => {
+                match other {
+                    Self::Map(mut other) => {
+                        for (k, v) in other {
+                            map.insert(k, v);
+                        }
+                        Ok(Self::Map(map))
+                    },
+                    _ => Err(Error::NotImplemented)
+                }
+            },
+            Self::Set(mut set) => {
+                match other {
+                    Self::Set(mut other) => {
+                        for val in other { set.insert(val); }
+                        Ok(Self::Set(set))
+                    },
+                    Self::List(mut other) => {
+                        for val in other { set.insert(val); }
+                        Ok(Self::Set(set))
+                    },
+                    _ => {
+                        set.insert(other);
+                        Ok(Self::Set(set))
+                    }
+                }
+            },
+            _ => Err(Error::NotImplemented)
+        }
     }
 
 

@@ -18,7 +18,7 @@ use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, value}, error::{Error, ErrorKind}, multi::separated_list1, sequence::{delimited, preceded, terminated}, IResult, Parser};
 use serde::{Deserialize, Serialize};
-use crate::{parser::ident, runtime::Units};
+use crate::{model::SId, parser::ident, runtime::Units};
 
 
 // Literal string types.
@@ -53,9 +53,9 @@ pub enum Type {
     Str,
     Ver,
 
-    Obj(ArcStr),
+    Obj(SId), // Prototypes
     Fn,
-    Data(ArcStr),
+    Data(ArcStr), // typetag lib linking, etc.
 
     Blob,
 
@@ -275,7 +275,7 @@ impl Type {
                 res.into()
             },
             Self::Void => VOID,
-            Self::Obj(ctype) => ctype.clone(),
+            Self::Obj(ctype) => ctype.as_ref().into(),
             Self::Promise(ty) => format!("Promise<{}>", ty.type_of()).into(),
         }
     }
@@ -365,7 +365,7 @@ pub fn parse_type(input: &str) -> IResult<&str, Type> {
             value(Type::Unknown, tag("unknown")),
             value(Type::Data(literal!("data")), tag("data")),
             value(Type::Fn, tag("fn")),
-            value(Type::Obj(literal!("obj")), tag("obj")),
+            value(Type::Obj(SId::from(&OBJ)), tag("obj")),
             value(Type::Set, tag("set")),
             value(Type::Map, tag("map")),
             parse_custom_data,
@@ -396,7 +396,7 @@ fn parse_inner_union(input: &str) -> IResult<&str, Type> {
             value(Type::Unknown, tag("unknown")),
             value(Type::Data(literal!("data")), tag("data")),
             value(Type::Fn, tag("fn")),
-            value(Type::Obj(literal!("obj")), tag("obj")),
+            value(Type::Obj(SId::from(&OBJ)), tag("obj")),
             value(Type::Set, tag("set")),
             value(Type::Map, tag("map")),
             parse_custom_data,
@@ -489,7 +489,7 @@ fn parse_inner_promise(input: &str) -> IResult<&str, Type> {
         value(Type::Unknown, tag("unknown")),
         value(Type::Data(literal!("data")), tag("data")),
         value(Type::Fn, tag("fn")),
-        value(Type::Obj(literal!("obj")), tag("obj")),
+        value(Type::Obj(SId::from(&OBJ)), tag("obj")),
         value(Type::Set, tag("set")),
         value(Type::Map, tag("map")),
         parse_custom_data,
@@ -504,7 +504,7 @@ fn parse_inner_promise(input: &str) -> IResult<&str, Type> {
 mod tests {
     use arcstr::{literal, ArcStr};
     use imbl::vector;
-    use crate::runtime::{parse_type_complete, NumT, Type, Units, OBJ};
+    use crate::{model::SId, runtime::{parse_type_complete, NumT, Type, Units, OBJ}};
 
     #[test]
     fn from_str() {
@@ -579,10 +579,10 @@ mod tests {
     fn type_equality() {
         assert_eq!(Type::Unknown, Type::Null);
         assert_eq!(Type::Unknown, Type::Bool);
-        assert_eq!(Type::Unknown, Type::Obj(OBJ));
+        assert_eq!(Type::Unknown, Type::Obj(SId::from(&OBJ)));
         assert_eq!(Type::Null, Type::Unknown);
         assert_eq!(Type::Bool, Type::Unknown);
-        assert_eq!(Type::Obj(OBJ), Type::Unknown);
+        assert_eq!(Type::Obj(SId::from(&OBJ)), Type::Unknown);
         assert_eq!(Type::Unknown, Type::Union(vector![Type::Bool, Type::Str, Type::Blob]));
 
         assert_eq!(Type::Bool, Type::Union(vector![Type::Bool, Type::Str, Type::Blob]));
