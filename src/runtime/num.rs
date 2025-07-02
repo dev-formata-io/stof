@@ -221,6 +221,11 @@ impl From<(f64, Units)> for Num {
         Self::Units(value.0, value.1)
     }
 }
+impl ToString for Num {
+    fn to_string(&self) -> String {
+        self.print()
+    }
+}
 impl Num {
     /// Type for this number.
     pub fn ntype(&self) -> NumT {

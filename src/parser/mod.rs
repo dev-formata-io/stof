@@ -14,6 +14,9 @@
 // limitations under the License.
 //
 
+pub mod semver;
+pub use semver::*;
+
 use nom::{character::complete::{alpha1, alphanumeric0}, combinator::recognize, sequence::pair, IResult, Parser};
 
 

@@ -19,7 +19,7 @@ use arcstr::ArcStr;
 use bytes::Bytes;
 use imbl::{vector, OrdMap, OrdSet, Vector};
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{Error, Num, Type, DATA, OBJ}};
+use crate::{model::{json_value_from_node, DataRef, Graph, NodeRef, SId}, parser::parse_semver_alone, runtime::{Error, Num, Type, DATA, OBJ}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Hash)]
@@ -34,7 +34,7 @@ pub enum Val {
     Str(ArcStr),
 
     // Semantic Versioning as a value
-    Ver(u32, u32, u32, Option<ArcStr>, Option<ArcStr>),
+    Ver(i32, i32, i32, Option<ArcStr>, Option<ArcStr>),
 
     Obj(NodeRef),
     Fn(DataRef),
@@ -433,7 +433,38 @@ impl Eq for Val {}
 
 impl ToString for Val {
     fn to_string(&self) -> String {
-        format!("") // TODO
+        match self {
+            Self::Null => "null".to_owned(),
+            Self::Void => "void".to_owned(),
+            Self::Str(val) => val.to_string(),
+            Self::Bool(val) => val.to_string(),
+            Self::Num(val) => val.to_string(),
+            Self::List(val) => format!("{val:?}"),
+            Self::Tup(val) => format!("tup({val:?})"),
+            Self::Map(map) => format!("{map:?}"),
+            Self::Set(set) => format!("{set:?}"),
+            Self::Obj(nref) => nref.to_string(),
+            Self::Fn(dref) => format!("fn({dref})"),
+            Self::Data(dref) => format!("data({dref})"),
+            Self::Blob(blob) => format!("blob({} bytes)", blob.len()),
+            Self::Ver(maj, min, pat, rel, build) => {
+                let mut major_str = format!("{maj}");
+                if *maj < 0 { major_str = "*".to_string(); }
+                let mut minor_str = format!("{min}");
+                if *min < 0 { minor_str = "*".to_string(); }
+                let mut patch_str = format!("{pat}");
+                if *pat < 0 { patch_str = "*".to_string(); }
+
+                let mut res = format!("{major_str}.{minor_str}.{patch_str}");
+                if let Some(release) = rel {
+                    res.push_str(&format!("-{release}"));
+                }
+                if let Some(build) = build {
+                    res.push_str(&format!("+{build}"));
+                }
+                res
+            }
+        }
     }
 }
 
@@ -743,7 +774,261 @@ impl Val {
         if self.is_type(target, &graph) {
             return Ok(());
         }
-        
+
         Err(Error::custom("not implemented"))
+    }
+
+
+    /*****************************************************************************
+     * Boolean.
+     *****************************************************************************/
+    
+    /// Is this value truthy?
+    pub fn truthy(&self) -> bool {
+        match self {
+            Self::Void |
+            Self::Null => false,
+            Self::Str(v) => v.len() > 0,
+            Self::Bool(v) => *v,
+            Self::Num(v) => v.truthy(),
+            _ => true,
+        }
+    }
+
+    /// Merge this value with another.
+    /// Collision of values.
+    pub fn collide(&mut self, other: &Self) {
+        match self {
+            Self::Void |
+            Self::Null => *self = other.clone(),
+            Self::Tup(_) |
+            Self::Obj(_) |
+            Self::Num(_) |
+            Self::Blob(_) |
+            Self::Fn(_) |
+            Self::Data(_) |
+            Self::Str(_) |
+            Self::Ver(..) |
+            Self::Bool(_) => {
+                if self != other {
+                    match other {
+                        Self::List(vals) => {
+                            let mut v = vals.clone();
+                            v.push_front(self.clone());
+                            *self = Val::List(v);
+                        },
+                        Self::Set(set) => {
+                            let mut v = set.clone();
+                            v.insert(self.clone());
+                            *self = Val::Set(v);
+                        },
+                        _ => {
+                            *self = Val::List(vector![self.clone(), other.clone()]);
+                        }
+                    }
+                }
+            },
+            Val::List(vals) => {
+                match other {
+                    Val::List(ovals) => {
+                        vals.append(ovals.clone());
+                    },
+                    _ => {
+                        vals.push_back(other.clone());
+                    }
+                }
+            },
+            Val::Set(set) => {
+                match other {
+                    Val::Set(oset) => {
+                        *set = set.clone().union(oset.clone());
+                    },
+                    _ => {
+                        set.insert(other.clone());
+                    }
+                }
+            },
+            Val::Map(map) => {
+                match other {
+                    Val::Map(omap) => {
+                        for (k, v) in omap {
+                            if let Some(existing_val) = map.get_mut(k) {
+                                existing_val.collide(v);
+                            } else {
+                                map.insert(k.clone(), v.clone());
+                            }
+                        }
+                    },
+                    _ => {
+                        *self = Val::List(vector![self.clone(), other.clone()]);
+                    }
+                }
+            },
+        }
+    }
+
+    /// Runtime equality?
+    pub fn equal(&self, other: &Self) -> Result<Self, Error> {
+        // SemVer equality: SemVer == SemVer || SemVer == String (does not parse String to SemVer for performance reasons)
+        match self {
+            Self::Ver(major, minor, patch, release, build ) => {
+                match other {
+                    Self::Str(semver) => {
+                        if let Some(semver) = parse_semver_alone(semver) {
+                            match semver {
+                                Self::Ver(omajor, ominor, opatch, orelease, obuild ) => {
+                                    let mut cmp = major.cmp(&omajor);
+                                    if *major < 0 || omajor < 0 || cmp == Ordering::Equal {
+                                        cmp = minor.cmp(&ominor);
+                                        if *minor < 0 || ominor < 0 || cmp == Ordering::Equal {
+                                            cmp = patch.cmp(&opatch);
+                                            if *patch < 0 || opatch < 0 || cmp == Ordering::Equal {
+                                                cmp = release.cmp(&orelease);
+                                                if cmp == Ordering::Equal {
+                                                    cmp = build.cmp(&obuild);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    return Ok(cmp.is_eq().into());
+                                },
+                                _ => {}
+                            }
+                        }
+                        return Ok(Val::Bool(false));
+                    },
+                    Self::Ver(omajor, ominor, opatch, orelease, obuild ) => {
+                        let mut cmp = major.cmp(omajor);
+                        if *major < 0 || *omajor < 0 || cmp == Ordering::Equal {
+                            cmp = minor.cmp(ominor);
+                            if *minor < 0 || *ominor < 0 || cmp == Ordering::Equal {
+                                cmp = patch.cmp(opatch);
+                                if *patch < 0 || *opatch < 0 || cmp == Ordering::Equal {
+                                    cmp = release.cmp(orelease);
+                                    if cmp == Ordering::Equal {
+                                        cmp = build.cmp(obuild);
+                                    }
+                                }
+                            }
+                        }
+                        return Ok(cmp.is_eq().into());
+                    },
+                    _ => {}
+                }
+            },
+            _ => {}
+        }
+        Ok((self == other).into())
+    }
+
+    /// Runtime greater than?
+    pub fn greater(&self, other: &Self) -> Result<Self, Error> {
+        Err(Error::NotImplemented)
+    }
+
+
+    /*****************************************************************************
+     * Print & Debug.
+     *****************************************************************************/
+    
+    /// Print this value (pretty).
+    pub fn print(&self, graph: &Graph) -> String {
+        match self {
+            Self::Num(_) |
+            Self::Void |
+            Self::Null |
+            Self::Str(_) |
+            Self::Bool(_) |
+            Self::Ver(..) |
+            Self::Fn(_) |
+            Self::Data(_) | // TODO: custom print?
+            Self::Blob(_) => self.to_string(),
+            Self::Map(map) => {
+                let mut res = String::default();
+                let mut first = true;
+                for (key, val) in map {
+                    let key_str;
+                    if key.str() { key_str = format!("\"{}\"", key.print(graph)); }
+                    else { key_str = key.print(graph); }
+                    
+                    let val_str;
+                    if val.str() { val_str = format!("\"{}\"", val.print(graph)); }
+                    else { val_str = val.print(graph); }
+
+                    if first {
+                        res.push_str(&format!("({} -> {})", key_str, val_str));
+                        first = false;
+                    } else {
+                        res.push_str(&format!(", ({} -> {})", key_str, val_str));
+                    }
+                }
+                format!("{{{}}}", res)
+            },
+            Self::Set(set) => {
+                let mut res = String::default();
+                let mut first = true;
+                for val in set {
+                    let val_str;
+                    if val.str() { val_str = format!("\"{}\"", val.print(graph)); }
+                    else { val_str = val.print(graph); }
+
+                    if first {
+                        res.push_str(&val_str);
+                        first = false;
+                    } else {
+                        res.push_str(&format!(", {}", val_str));
+                    }
+                }
+                format!("{{{}}}", res)
+            },
+            Self::List(vals) => {
+                let mut res = String::default();
+                let mut first = true;
+                for val in vals {
+                    let val_str;
+                    if val.str() { val_str = format!("\"{}\"", val.print(graph)); }
+                    else { val_str = val.print(graph); }
+
+                    if first {
+                        res.push_str(&val_str);
+                        first = false;
+                    } else {
+                        res.push_str(&format!(", {}", val_str));
+                    }
+                }
+                format!("[{}]", res)
+            },
+            Self::Tup(vals) => {
+                let mut res = String::default();
+                let mut first = true;
+                for val in vals {
+                    let val_str;
+                    if val.str() { val_str = format!("\"{}\"", val.print(graph)); }
+                    else { val_str = val.print(graph); }
+
+                    if first {
+                        res.push_str(&val_str);
+                        first = false;
+                    } else {
+                        res.push_str(&format!(", {}", val_str));
+                    }
+                }
+                format!("({})", res)
+            },
+            Self::Obj(nref) => {
+                let value = json_value_from_node(graph, nref);
+                if let Ok(str) = serde_json::to_string(&value) {
+                    str
+                } else {
+                    self.to_string()
+                }
+            },
+        }
+    }
+
+    /// Debug print.
+    /// TODO: dump objects
+    pub fn debug(&self, _graph: &Graph) -> String {
+        self.to_string()
     }
 }

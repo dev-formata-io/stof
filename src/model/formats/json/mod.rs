@@ -28,7 +28,7 @@ use crate::model::{Format, SId};
 #[derive(Debug)]
 pub struct JsonFormat;
 impl JsonFormat {
-
+    
 }
 impl Format for JsonFormat {
     fn identifiers(&self) -> Vec<SId> {
