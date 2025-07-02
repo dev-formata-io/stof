@@ -106,6 +106,11 @@ pub enum Base {
     Mul,
     Div,
     Mod,
+    AND,
+    OR,
+    XOR,
+    SHL,
+    SHR,
 }
 #[typetag::serde(name = "Base")]
 impl Instruction for Base {
@@ -387,7 +392,7 @@ impl Instruction for Base {
                 let rhs = env.stack.pop();
                 if let Some(lhs) = lhs {
                     if let Some(rhs) = rhs {
-                        //env.stack.push(lhs.sub(rhs)?);
+                        env.stack.push(lhs.sub(rhs, graph)?);
                     } else {
                         return Err(Error::Sub);
                     }
@@ -400,7 +405,7 @@ impl Instruction for Base {
                 let rhs = env.stack.pop();
                 if let Some(lhs) = lhs {
                     if let Some(rhs) = rhs {
-                        //env.stack.push(lhs.mul(rhs)?);
+                        env.stack.push(lhs.mul(rhs, graph)?);
                     } else {
                         return Err(Error::Mul);
                     }
@@ -413,7 +418,7 @@ impl Instruction for Base {
                 let rhs = env.stack.pop();
                 if let Some(lhs) = lhs {
                     if let Some(rhs) = rhs {
-                        //env.stack.push(lhs.div(rhs)?);
+                        env.stack.push(lhs.div(rhs, graph)?);
                     } else {
                         return Err(Error::Div);
                     }
@@ -426,12 +431,77 @@ impl Instruction for Base {
                 let rhs = env.stack.pop();
                 if let Some(lhs) = lhs {
                     if let Some(rhs) = rhs {
-                        //env.stack.push(lhs.rem(rhs)?);
+                        env.stack.push(lhs.rem(rhs, graph)?);
                     } else {
                         return Err(Error::Mod);
                     }
                 } else {
                     return Err(Error::Mod);
+                }
+            },
+            Self::AND => {
+                let lhs = env.stack.pop();
+                let rhs = env.stack.pop();
+                if let Some(lhs) = lhs {
+                    if let Some(rhs) = rhs {
+                        env.stack.push(lhs.bit_and(rhs)?);
+                    } else {
+                        return Err(Error::AND);
+                    }
+                } else {
+                    return Err(Error::AND);
+                }
+            },
+            Self::OR => {
+                let lhs = env.stack.pop();
+                let rhs = env.stack.pop();
+                if let Some(lhs) = lhs {
+                    if let Some(rhs) = rhs {
+                        env.stack.push(lhs.bit_or(rhs)?);
+                    } else {
+                        return Err(Error::OR);
+                    }
+                } else {
+                    return Err(Error::OR);
+                }
+            },
+            Self::XOR => {
+                let lhs = env.stack.pop();
+                let rhs = env.stack.pop();
+                if let Some(lhs) = lhs {
+                    if let Some(rhs) = rhs {
+                        env.stack.push(lhs.bit_xor(rhs)?);
+                    } else {
+                        return Err(Error::XOR);
+                    }
+                } else {
+                    return Err(Error::XOR);
+                }
+            },
+            Self::SHL => {
+                let lhs = env.stack.pop();
+                let rhs = env.stack.pop();
+                if let Some(lhs) = lhs {
+                    if let Some(rhs) = rhs {
+                        env.stack.push(lhs.bit_shl(rhs)?);
+                    } else {
+                        return Err(Error::SHL);
+                    }
+                } else {
+                    return Err(Error::SHL);
+                }
+            },
+            Self::SHR => {
+                let lhs = env.stack.pop();
+                let rhs = env.stack.pop();
+                if let Some(lhs) = lhs {
+                    if let Some(rhs) = rhs {
+                        env.stack.push(lhs.bit_shr(rhs)?);
+                    } else {
+                        return Err(Error::SHR);
+                    }
+                } else {
+                    return Err(Error::SHR);
                 }
             },
         };

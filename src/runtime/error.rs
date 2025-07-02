@@ -52,6 +52,11 @@ pub enum Error {
     Mul,
     Div,
     Mod,
+    AND,
+    OR,
+    XOR,
+    SHL,
+    SHR,
 }
 impl Error {
     /// Custom error string.
