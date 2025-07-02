@@ -91,10 +91,14 @@ impl Runtime {
                 match proc.progress(graph) {
                     Ok(state) => {
                         match state {
+                            ProcRes::Wait(pid) => {
+                                proc.waiting = Some(pid);
+                                to_wait.push(proc.env.pid.clone());
+                            },
                             ProcRes::More => {
                                 if let Some(spawn) = proc.env.spawn.take() {
-                                    proc.waiting = Some(spawn.env.pid.clone());
-                                    to_wait.push(proc.env.pid.clone());
+                                    // this is only set via the Spawn instruction, which creates a new PID each time
+                                    // therefore, don't have to worry about collisions here
                                     to_spawn.push(spawn);
                                 }
                             },

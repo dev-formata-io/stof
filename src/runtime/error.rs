@@ -43,6 +43,13 @@ pub enum Error {
     FuncDne,
     FuncDefaultArg(Box<Self>),
     FuncArgs,
+
+    // Value errors
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
 }
 impl Error {
     /// Custom error string.

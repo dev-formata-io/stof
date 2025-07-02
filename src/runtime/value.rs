@@ -28,6 +28,9 @@ pub enum Val {
     #[default]
     Void,
     Null,
+
+    // A reference to another process (pid)
+    Promise(SId, Type),
     
     Bool(bool),
     Num(Num),
@@ -321,6 +324,24 @@ impl Ord for Val {
                     _ => Ordering::Less,
                 }
             },
+            Self::Promise(id, _) => {
+                match other {
+                    Self::Promise(pid, _) => id.cmp(pid),
+                    Self::Void |
+                    Self::Bool(_) |
+                    Self::Num(_) |
+                    Self::Str(_) |
+                    Self::Obj(_) |
+                    Self::Fn(_) |
+                    Self::List(_) |
+                    Self::Tup(_) |
+                    Self::Blob(_) |
+                    Self::Set(_) |
+                    Self::Ver(..) |
+                    Self::Map(_) => Ordering::Greater,
+                    _ => Ordering::Less,
+                }
+            },
         }
     }
 }
@@ -426,6 +447,12 @@ impl PartialEq for Val {
                     _ => false,
                 }
             },
+            Self::Promise(id, _) => {
+                match other {
+                    Self::Promise(pid, _) => id == pid,
+                    _ => false,
+                }
+            },
         }
     }
 }
@@ -446,6 +473,7 @@ impl ToString for Val {
             Self::Obj(nref) => nref.to_string(),
             Self::Fn(dref) => format!("fn({dref})"),
             Self::Data(dref) => format!("data({dref})"),
+            Self::Promise(pid, _) => format!("promise({pid})"),
             Self::Blob(blob) => format!("blob({} bytes)", blob.len()),
             Self::Ver(maj, min, pat, rel, build) => {
                 let mut major_str = format!("{maj}");
@@ -583,7 +611,7 @@ impl Val {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     /// Try extracting an obj value.
     pub fn try_obj(&self) -> Option<NodeRef> {
         match self {
@@ -601,7 +629,7 @@ impl Val {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     /// Try extracting an func value.
     pub fn try_func(&self) -> Option<DataRef> {
         match self {
@@ -619,7 +647,7 @@ impl Val {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     /// Try extracting an data value.
     pub fn try_data(&self) -> Option<DataRef> {
         match self {
@@ -684,6 +712,24 @@ impl Val {
         }
     }
 
+    #[inline]
+    /// Is this value a promise?
+    pub fn promise(&self) -> bool {
+        match self {
+            Self::Promise(..) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    /// Try extracting the promise value PID & type.
+    pub fn try_promise(&self) -> Option<(SId, Type)> {
+        match self {
+            Self::Promise(pid, ty) => Some((pid.clone(), ty.clone())),
+            _ => None,
+        }
+    }
+
 
     /*****************************************************************************
      * Drop.
@@ -734,6 +780,7 @@ impl Val {
             Self::Map(_) => Type::Map,
             Self::Set(_) => Type::Set,
             Self::Bool(_) => Type::Bool,
+            Self::Promise(_, ty) => Type::Promise(Box::new(ty.clone())),
         }
     }
 
@@ -809,6 +856,7 @@ impl Val {
             Self::Data(_) |
             Self::Str(_) |
             Self::Ver(..) |
+            Self::Promise(..) |
             Self::Bool(_) => {
                 if self != other {
                     match other {
@@ -916,14 +964,259 @@ impl Val {
                     _ => {}
                 }
             },
+            Self::Fn(dref) =>{
+                match other {
+                    Self::Data(odref) => {
+                        return Ok((dref == odref).into());
+                    },
+                    _ => {}
+                }
+            },
+            Self::Data(dref) => {
+                match other {
+                    Self::Fn(odref) => {
+                        return Ok((dref == odref).into());
+                    },
+                    _ => {}
+                }
+            },
             _ => {}
         }
         Ok((self == other).into())
     }
 
-    /// Runtime greater than?
-    pub fn greater(&self, other: &Self) -> Result<Self, Error> {
-        Err(Error::NotImplemented)
+    /// Runtime not equals?
+    pub fn not_equal(&self, other: &Self) -> Result<Self, Error> {
+        let eq = self.equal(other)?;
+        Ok((!eq.truthy()).into())
+    }
+
+    /// Runtime greater than another value?
+    pub fn gt(&self, other: &Self) -> Result<Self, Error> {
+        match self {
+            Self::List(_) |
+            Self::Tup(_) |
+            Self::Data(_) |
+            Self::Fn(_) |
+            Self::Obj(_) |
+            Self::Promise(..) |
+            Self::Void |
+            Self::Null => Ok(false.into()),
+            Self::Blob(blob) => {
+                match other {
+                    Self::Blob(other_blob) => Ok(Self::Bool(blob.len() > other_blob.len())),
+                    _ => Ok(Self::Bool(false))
+                }
+            },
+            Self::Bool(v) => {
+                Self::Num(Num::Int(*v as i64)).gt(other)
+            },
+            Self::Num(val) => {
+                match other {
+                    Self::Num(oval) => {
+                        Ok(Self::Bool(val.gt(oval)))
+                    },
+                    Self::Bool(ov) => {
+                        Ok(Self::Bool(val.int() > *ov as i64))
+                    },
+                    _ => Ok(Self::Bool(false))
+                }
+            },
+            Self::Str(val) => {
+                match other {
+                    Self::Str(oval) => Ok(Self::Bool(val > oval)),
+                    _ => Ok(Self::Bool(false)),
+                }
+            },
+            Self::Map(map) => {
+                match other {
+                    Self::Map(omap) => Ok(Self::Bool(map.len() > omap.len())),
+                    _ => Ok(Self::Bool(false)),
+                }
+            },
+            Self::Set(set) => {
+                match other {
+                    Self::Set(oset) => Ok(Self::Bool(set.len() > oset.len())),
+                    _ => Ok(Self::Bool(false)),
+                }
+            },
+            Self::Ver(major, minor, patch, release, build ) => {
+                match other {
+                    Self::Str(semver) => {
+                        if let Some(semver) = parse_semver_alone(semver) {
+                            match &semver {
+                                Self::Ver(omajor, ominor, opatch, orelease, obuild ) => {
+                                    let mut cmp = major.cmp(omajor);
+                                    if *major < 0 || *omajor < 0 || cmp == Ordering::Equal {
+                                        cmp = minor.cmp(ominor);
+                                        if *minor < 0 || *ominor < 0 || cmp == Ordering::Equal {
+                                            cmp = patch.cmp(opatch);
+                                            if *patch < 0 || *opatch < 0 || cmp == Ordering::Equal {
+                                                cmp = release.cmp(orelease);
+                                                if cmp == Ordering::Equal {
+                                                    cmp = build.cmp(obuild);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    return Ok(cmp.is_gt().into());
+                                },
+                                _ => {}
+                            }
+                        }
+                        Ok(Self::Bool(false))
+                    },
+                    Self::Ver(omajor, ominor, opatch, orelease, obuild ) => {
+                        let mut cmp = major.cmp(omajor);
+                        if *major < 0 || *omajor < 0 || cmp == Ordering::Equal {
+                            cmp = minor.cmp(ominor);
+                            if *minor < 0 || *ominor < 0 || cmp == Ordering::Equal {
+                                cmp = patch.cmp(opatch);
+                                if *patch < 0 || *opatch < 0 || cmp == Ordering::Equal {
+                                    cmp = release.cmp(orelease);
+                                    if cmp == Ordering::Equal {
+                                        cmp = build.cmp(obuild);
+                                    }
+                                }
+                            }
+                        }
+                        Ok(cmp.is_gt().into())
+                    },
+                    _ => Ok(Self::Bool(false)),
+                }
+            },
+        }
+    }
+
+    /// Runtime less than another value?
+    pub fn lt(&self, other: &Self) -> Result<Self, Error> {
+        match self {
+            Self::List(_) |
+            Self::Tup(_) |
+            Self::Data(_) |
+            Self::Fn(_) |
+            Self::Obj(_) |
+            Self::Promise(..) |
+            Self::Void |
+            Self::Null => Ok(true.into()),
+            Self::Blob(blob) => {
+                match other {
+                    Self::Blob(other_blob) => Ok(Self::Bool(blob.len() < other_blob.len())),
+                    _ => Ok(Self::Bool(false))
+                }
+            },
+            Self::Bool(v) => {
+                Self::Num(Num::Int(*v as i64)).lt(other)
+            },
+            Self::Num(val) => {
+                match other {
+                    Self::Num(oval) => {
+                        Ok(Self::Bool(val.lt(oval)))
+                    },
+                    Self::Bool(ov) => {
+                        Ok(Self::Bool(val.int() < *ov as i64))
+                    },
+                    _ => Ok(Self::Bool(false))
+                }
+            },
+            Self::Str(val) => {
+                match other {
+                    Self::Str(oval) => Ok(Self::Bool(val < oval)),
+                    _ => Ok(Self::Bool(false)),
+                }
+            },
+            Self::Map(map) => {
+                match other {
+                    Self::Map(omap) => Ok(Self::Bool(map.len() < omap.len())),
+                    _ => Ok(Self::Bool(false)),
+                }
+            },
+            Self::Set(set) => {
+                match other {
+                    Self::Set(oset) => Ok(Self::Bool(set.len() < oset.len())),
+                    _ => Ok(Self::Bool(false)),
+                }
+            },
+            Self::Ver(major, minor, patch, release, build ) => {
+                match other {
+                    Self::Str(semver) => {
+                        if let Some(semver) = parse_semver_alone(semver) {
+                            match &semver {
+                                Self::Ver(omajor, ominor, opatch, orelease, obuild ) => {
+                                    let mut cmp = major.cmp(omajor);
+                                    if *major < 0 || *omajor < 0 || cmp == Ordering::Equal {
+                                        cmp = minor.cmp(ominor);
+                                        if *minor < 0 || *ominor < 0 || cmp == Ordering::Equal {
+                                            cmp = patch.cmp(opatch);
+                                            if *patch < 0 || *opatch < 0 || cmp == Ordering::Equal {
+                                                cmp = release.cmp(orelease);
+                                                if cmp == Ordering::Equal {
+                                                    cmp = build.cmp(obuild);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    return Ok(cmp.is_lt().into());
+                                },
+                                _ => {}
+                            }
+                        }
+                        Ok(Self::Bool(false))
+                    },
+                    Self::Ver(omajor, ominor, opatch, orelease, obuild ) => {
+                        let mut cmp = major.cmp(omajor);
+                        if *major < 0 || *omajor < 0 || cmp == Ordering::Equal {
+                            cmp = minor.cmp(ominor);
+                            if *minor < 0 || *ominor < 0 || cmp == Ordering::Equal {
+                                cmp = patch.cmp(opatch);
+                                if *patch < 0 || *opatch < 0 || cmp == Ordering::Equal {
+                                    cmp = release.cmp(orelease);
+                                    if cmp == Ordering::Equal {
+                                        cmp = build.cmp(obuild);
+                                    }
+                                }
+                            }
+                        }
+                        Ok(cmp.is_lt().into())
+                    },
+                    _ => Ok(Self::Bool(false)),
+                }
+            },
+        }
+    }
+
+    /// Runtime greater or equal?
+    pub fn gte(&self, other: &Self) -> Result<Self, Error> {
+        let res = self.gt(other)?;
+        if res.truthy() { return Ok(res); }
+        self.equal(other)
+    }
+
+    /// Runtime less than or equal?
+    pub fn lte(&self, other: &Self) -> Result<Self, Error> {
+        let res = self.lt(other)?;
+        if res.truthy() { return Ok(res); }
+        self.equal(other)
+    }
+
+
+    /*****************************************************************************
+     * Ops.
+     *****************************************************************************/
+    
+    /// Add two values.
+    pub fn add(self, other: Self) -> Result<Self, Error> {
+        if other.empty() { return Ok(self); }
+        /*match self {
+            Self::Null |
+            Self::Void => Ok(other),
+            Self::Bool(v) => {
+                match other {
+                    _ => {}
+                }
+            },
+        }*/
+        Ok(self)
     }
 
 
@@ -941,8 +1234,9 @@ impl Val {
             Self::Bool(_) |
             Self::Ver(..) |
             Self::Fn(_) |
-            Self::Data(_) | // TODO: custom print?
             Self::Blob(_) => self.to_string(),
+            Self::Promise(..) |
+            Self::Data(_) => self.spec_type(graph).type_of().to_string(),
             Self::Map(map) => {
                 let mut res = String::default();
                 let mut first = true;

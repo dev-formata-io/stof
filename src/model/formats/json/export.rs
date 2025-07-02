@@ -47,6 +47,7 @@ fn json_value(graph: &Graph, val: Val) -> Value {
     match val {
         Val::Void |
         Val::Null => Value::Null,
+        Val::Promise(..) => Value::Null,
         Val::Bool(v) => Value::Bool(v),
         Val::Str(v) => Value::String(v.to_string()),
         Val::Num(v) => Value::Number(Number::from(v)),

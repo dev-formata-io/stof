@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 
 
 /// Units.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Hash)]
 pub enum Units {
     /// No units
     #[default]

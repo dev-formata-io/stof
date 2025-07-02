@@ -18,7 +18,7 @@ use std::{any::Any, sync::Arc};
 use arcstr::ArcStr;
 use imbl::{vector, Vector};
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{instructions::Base, proc::ProcEnv, Error}};
+use crate::{model::Graph, runtime::{instructions::Base, proc::{ProcEnv, ProcRes}, Error}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -88,15 +88,24 @@ impl Instructions {
     #[inline]
     /// Execute one instruction, in order.
     /// This will pop the first instruction, leaving the next ready to be consumed later.
-    pub fn exec(&mut self, env: &mut ProcEnv, graph: &mut Graph) -> Result<(), Error> {
+    pub fn exec(&mut self, env: &mut ProcEnv, graph: &mut Graph) -> Result<ProcRes, Error> {
         'exec_loop: loop {
             if let Some(ins) = self.instructions.pop_front() {
                 self.executed.push_back(ins.clone());
 
                 if let Some(base) = ins.as_dyn_any().downcast_ref::<Base>() {
                     match base {
+                        Base::CtrlAwait => {
+                            if let Some(promise) = env.stack.pop() {
+                                if let Some((pid, _)) = promise.try_promise() {
+                                    return Ok(ProcRes::Wait(pid.clone()));
+                                }
+                            }
+                            // Awaits on anything else are a passthrough operation...
+                        },
                         Base::CtrlSuspend => {
                             // Go to the next processes instructions
+                            // Used to spawn new processes as well
                             break 'exec_loop;
                         },
                         Base::CtrlBackTo(tag) => {
@@ -115,6 +124,7 @@ impl Instructions {
                 let mut dynamic = Self::default();
                 let res = ins.exec(&mut dynamic, env, graph);
                 if res.is_ok() && dynamic.more() {
+                    self.executed.pop_back(); // replacing this instruction with these instructions
                     while dynamic.more() {
                         self.instructions.push_front(dynamic.instructions.pop_back().unwrap());
                     }
@@ -123,7 +133,11 @@ impl Instructions {
                 break;
             }
         }
-        Ok(())
+        if self.more() {
+            Ok(ProcRes::More)
+        } else {
+            Ok(ProcRes::Done)
+        }
     }
 
     #[inline(always)]

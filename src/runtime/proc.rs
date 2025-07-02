@@ -24,6 +24,7 @@ use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{instruction::{Instr
 pub enum ProcRes {
     Done,
     More,
+    Wait(SId),
 }
 
 
@@ -78,12 +79,8 @@ impl Process {
     /// Progress this process by one instruction.
     pub(super) fn progress(&mut self, graph: &mut Graph) -> Result<ProcRes, Error> {
         match self.instructions.exec(&mut self.env, graph) {
-            Ok(_) => {
-                if !self.instructions.more() {
-                    Ok(ProcRes::Done)
-                } else {
-                    Ok(ProcRes::More)
-                }
+            Ok(res) => {
+                Ok(res)
             },
             Err(error) => {
                 Err(error)

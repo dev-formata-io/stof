@@ -16,7 +16,7 @@
 
 use arcstr::{literal, ArcStr};
 use imbl::Vector;
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, peek, value}, error::{Error, ErrorKind}, multi::{separated_list0, separated_list1}, sequence::{delimited, preceded, terminated}, IResult, Parser};
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, value}, error::{Error, ErrorKind}, multi::separated_list1, sequence::{delimited, preceded, terminated}, IResult, Parser};
 use serde::{Deserialize, Serialize};
 use crate::{parser::ident, runtime::Units};
 
@@ -39,12 +39,14 @@ const INT: ArcStr = literal!("int");
 const FLOAT: ArcStr = literal!("float");
 
 
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default, Hash)]
 /// Type.
 pub enum Type {
     #[default]
     Void,
     Null,
+
+    Promise(Box<Self>),
 
     Bool,
     Num(NumT),
@@ -89,6 +91,12 @@ impl PartialEq for Type {
                         }
                         return false;
                     }
+                }
+            },
+            Self::Promise(ty) => {
+                match self {
+                    Self::Promise(oty) => return ty == oty,
+                    _ => return **ty == *self,
                 }
             },
             _ => {}
@@ -167,7 +175,7 @@ impl PartialEq for Type {
             Self::Data(t) => {
                 match other {
                     Self::Data(ot) => t.eq(ot),
-                    _ => false,
+                    _ => false, // gen type handled in cast
                 }
             },
             Self::List => {
@@ -198,6 +206,12 @@ impl PartialEq for Type {
                 match other {
                     Self::Blob => true,
                     _ => false,
+                }
+            },
+            Self::Promise(ty) => {
+                match other {
+                    Self::Promise(oty) => ty == oty,
+                    _ => **ty == *other,
                 }
             },
             Self::Unknown => true,
@@ -262,6 +276,7 @@ impl Type {
             },
             Self::Void => VOID,
             Self::Obj(ctype) => ctype.clone(),
+            Self::Promise(ty) => format!("Promise<{}>", ty.type_of()).into(),
         }
     }
 
@@ -281,7 +296,7 @@ impl ToString for Type {
 }
 
 
-#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, Hash)]
 /// Number Type.
 pub enum NumT {
     Int,
@@ -337,7 +352,6 @@ pub fn parse_type(input: &str) -> IResult<&str, Type> {
     map((
         multispace0,
         alt((
-            parse_custom_data,
             parse_union,
             value(Type::Null, tag("null")),
             value(Type::Void, tag("void")),
@@ -354,6 +368,8 @@ pub fn parse_type(input: &str) -> IResult<&str, Type> {
             value(Type::Obj(literal!("obj")), tag("obj")),
             value(Type::Set, tag("set")),
             value(Type::Map, tag("map")),
+            parse_custom_data,
+            parse_promise,
             parse_units,
             parse_obj,
             parse_tuple,
@@ -364,11 +380,10 @@ pub fn parse_type(input: &str) -> IResult<&str, Type> {
 
 /// Inner types do not contain the Union as a possibility
 /// Unions cannot contain unions, nor can tuples
-fn parse_inner_type(input: &str) -> IResult<&str, Type> {
+fn parse_inner_union(input: &str) -> IResult<&str, Type> {
     map((
         multispace0,
         alt((
-            parse_custom_data,
             value(Type::Null, tag("null")),
             value(Type::Void, tag("void")),
             value(Type::Num(NumT::Int), tag("int")),
@@ -384,6 +399,8 @@ fn parse_inner_type(input: &str) -> IResult<&str, Type> {
             value(Type::Obj(literal!("obj")), tag("obj")),
             value(Type::Set, tag("set")),
             value(Type::Map, tag("map")),
+            parse_custom_data,
+            parse_promise,
             parse_units,
             parse_obj,
             parse_tuple,
@@ -417,7 +434,7 @@ fn parse_tuple(input: &str) -> IResult<&str, Type> {
             preceded(char('('), multispace0),
             separated_list1(
                 delimited(multispace0, char(','), multispace0),
-                parse_inner_type
+                parse_inner_union
             ),
             terminated(multispace0, char(')'))
         ),
@@ -427,10 +444,19 @@ fn parse_tuple(input: &str) -> IResult<&str, Type> {
 
 /// Parse union type.
 fn parse_union(input: &str) -> IResult<&str, Type> {
-    peek(map(
-        separated_list0(tag("|"), parse_inner_type),
+    map(
+        parse_union_list,
         |list| Type::Union(list.into_iter().collect())
-    )).parse(input)
+    ).parse(input)
+}
+fn parse_union_list(input: &str) -> IResult<&str, Vec<Type>> {
+    let mut parser = separated_list1(tag("|"), parse_inner_union);
+    let (input, vals) = parser.parse(input)?;
+    if vals.len() < 2 {
+        Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::NoneOf)))
+    } else {
+        Ok((input, vals))
+    }
 }
 
 /// Parse custom data type.
@@ -441,12 +467,44 @@ fn parse_custom_data(input: &str) -> IResult<&str, Type> {
     ).parse(input)
 }
 
+/// Parse promise type.
+fn parse_promise(input: &str) -> IResult<&str, Type> {
+    map(
+        delimited(tag("Promise<"), parse_inner_promise, char('>')),
+        |ct| Type::Promise(ct.into())
+    ).parse(input)
+}
+fn parse_inner_promise(input: &str) -> IResult<&str, Type> {
+    alt((
+        parse_union,
+        value(Type::Null, tag("null")),
+        value(Type::Void, tag("void")),
+        value(Type::Num(NumT::Int), tag("int")),
+        value(Type::Num(NumT::Float), tag("float")),
+        value(Type::Str, tag("str")),
+        value(Type::Ver, tag("ver")),
+        value(Type::Blob, tag("blob")),
+        value(Type::Bool, tag("bool")),
+        value(Type::List, tag("list")),
+        value(Type::Unknown, tag("unknown")),
+        value(Type::Data(literal!("data")), tag("data")),
+        value(Type::Fn, tag("fn")),
+        value(Type::Obj(literal!("obj")), tag("obj")),
+        value(Type::Set, tag("set")),
+        value(Type::Map, tag("map")),
+        parse_custom_data,
+        parse_units,
+        parse_obj,
+        parse_tuple,
+    )).parse(input)
+}
+
 
 #[cfg(test)]
 mod tests {
-    use arcstr::literal;
+    use arcstr::{literal, ArcStr};
     use imbl::vector;
-    use crate::runtime::{parse_type_complete, NumT, Type, Units};
+    use crate::runtime::{parse_type_complete, NumT, Type, Units, OBJ};
 
     #[test]
     fn from_str() {
@@ -507,5 +565,34 @@ mod tests {
         assert_eq!(parse_type_complete("unknown").unwrap(), Type::Unknown);
 
         assert_eq!(parse_type_complete("CustomType").unwrap(), Type::Obj("CustomType".into()));
+    }
+
+    #[test]
+    fn parse_promise_works() {
+        assert_eq!(parse_type_complete("Promise<str>").unwrap(), Type::Promise(Box::new(Type::Str)));
+        assert_eq!(parse_type_complete("Promise<Data<PDF>>").unwrap(), Type::Promise(Box::new(Type::Data(ArcStr::from("PDF")))));
+        assert_eq!(parse_type_complete("Promise<str | bool | int>").unwrap(), Type::Promise(Box::new(Type::Union(vector![Type::Str, Type::Bool, Type::Num(NumT::Int)]))));
+        assert_eq!(parse_type_complete("Promise<(str, bool, blob)>").unwrap(), Type::Promise(Box::new(Type::Tup(vector![Type::Str, Type::Bool, Type::Blob]))));
+    }
+
+    #[test]
+    fn type_equality() {
+        assert_eq!(Type::Unknown, Type::Null);
+        assert_eq!(Type::Unknown, Type::Bool);
+        assert_eq!(Type::Unknown, Type::Obj(OBJ));
+        assert_eq!(Type::Null, Type::Unknown);
+        assert_eq!(Type::Bool, Type::Unknown);
+        assert_eq!(Type::Obj(OBJ), Type::Unknown);
+        assert_eq!(Type::Unknown, Type::Union(vector![Type::Bool, Type::Str, Type::Blob]));
+
+        assert_eq!(Type::Bool, Type::Union(vector![Type::Bool, Type::Str, Type::Blob]));
+        assert_eq!(Type::Str, Type::Union(vector![Type::Bool, Type::Str, Type::Blob]));
+        assert_ne!(Type::Ver, Type::Union(vector![Type::Bool, Type::Str, Type::Blob]));
+
+        assert_eq!(Type::Bool, Type::Promise(Box::new(Type::Bool)));
+        assert_eq!(Type::Promise(Box::new(Type::Bool)), Type::Promise(Box::new(Type::Bool)));
+        assert_eq!(Type::Promise(Box::new(Type::Bool)), Type::Bool);
+        assert_ne!(Type::Promise(Box::new(Type::Bool)), Type::Promise(Box::new(Type::Str)));
+        assert_ne!(Type::Promise(Box::new(Type::Bool)), Type::Str);
     }
 }

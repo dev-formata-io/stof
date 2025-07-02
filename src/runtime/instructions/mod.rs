@@ -27,6 +27,7 @@ pub mod block;
 // static instructions for efficiency
 lazy_static! {
     pub static ref SUSPEND: Arc<dyn Instruction> = Arc::new(Base::CtrlSuspend);
+    pub static ref AWAIT: Arc<dyn Instruction> = Arc::new(Base::CtrlAwait);
 
     pub static ref START_TAG: Arc<dyn Instruction> = Arc::new(Base::Tag(literal!("start")));
     pub static ref END_TAG: Arc<dyn Instruction> = Arc::new(Base::Tag(literal!("end")));
@@ -57,6 +58,9 @@ pub enum Base {
     // Used to denote going to another process now.
     // Place these after runs of instructions to make sure we keep making progress on other processes too.
     CtrlSuspend,
+    // Instruct the system to wait for this process before continuing. Looks for a Promise on the stack.
+    // Load a promise onto the stack, then insert this instruction to wait for the process to complete.
+    CtrlAwait,
 
     // Tag a place in the instructions.
     // This is a form of GOTO, used for looping & control flow
@@ -81,7 +85,7 @@ pub enum Base {
     PopStack,
 
     // Spawn a new process.
-    Spawn(Process),
+    Spawn((Instructions, Type)),
 
     // Symbol table / Graph.
     PushSymbolScope,
@@ -97,16 +101,23 @@ pub enum Base {
     // Values.
     Literal(Val), // load a literal onto the stack
     Cast(Type), // Cast value on the back of the stack to a specific type
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
 }
 #[typetag::serde(name = "Base")]
 impl Instruction for Base {
-    #[allow(unused)]
-    fn exec(&self, instructions: &mut Instructions, env: &mut ProcEnv, graph: &mut Graph) -> Result<(), Error> {
+    /// Base instructions do not replace themselves and are used by other higher-order instructions.
+    /// Know what you are doing if using these.
+    fn exec(&self, _instructions: &mut Instructions, env: &mut ProcEnv, graph: &mut Graph) -> Result<(), Error> {
         match self {
             /*****************************************************************************
              * Suspend.
              *****************************************************************************/
             Self::CtrlSuspend => {}, // Nothing here...
+            Self::CtrlAwait => {}, // Nothing here...
             
             /*****************************************************************************
              * Tags.
@@ -158,8 +169,13 @@ impl Instruction for Base {
              * Spawn a new process.
              *****************************************************************************/
             
-            Self::Spawn(proc) => {
-                env.spawn = Some(Box::new(proc.clone()));
+            Self::Spawn((async_ins, ty)) => {
+                // Creates a new PID every time here, avoiding a lot of issues...
+                let proc = Process::from(async_ins.clone());
+                let pid = proc.env.pid.clone();
+                env.spawn = Some(Box::new(proc));
+                env.stack.push(Val::Promise(pid, ty.clone()));
+                // up to the caller to add the suspend to actually spawn (don't want this ins replaced)
             },
             
             /*****************************************************************************
@@ -351,6 +367,71 @@ impl Instruction for Base {
                     env.stack.push(val);
                 } else {
                     return Err(Error::CastStackError);
+                }
+            },
+            Self::Add => {
+                let lhs = env.stack.pop();
+                let rhs = env.stack.pop();
+                if let Some(lhs) = lhs {
+                    if let Some(rhs) = rhs {
+                        env.stack.push(lhs.add(rhs)?);
+                    } else {
+                        return Err(Error::Add);
+                    }
+                } else {
+                    return Err(Error::Add);
+                }
+            },
+            Self::Sub => {
+                let lhs = env.stack.pop();
+                let rhs = env.stack.pop();
+                if let Some(lhs) = lhs {
+                    if let Some(rhs) = rhs {
+                        //env.stack.push(lhs.sub(rhs)?);
+                    } else {
+                        return Err(Error::Sub);
+                    }
+                } else {
+                    return Err(Error::Sub);
+                }
+            },
+            Self::Mul => {
+                let lhs = env.stack.pop();
+                let rhs = env.stack.pop();
+                if let Some(lhs) = lhs {
+                    if let Some(rhs) = rhs {
+                        //env.stack.push(lhs.mul(rhs)?);
+                    } else {
+                        return Err(Error::Mul);
+                    }
+                } else {
+                    return Err(Error::Mul);
+                }
+            },
+            Self::Div => {
+                let lhs = env.stack.pop();
+                let rhs = env.stack.pop();
+                if let Some(lhs) = lhs {
+                    if let Some(rhs) = rhs {
+                        //env.stack.push(lhs.div(rhs)?);
+                    } else {
+                        return Err(Error::Div);
+                    }
+                } else {
+                    return Err(Error::Div);
+                }
+            },
+            Self::Mod => {
+                let lhs = env.stack.pop();
+                let rhs = env.stack.pop();
+                if let Some(lhs) = lhs {
+                    if let Some(rhs) = rhs {
+                        //env.stack.push(lhs.rem(rhs)?);
+                    } else {
+                        return Err(Error::Mod);
+                    }
+                } else {
+                    return Err(Error::Mod);
                 }
             },
         };

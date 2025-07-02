@@ -18,7 +18,7 @@ use std::{mem::swap, sync::Arc};
 use arcstr::ArcStr;
 use imbl::Vector;
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Field, Func, Graph, SId, ASYNC_FUNC_ATTR, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, POP_CALL, POP_SELF, POP_SYMBOL_SCOPE, PUSH_CALL, PUSH_SELF, PUSH_SYMBOL_SCOPE, SUSPEND}, proc::{ProcEnv, Process}, Error, Val}};
+use crate::{model::{DataRef, Field, Func, Graph, SId, ASYNC_FUNC_ATTR, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, POP_CALL, POP_SELF, POP_SYMBOL_SCOPE, PUSH_CALL, PUSH_SELF, PUSH_SYMBOL_SCOPE, SUSPEND}, proc::ProcEnv, Error, Val}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -189,7 +189,7 @@ impl Instruction for FuncCall {
         instructions.push(PUSH_SYMBOL_SCOPE.clone());
         instructions.append(&func_instructions);
         if !rtype.empty() {
-            instructions.push(Arc::new(Base::Cast(rtype)));
+            instructions.push(Arc::new(Base::Cast(rtype.clone())));
         }
 
         // Cleanup stacks
@@ -205,9 +205,8 @@ impl Instruction for FuncCall {
             let mut async_instructions = Instructions::default();
             swap(&mut async_instructions, instructions); // instructions now empty again
 
-            let proc = Process::from(async_instructions);
-            instructions.push(Arc::new(Base::Spawn(proc)));
-            instructions.push(SUSPEND.clone());
+            instructions.push(Arc::new(Base::Spawn((async_instructions, rtype)))); // adds a Promise<rtype> to the stack when executed!
+            instructions.push(SUSPEND.clone()); // make sure to spawn the process right after with the runtime... this is not an await
         }
         Ok(())
     }
