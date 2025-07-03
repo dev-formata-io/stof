@@ -42,6 +42,8 @@ pub enum Error {
     
     CastVal,
 
+    NewObjParentDne,
+
     // Function calling errors
     FuncDne,
     FuncDefaultArg(Box<Self>),

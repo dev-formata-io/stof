@@ -27,6 +27,7 @@ pub mod ops;
 pub mod ifs;
 pub mod switch;
 pub mod whiles;
+pub mod new_obj;
 
 
 // static instructions for efficiency
