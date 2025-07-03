@@ -116,6 +116,23 @@ impl Instructions {
                             self.forward_to(tag);
                             continue 'exec_loop;
                         },
+                        Base::CtrlJumpTable(table, default) => {
+                            // Compares the value on the top of the stack and jumps forwards to the associated tag
+                            // Throws a JumpTable error if not found in the table (and no default)
+                            if let Some(val) = env.stack.pop() {
+                                if let Some(tag) = table.get(&val) {
+                                    self.forward_to(tag);
+                                    continue 'exec_loop;
+                                } else if let Some(tag) = default {
+                                    self.forward_to(tag);
+                                    continue 'exec_loop;
+                                } else {
+                                    return Err(Error::JumpTable);
+                                }
+                            } else {
+                                return Err(Error::StackError);
+                            }
+                        },
                         Base::CtrlForwardToIfTruthy(tag, consume) => {
                             if let Some(val) = env.stack.pop() {
                                 if val.truthy() {

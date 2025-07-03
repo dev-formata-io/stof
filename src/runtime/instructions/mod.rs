@@ -15,8 +15,9 @@
 //
 
 use std::sync::Arc;
-use arcstr::{literal, ArcStr};
+use arcstr::ArcStr;
 use lazy_static::lazy_static;
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use crate::{model::{Field, Func, Graph, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, proc::{ProcEnv, Process}, Error, Type, Val, Variable}};
 
@@ -24,17 +25,15 @@ pub mod call;
 pub mod block;
 pub mod ops;
 pub mod ifs;
+pub mod switch;
+pub mod whiles;
 
 
 // static instructions for efficiency
 lazy_static! {
     pub static ref SUSPEND: Arc<dyn Instruction> = Arc::new(Base::CtrlSuspend);
     pub static ref AWAIT: Arc<dyn Instruction> = Arc::new(Base::CtrlAwait);
-
-    pub static ref START_TAG: Arc<dyn Instruction> = Arc::new(Base::Tag(literal!("start")));
-    pub static ref END_TAG: Arc<dyn Instruction> = Arc::new(Base::Tag(literal!("end")));
-    pub static ref CONTINUE: Arc<dyn Instruction> = Arc::new(Base::CtrlBackTo(literal!("start")));
-    pub static ref BREAK: Arc<dyn Instruction> = Arc::new(Base::CtrlForwardTo(literal!("end")));
+    pub static ref NOOP: Arc<dyn Instruction> = Arc::new(Base::CtrlNoOp);
 
     pub static ref PUSH_SELF: Arc<dyn Instruction> = Arc::new(Base::PushSelf);
     pub static ref POP_SELF: Arc<dyn Instruction> = Arc::new(Base::PopSelf);
@@ -50,6 +49,7 @@ lazy_static! {
     pub static ref PUSH_SYMBOL_SCOPE: Arc<dyn Instruction> = Arc::new(Base::PushSymbolScope);
     pub static ref POP_SYMBOL_SCOPE: Arc<dyn Instruction> = Arc::new(Base::PopSymbolScope);
 
+    pub static ref DUPLICATE: Arc<dyn Instruction> = Arc::new(Base::Dup);
     pub static ref TRUTHY: Arc<dyn Instruction> = Arc::new(Base::Truthy);
     pub static ref NOT_TRUTHY: Arc<dyn Instruction> = Arc::new(Base::NotTruthy);
 
@@ -87,6 +87,9 @@ pub enum Base {
     // Load a promise onto the stack, then insert this instruction to wait for the process to complete.
     CtrlAwait,
 
+    // Does nothing...
+    CtrlNoOp,
+
     // Tag a place in the instructions.
     // This is a form of GOTO, used for looping & control flow
     Tag(ArcStr),
@@ -94,6 +97,7 @@ pub enum Base {
     CtrlForwardTo(ArcStr), // start next on instruction right after tag
     CtrlForwardToIfTruthy(ArcStr, ConsumeStack), // forward to if a truthy value is on the stack
     CtrlForwardToIfNotTruthy(ArcStr, ConsumeStack), // forward to if a non-truthy value is on the stack
+    CtrlJumpTable(FxHashMap<Val, ArcStr>, Option<ArcStr>), // values to jump tags (switch)
 
     // Self stack.
     PushSelf,
@@ -126,6 +130,7 @@ pub enum Base {
     SetVariable(ArcStr), // requires val on stack
 
     // Values.
+    Dup,
     Literal(Val), // load a literal onto the stack
     Cast(Type), // Cast value on the back of the stack to a specific type
     Truthy,
@@ -152,6 +157,7 @@ impl Instruction for Base {
              *****************************************************************************/
             Self::CtrlSuspend => {}, // Nothing here...
             Self::CtrlAwait => {}, // Nothing here...
+            Self::CtrlNoOp => {}, // Does nothing
             
             /*****************************************************************************
              * Tags.
@@ -161,6 +167,8 @@ impl Instruction for Base {
             Self::CtrlForwardTo(_id) => {}, // Nothing here... used by instructions...
             Self::CtrlForwardToIfTruthy(_id, _) => {}, // Nothing here... used by instructions...
             Self::CtrlForwardToIfNotTruthy(_id, _) => {}, // Nothing here... used by instructions...
+
+            Self::CtrlJumpTable(..) => {}, // Nothing here... used by instructions...
 
             /*****************************************************************************
              * Special stacks.
@@ -394,6 +402,14 @@ impl Instruction for Base {
             /*****************************************************************************
              * Values.
              *****************************************************************************/
+            Self::Dup => {
+                if let Some(val) = env.stack.pop() {
+                    env.stack.push(val.clone());
+                    env.stack.push(val);
+                } else {
+                    return Err(Error::StackError);
+                }
+            },
             Self::Literal(val) => {
                 env.stack.push(val.clone());
             },

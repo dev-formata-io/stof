@@ -33,6 +33,7 @@ pub enum Error {
     AssignSuper,
     AssignRootNonObj,
 
+    JumpTable,
     StackError,
     SelfStackError,
     NewStackError,

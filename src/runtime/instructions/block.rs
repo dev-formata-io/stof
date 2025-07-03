@@ -17,35 +17,21 @@
 use std::sync::Arc;
 use imbl::Vector;
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{END_TAG, POP_SYMBOL_SCOPE, PUSH_SYMBOL_SCOPE, START_TAG}, proc::ProcEnv, Error}};
+use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{POP_SYMBOL_SCOPE, PUSH_SYMBOL_SCOPE}, proc::ProcEnv, Error}};
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 /// Block of instructions to be executed.
 pub struct Block {
-    /// Places default start and end tags for continue and break instructions.
-    /// To create custom tags, just add them to the start and end of ins in addition.
-    pub tagged: bool,
+    pub scoped: bool,
     pub ins: Vector<Arc<dyn Instruction>>,
-    pub finally: Option<Vector<Arc<dyn Instruction>>>,
 }
 #[typetag::serde(name = "Block")]
 impl Instruction for Block {
     fn exec(&self, instructions: &mut Instructions, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<(), Error> {
-        // start a new scope for this block
-        instructions.push(PUSH_SYMBOL_SCOPE.clone());
-
-        if self.tagged { instructions.push(START_TAG.clone()); }
+        if self.scoped { instructions.push(PUSH_SYMBOL_SCOPE.clone()); }
         instructions.append(&self.ins);
-        if self.tagged { instructions.push(END_TAG.clone()); }
-
-        if let Some(finally) = &self.finally {
-            instructions.append(finally);
-        }
-
-        // end the scope for this block
-        instructions.push(POP_SYMBOL_SCOPE.clone());
-        
+        if self.scoped { instructions.push(POP_SYMBOL_SCOPE.clone()); }
         Ok(())
     }
 }
