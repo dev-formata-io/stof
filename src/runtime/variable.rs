@@ -56,7 +56,7 @@ impl Variable {
     pub fn set(&mut self, var: &Variable, graph: &mut Graph) -> Result<(), Error> {
         if self.mutable {
             if var.value_type() {
-                // Set by value
+                // Set by value - clone the internal value and set
                 let mut val = var.val.read().unwrap().clone();
                 if let Some(vtype) = &self.vtype {
                     if vtype != &val.spec_type(graph) {
@@ -67,7 +67,14 @@ impl Variable {
                 }
                 *self.val.write().unwrap() = val;
             } else {
-                // Set by reference
+                // Set by reference - set the val as a clone (modifying here will modify there)
+                if let Some(vtype) = &self.vtype {
+                    if vtype != &var.spec_type(graph) {
+                        if let Err(error) = var.cast(vtype, graph) {
+                            return Err(error);
+                        }
+                    }
+                }
                 self.val = var.val.clone();
             }
             Ok(())
