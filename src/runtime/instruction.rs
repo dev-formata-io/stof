@@ -185,8 +185,8 @@ impl Instructions {
 
                 // Some fresh instructions for ya
                 let mut dynamic = Self::default();
-                let res = ins.exec(&mut dynamic, env, graph);
-                if res.is_ok() && dynamic.more() {
+                ins.exec(&mut dynamic, env, graph)?;
+                if dynamic.more() {
                     self.executed.pop_back(); // replacing this instruction with these instructions
                     while dynamic.more() {
                         self.instructions.push_front(dynamic.instructions.pop_back().unwrap());

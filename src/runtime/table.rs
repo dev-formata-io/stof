@@ -41,7 +41,7 @@ impl SymbolTable {
     /// Can declare variable in the current scope?
     /// True if the name doesn't collide with a current var in the scope.
     pub fn can_declare(&self, name: impl AsRef<str>) -> bool {
-        self.scopes.is_empty() || self.scopes.last().unwrap().has(name)
+        self.scopes.is_empty() || !self.scopes.last().unwrap().has(name)
     }
 
     #[inline]

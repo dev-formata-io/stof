@@ -83,3 +83,64 @@ impl Instruction for WhileIns {
         Ok(())
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use arcstr::literal;
+    use crate::{model::Graph, runtime::{instructions::{block::Block, ops::{Op, OpIns}, whiles::WhileIns, Base}, Num, Runtime, Val}};
+
+
+    #[test]
+    fn for_range_loop() {
+        let mut outer_block = Block::default();
+        outer_block.ins.push_back(Arc::new(Base::Literal(Val::Num(Num::Int(0)))));
+        outer_block.ins.push_back(Arc::new(Base::DeclareVar(literal!("total"), true)));
+
+        let mut declare = Block::default();
+        declare.ins.push_back(Arc::new(Base::Literal(Val::Num(Num::Int(0)))));
+        declare.ins.push_back(Arc::new(Base::DeclareVar(literal!("i"), true)));
+
+        let mut test_block = Block::default();
+        test_block.ins.push_back(Arc::new(OpIns {
+            lhs: Arc::new(Base::LoadVariable(literal!("i"))),
+            op: Op::Less,
+            rhs: Arc::new(Base::Literal(Val::Num(Num::Int(100)))),
+        }));
+
+        let mut inc_block = Block::default();
+        inc_block.ins.push_back(Arc::new(OpIns {
+            lhs: Arc::new(Base::LoadVariable(literal!("i"))),
+            op: Op::Add,
+            rhs: Arc::new(Base::Literal(Val::Num(Num::Int(1)))),
+        }));
+        inc_block.ins.push_back(Arc::new(Base::SetVariable(literal!("i"))));
+
+        // let total: int = 0; for (int i in 0..100) { total += 1; } total
+        let mut while_loop = WhileIns {
+            continue_tag: literal!("continue"),
+            break_tag: literal!("break"),
+            test: Arc::new(test_block),
+            ins: Default::default(),
+            declare: Some(Arc::new(declare)),
+            inc: Some(Arc::new(inc_block)),
+        };
+        //while_loop.ins.push_back(Arc::new(Base::CtrlForwardTo(literal!("continue"))));
+        while_loop.ins.push_back(Arc::new(OpIns {
+            lhs: Arc::new(Base::LoadVariable(literal!("total"))),
+            op: Op::Add,
+            rhs: Arc::new(Base::Literal(Val::Num(Num::Int(1)))),
+        }));
+        while_loop.ins.push_back(Arc::new(Base::SetVariable(literal!("total"))));
+        //while_loop.ins.push_back(Arc::new(Base::CtrlForwardTo(literal!("break"))));
+
+        outer_block.ins.push_back(Arc::new(while_loop));
+        outer_block.ins.push_back(Arc::new(Base::LoadVariable(literal!("total")))); // return
+
+        // run
+        let mut graph = Graph::default();
+        let res = Runtime::eval(&mut graph, Arc::new(outer_block)).expect("expected pass");
+        assert_eq!(res, 100.into());
+    }
+}
