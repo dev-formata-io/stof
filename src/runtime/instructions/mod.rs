@@ -28,6 +28,8 @@ pub mod ifs;
 pub mod switch;
 pub mod whiles;
 pub mod new_obj;
+pub mod empty;
+pub mod trycatch;
 
 
 // static instructions for efficiency
@@ -35,6 +37,8 @@ lazy_static! {
     pub static ref SUSPEND: Arc<dyn Instruction> = Arc::new(Base::CtrlSuspend);
     pub static ref AWAIT: Arc<dyn Instruction> = Arc::new(Base::CtrlAwait);
     pub static ref NOOP: Arc<dyn Instruction> = Arc::new(Base::CtrlNoOp);
+    pub static ref END_TRY: Arc<dyn Instruction> = Arc::new(Base::CtrlTryEnd);
+    pub static ref THROW_ERROR: Arc<dyn Instruction> = Arc::new(Base::Throw);
 
     pub static ref PUSH_SELF: Arc<dyn Instruction> = Arc::new(Base::PushSelf);
     pub static ref POP_SELF: Arc<dyn Instruction> = Arc::new(Base::PopSelf);
@@ -106,6 +110,12 @@ pub enum Base {
     CtrlForwardToIfTruthy(ArcStr, ConsumeStack), // forward to if a truthy value is on the stack
     CtrlForwardToIfNotTruthy(ArcStr, ConsumeStack), // forward to if a non-truthy value is on the stack
     CtrlJumpTable(FxHashMap<Val, ArcStr>, Option<ArcStr>), // values to jump tags (switch)
+
+    // Try catch control instructions.
+    // Go forward to this tag if an error occurrs.
+    CtrlTry(ArcStr),
+    CtrlTryEnd,
+    Throw, // Will error with the debug contents of the last stack val if any
 
     // Self stack.
     PushSelf,
@@ -186,6 +196,17 @@ impl Instruction for Base {
             Self::CtrlForwardToIfNotTruthy(_id, _) => {}, // Nothing here... used by instructions...
 
             Self::CtrlJumpTable(..) => {}, // Nothing here... used by instructions...
+
+            Self::CtrlTry(_) => {}, // Nothing here... used by instructions...
+            Self::CtrlTryEnd => {}, // Nothing here... used by instructions...
+            Self::Throw => {
+                if let Some(var) = env.stack.pop() {
+                    let dbg = var.val.read().unwrap().debug(&graph);
+                    return Err(Error::Custom(dbg.into()));
+                } else {
+                    return Err(Error::Thrown);
+                }
+            },
 
             /*****************************************************************************
              * Special stacks.
@@ -447,6 +468,8 @@ impl Instruction for Base {
                 if let Some(var) = env.stack.pop() {
                     var.cast(target, graph)?;
                     env.stack.push(var);
+                } else if target.empty() {
+                    // nothing to do in this case
                 } else {
                     return Err(Error::CastStackError);
                 }

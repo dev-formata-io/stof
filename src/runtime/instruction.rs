@@ -18,7 +18,7 @@ use std::{any::Any, sync::Arc};
 use arcstr::ArcStr;
 use imbl::{vector, Vector};
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{instructions::{Base, ConsumeStack}, proc::{ProcEnv, ProcRes}, Error}};
+use crate::{model::Graph, runtime::{instructions::{Base, ConsumeStack}, proc::{ProcEnv, ProcRes}, Error, Val, Variable}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -28,6 +28,7 @@ pub struct Instructions {
     /// Store instructions in a Func, then clone into the proc without any copies.
     pub instructions: Vector<Arc<dyn Instruction>>,
     executed: Vector<Arc<dyn Instruction>>,
+    try_catch_count: u8,
 }
 impl From<Arc<dyn Instruction>> for Instructions {
     fn from(value: Arc<dyn Instruction>) -> Self {
@@ -85,6 +86,30 @@ impl Instructions {
         }
     }
 
+    /// Backup to the last try to see where we need to go, then forward to there.
+    fn unwind_try(&mut self) -> bool {
+        let mut try_tag = None;
+        'unwind: while let Some(ins) = self.executed.pop_back() {
+            if let Some(base) = ins.as_dyn_any().downcast_ref::<Base>() {
+                match base {
+                    Base::CtrlTry(tag) => {
+                        try_tag = Some(tag.clone());
+                        self.executed.push_back(ins);
+                        break 'unwind;
+                    },
+                    _ => {}
+                }
+            }
+            self.instructions.push_front(ins);
+        }
+        if let Some(tag) = try_tag {
+            self.forward_to(&tag);
+            true
+        } else {
+            false
+        }
+    }
+
     #[inline]
     /// Execute one instruction, in order.
     /// This will pop the first instruction, leaving the next ready to be consumed later.
@@ -95,6 +120,16 @@ impl Instructions {
 
                 if let Some(base) = ins.as_dyn_any().downcast_ref::<Base>() {
                     match base {
+                        Base::CtrlTry(_) => {
+                            self.try_catch_count += 1;
+                            continue 'exec_loop;
+                        },
+                        Base::CtrlTryEnd => {
+                            if self.try_catch_count > 0 {
+                                self.try_catch_count -= 1;
+                            }
+                            continue 'exec_loop;
+                        },
                         Base::CtrlAwait => {
                             if let Some(promise) = env.stack.pop() {
                                 if let Some((pid, _)) = promise.try_promise() {
@@ -185,7 +220,19 @@ impl Instructions {
 
                 // Some fresh instructions for ya
                 let mut dynamic = Self::default();
-                ins.exec(&mut dynamic, env, graph)?;
+                let res = ins.exec(&mut dynamic, env, graph);
+                match res {
+                    Ok(_) => {},
+                    Err(error) => {
+                        if self.try_catch_count > 0 && self.unwind_try() {
+                            env.stack.push(Variable::val(Val::Str(error.to_string().into()))); // TODO better errors?
+                            continue 'exec_loop;
+                        } else {
+                            return Err(error);
+                        }
+                    },
+                }
+
                 if dynamic.more() {
                     self.executed.pop_back(); // replacing this instruction with these instructions
                     while dynamic.more() {

@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+use std::fmt::Display;
+use arcstr::ArcStr;
 use serde::{Deserialize, Serialize};
 
 
@@ -21,8 +23,9 @@ use serde::{Deserialize, Serialize};
 /// Error.
 /// TODO.
 pub enum Error {
-    Custom(String),
+    Custom(ArcStr),
     NotImplemented,
+    Thrown,
 
     DeclareExisting,
     DeclareInvalidName,
@@ -68,9 +71,8 @@ pub enum Error {
     SHL,
     SHR,
 }
-impl Error {
-    /// Custom error string.
-    pub fn custom(message: impl ToString) -> Self {
-        Self::Custom(message.to_string())
+impl Display for Error { // maps ToString and print to Debug
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
     }
 }

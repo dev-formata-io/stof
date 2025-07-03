@@ -18,7 +18,7 @@ use std::{mem::swap, sync::Arc};
 use arcstr::ArcStr;
 use imbl::Vector;
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Field, Func, Graph, SId, ASYNC_FUNC_ATTR, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, POP_CALL, POP_SELF, POP_SYMBOL_SCOPE, PUSH_CALL, PUSH_SELF, PUSH_SYMBOL_SCOPE, SUSPEND}, proc::ProcEnv, Error, Val}};
+use crate::{model::{DataRef, Field, Func, Graph, SId, ASYNC_FUNC_ATTR, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, POP_CALL, POP_SELF, POP_SYMBOL_SCOPE, PUSH_CALL, PUSH_SELF, PUSH_SYMBOL_SCOPE, SUSPEND}, proc::ProcEnv, Error, Type, Val}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -190,6 +190,9 @@ impl Instruction for FuncCall {
         instructions.append(&func_instructions);
         if !rtype.empty() {
             instructions.push(Arc::new(Base::Cast(rtype.clone())));
+        } else {
+            // Make sure we get an error if the last value is not void (or doesn't exist on stack)
+            instructions.push(Arc::new(Base::Cast(Type::Void)));
         }
 
         // Cleanup stacks
