@@ -70,6 +70,7 @@ lazy_static! {
     pub static ref LESS_THAN: Arc<dyn Instruction> = Arc::new(Base::LessThan);
     pub static ref LESS_THAN_OR_EQ: Arc<dyn Instruction> = Arc::new(Base::LessOrEq);
     pub static ref EQUAL: Arc<dyn Instruction> = Arc::new(Base::Eq);
+    pub static ref NOT_EQUAL: Arc<dyn Instruction> = Arc::new(Base::Neq);
 }
 
 
@@ -118,8 +119,7 @@ pub enum Base {
     PushNew,
     PopNew,
 
-    // Push literal to stack.
-    PushStack(Val),
+    // Pop a variable from the stack. (drop val)
     PopStack,
 
     // Spawn a new process.
@@ -149,6 +149,7 @@ pub enum Base {
     LessOrEq,
     GreaterOrEq,
     Eq,
+    Neq,
 
     Add,
     Sub,
@@ -190,8 +191,8 @@ impl Instruction for Base {
              * Special stacks.
              *****************************************************************************/
             Self::PushSelf => {
-                if let Some(val) = env.stack.pop() {
-                    if let Some(obj) = val.try_obj() {
+                if let Some(var) = env.stack.pop() {
+                    if let Some(obj) = var.try_obj() {
                         env.self_stack.push(obj);
                         return Ok(());
                     }
@@ -201,8 +202,8 @@ impl Instruction for Base {
             Self::PopSelf => { env.self_stack.pop(); },
 
             Self::PushCall => {
-                if let Some(val) = env.stack.pop() {
-                    if let Some(func) = val.try_func() {
+                if let Some(var) = env.stack.pop() {
+                    if let Some(func) = var.try_func() {
                         env.call_stack.push(func);
                         return Ok(());
                     }
@@ -212,8 +213,8 @@ impl Instruction for Base {
             Self::PopCall => { env.call_stack.pop(); },
             
             Self::PushNew => {
-                if let Some(val) = env.stack.pop() {
-                    if let Some(obj) = val.try_obj() {
+                if let Some(var) = env.stack.pop() {
+                    if let Some(obj) = var.try_obj() {
                         env.new_stack.push(obj);
                         return Ok(());
                     }
@@ -221,9 +222,7 @@ impl Instruction for Base {
                 return Err(Error::NewStackError);
             },
             Self::PopNew => { env.new_stack.pop(); },
-            
-            Self::PushStack(val) => env.stack.push(val.clone()),
-            Self::PopStack => { env.stack.pop(); },
+
             
             /*****************************************************************************
              * Spawn a new process.
@@ -234,7 +233,7 @@ impl Instruction for Base {
                 let proc = Process::from(async_ins.clone());
                 let pid = proc.env.pid.clone();
                 env.spawn = Some(Box::new(proc));
-                env.stack.push(Val::Promise(pid, ty.clone()));
+                env.stack.push(Variable::val(Val::Promise(pid, ty.clone())));
                 // up to the caller to add the suspend to actually spawn (don't want this ins replaced)
             },
             
@@ -247,8 +246,12 @@ impl Instruction for Base {
             Self::DeclareVar(name, typed) => {
                 if !env.table.can_declare(name) { return Err(Error::DeclareExisting); }
                 if name.contains('.') { return Err(Error::DeclareInvalidName); }
-                if let Some(val) = env.stack.pop() {
-                    env.table.insert(name, Variable::new(graph, true, val, *typed));
+                if let Some(mut var) = env.stack.pop() {
+                    var.mutable = true;
+                    if *typed {
+                        var.vtype = Some(var.val.read().unwrap().spec_type(&graph));
+                    }
+                    env.table.insert(name, var);
                 } else {
                     return Err(Error::StackError);
                 }
@@ -256,8 +259,12 @@ impl Instruction for Base {
             Self::DeclareConstVar(name, typed) => {
                 if !env.table.can_declare(name) { return Err(Error::DeclareExisting); }
                 if name.contains('.') { return Err(Error::DeclareInvalidName); }
-                if let Some(val) = env.stack.pop() {
-                    env.table.insert(name, Variable::new(graph, false, val, *typed));
+                if let Some(mut var) = env.stack.pop() {
+                    var.mutable = false;
+                    if *typed {
+                        var.vtype = Some(var.val.read().unwrap().spec_type(&graph));
+                    }
+                    env.table.insert(name, var);
                 } else {
                     return Err(Error::StackError);
                 }
@@ -308,7 +315,7 @@ impl Instruction for Base {
             Self::LoadVariable(name) => {
                 if !name.contains('.') {
                     if let Some(var) = env.table.get(name) {
-                        env.stack.push(var.get());
+                        env.stack.push(var.stack_var());
                         return Ok(());
                     }
                 }
@@ -316,34 +323,34 @@ impl Instruction for Base {
                     let self_ptr = env.self_ptr();
                     if let Some(field) = Field::field_from_path(graph, &name, Some(self_ptr.clone())) {
                         if let Some(field) = graph.get_stof_data::<Field>(&field) {
-                            env.stack.push(field.value.get());
+                            env.stack.push(field.value.stack_var());
                             return Ok(());
                         }
                     } else if let Some(node) = SPath::node(&graph, &name, Some(self_ptr.clone())) {
-                        env.stack.push(Val::Obj(node));
+                        env.stack.push(Variable::val(Val::Obj(node)));
                         return Ok(());
                     } else if let Some(func) = Func::func_from_path(graph, &name, Some(self_ptr.clone())) {
-                        env.stack.push(Val::Fn(func));
+                        env.stack.push(Variable::val(Val::Fn(func)));
                         return Ok(());
                     }
                 } else if let Some(field) = Field::field_from_path(graph, &name, None) {
                     if let Some(field) = graph.get_stof_data::<Field>(&field) {
-                        env.stack.push(field.value.get());
+                        env.stack.push(field.value.stack_var());
                         return Ok(());
                     }
                 } else if let Some(node) = SPath::node(&graph, &name, None) {
-                    env.stack.push(Val::Obj(node));
+                    env.stack.push(Variable::val(Val::Obj(node)));
                     return Ok(());
                 } else if let Some(func) = Func::func_from_path(graph, &name, None) {
-                    env.stack.push(Val::Fn(func));
+                    env.stack.push(Variable::val(Val::Fn(func)));
                     return Ok(());
                 }
-                env.stack.push(Val::Null);
+                env.stack.push(Variable::val(Val::Null));
                 return Ok(());
             },
             Self::SetVariable(name) => {
-                if let Some(val) = env.stack.pop() {
-                    if !name.contains('.') && env.table.set(name, &val, graph)? {
+                if let Some(var) = env.stack.pop() {
+                    if !name.contains('.') && env.table.set(name, &var, graph)? {
                         return Ok(());
                     }
 
@@ -357,13 +364,13 @@ impl Instruction for Base {
                         
                         let self_ptr = env.self_ptr();
                         if let Some(field_ref) = Field::field_from_path(graph, &name, Some(self_ptr.clone())) {
-                            let mut var = None;
+                            let mut fvar = None;
                             if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
                                 if !field.can_set() { return Err(Error::FieldPrivateSet); }
-                                var = Some(field.value.clone());
+                                fvar = Some(field.value.clone());
                             }
-                            if let Some(mut var) = var {
-                                var.set(val, graph)?;
+                            if let Some(mut fvar) = fvar {
+                                fvar.set(&var, graph)?;
                             }
                             if let Some(field) = field_ref.data_mut(graph) {
                                 field.invalidate_value();
@@ -374,7 +381,7 @@ impl Instruction for Base {
                             let field_name = path.path.pop().unwrap();
                             if path.path.len() < 1 { return Err(Error::AssignSelf); }
                             if let Some(node) = graph.ensure_named_nodes(path, Some(self_ptr.clone()), true, None) {
-                                let field = Field::new(Variable::new(graph, true, val, false), None);
+                                let field = Field::new(var, None);
                                 graph.insert_stof_data(&node, field_name, Box::new(field), None);
                                 return Ok(());
                             } else {
@@ -382,13 +389,13 @@ impl Instruction for Base {
                             }
                         }
                     } else if let Some(field_ref) = Field::field_from_path(graph, &name, None) {
-                        let mut var = None;
+                        let mut fvar = None;
                         if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
                             if !field.can_set() { return Err(Error::FieldPrivateSet); }
-                            var = Some(field.value.clone());
+                            fvar = Some(field.value.clone());
                         }
-                        if let Some(mut var) = var {
-                            var.set(val, graph)?;
+                        if let Some(mut fvar) = fvar {
+                            fvar.set(&var, graph)?;
                         }
                         if let Some(field) = field_ref.data_mut(graph) {
                             field.invalidate_value();
@@ -399,26 +406,22 @@ impl Instruction for Base {
                         let field_name = path.path.pop().unwrap();
                         if path.path.len() < 1 { return Err(Error::AssignSelf); }
                         if let Some(node) = graph.ensure_named_nodes(path, None, true, None) {
-                            let field = Field::new(Variable::new(graph, true, val, false), None);
+                            let field = Field::new(var, None);
                             graph.insert_stof_data(&node, field_name, Box::new(field), None);
                             return Ok(());
                         } else {
                             return Err(Error::AssignSelf);
                         }
                     } else {
-                        match val {
-                            Val::Obj(nref) => {
-                                // TODO: drop old root?
-                                if let Some(node) = nref.node_mut(graph) {
-                                    node.name = name.into();
-                                }
-                                graph.roots.insert(nref);
-                                return Ok(());
-                            },
-                            _ => {
-                                return Err(Error::AssignRootNonObj);
+                        if let Some(nref) = var.try_obj() {
+                            // TODO: drop old root?
+                            if let Some(node) = nref.node_mut(graph) {
+                                node.name = name.into();
                             }
+                            graph.roots.insert(nref);
+                            return Ok(());
                         }
+                        return Err(Error::AssignRootNonObj);
                     }
                 } else {
                     return Err(Error::StackError);
@@ -437,26 +440,27 @@ impl Instruction for Base {
                 }
             },
             Self::Literal(val) => {
-                env.stack.push(val.clone());
+                env.stack.push(Variable::val(val.clone()));
             },
+            Self::PopStack => { env.stack.pop(); },
             Self::Cast(target) => {
-                if let Some(mut val) = env.stack.pop() {
-                    val.cast(target, graph)?;
-                    env.stack.push(val);
+                if let Some(var) = env.stack.pop() {
+                    var.cast(target, graph)?;
+                    env.stack.push(var);
                 } else {
                     return Err(Error::CastStackError);
                 }
             },
             Self::Truthy => {
-                if let Some(val) = env.stack.pop() {
-                    env.stack.push(val.truthy().into());
+                if let Some(var) = env.stack.pop() {
+                    env.stack.push(Variable::val(var.truthy().into()));
                 } else {
                     return Err(Error::Truthy);
                 }
             },
             Self::NotTruthy => {
-                if let Some(val) = env.stack.pop() {
-                    env.stack.push((!val.truthy()).into());
+                if let Some(var) = env.stack.pop() {
+                    env.stack.push(Variable::val((!var.truthy()).into()));
                 } else {
                     return Err(Error::Truthy);
                 }
@@ -526,12 +530,26 @@ impl Instruction for Base {
                     return Err(Error::Eq);
                 }
             },
+            Self::Neq => {
+                let lhs = env.stack.pop();
+                let rhs = env.stack.pop();
+                if let Some(lhs) = lhs {
+                    if let Some(rhs) = rhs {
+                        env.stack.push(lhs.not_equal(&rhs)?);
+                    } else {
+                        return Err(Error::Eq);
+                    }
+                } else {
+                    return Err(Error::Eq);
+                }
+            },
             Self::Add => {
                 let lhs = env.stack.pop();
                 let rhs = env.stack.pop();
                 if let Some(lhs) = lhs {
                     if let Some(rhs) = rhs {
-                        env.stack.push(lhs.add(rhs, graph)?);
+                        lhs.add(rhs, graph)?;
+                        env.stack.push(lhs);
                     } else {
                         return Err(Error::Add);
                     }
@@ -544,7 +562,8 @@ impl Instruction for Base {
                 let rhs = env.stack.pop();
                 if let Some(lhs) = lhs {
                     if let Some(rhs) = rhs {
-                        env.stack.push(lhs.sub(rhs, graph)?);
+                        lhs.sub(rhs, graph)?;
+                        env.stack.push(lhs);
                     } else {
                         return Err(Error::Sub);
                     }
@@ -557,7 +576,8 @@ impl Instruction for Base {
                 let rhs = env.stack.pop();
                 if let Some(lhs) = lhs {
                     if let Some(rhs) = rhs {
-                        env.stack.push(lhs.mul(rhs, graph)?);
+                        lhs.mul(rhs, graph)?;
+                        env.stack.push(lhs);
                     } else {
                         return Err(Error::Mul);
                     }
@@ -570,7 +590,8 @@ impl Instruction for Base {
                 let rhs = env.stack.pop();
                 if let Some(lhs) = lhs {
                     if let Some(rhs) = rhs {
-                        env.stack.push(lhs.div(rhs, graph)?);
+                        lhs.div(rhs, graph)?;
+                        env.stack.push(lhs);
                     } else {
                         return Err(Error::Div);
                     }
@@ -583,7 +604,8 @@ impl Instruction for Base {
                 let rhs = env.stack.pop();
                 if let Some(lhs) = lhs {
                     if let Some(rhs) = rhs {
-                        env.stack.push(lhs.rem(rhs, graph)?);
+                        lhs.rem(rhs, graph)?;
+                        env.stack.push(lhs);
                     } else {
                         return Err(Error::Mod);
                     }
@@ -596,7 +618,8 @@ impl Instruction for Base {
                 let rhs = env.stack.pop();
                 if let Some(lhs) = lhs {
                     if let Some(rhs) = rhs {
-                        env.stack.push(lhs.bit_and(rhs)?);
+                        lhs.bit_and(rhs)?;
+                        env.stack.push(lhs);
                     } else {
                         return Err(Error::AND);
                     }
@@ -609,7 +632,8 @@ impl Instruction for Base {
                 let rhs = env.stack.pop();
                 if let Some(lhs) = lhs {
                     if let Some(rhs) = rhs {
-                        env.stack.push(lhs.bit_or(rhs)?);
+                        lhs.bit_or(rhs)?;
+                        env.stack.push(lhs);
                     } else {
                         return Err(Error::OR);
                     }
@@ -622,7 +646,8 @@ impl Instruction for Base {
                 let rhs = env.stack.pop();
                 if let Some(lhs) = lhs {
                     if let Some(rhs) = rhs {
-                        env.stack.push(lhs.bit_xor(rhs)?);
+                        lhs.bit_xor(rhs)?;
+                        env.stack.push(lhs);
                     } else {
                         return Err(Error::XOR);
                     }
@@ -635,7 +660,8 @@ impl Instruction for Base {
                 let rhs = env.stack.pop();
                 if let Some(lhs) = lhs {
                     if let Some(rhs) = rhs {
-                        env.stack.push(lhs.bit_shl(rhs)?);
+                        lhs.bit_shl(rhs)?;
+                        env.stack.push(lhs);
                     } else {
                         return Err(Error::SHL);
                     }
@@ -648,7 +674,8 @@ impl Instruction for Base {
                 let rhs = env.stack.pop();
                 if let Some(lhs) = lhs {
                     if let Some(rhs) = rhs {
-                        env.stack.push(lhs.bit_shr(rhs)?);
+                        lhs.bit_shr(rhs)?;
+                        env.stack.push(lhs);
                     } else {
                         return Err(Error::SHR);
                     }

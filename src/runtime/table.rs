@@ -16,7 +16,7 @@
 
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Graph, NodeRef}, runtime::{Error, Val, Variable}};
+use crate::{model::{DataRef, Graph, NodeRef}, runtime::{Error, Variable}};
 
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -78,10 +78,10 @@ impl SymbolTable {
 
     /// Set an existing variable in this symbol table.
     /// Will return an error if the var exists but is const.
-    pub fn set(&mut self, name: impl AsRef<str>, val: &Val, graph: &mut Graph) -> Result<bool, Error> {
+    pub fn set(&mut self, name: impl AsRef<str>, var: &Variable, graph: &mut Graph) -> Result<bool, Error> {
         let name = name.as_ref();
         for scope in self.scopes.iter_mut().rev() {
-            if scope.set(name, val, graph)? {
+            if scope.set(name, var, graph)? {
                 return Ok(true);
             }
         }
@@ -144,9 +144,9 @@ impl Scope {
 
     #[inline]
     /// Set a variable.
-    pub fn set(&mut self, name: impl AsRef<str>, val: &Val, graph: &mut Graph) -> Result<bool, Error> {
-        if let Some(var) = self.get_mut(name) {
-            var.set(val.clone(), graph)?;
+    pub fn set(&mut self, name: impl AsRef<str>, var: &Variable, graph: &mut Graph) -> Result<bool, Error> {
+        if let Some(svar) = self.get_mut(name) {
+            svar.set(var, graph)?;
             Ok(true)
         } else {
             Ok(false)

@@ -22,7 +22,7 @@ use crate::{model::{DataRef, Field, Func, Graph, SId, ASYNC_FUNC_ATTR, SELF_STR_
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-/// Call a function instruction.
+/// Call a function instruction (expr).
 /// An expression will add this as the next instruction after a lookup to an internal function.
 pub struct FuncCall {
     pub add_self: bool,
@@ -50,7 +50,7 @@ impl Instruction for FuncCall {
                 let self_ptr = env.self_ptr();
                 if let Some(field) = Field::field_from_path(graph, &name, Some(self_ptr.clone())) {
                     if let Some(field) = graph.get_stof_data::<Field>(&field) {
-                        if let Some(dref) = field.value.get().try_func() {
+                        if let Some(dref) = field.value.try_func() {
                             func = dref;
                         } else {
                             return Err(Error::FuncDne);
@@ -65,7 +65,7 @@ impl Instruction for FuncCall {
                 }
             } else if let Some(field) = Field::field_from_path(graph, &name, None) {
                 if let Some(field) = graph.get_stof_data::<Field>(&field) {
-                    if let Some(dref) = field.value.get().try_func() {
+                    if let Some(dref) = field.value.try_func() {
                         func = dref;
                     } else {
                         return Err(Error::FuncDne);

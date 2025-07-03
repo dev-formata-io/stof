@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{instruction::{Instruction, Instructions}, table::SymbolTable, Error, Val}};
+use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{instruction::{Instruction, Instructions}, table::SymbolTable, Error, Variable}};
 
 
 #[derive(Debug)]
@@ -35,7 +35,7 @@ pub struct ProcEnv {
     pub self_stack: Vec<NodeRef>,
     pub call_stack: Vec<DataRef>,
     pub new_stack: Vec<NodeRef>,
-    pub stack: Vec<Val>,
+    pub stack: Vec<Variable>,
     pub table: Box<SymbolTable>,
 
     // Setting this will put the process into a waiting mode
@@ -54,7 +54,7 @@ impl ProcEnv {
 pub struct Process {
     pub env: ProcEnv,
     pub instructions: Instructions,
-    pub result: Option<Val>,
+    pub result: Option<Variable>,
     pub error: Option<Error>,
     pub waiting: Option<SId>,
 }

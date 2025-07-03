@@ -734,6 +734,29 @@ impl Val {
         }
     }
 
+    /// Value type?
+    /// If true, this val should be cloned in variables instead of referenced.
+    pub fn val_type(&self) -> bool {
+        match self {
+            Self::Bool(_) |
+            Self::Str(_) |
+            Self::Obj(_) |
+            Self::Data(_) |
+            Self::Fn(_) |
+            Self::Null |
+            Self::Void |
+            Self::Num(_) |
+            Self::Ver(..) |
+            Self::Promise(..) => true,
+            
+            Self::Tup(_) |
+            Self::Map(_) |
+            Self::Set(_) |
+            Self::Blob(_) |
+            Self::List(_) => false,
+        }
+    }
+
 
     /*****************************************************************************
      * Drop.
@@ -1490,17 +1513,20 @@ impl Val {
      * Ops.
      *****************************************************************************/
     
-    /// Add two values.
-    pub fn add(self, other: Self, graph: &mut Graph) -> Result<Self, Error> {
-        if other.empty() { return Ok(self); }
-        match self {
+    /// Add a value to this value.
+    pub fn add(&mut self, other: Self, graph: &mut Graph) -> Result<(), Error> {
+        if other.empty() { return Ok(()); }
+        match &mut *self {
             Self::Null |
-            Self::Void => Ok(other),
-            Self::Blob(mut blob) => {
+            Self::Void => {
+                *self = other;
+                Ok(())
+            },
+            Self::Blob(ref mut blob) => {
                 match other {
                     Self::Blob(mut other) => {
                         blob.append(&mut other);
-                        Ok(Self::Blob(blob))
+                        Ok(())
                     },
                     _ => Err(Error::NotImplemented)
                 }
@@ -1508,19 +1534,22 @@ impl Val {
             Self::Bool(val) => {
                 match other {
                     Self::Bool(other) => {
-                        Ok(Self::Bool(val && other))
+                        *self = Self::Bool(*val && other);
+                        Ok(())
                     },
                     Self::Num(num) => {
                         let res;
-                        if val {
+                        if *val {
                             res = num.add(&Num::Int(1));
                         } else {
                             res = num;
                         }
-                        Ok(Self::Num(res))
+                        *self = Self::Num(res);
+                        Ok(())
                     },
                     Self::Str(other) => {
-                        Ok(Self::Str(format!("{}{}", val, other).into()))
+                        *self = Self::Str(format!("{}{}", val, other).into());
+                        Ok(())
                     },
                     _ => Err(Error::NotImplemented)
                 }
@@ -1528,80 +1557,85 @@ impl Val {
             Self::Str(val) => {
                 match other {
                     Self::Str(other) => {
-                        Ok(Self::Str(format!("{val}{other}").into()))
+                        *self = Self::Str(format!("{val}{other}").into());
+                        Ok(())
                     },
-                    _ => Ok(Self::Str(format!("{val}{}", other.print(&graph)).into()))
+                    _ => {
+                        *self = Self::Str(format!("{val}{}", other.print(&graph)).into());
+                        Ok(())
+                    }
                 }
             },
             Self::Num(val) => {
                 match other {
-                    Self::Num(other) => Ok(Self::Num(val.add(&other))),
+                    Self::Num(other) => {
+                        *val = val.add(&other);
+                        Ok(())
+                    },
                     Self::Str(other) => {
                         // TODO: parse string into a number here
                         if let Ok(other) = other.parse::<f64>() {
-                            Ok(Self::Num(val.add(&Num::Float(other))))
+                            *val = val.add(&Num::Float(other));
+                            Ok(())
                         } else {
                             Err(Error::NotImplemented)
                         }
                     },
                     Self::Bool(other) => {
-                        let res;
                         if other {
-                            res = val.add(&Num::Int(1));
-                        } else {
-                            res = val;
+                            *val = val.add(&Num::Int(1));
                         }
-                        Ok(Self::Num(res))
+                        Ok(())
                     },
                     _ => Err(Error::NotImplemented)
                 }
             },
-            Self::List(mut vals) => {
+            Self::List(ref mut vals) => {
                 match other {
                     Self::List(other) => {
                         vals.append(other);
-                        Ok(Self::List(vals))
+                        Ok(())
                     },
                     Self::Tup(other) => {
                         vals.append(other);
-                        Ok(Self::List(vals))
+                        Ok(())
                     },
                     Self::Set(set) => {
                         for val in set {
                             vals.push_back(val);
                         }
-                        Ok(Self::List(vals))
+                        Ok(())
                     },
                     _ => {
                         vals.push_back(other);
-                        Ok(Self::List(vals))
+                        Ok(())
                     }
                 }
             },
-            Self::Map(mut map) => {
+            Self::Map(ref mut map) => {
                 match other {
                     Self::Map(other) => {
                         for (k, v) in other {
                             map.insert(k, v);
                         }
-                        Ok(Self::Map(map))
+                        Ok(())
                     },
                     _ => Err(Error::NotImplemented)
                 }
             },
-            Self::Set(mut set) => {
+            Self::Set(ref mut set) => {
                 match other {
                     Self::Set(other) => {
                         for val in other { set.insert(val); }
-                        Ok(Self::Set(set))
+                        Ok(())
                     },
                     Self::List(other) => {
                         for val in other { set.insert(val); }
-                        Ok(Self::Set(set))
+                        Ok(())
                     },
                     _ => {
                         set.insert(other);
-                        Ok(Self::Set(set))
+                        Ok(())
                     }
                 }
             },
@@ -1609,25 +1643,30 @@ impl Val {
         }
     }
 
-    /// Subtract with two values.
-    pub fn sub(self, other: Self, graph: &mut Graph) -> Result<Self, Error> {
-        if other.empty() { return Ok(self); }
-        match self {
+    /// Subtract value from this value.
+    pub fn sub(&mut self, other: Self, graph: &mut Graph) -> Result<(), Error> {
+        if other.empty() { return Ok(()); }
+        match &mut *self {
             Self::Null |
-            Self::Void => Ok(other),
+            Self::Void => {
+                *self = other;
+                Ok(())
+            },
             Self::Bool(val) => {
                 match other {
                     Self::Bool(other) => {
-                        Ok(Self::Bool(val ^ other))
+                        *val = *val ^ other;
+                        Ok(())
                     },
                     Self::Num(num) => {
                         let res;
-                        if val {
+                        if *val {
                             res = Num::Int(1).sub(&num);
                         } else {
                             res = num.mul(&Num::Int(-1));
                         }
-                        Ok(Self::Num(res))
+                        *self = Self::Num(res);
+                        Ok(())
                     },
                     _ => Err(Error::NotImplemented)
                 }
@@ -1635,58 +1674,63 @@ impl Val {
             Self::Str(val) => {
                 match other {
                     Self::Str(other) => {
-                        Ok(Self::Str(val.replace(other.as_str(), "").into()))
+                        *self = Self::Str(val.replace(other.as_str(), "").into());
+                        Ok(())
                     },
-                    _ => Ok(Self::Str(val.replace(&other.print(&graph), "").into()))
+                    _ => {
+                        *self = Self::Str(val.replace(&other.print(&graph), "").into());
+                        Ok(())
+                    }
                 }
             },
             Self::Num(val) => {
                 match other {
-                    Self::Num(other) => Ok(Self::Num(val.sub(&other))),
+                    Self::Num(other) => {
+                        *self = Self::Num(val.sub(&other));
+                        Ok(())
+                    },
                     Self::Str(other) => {
                         // TODO: parse string into a number here
                         if let Ok(other) = other.parse::<f64>() {
-                            Ok(Self::Num(val.sub(&Num::Float(other))))
+                            *self = Self::Num(val.sub(&Num::Float(other)));
+                            Ok(())
                         } else {
                             Err(Error::NotImplemented)
                         }
                     },
                     Self::Bool(other) => {
-                        let res;
                         if other {
-                            res = val.sub(&Num::Int(1));
-                        } else {
-                            res = val;
+                            *val = val.sub(&Num::Int(1));
                         }
-                        Ok(Self::Num(res))
+                        Ok(())
                     },
                     _ => Err(Error::NotImplemented)
                 }
             },
-            Self::Map(mut map) => {
+            Self::Map(ref mut map) => {
                 match other {
                     Self::Map(other) => {
                         for (k, _v) in other {
                             map.remove(&k);
                         }
-                        Ok(Self::Map(map))
+                        Ok(())
                     },
                     _ => Err(Error::NotImplemented)
                 }
             },
-            Self::Set(mut set) => {
+            Self::Set(ref mut set) => {
                 match other {
                     Self::Set(other) => {
                         for val in other { set.remove(&val); }
-                        Ok(Self::Set(set))
+                        Ok(())
                     },
                     Self::List(other) => {
                         for val in other { set.remove(&val); }
-                        Ok(Self::Set(set))
+                        Ok(())
                     },
                     _ => {
                         set.remove(&other);
-                        Ok(Self::Set(set))
+                        Ok(())
                     }
                 }
             },
@@ -1694,16 +1738,20 @@ impl Val {
         }
     }
 
-    /// Multiply two values.
-    pub fn mul(self, other: Self, graph: &mut Graph) -> Result<Self, Error> {
-        if other.empty() { return Ok(self); }
+    /// Multiply this value with another.
+    pub fn mul(&mut self, other: Self, graph: &mut Graph) -> Result<(), Error> {
+        if other.empty() { return Ok(()); }
         match self {
             Self::Null |
-            Self::Void => Ok(other),
+            Self::Void => {
+                *self = other;
+                Ok(())
+            },
             Self::Bool(val) => {
                 match other {
                     Self::Bool(other) => {
-                        Ok(Self::Bool(val || other))
+                        *val = *val || other;
+                        Ok(())
                     },
                     _ => Err(Error::NotImplemented)
                 }
@@ -1711,37 +1759,45 @@ impl Val {
             Self::Str(val) => {
                 match other {
                     Self::Str(other) => {
-                        Ok(Self::Str(format!("{val}{other}").into()))
+                        *val = format!("{val}{other}").into();
+                        Ok(())
                     },
                     Self::Num(num) => {
                         let mut other = String::default();
                         for _ in 0..num.int() {
                             other.push_str(&val);
                         }
-                        Ok(Self::Str(other.into()))
+                        *val = other.into();
+                        Ok(())
                     },
-                    _ => Ok(Self::Str(format!("{val}{}", other.print(&graph)).into()))
+                    _ => {
+                        *val = format!("{val}{}", other.print(&graph)).into();
+                        Ok(())
+                    }
                 }
             },
             Self::Num(val) => {
                 match other {
-                    Self::Num(other) => Ok(Self::Num(val.mul(&other))),
+                    Self::Num(other) => {
+                        *val = val.mul(&other);
+                        Ok(())
+                    },
                     Self::Str(other) => {
                         // TODO: parse string into a number here
                         if let Ok(other) = other.parse::<f64>() {
-                            Ok(Self::Num(val.mul(&Num::Float(other))))
+                            *val = val.mul(&Num::Float(other));
+                            Ok(())
                         } else {
                             Err(Error::NotImplemented)
                         }
                     },
                     Self::Bool(other) => {
-                        let res;
                         if other {
-                            res = val.mul(&Num::Int(1));
+                            *val = val.mul(&Num::Int(1));
                         } else {
-                            res = val.mul(&Num::Int(0)); // keep units, etc.
+                            *val = val.mul(&Num::Int(0)); // keep units, etc.
                         }
-                        Ok(Self::Num(res))
+                        Ok(())
                     },
                     _ => Err(Error::NotImplemented)
                 }
@@ -1750,16 +1806,18 @@ impl Val {
                 match other {
                     Self::List(other) => {
                         let mut s = OrdSet::new();
-                        for val in vals { s.insert(val); }
+                        for val in vals { s.insert(val.clone()); }
                         let mut os = OrdSet::new();
                         for val in other { os.insert(val); }
                         
-                        Ok(Self::Set(s.intersection(os)))
+                        *self = Self::Set(s.intersection(os));
+                        Ok(())
                     },
                     Self::Set(set) => {
                         let mut os = OrdSet::new();
-                        for val in vals { os.insert(val); }
-                        Ok(Self::Set(os.intersection(set)))
+                        for val in vals { os.insert(val.clone()); }
+                        *self = Self::Set(os.intersection(set));
+                        Ok(())
                     },
                     _ => Err(Error::NotImplemented)
                 }
@@ -1767,7 +1825,8 @@ impl Val {
             Self::Map(map) => {
                 match other {
                     Self::Map(other) => {
-                        Ok(Self::Map(map.intersection(other)))
+                        *self = Self::Map(map.clone().intersection(other));
+                        Ok(())
                     },
                     _ => Err(Error::NotImplemented)
                 }
@@ -1775,12 +1834,14 @@ impl Val {
             Self::Set(set) => {
                 match other {
                     Self::Set(other) => {
-                        Ok(Self::Set(set.intersection(other)))
+                        *self = Self::Set(set.clone().intersection(other));
+                        Ok(())
                     },
                     Self::List(other) => {
                         let mut os = OrdSet::new();
                         for val in other { os.insert(val); }
-                        Ok(Self::Set(set.intersection(os)))
+                        *self = Self::Set(set.clone().intersection(os));
+                        Ok(())
                     },
                     _ => Err(Error::NotImplemented)
                 }
@@ -1790,15 +1851,19 @@ impl Val {
     }
 
     /// Divide two values.
-    pub fn div(self, other: Self, graph: &mut Graph) -> Result<Self, Error> {
-        if other.empty() { return Ok(self); }
+    pub fn div(&mut self, other: Self, graph: &mut Graph) -> Result<(), Error> {
+        if other.empty() { return Ok(()); }
         match self {
             Self::Null |
-            Self::Void => Ok(other),
+            Self::Void => {
+                *self = other;
+                Ok(())
+            },
             Self::Bool(val) => {
                 match other {
                     Self::Bool(other) => {
-                        Ok(Self::Bool(val && other))
+                        *val = *val && other;
+                        Ok(())
                     },
                     _ => Err(Error::NotImplemented)
                 }
@@ -1811,18 +1876,26 @@ impl Val {
                         for v in vec {
                             new.push_back(v.into());
                         }
-                        Ok(Self::List(new))
+                        *self = Self::List(new);
+                        Ok(())
                     },
-                    _ => Ok(Self::Str(format!("{val}{}", other.print(&graph)).into()))
+                    _ => {
+                        *val = format!("{val}{}", other.print(&graph)).into();
+                        Ok(())
+                    }
                 }
             },
             Self::Num(val) => {
                 match other {
-                    Self::Num(other) => Ok(Self::Num(val.div(&other))),
+                    Self::Num(other) => {
+                        *val = val.div(&other);
+                        Ok(())
+                    },
                     Self::Str(other) => {
                         // TODO: parse string into a number here
                         if let Ok(other) = other.parse::<f64>() {
-                            Ok(Self::Num(val.div(&Num::Float(other))))
+                            *val = val.div(&Num::Float(other));
+                            Ok(())
                         } else {
                             Err(Error::NotImplemented)
                         }
@@ -1834,16 +1907,18 @@ impl Val {
                 match other {
                     Self::List(other) => {
                         let mut s = OrdSet::new();
-                        for val in vals { s.insert(val); }
+                        for val in vals { s.insert(val.clone()); }
                         let mut os = OrdSet::new();
                         for val in other { os.insert(val); }
                         
-                        Ok(Self::Set(s.union(os)))
+                        *self = Self::Set(s.union(os));
+                        Ok(())
                     },
                     Self::Set(set) => {
                         let mut os = OrdSet::new();
-                        for val in vals { os.insert(val); }
-                        Ok(Self::Set(os.union(set)))
+                        for val in vals { os.insert(val.clone()); }
+                        *self = Self::Set(os.union(set));
+                        Ok(())
                     },
                     _ => Err(Error::NotImplemented)
                 }
@@ -1851,7 +1926,8 @@ impl Val {
             Self::Map(map) => {
                 match other {
                     Self::Map(other) => {
-                        Ok(Self::Map(map.union(other)))
+                        *self = Self::Map(map.clone().union(other));
+                        Ok(())
                     },
                     _ => Err(Error::NotImplemented)
                 }
@@ -1859,12 +1935,14 @@ impl Val {
             Self::Set(set) => {
                 match other {
                     Self::Set(other) => {
-                        Ok(Self::Set(set.union(other)))
+                        *self = Self::Set(set.clone().union(other));
+                        Ok(())
                     },
                     Self::List(other) => {
                         let mut os = OrdSet::new();
                         for val in other { os.insert(val); }
-                        Ok(Self::Set(set.union(os)))
+                        *self = Self::Set(set.clone().union(os));
+                        Ok(())
                     },
                     _ => Err(Error::NotImplemented)
                 }
@@ -1874,15 +1952,19 @@ impl Val {
     }
 
     /// Modulus two values.
-    pub fn rem(self, other: Self, graph: &mut Graph) -> Result<Self, Error> {
-        if other.empty() { return Ok(self); }
+    pub fn rem(&mut self, other: Self, graph: &mut Graph) -> Result<(), Error> {
+        if other.empty() { return Ok(()); }
         match self {
             Self::Null |
-            Self::Void => Ok(other),
+            Self::Void => {
+                *self = other;
+                Ok(())
+            },
             Self::Bool(val) => {
                 match other {
                     Self::Bool(other) => {
-                        Ok(Self::Bool(val && other))
+                        *val = *val && other;
+                        Ok(())
                     },
                     _ => Err(Error::NotImplemented)
                 }
@@ -1895,18 +1977,26 @@ impl Val {
                         for v in vec {
                             new.push_back(v.into());
                         }
-                        Ok(Self::List(new))
+                        *self = Self::List(new);
+                        Ok(())
                     },
-                    _ => Ok(Self::Str(format!("{val}{}", other.print(&graph)).into()))
+                    _ => {
+                        *val = format!("{val}{}", other.print(&graph)).into();
+                        Ok(())
+                    }
                 }
             },
             Self::Num(val) => {
                 match other {
-                    Self::Num(other) => Ok(Self::Num(val.rem(&other))),
+                    Self::Num(other) => {
+                        *val = val.rem(&other);
+                        Ok(())
+                    },
                     Self::Str(other) => {
                         // TODO: parse string into a number here
                         if let Ok(other) = other.parse::<f64>() {
-                            Ok(Self::Num(val.rem(&Num::Float(other))))
+                            *val = val.rem(&Num::Float(other));
+                            Ok(())
                         } else {
                             Err(Error::NotImplemented)
                         }
@@ -1918,16 +2008,18 @@ impl Val {
                 match other {
                     Self::List(other) => {
                         let mut s = OrdSet::new();
-                        for val in vals { s.insert(val); }
+                        for val in vals { s.insert(val.clone()); }
                         let mut os = OrdSet::new();
                         for val in other { os.insert(val); }
                         
-                        Ok(Self::Set(s.symmetric_difference(os)))
+                        *self = Self::Set(s.symmetric_difference(os));
+                        Ok(())
                     },
                     Self::Set(set) => {
                         let mut os = OrdSet::new();
-                        for val in vals { os.insert(val); }
-                        Ok(Self::Set(os.symmetric_difference(set)))
+                        for val in vals { os.insert(val.clone()); }
+                        *self = Self::Set(os.symmetric_difference(set));
+                        Ok(())
                     },
                     _ => Err(Error::NotImplemented)
                 }
@@ -1935,7 +2027,8 @@ impl Val {
             Self::Map(map) => {
                 match other {
                     Self::Map(other) => {
-                        Ok(Self::Map(map.symmetric_difference(other)))
+                        *self = Self::Map(map.clone().symmetric_difference(other));
+                        Ok(())
                     },
                     _ => Err(Error::NotImplemented)
                 }
@@ -1943,12 +2036,14 @@ impl Val {
             Self::Set(set) => {
                 match other {
                     Self::Set(other) => {
-                        Ok(Self::Set(set.symmetric_difference(other)))
+                        *self = Self::Set(set.clone().symmetric_difference(other));
+                        Ok(())
                     },
                     Self::List(other) => {
                         let mut os = OrdSet::new();
                         for val in other { os.insert(val); }
-                        Ok(Self::Set(set.symmetric_difference(os)))
+                        *self = Self::Set(set.clone().symmetric_difference(os));
+                        Ok(())
                     },
                     _ => Err(Error::NotImplemented)
                 }
@@ -1958,12 +2053,13 @@ impl Val {
     }
 
     /// Bitwise AND operation.
-    pub fn bit_and(self, other: Self) -> Result<Self, Error> {
-        match self {
+    pub fn bit_and(&mut self, other: Self) -> Result<(), Error> {
+        match &mut *self {
             Self::Num(num) => {
                 match other {
                     Self::Num(onum) => {
-                        return Ok(Self::Num(num.bit_and(&onum)));
+                        *num = num.bit_and(&onum);
+                        return Ok(());
                     },
                     _ => {}
                 }
@@ -1974,12 +2070,13 @@ impl Val {
     }
 
     /// Bitwise OR operation.
-    pub fn bit_or(self, other: Self) -> Result<Self, Error> {
+    pub fn bit_or(&mut self, other: Self) -> Result<(), Error> {
         match self {
             Self::Num(num) => {
                 match other {
                     Self::Num(onum) => {
-                        return Ok(Self::Num(num.bit_or(&onum)));
+                        *num = num.bit_or(&onum);
+                        return Ok(());
                     },
                     _ => {}
                 }
@@ -1990,12 +2087,13 @@ impl Val {
     }
 
     /// Bitwise XOR operation.
-    pub fn bit_xor(self, other: Self) -> Result<Self, Error> {
+    pub fn bit_xor(&mut self, other: Self) -> Result<(), Error> {
         match self {
             Self::Num(num) => {
                 match other {
                     Self::Num(onum) => {
-                        return Ok(Self::Num(num.bit_xor(&onum)));
+                        *num = num.bit_xor(&onum);
+                        return Ok(());
                     },
                     _ => {}
                 }
@@ -2006,12 +2104,13 @@ impl Val {
     }
 
     /// Bitwise SHIFT LEFT operation.
-    pub fn bit_shl(self, other: Self) -> Result<Self, Error> {
+    pub fn bit_shl(&mut self, other: Self) -> Result<(), Error> {
         match self {
             Self::Num(num) => {
                 match other {
                     Self::Num(onum) => {
-                        return Ok(Self::Num(num.bit_shl(&onum)));
+                        *num = num.bit_shl(&onum);
+                        return Ok(());
                     },
                     _ => {}
                 }
@@ -2022,12 +2121,13 @@ impl Val {
     }
 
     /// Bitwise SHIFT RIGHT operation.
-    pub fn bit_shr(self, other: Self) -> Result<Self, Error> {
+    pub fn bit_shr(&mut self, other: Self) -> Result<(), Error> {
         match self {
             Self::Num(num) => {
                 match other {
                     Self::Num(onum) => {
-                        return Ok(Self::Num(num.bit_shr(&onum)));
+                        *num = num.bit_shr(&onum);
+                        return Ok(());
                     },
                     _ => {}
                 }

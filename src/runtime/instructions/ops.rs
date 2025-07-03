@@ -18,7 +18,7 @@ use std::sync::Arc;
 use arcstr::ArcStr;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack, ADD, BIT_AND, BIT_OR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_XOR, DIVIDE, EQUAL, GREATER_THAN, GREATER_THAN_OR_EQ, LESS_THAN, LESS_THAN_OR_EQ, MODULUS, MULTIPLY, NOT_TRUTHY, SUBTRACT, TRUTHY}, proc::ProcEnv, Error}};
+use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack, ADD, BIT_AND, BIT_OR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_XOR, DIVIDE, EQUAL, GREATER_THAN, GREATER_THAN_OR_EQ, LESS_THAN, LESS_THAN_OR_EQ, MODULUS, MULTIPLY, NOT_EQUAL, SUBTRACT, TRUTHY}, proc::ProcEnv, Error}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -76,10 +76,7 @@ impl Instruction for OpIns {
             Op::Greater => instructions.push(GREATER_THAN.clone()),
             Op::GreaterOrEq => instructions.push(GREATER_THAN_OR_EQ.clone()),
             Op::Eq => instructions.push(EQUAL.clone()),
-            Op::Neq => {
-                instructions.push(EQUAL.clone());
-                instructions.push(NOT_TRUTHY.clone());
-            },
+            Op::Neq => instructions.push(NOT_EQUAL.clone()),
             
             Op::And => {
                 instructions.pop();

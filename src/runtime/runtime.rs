@@ -194,7 +194,7 @@ impl Runtime {
 
         if let Some(proc) = runtime.done.remove(&pid) {
             if let Some(res) = proc.result {
-                Ok(res)
+                Ok(res.get())
             } else {
                 Ok(Val::Void)
             }

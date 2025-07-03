@@ -16,7 +16,7 @@
 
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
-use crate::{model::{Graph, Node, NodeRef, SId}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Type, Val}};
+use crate::{model::{Graph, Node, NodeRef, SId}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Type, Val, Variable}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -67,7 +67,7 @@ impl Instruction for NewObjIns {
         if let Some(cast_type) = &self.cast_type {
             val.cast(cast_type, graph)?;
         }
-        env.stack.push(val);
+        env.stack.push(Variable::val(val));
         Ok(())
     }
 }
