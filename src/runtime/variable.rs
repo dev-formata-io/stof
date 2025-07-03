@@ -25,20 +25,33 @@ use crate::{model::{DataRef, Graph, NodeRef}, runtime::{Error, Type, Val}};
 pub struct Variable {
     pub val: Arc<RwLock<Val>>,
     pub mutable: bool,
+    pub vtype: Option<Type>,
 }
 impl Variable {
     /// Create a new variable.
-    pub fn new(mutable: bool, val: Val) -> Self {
-        Self {
+    pub fn new(graph: &Graph, mutable: bool, val: Val, typed: bool) -> Self {
+        let mut var = Self {
             mutable,
             val: Arc::new(RwLock::new(val)),
+            vtype: None,
+        };
+        if typed {
+            var.vtype = Some(var.spec_type(graph));
         }
+        var
     }
 
     /// Try to set this variable.
     /// Will error if not able to set.
-    pub fn set(&mut self, val: Val) -> Result<(), Error> {
+    pub fn set(&mut self, mut val: Val, graph: &mut Graph) -> Result<(), Error> {
         if self.mutable {
+            if let Some(vtype) = &self.vtype {
+                if vtype != &val.spec_type(graph) {
+                    if let Err(error) = val.cast(vtype, graph) {
+                        return Err(error);
+                    }
+                }
+            }
             *self.val.write().unwrap() = val;
             Ok(())
         } else {

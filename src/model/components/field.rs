@@ -18,7 +18,7 @@ use std::collections::BTreeMap;
 use bytes::Bytes;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Graph, NodeRef, SId, SPath, StofData, SELF_KEYWORD, SUPER_KEYWORD}, runtime::{Error, Val, Variable}};
+use crate::{model::{DataRef, Graph, NodeRef, SId, SPath, StofData, SELF_KEYWORD, SUPER_KEYWORD}, runtime::{Val, Variable}};
 
 /// Marks a field as no export.
 /// Used in export formats.
@@ -66,12 +66,9 @@ impl Field {
         }
     }
 
-    /// Try setting this field.
-    pub fn try_set(&mut self, val: Val) -> Result<(), Error> {
-        if self.attributes.contains_key(&PRIVATE_FIELD_ATTR) {
-            return Err(Error::FieldPrivateSet);
-        }
-        self.value.set(val)
+    /// Can set this field?
+    pub fn can_set(&self) -> bool {
+        !self.attributes.contains_key(&PRIVATE_FIELD_ATTR)
     }
 
     /// Get a field from a dot separated name path string.
@@ -122,7 +119,7 @@ impl Field {
                     if &child.name == field_name && child.is_field() {
                         let mut attrs = child.attributes.clone();
                         attrs.insert(NOEXPORT_FIELD_ATTR, Val::Null); // don't export these lazily created fields
-                        let var = Variable::new(true, Val::Obj(child.id.clone()));
+                        let var = Variable::new(graph, true, Val::Obj(child.id.clone()), false);
                         created = Some(Self::new(var, Some(attrs)));
                         break;
                     }
@@ -189,7 +186,7 @@ impl Field {
                     if child.is_field() && !fields.contains_key(&child.name) {
                         let mut attrs = child.attributes.clone();
                         attrs.insert(NOEXPORT_FIELD_ATTR, Val::Null); // don't export these lazily created fields
-                        let var = Variable::new(true, Val::Obj(child.id.clone()));
+                        let var = Variable::new(graph, true, Val::Obj(child.id.clone()), false);
                         to_create.push((child.name.clone(), Self::new(var, Some(attrs))));
                     }
                 }

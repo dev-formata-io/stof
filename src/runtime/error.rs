@@ -50,6 +50,11 @@ pub enum Error {
     // Value errors
     Truthy,
     NotTruthy,
+    GreaterThan,
+    GreaterOrEq,
+    LessThan,
+    LessOrEq,
+    Eq,
     Add,
     Sub,
     Mul,

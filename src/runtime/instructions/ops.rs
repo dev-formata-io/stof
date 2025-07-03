@@ -18,7 +18,7 @@ use std::sync::Arc;
 use arcstr::ArcStr;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack, ADD, BIT_AND, BIT_OR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_XOR, DIVIDE, MODULUS, MULTIPLY, SUBTRACT, TRUTHY}, proc::ProcEnv, Error}};
+use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack, ADD, BIT_AND, BIT_OR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_XOR, DIVIDE, EQUAL, GREATER_THAN, GREATER_THAN_OR_EQ, LESS_THAN, LESS_THAN_OR_EQ, MODULUS, MULTIPLY, NOT_TRUTHY, SUBTRACT, TRUTHY}, proc::ProcEnv, Error}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,6 +32,13 @@ pub enum Op {
     Mul,
     Div,
     Mod,
+
+    Greater,
+    Less,
+    GreaterOrEq,
+    LessOrEq,
+    Eq,
+    Neq,
     
     BAND,
     BOR,
@@ -63,6 +70,16 @@ impl Instruction for OpIns {
             Op::BXOR => instructions.push(BIT_XOR.clone()),
             Op::BSHL => instructions.push(BIT_SHIFT_LEFT.clone()),
             Op::BSHR => instructions.push(BIT_SHIFT_RIGHT.clone()),
+            
+            Op::Less => instructions.push(LESS_THAN.clone()),
+            Op::LessOrEq => instructions.push(LESS_THAN_OR_EQ.clone()),
+            Op::Greater => instructions.push(GREATER_THAN.clone()),
+            Op::GreaterOrEq => instructions.push(GREATER_THAN_OR_EQ.clone()),
+            Op::Eq => instructions.push(EQUAL.clone()),
+            Op::Neq => {
+                instructions.push(EQUAL.clone());
+                instructions.push(NOT_TRUTHY.clone());
+            },
             
             Op::And => {
                 instructions.pop();
@@ -289,5 +306,125 @@ mod tests {
         let mut graph = Graph::default();
         let res = Runtime::eval(&mut graph, Arc::new(ins)).expect("expected pass");
         assert_eq!(res, 0b0001.into());
+    }
+
+    #[test]
+    fn less_than_op_true() {
+        let ins = OpIns {
+            lhs: Arc::new(Base::Literal(Val::Num(Num::Int(2)))),
+            rhs: Arc::new(Base::Literal(Val::Num(Num::Int(4)))),
+            op: Op::Less,
+        };
+        let mut graph = Graph::default();
+        let res = Runtime::eval(&mut graph, Arc::new(ins)).expect("expected pass");
+        assert_eq!(res, true.into());
+    }
+
+    #[test]
+    fn less_than_op_false() {
+        let ins = OpIns {
+            lhs: Arc::new(Base::Literal(Val::Num(Num::Int(2)))),
+            rhs: Arc::new(Base::Literal(Val::Num(Num::Int(2)))),
+            op: Op::Less,
+        };
+        let mut graph = Graph::default();
+        let res = Runtime::eval(&mut graph, Arc::new(ins)).expect("expected pass");
+        assert_eq!(res, false.into());
+    }
+
+    #[test]
+    fn less_than_eq_op_true() {
+        let ins = OpIns {
+            lhs: Arc::new(Base::Literal(Val::Num(Num::Int(2)))),
+            rhs: Arc::new(Base::Literal(Val::Num(Num::Int(2)))),
+            op: Op::LessOrEq,
+        };
+        let mut graph = Graph::default();
+        let res = Runtime::eval(&mut graph, Arc::new(ins)).expect("expected pass");
+        assert_eq!(res, true.into());
+    }
+
+    #[test]
+    fn greater_than_op_true() {
+        let ins = OpIns {
+            lhs: Arc::new(Base::Literal(Val::Num(Num::Int(3)))),
+            rhs: Arc::new(Base::Literal(Val::Num(Num::Int(2)))),
+            op: Op::Greater,
+        };
+        let mut graph = Graph::default();
+        let res = Runtime::eval(&mut graph, Arc::new(ins)).expect("expected pass");
+        assert_eq!(res, true.into());
+    }
+
+    #[test]
+    fn greater_than_op_false() {
+        let ins = OpIns {
+            lhs: Arc::new(Base::Literal(Val::Num(Num::Int(2)))),
+            rhs: Arc::new(Base::Literal(Val::Num(Num::Int(2)))),
+            op: Op::Greater,
+        };
+        let mut graph = Graph::default();
+        let res = Runtime::eval(&mut graph, Arc::new(ins)).expect("expected pass");
+        assert_eq!(res, false.into());
+    }
+
+    #[test]
+    fn greater_than_eq_op_true() {
+        let ins = OpIns {
+            lhs: Arc::new(Base::Literal(Val::Num(Num::Int(2)))),
+            rhs: Arc::new(Base::Literal(Val::Num(Num::Int(2)))),
+            op: Op::GreaterOrEq,
+        };
+        let mut graph = Graph::default();
+        let res = Runtime::eval(&mut graph, Arc::new(ins)).expect("expected pass");
+        assert_eq!(res, true.into());
+    }
+
+    #[test]
+    fn eq_op_true() {
+        let ins = OpIns {
+            lhs: Arc::new(Base::Literal(Val::Num(Num::Int(4)))),
+            rhs: Arc::new(Base::Literal(Val::Num(Num::Int(4)))),
+            op: Op::Eq,
+        };
+        let mut graph = Graph::default();
+        let res = Runtime::eval(&mut graph, Arc::new(ins)).expect("expected pass");
+        assert_eq!(res, true.into());
+    }
+
+    #[test]
+    fn eq_op_false() {
+        let ins = OpIns {
+            lhs: Arc::new(Base::Literal(Val::Num(Num::Int(2)))),
+            rhs: Arc::new(Base::Literal(Val::Num(Num::Int(4)))),
+            op: Op::Eq,
+        };
+        let mut graph = Graph::default();
+        let res = Runtime::eval(&mut graph, Arc::new(ins)).expect("expected pass");
+        assert_eq!(res, false.into());
+    }
+
+    #[test]
+    fn neq_op_false() {
+        let ins = OpIns {
+            lhs: Arc::new(Base::Literal(Val::Num(Num::Int(4)))),
+            rhs: Arc::new(Base::Literal(Val::Num(Num::Int(4)))),
+            op: Op::Neq,
+        };
+        let mut graph = Graph::default();
+        let res = Runtime::eval(&mut graph, Arc::new(ins)).expect("expected pass");
+        assert_eq!(res, false.into());
+    }
+
+    #[test]
+    fn neq_op_true() {
+        let ins = OpIns {
+            lhs: Arc::new(Base::Literal(Val::Num(Num::Int(2)))),
+            rhs: Arc::new(Base::Literal(Val::Num(Num::Int(4)))),
+            op: Op::Neq,
+        };
+        let mut graph = Graph::default();
+        let res = Runtime::eval(&mut graph, Arc::new(ins)).expect("expected pass");
+        assert_eq!(res, true.into());
     }
 }

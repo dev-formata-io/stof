@@ -179,7 +179,7 @@ impl Instruction for FuncCall {
             let arg = &args[index];
             instructions.push(arg.clone());
             instructions.push(Arc::new(Base::Cast(param.param_type.clone())));
-            instructions.push(Arc::new(Base::DeclareVar(param.name.to_string().into())));
+            instructions.push(Arc::new(Base::DeclareVar(param.name.to_string().into(), true))); // these must keep their type
         }
         for arg in args {
             instructions.push(arg);
