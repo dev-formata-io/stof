@@ -18,7 +18,7 @@ use std::{any::Any, sync::Arc};
 use arcstr::ArcStr;
 use imbl::{vector, Vector};
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{instructions::Base, proc::{ProcEnv, ProcRes}, Error}};
+use crate::{model::Graph, runtime::{instructions::{Base, ConsumeStack}, proc::{ProcEnv, ProcRes}, Error}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -116,6 +116,52 @@ impl Instructions {
                             self.forward_to(tag);
                             continue 'exec_loop;
                         },
+                        Base::CtrlForwardToIfTruthy(tag, consume) => {
+                            if let Some(val) = env.stack.pop() {
+                                if val.truthy() {
+                                    match consume {
+                                        ConsumeStack::Dont |
+                                        ConsumeStack::IfTrue => {
+                                            env.stack.push(val);
+                                        },
+                                        _ => {}
+                                    }
+                                    self.forward_to(tag);
+                                    continue 'exec_loop;
+                                } else {
+                                    match consume {
+                                        ConsumeStack::Dont |
+                                        ConsumeStack::IfFalse => {
+                                            env.stack.push(val);
+                                        },
+                                        _ => {}
+                                    }
+                                }
+                            }
+                        },
+                        Base::CtrlForwardToIfNotTruthy(tag, consume) => {
+                            if let Some(val) = env.stack.pop() {
+                                if !val.truthy() {
+                                    match consume {
+                                        ConsumeStack::Dont |
+                                        ConsumeStack::IfTrue => {
+                                            env.stack.push(val);
+                                        },
+                                        _ => {}
+                                    }
+                                    self.forward_to(tag);
+                                    continue 'exec_loop;
+                                } else {
+                                    match consume {
+                                        ConsumeStack::Dont |
+                                        ConsumeStack::IfFalse => {
+                                            env.stack.push(val);
+                                        },
+                                        _ => {}
+                                    }
+                                }
+                            }
+                        },
                         _ => {}
                     }
                 }
@@ -150,6 +196,12 @@ impl Instructions {
     /// Push an instruction.
     pub fn push(&mut self, instruction: Arc<dyn Instruction>) {
         self.instructions.push_back(instruction);
+    }
+
+    #[inline(always)]
+    /// Pop an instruction.
+    pub fn pop(&mut self) {
+        self.instructions.pop_back();
     }
 }
 

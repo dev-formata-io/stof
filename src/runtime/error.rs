@@ -47,6 +47,8 @@ pub enum Error {
     FuncArgs,
 
     // Value errors
+    Truthy,
+    NotTruthy,
     Add,
     Sub,
     Mul,

@@ -22,6 +22,8 @@ use crate::{model::{Field, Func, Graph, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWO
 
 pub mod call;
 pub mod block;
+pub mod ops;
+pub mod ifs;
 
 
 // static instructions for efficiency
@@ -47,6 +49,29 @@ lazy_static! {
 
     pub static ref PUSH_SYMBOL_SCOPE: Arc<dyn Instruction> = Arc::new(Base::PushSymbolScope);
     pub static ref POP_SYMBOL_SCOPE: Arc<dyn Instruction> = Arc::new(Base::PopSymbolScope);
+
+    pub static ref TRUTHY: Arc<dyn Instruction> = Arc::new(Base::Truthy);
+    pub static ref NOT_TRUTHY: Arc<dyn Instruction> = Arc::new(Base::NotTruthy);
+
+    pub static ref ADD: Arc<dyn Instruction> = Arc::new(Base::Add);
+    pub static ref SUBTRACT: Arc<dyn Instruction> = Arc::new(Base::Sub);
+    pub static ref MULTIPLY: Arc<dyn Instruction> = Arc::new(Base::Mul);
+    pub static ref DIVIDE: Arc<dyn Instruction> = Arc::new(Base::Div);
+    pub static ref MODULUS: Arc<dyn Instruction> = Arc::new(Base::Mod);
+    pub static ref BIT_AND: Arc<dyn Instruction> = Arc::new(Base::AND);
+    pub static ref BIT_OR: Arc<dyn Instruction> = Arc::new(Base::OR);
+    pub static ref BIT_XOR: Arc<dyn Instruction> = Arc::new(Base::XOR);
+    pub static ref BIT_SHIFT_LEFT: Arc<dyn Instruction> = Arc::new(Base::SHL);
+    pub static ref BIT_SHIFT_RIGHT: Arc<dyn Instruction> = Arc::new(Base::SHR);
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ConsumeStack {
+    Dont,
+    Consume,
+    IfTrue,
+    IfFalse,
 }
 
 
@@ -67,6 +92,8 @@ pub enum Base {
     Tag(ArcStr),
     CtrlBackTo(ArcStr), // start next on instruction right after tag
     CtrlForwardTo(ArcStr), // start next on instruction right after tag
+    CtrlForwardToIfTruthy(ArcStr, ConsumeStack), // forward to if a truthy value is on the stack
+    CtrlForwardToIfNotTruthy(ArcStr, ConsumeStack), // forward to if a non-truthy value is on the stack
 
     // Self stack.
     PushSelf,
@@ -101,6 +128,8 @@ pub enum Base {
     // Values.
     Literal(Val), // load a literal onto the stack
     Cast(Type), // Cast value on the back of the stack to a specific type
+    Truthy,
+    NotTruthy,
     Add,
     Sub,
     Mul,
@@ -130,6 +159,8 @@ impl Instruction for Base {
             Self::Tag(_id) => {}, // Nothing here... just goes on through to mark a place
             Self::CtrlBackTo(_id) => {}, // Nothing here... used by instructions...
             Self::CtrlForwardTo(_id) => {}, // Nothing here... used by instructions...
+            Self::CtrlForwardToIfTruthy(_id, _) => {}, // Nothing here... used by instructions...
+            Self::CtrlForwardToIfNotTruthy(_id, _) => {}, // Nothing here... used by instructions...
 
             /*****************************************************************************
              * Special stacks.
@@ -372,6 +403,20 @@ impl Instruction for Base {
                     env.stack.push(val);
                 } else {
                     return Err(Error::CastStackError);
+                }
+            },
+            Self::Truthy => {
+                if let Some(val) = env.stack.pop() {
+                    env.stack.push(val.truthy().into());
+                } else {
+                    return Err(Error::Truthy);
+                }
+            },
+            Self::NotTruthy => {
+                if let Some(val) = env.stack.pop() {
+                    env.stack.push((!val.truthy()).into());
+                } else {
+                    return Err(Error::Truthy);
                 }
             },
             Self::Add => {
