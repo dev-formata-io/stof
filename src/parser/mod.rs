@@ -20,3 +20,4 @@ pub mod number;
 pub mod types;
 pub mod ident;
 pub mod string;
+pub mod literal;

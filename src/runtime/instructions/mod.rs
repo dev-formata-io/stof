@@ -337,6 +337,7 @@ impl Instruction for Base {
                 }
             },
             Self::LoadVariable(name) => {
+                // TODO: loading with self here will not work...
                 if !name.contains('.') {
                     if let Some(var) = env.table.get(name) {
                         env.stack.push(var.stack_var());
