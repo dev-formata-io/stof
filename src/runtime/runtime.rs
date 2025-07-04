@@ -23,8 +23,6 @@ use crate::{model::{DataRef, Func, Graph, SId}, runtime::{instruction::Instructi
 #[derive(Default, Debug)]
 /// Runtime.
 pub struct Runtime {
-    // TODO: queued - move to running when a proc is moved to done (max running & Config)
-
     running: Vec<Process>,
     waiting: FxHashMap<SId, Process>,
     pub done: FxHashMap<SId, Process>,

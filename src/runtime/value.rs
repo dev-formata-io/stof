@@ -20,7 +20,7 @@ use arcstr::{literal, ArcStr};
 use bytes::Bytes;
 use imbl::{vector, OrdMap, OrdSet, Vector};
 use serde::{Deserialize, Serialize};
-use crate::{model::{json_value_from_node, DataRef, Func, Graph, NodeRef, SId}, parser::parse_semver_alone, runtime::{Error, Num, NumT, Type, DATA, OBJ}};
+use crate::{model::{json_value_from_node, DataRef, Func, Graph, NodeRef, SId}, parser::parse_semver_alone, runtime::{Error, Num, NumT, Type, Units, DATA, OBJ}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Hash)]
@@ -142,6 +142,18 @@ impl From<Vec<u8>> for Val {
 impl From<Bytes> for Val {
     fn from(value: Bytes) -> Self {
         Self::from(value.to_vec())
+    }
+}
+impl<T: Into<Val>> From<(T, Units)> for Val {
+    fn from(value: (T, Units)) -> Self {
+        let mut val: Val = value.0.into();
+        match &mut val {
+            Val::Num(num) => {
+                *num = num.cast(NumT::Units(value.1));
+            },
+            _ => {}
+        }
+        val
     }
 }
 

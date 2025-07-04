@@ -89,7 +89,7 @@ pub enum ConsumeStack {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// Foundational instructions.
-/// Higher level instructions JIT down into a subset of these as they execute.
+/// Higher order instructions JIT down into a subset of these as they execute.
 pub enum Base {
     // Suspend instruction.
     // Used to denote going to another process now.
@@ -150,6 +150,9 @@ pub enum Base {
     Dup,
     Literal(Val), // load a literal onto the stack
     Cast(Type), // Cast value on the back of the stack to a specific type
+    TypeOf,
+    TypeName,
+    InstanceOf,
     
     Truthy,
     NotTruthy,
@@ -472,6 +475,31 @@ impl Instruction for Base {
                     // nothing to do in this case
                 } else {
                     return Err(Error::CastStackError);
+                }
+            },
+            Self::TypeOf => {
+                if let Some(var) = env.stack.pop() {
+                    let vt = var.gen_type();
+                    env.stack.push(Variable::val(Val::Str(vt.type_of())));
+                } else {
+                    return Err(Error::StackError);
+                }
+            },
+            Self::TypeName => {
+                if let Some(var) = env.stack.pop() {
+                    let vt = var.spec_type(&graph);
+                    env.stack.push(Variable::val(Val::Str(vt.type_of())));
+                } else {
+                    return Err(Error::StackError);
+                }
+            },
+            Self::InstanceOf => {
+                if let Some(var) = env.stack.pop() {
+                    if let Some(obj) = var.try_obj() {
+                        // TODO
+                    }
+                } else {
+                    return Err(Error::StackError);
                 }
             },
             Self::Truthy => {

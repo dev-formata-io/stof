@@ -347,7 +347,7 @@ impl Units {
             Self::Picograms => literal!("pg"),
 
             // Imperial mass units (US).
-            Self::Tons => literal!("ton"),
+            Self::Tons => literal!("Ton"),
             Self::Pounds => literal!("lb"),
             Self::Ounce => literal!("oz"),
         }
