@@ -99,7 +99,7 @@ fn parse_ver_build(input: &str) -> IResult<&str, &str> {
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::parse_semver_alone;
+    use crate::parser::semver::parse_semver_alone;
 
     #[test]
     fn semver() {

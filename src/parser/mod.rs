@@ -15,34 +15,8 @@
 //
 
 pub mod semver;
-pub use semver::*;
-
 pub mod whitespace;
 pub mod number;
 pub mod types;
-
-use nom::{character::complete::{alpha1, alphanumeric0}, combinator::recognize, sequence::pair, IResult, Parser};
-
-
-/// Parse an identifier.
-pub fn ident(input: &str) -> IResult<&str, &str> {
-    recognize(
-        pair(
-            alpha1,
-            alphanumeric0
-        )
-    ).parse(input)
-}
-
-
-#[cfg(test)]
-mod tests {
-    use crate::parser::ident;
-
-    #[test]
-    fn ident_parse() {
-        assert_eq!(ident("a").unwrap().1, "a");
-        assert_eq!(ident("a1345: str").unwrap().1, "a1345");
-        assert!(ident("1").is_err());
-    }
-}
+pub mod ident;
+pub mod string;

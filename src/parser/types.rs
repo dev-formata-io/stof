@@ -16,7 +16,7 @@
 
 use arcstr::literal;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, value}, error::{Error, ErrorKind}, multi::separated_list1, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{model::SId, parser::{ident, whitespace::whitespace}, runtime::{NumT, Type, Units}};
+use crate::{model::SId, parser::ident::ident, runtime::{NumT, Type, Units}};
 
 
 /// Parse type standalone parser.
@@ -28,7 +28,7 @@ pub fn parse_type_complete(input: &str) -> Result<Type, nom::Err<nom::error::Err
 /// Parse a string into a Type.
 pub fn parse_type(input: &str) -> IResult<&str, Type> {
     map((
-        whitespace,
+        multispace0,
         alt((
             parse_union,
             value(Type::Null, tag("null")),
