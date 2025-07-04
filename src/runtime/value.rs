@@ -20,7 +20,7 @@ use arcstr::{literal, ArcStr};
 use bytes::Bytes;
 use imbl::{vector, OrdMap, OrdSet, Vector};
 use serde::{Deserialize, Serialize};
-use crate::{model::{json_value_from_node, DataRef, Func, Graph, NodeRef, SId}, parser::parse_semver_alone, runtime::{Error, Num, NumT, Type, Units, DATA, OBJ}};
+use crate::{model::{json_value_from_node, DataRef, Func, Graph, NodeRef, SId}, parser::{number::number, parse_semver_alone}, runtime::{Error, Num, NumT, Type, Units, DATA, OBJ}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Hash)]
@@ -1042,14 +1042,15 @@ impl Val {
                         }
                     },
                     Type::Num(num) => {
-                        // TODO: parse number with nom
                         match num {
                             NumT::Int => {
-                                if let Ok(res) = val.replace('+', "").replace("_", "").parse::<i64>() {
-                                    *self = Self::Num(Num::Int(res));
-                                    Ok(())
-                                } else {
-                                    Err(Error::CastVal)
+                                match number(&val) {
+                                    Ok((_, mut res)) => {
+                                        res.cast(target, graph)?; // get the number into the right type, no matter the string
+                                        *self = res;
+                                        Ok(())
+                                    },
+                                    Err(_) => Err(Error::CastVal)
                                 }
                             },
                             NumT::Float => {
@@ -1585,12 +1586,12 @@ impl Val {
                         Ok(())
                     },
                     Self::Str(other) => {
-                        // TODO: parse string into a number here
-                        if let Ok(other) = other.parse::<f64>() {
-                            *val = val.add(&Num::Float(other));
-                            Ok(())
-                        } else {
-                            Err(Error::NotImplemented)
+                        match number(&other) {
+                            Ok((_, res)) => {
+                                self.add(res, graph)?;
+                                Ok(())
+                            },
+                            Err(_) => Err(Error::NotImplemented)
                         }
                     },
                     Self::Bool(other) => {
@@ -1702,12 +1703,12 @@ impl Val {
                         Ok(())
                     },
                     Self::Str(other) => {
-                        // TODO: parse string into a number here
-                        if let Ok(other) = other.parse::<f64>() {
-                            *self = Self::Num(val.sub(&Num::Float(other)));
-                            Ok(())
-                        } else {
-                            Err(Error::NotImplemented)
+                        match number(&other) {
+                            Ok((_, res)) => {
+                                self.sub(res, graph)?;
+                                Ok(())
+                            },
+                            Err(_) => Err(Error::NotImplemented)
                         }
                     },
                     Self::Bool(other) => {
@@ -1795,12 +1796,12 @@ impl Val {
                         Ok(())
                     },
                     Self::Str(other) => {
-                        // TODO: parse string into a number here
-                        if let Ok(other) = other.parse::<f64>() {
-                            *val = val.mul(&Num::Float(other));
-                            Ok(())
-                        } else {
-                            Err(Error::NotImplemented)
+                        match number(&other) {
+                            Ok((_, res)) => {
+                                self.mul(res, graph)?;
+                                Ok(())
+                            },
+                            Err(_) => Err(Error::NotImplemented)
                         }
                     },
                     Self::Bool(other) => {
@@ -1904,12 +1905,12 @@ impl Val {
                         Ok(())
                     },
                     Self::Str(other) => {
-                        // TODO: parse string into a number here
-                        if let Ok(other) = other.parse::<f64>() {
-                            *val = val.div(&Num::Float(other));
-                            Ok(())
-                        } else {
-                            Err(Error::NotImplemented)
+                        match number(&other) {
+                            Ok((_, res)) => {
+                                self.div(res, graph)?;
+                                Ok(())
+                            },
+                            Err(_) => Err(Error::NotImplemented)
                         }
                     },
                     _ => Err(Error::NotImplemented)
@@ -2005,12 +2006,12 @@ impl Val {
                         Ok(())
                     },
                     Self::Str(other) => {
-                        // TODO: parse string into a number here
-                        if let Ok(other) = other.parse::<f64>() {
-                            *val = val.rem(&Num::Float(other));
-                            Ok(())
-                        } else {
-                            Err(Error::NotImplemented)
+                        match number(&other) {
+                            Ok((_, res)) => {
+                                self.rem(res, graph)?;
+                                Ok(())
+                            },
+                            Err(_) => Err(Error::NotImplemented)
                         }
                     },
                     _ => Err(Error::NotImplemented)

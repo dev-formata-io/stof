@@ -19,6 +19,7 @@ pub use semver::*;
 
 pub mod whitespace;
 pub mod number;
+pub mod types;
 
 use nom::{character::complete::{alpha1, alphanumeric0}, combinator::recognize, sequence::pair, IResult, Parser};
 

@@ -14,12 +14,55 @@
 // limitations under the License.
 //
 
-use nom::{branch::alt, bytes::complete::tag, character::complete::one_of, combinator::{opt, recognize, value}, multi::{many0, many1}, IResult, Parser};
-use crate::runtime::{Num, Units, Val};
+use nom::{branch::alt, bytes::complete::{tag, take_while1}, character::complete::one_of, combinator::{opt, recognize, value}, multi::{many0, many1}, IResult, Parser};
+use crate::{parser::whitespace::whitespace, runtime::{Num, Units, Val}};
 
 
-/// Parse a number value.
-fn number(input: &str) -> IResult<&str, Val> {
+/// Parse a number value (consumes whitespace up front).
+pub fn number(input: &str) -> IResult<&str, Val> {
+    let (input , _) = whitespace(input)?;
+    let input = input.trim_start_matches("+");
+
+    // binary
+    if input.starts_with("0b") || input.starts_with("-0b") {
+        let (input, binary) = take_while1(|c| c == '1' || c == '0' || c == 'b' || c == '_' || c == '-').parse(input)?;
+        let bin_input = binary.replace("0b", "").replace('_', "");
+        let val = i64::from_str_radix(&bin_input, 2).expect("failed to parse binary number");
+
+        let (input, units) = units(input)?;
+        if let Some(units) = units {
+            return Ok((input, Val::Num(Num::Units(val as f64, units))));
+        }
+        return Ok((input, Val::Num(Num::Int(val))));
+    }
+    // oct
+    if input.starts_with("0o") || input.starts_with("-0o") {
+        let (input, oct) = take_while1(|c|
+            c == '0' || c == '1' || c == '2' || c == '3' || c == '4' || c == '5' || c == '6' || c == '7' || c == 'o' || c == '_' || c == '-').parse(input)?;
+        let oct_input = oct.replace("0o", "").replace('_', "");
+        let val = i64::from_str_radix(&oct_input, 8).expect("failed to parse oct number");
+
+        let (input, units) = units(input)?;
+        if let Some(units) = units {
+            return Ok((input, Val::Num(Num::Units(val as f64, units))));
+        }
+        return Ok((input, Val::Num(Num::Int(val))));
+    }
+    // hex
+    if input.starts_with("0x") || input.starts_with("-0x") {
+        let (input, hex) = take_while1(|c|
+            c == '0' || c == '1' || c == '2' || c == '3' || c == '4' || c == '5' || c == '6' || c == '7' || c == '8' || c == '9' ||
+            c == 'a' || c == 'A' || c == 'b' || c == 'B' || c == 'c' || c == 'C' || c == 'd' || c == 'D' || c == 'e' || c == 'E' || c == 'f' || c == 'F' || c == 'x' || c == '_' || c == '-').parse(input)?;
+        let hex_input = hex.replace("0x", "").replace('_', "");
+        let val = i64::from_str_radix(&hex_input, 16).expect("failed to parse hex number");
+        
+        let (input, units) = units(input)?;
+        if let Some(units) = units {
+            return Ok((input, Val::Num(Num::Units(val as f64, units))));
+        }
+        return Ok((input, Val::Num(Num::Int(val))));
+    }
+
     let (input, recognized_float_str) = recognize(
 (
             opt(tag("-")),
@@ -53,7 +96,7 @@ fn number(input: &str) -> IResult<&str, Val> {
 }
 
 // Parse optional units.
-pub fn units(input: &str) -> IResult<&str, Option<Units>> {
+fn units(input: &str) -> IResult<&str, Option<Units>> {
     opt(
         alt([
             value(Units::Radians, alt((tag("radians"), tag("rad")))),
@@ -125,8 +168,44 @@ mod tests {
 
     #[test]
     fn integer_units() {
-        let val = number("4_005mg").unwrap();
+        let val = number("+4_005mg").unwrap();
         assert_eq!(val.1, Val::from((4.005, Units::Grams)));
+    }
+
+    #[test]
+    fn binary() {
+        let val = number("0b0011").unwrap();
+        assert_eq!(val.1, Val::from(3));
+    }
+
+    #[test]
+    fn octal() {
+        let val = number("0o4_g").unwrap();
+        assert_eq!(val.1, Val::from((4000, Units::Milligrams)));
+    }
+
+    #[test]
+    fn hex() {
+        let val = number("+0xA").unwrap();
+        assert_eq!(val.1, Val::from(10));
+    }
+
+    #[test]
+    fn nbinary() {
+        let val = number("-0b0011").unwrap();
+        assert_eq!(val.1, Val::from(-3));
+    }
+
+    #[test]
+    fn noctal() {
+        let val = number("-0o4").unwrap();
+        assert_eq!(val.1, Val::from(-4));
+    }
+
+    #[test]
+    fn nhex() {
+        let val = number("-0xA").unwrap();
+        assert_eq!(val.1, Val::from(-10));
     }
 
     #[test]
