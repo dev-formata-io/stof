@@ -15,8 +15,8 @@
 //
 
 use std::sync::Arc;
-use nom::{branch::alt, character::complete::char, multi::{separated_list0, separated_list1}, sequence::{delimited, separated_pair}, IResult, Parser};
-use crate::{parser::expr::literal::literal_expr, runtime::{instruction::Instruction, instructions::{block::Block, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}}}};
+use nom::{branch::alt, bytes::complete::tag, character::complete::char, multi::{separated_list0, separated_list1}, sequence::{delimited, preceded, separated_pair}, IResult, Parser};
+use crate::{parser::{expr::literal::literal_expr, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, AWAIT}}};
 
 pub mod literal;
 
@@ -25,6 +25,7 @@ pub mod literal;
 /// Results in a singular Instruction.
 pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     alt([
+        await_expr,
         tup_expr,
         list_expr,
         map_expr,
@@ -114,6 +115,19 @@ pub fn map_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 }
 
 
+/// Await expression.
+pub fn await_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+    let (input, _) = whitespace(input)?;
+    let (input, ins) = preceded(tag("await"), expr).parse(input)?;
+    
+    let mut block = Block::default();
+    block.ins.push_back(ins); // a promise (maybe)
+    block.ins.push_back(AWAIT.clone()); // will only do something if its a promise
+    
+    Ok((input, Arc::new(block)))
+}
+
+
 /// Wrapped expression.
 pub fn wrapped_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     delimited(char('('), expr, char(')')).parse(input)
@@ -167,5 +181,13 @@ mod tests {
         let res = Runtime::eval(&mut graph, res).unwrap();
         //println!("{}", res.print(&graph));
         assert!(res.list());
+    }
+
+    #[test]
+    fn await_passthrough_expr() {
+        let (_input, res) = expr("await 42").unwrap();
+        let mut graph = Graph::default();
+        let res = Runtime::eval(&mut graph, res).unwrap();
+        assert_eq!(res, 42.into());
     }
 }

@@ -134,6 +134,8 @@ impl Instructions {
                             if let Some(promise) = env.stack.pop() {
                                 if let Some((pid, _)) = promise.try_promise() {
                                     return Ok(ProcRes::Wait(pid.clone()));
+                                } else {
+                                    env.stack.push(promise); // put it back because not a promise
                                 }
                             }
                             // Awaits on anything else are a passthrough operation...
