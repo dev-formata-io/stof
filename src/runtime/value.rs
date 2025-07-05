@@ -15,12 +15,67 @@
 //
 
 use core::str;
-use std::{cmp::Ordering, hash::Hash};
+use parking_lot::RwLock;
+use std::{cmp::Ordering, hash::{Hash, Hasher}, ops::{Deref, DerefMut}, sync::Arc};
 use arcstr::{literal, ArcStr};
 use bytes::Bytes;
 use imbl::{vector, OrdMap, OrdSet, Vector};
 use serde::{Deserialize, Serialize};
 use crate::{model::{json_value_from_node, DataRef, Func, Graph, NodeRef, SId}, parser::{number::number, semver::parse_semver_alone}, runtime::{Error, Num, NumT, Type, Units, DATA, OBJ}};
+
+
+/// Value reference.
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ValRef<T: ?Sized>(Arc<RwLock<T>>);
+impl<T: ?Sized + Hash> Hash for ValRef<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.read().hash(state);
+    }
+}
+impl<T: ?Sized> Deref for ValRef<T> {
+    type Target = Arc<RwLock<T>>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl<T: ?Sized> DerefMut for ValRef<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+impl ValRef<Val> {
+    /// Create a new ValRef from a value.
+    pub fn new(val: Val) -> Self {
+        Self(Arc::new(RwLock::new(val)))
+    }
+
+    /// Clone by value instead of by reference.
+    pub fn clone_value(&self) -> Self {
+        Self::new(self.0.read().clone())
+    }
+}
+
+impl PartialEq for ValRef<Val> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.read().eq(&other.0.read())
+    }
+}
+impl Eq for ValRef<Val> {}
+impl PartialOrd for ValRef<Val> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.0.read().partial_cmp(&other.0.read())
+    }
+}
+impl Ord for ValRef<Val> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.read().cmp(&other.0.read())
+    }
+}
+impl Clone for ValRef<Val> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Hash)]
@@ -48,10 +103,10 @@ pub enum Val {
     Data(DataRef),
 
     // Compound types
-    List(Vector<Self>),
-    Tup(Vector<Self>),
-    Map(OrdMap<Self, Self>),
-    Set(OrdSet<Self>),
+    List(Vector<ValRef<Self>>),
+    Tup(Vector<ValRef<Self>>),
+    Map(OrdMap<ValRef<Self>, ValRef<Self>>),
+    Set(OrdSet<ValRef<Self>>),
 }
 
 impl From<&char> for Val {
@@ -813,7 +868,7 @@ impl Val {
             Self::List(_) => Type::List,
             Self::Tup(vals) => {
                 let mut types = vector![];
-                for val in vals { types.push_back(val.gen_type()); }
+                for val in vals { types.push_back(val.read().gen_type()); }
                 Type::Tup(types)
             },
             Self::Map(_) => Type::Map,
@@ -874,7 +929,7 @@ impl Val {
             Self::Blob(blob) => {
                 match target {
                     Type::List => {
-                        *self = Self::List(blob.iter().map(|byte| Self::Num(Num::Int((*byte) as i64))).collect());
+                        *self = Self::List(blob.iter().map(|byte| ValRef::new(Self::Num(Num::Int((*byte) as i64)))).collect());
                         Ok(())
                     },
                     Type::Str => {
@@ -901,7 +956,7 @@ impl Val {
                         let mut blob: Vec<u8> = Vec::new();
                         while !values.is_empty() {
                             if let Some(val) = values.pop_front() {
-                                match val {
+                                match val.read().deref() {
                                     Self::Num(num) => {
                                         let res: Result<u8, _> = num.int().try_into();
                                         if res.is_err() { return Err(Error::CastVal); }
@@ -922,7 +977,7 @@ impl Val {
                         }
                         if values.len() == types.len() {
                             for i in 0..values.len() {
-                                values[i].cast(&types[i], graph)?;
+                                values[i].write().cast(&types[i], graph)?;
                             }
                             *self = Self::Tup(values.clone());
                             return Ok(());
@@ -1012,7 +1067,7 @@ impl Val {
                     Type::List => {
                         let mut list = Vector::new();
                         for char in val.as_str().chars() {
-                            list.push_back(Self::Str(char.to_string().into()));
+                            list.push_back(ValRef::new(Self::Str(char.to_string().into())));
                         }
                         *self = Self::List(list);
                         Ok(())
@@ -1020,7 +1075,7 @@ impl Val {
                     Type::Set => {
                         let mut set = OrdSet::new();
                         for char in val.as_str().chars() {
-                            set.insert(Self::Str(char.to_string().into()));
+                            set.insert(ValRef::new(Self::Str(char.to_string().into())));
                         }
                         *self = Self::Set(set);
                         Ok(())
@@ -1089,7 +1144,7 @@ impl Val {
                     Type::Tup(types) => {
                         if values.len() == types.len() {
                             for i in 0..values.len() {
-                                values[i].cast(&types[i], graph)?;
+                                values[i].write().cast(&types[i], graph)?;
                             }
                             return Ok(());
                         }
@@ -1168,16 +1223,16 @@ impl Val {
                     match other {
                         Self::List(vals) => {
                             let mut v = vals.clone();
-                            v.push_front(self.clone());
+                            v.push_front(ValRef::new(self.clone()));
                             *self = Val::List(v);
                         },
                         Self::Set(set) => {
                             let mut v = set.clone();
-                            v.insert(self.clone());
+                            v.insert(ValRef::new(self.clone()));
                             *self = Val::Set(v);
                         },
                         _ => {
-                            *self = Val::List(vector![self.clone(), other.clone()]);
+                            *self = Val::List(vector![ValRef::new(self.clone()), ValRef::new(other.clone())]);
                         }
                     }
                 }
@@ -1188,7 +1243,7 @@ impl Val {
                         vals.append(ovals.clone());
                     },
                     _ => {
-                        vals.push_back(other.clone());
+                        vals.push_back(ValRef::new(other.clone()));
                     }
                 }
             },
@@ -1198,7 +1253,7 @@ impl Val {
                         *set = set.clone().union(oset.clone());
                     },
                     _ => {
-                        set.insert(other.clone());
+                        set.insert(ValRef::new(other.clone()));
                     }
                 }
             },
@@ -1207,14 +1262,14 @@ impl Val {
                     Val::Map(omap) => {
                         for (k, v) in omap {
                             if let Some(existing_val) = map.get_mut(k) {
-                                existing_val.collide(v);
+                                existing_val.write().collide(&v.read());
                             } else {
                                 map.insert(k.clone(), v.clone());
                             }
                         }
                     },
                     _ => {
-                        *self = Val::List(vector![self.clone(), other.clone()]);
+                        *self = Val::List(vector![ValRef::new(self.clone()), ValRef::new(other.clone())]);
                     }
                 }
             },
@@ -1620,7 +1675,7 @@ impl Val {
                         Ok(())
                     },
                     _ => {
-                        vals.push_back(other);
+                        vals.push_back(ValRef::new(other));
                         Ok(())
                     }
                 }
@@ -1647,7 +1702,7 @@ impl Val {
                         Ok(())
                     },
                     _ => {
-                        set.insert(other);
+                        set.insert(ValRef::new(other));
                         Ok(())
                     }
                 }
@@ -1742,7 +1797,7 @@ impl Val {
                         Ok(())
                     },
                     _ => {
-                        set.remove(&other);
+                        set.remove(&ValRef::new(other));
                         Ok(())
                     }
                 }
@@ -1887,7 +1942,7 @@ impl Val {
                         let vec = val.split(other.as_str()).collect::<Vec<&str>>();
                         let mut new = Vector::new();
                         for v in vec {
-                            new.push_back(v.into());
+                            new.push_back(ValRef::new(v.into()));
                         }
                         *self = Self::List(new);
                         Ok(())
@@ -1988,7 +2043,7 @@ impl Val {
                         let vec = val.split(other.as_str()).collect::<Vec<&str>>();
                         let mut new = Vector::new();
                         for v in vec {
-                            new.push_back(v.into());
+                            new.push_back(ValRef::new(v.into()));
                         }
                         *self = Self::List(new);
                         Ok(())
@@ -2173,12 +2228,12 @@ impl Val {
                 let mut first = true;
                 for (key, val) in map {
                     let key_str;
-                    if key.str() { key_str = format!("\"{}\"", key.print(graph)); }
-                    else { key_str = key.print(graph); }
+                    if key.read().str() { key_str = format!("\"{}\"", key.read().print(graph)); }
+                    else { key_str = key.read().print(graph); }
                     
                     let val_str;
-                    if val.str() { val_str = format!("\"{}\"", val.print(graph)); }
-                    else { val_str = val.print(graph); }
+                    if val.read().str() { val_str = format!("\"{}\"", val.read().print(graph)); }
+                    else { val_str = val.read().print(graph); }
 
                     if first {
                         res.push_str(&format!("({} -> {})", key_str, val_str));
@@ -2194,8 +2249,8 @@ impl Val {
                 let mut first = true;
                 for val in set {
                     let val_str;
-                    if val.str() { val_str = format!("\"{}\"", val.print(graph)); }
-                    else { val_str = val.print(graph); }
+                    if val.read().str() { val_str = format!("\"{}\"", val.read().print(graph)); }
+                    else { val_str = val.read().print(graph); }
 
                     if first {
                         res.push_str(&val_str);
@@ -2211,8 +2266,8 @@ impl Val {
                 let mut first = true;
                 for val in vals {
                     let val_str;
-                    if val.str() { val_str = format!("\"{}\"", val.print(graph)); }
-                    else { val_str = val.print(graph); }
+                    if val.read().str() { val_str = format!("\"{}\"", val.read().print(graph)); }
+                    else { val_str = val.read().print(graph); }
 
                     if first {
                         res.push_str(&val_str);
@@ -2228,8 +2283,8 @@ impl Val {
                 let mut first = true;
                 for val in vals {
                     let val_str;
-                    if val.str() { val_str = format!("\"{}\"", val.print(graph)); }
-                    else { val_str = val.print(graph); }
+                    if val.read().str() { val_str = format!("\"{}\"", val.read().print(graph)); }
+                    else { val_str = val.read().print(graph); }
 
                     if first {
                         res.push_str(&val_str);

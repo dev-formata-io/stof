@@ -14,16 +14,16 @@
 // limitations under the License.
 //
 
-use std::{ops::Deref, sync::{Arc, RwLock}};
+use std::ops::Deref;
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{Error, Type, Val}};
+use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{Error, Type, Val, ValRef}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// Variable.
 /// Used in symbol tables and for fields.
 pub struct Variable {
-    pub val: Arc<RwLock<Val>>,
+    pub val: ValRef<Val>,
     pub mutable: bool,
     pub vtype: Option<Type>,
 }
@@ -32,7 +32,7 @@ impl Variable {
     pub fn new(graph: &Graph, mutable: bool, val: Val, typed: bool) -> Self {
         let mut var = Self {
             mutable,
-            val: Arc::new(RwLock::new(val)),
+            val: ValRef::new(val),
             vtype: None,
         };
         if typed {
@@ -46,7 +46,7 @@ impl Variable {
     pub fn val(val: Val) -> Self {
         Self {
             mutable: true,
-            val: Arc::new(RwLock::new(val)),
+            val: ValRef::new(val),
             vtype: None,
         }
     }
@@ -57,7 +57,7 @@ impl Variable {
         if self.mutable {
             if var.value_type() {
                 // Set by value - clone the internal value and set
-                let mut val = var.val.read().unwrap().clone();
+                let mut val = var.val.read().clone();
                 if let Some(vtype) = &self.vtype {
                     if vtype != &val.spec_type(graph) {
                         if let Err(error) = val.cast(vtype, graph) {
@@ -65,7 +65,7 @@ impl Variable {
                         }
                     }
                 }
-                *self.val.write().unwrap() = val;
+                *self.val.write() = val;
             } else {
                 // Set by reference - set the val as a clone (modifying here will modify there)
                 if let Some(vtype) = &self.vtype {
@@ -89,8 +89,8 @@ impl Variable {
     pub fn stack_var(&self) -> Self {
         let mut clone = self.clone();
         if self.value_type() {
-            let val = self.val.read().unwrap().clone();
-            clone.val = Arc::new(RwLock::new(val));
+            let val = self.val.read().clone();
+            clone.val = ValRef::new(val);
         }
         clone
     }
@@ -99,43 +99,43 @@ impl Variable {
     /// Get a value from this variable.
     /// Vals are pretty cheap to clone.
     pub fn get(&self) -> Val {
-        self.val.read().unwrap().clone()
+        self.val.read().clone()
     }
 
     #[inline]
     /// Try extracting an object reference from this var.
     pub fn try_obj(&self) -> Option<NodeRef> {
-        self.val.read().unwrap().try_obj()
+        self.val.read().try_obj()
     }
 
     #[inline]
     /// Try extracting a function reference from this var.
     pub fn try_func(&self) -> Option<DataRef> {
-        self.val.read().unwrap().try_func()
+        self.val.read().try_func()
     }
 
     #[inline]
     /// Try extracting a promise from this var.
     pub fn try_promise(&self) -> Option<(SId, Type)> {
-        self.val.read().unwrap().try_promise()
+        self.val.read().try_promise()
     }
 
     #[inline]
     /// Is this var a value type?
     pub fn value_type(&self) -> bool {
-        self.val.read().unwrap().val_type()
+        self.val.read().val_type()
     }
 
     #[inline]
     /// Cast this variable to a new type.
     pub fn cast(&self, target: &Type, graph: &mut Graph) -> Result<(), Error> {
-        self.val.write().unwrap().cast(target, graph)
+        self.val.write().cast(target, graph)
     }
 
     #[inline]
     /// Is this variable truthy?
     pub fn truthy(&self) -> bool {
-        self.val.read().unwrap().truthy()
+        self.val.read().truthy()
     }
 
     #[inline]
@@ -151,25 +151,25 @@ impl Variable {
     #[inline]
     /// Is this variable a data reference?
     pub fn is_data_ref(&self, data: &DataRef) -> bool {
-        self.val.read().unwrap().is_data_ref(data)
+        self.val.read().is_data_ref(data)
     }
 
     #[inline]
     /// Variables generic type.
     pub fn gen_type(&self) -> Type {
-        self.val.read().unwrap().gen_type()
+        self.val.read().gen_type()
     }
 
     #[inline]
     /// Specific type.
     pub fn spec_type(&self, graph: &Graph) -> Type {
-        self.val.read().unwrap().spec_type(graph)
+        self.val.read().spec_type(graph)
     }
 
     #[inline]
     /// Drop this variable (data held within).
     pub fn drop_data(self, graph: &mut Graph) {
-        self.val.read().unwrap().drop_data(graph);
+        self.val.read().drop_data(graph);
     }
 
     /*****************************************************************************
@@ -178,7 +178,7 @@ impl Variable {
     
     /// Greater than?
     pub fn gt(&self, rhs: &Self, graph: &Graph) -> Result<Self, Error> {
-        match self.val.read().unwrap().gt(rhs.val.read().unwrap().deref(), graph) {
+        match self.val.read().gt(rhs.val.read().deref(), graph) {
             Ok(val) => {
                 Ok(Self::val(val))
             },
@@ -188,7 +188,7 @@ impl Variable {
 
     /// Less than?
     pub fn lt(&self, rhs: &Self, graph: &Graph) -> Result<Self, Error> {
-        match self.val.read().unwrap().lt(rhs.val.read().unwrap().deref(), graph) {
+        match self.val.read().lt(rhs.val.read().deref(), graph) {
             Ok(val) => {
                 Ok(Self::val(val))
             },
@@ -198,7 +198,7 @@ impl Variable {
 
     /// Greater than or equal?
     pub fn gte(&self, rhs: &Self, graph: &Graph) -> Result<Self, Error> {
-        match self.val.read().unwrap().gte(rhs.val.read().unwrap().deref(), graph) {
+        match self.val.read().gte(rhs.val.read().deref(), graph) {
             Ok(val) => {
                 Ok(Self::val(val))
             },
@@ -208,7 +208,7 @@ impl Variable {
 
     /// Less than or equal?
     pub fn lte(&self, rhs: &Self, graph: &Graph) -> Result<Self, Error> {
-        match self.val.read().unwrap().lte(rhs.val.read().unwrap().deref(), graph) {
+        match self.val.read().lte(rhs.val.read().deref(), graph) {
             Ok(val) => {
                 Ok(Self::val(val))
             },
@@ -218,7 +218,7 @@ impl Variable {
 
     /// Equal?
     pub fn equal(&self, rhs: &Self) -> Result<Self, Error> {
-        match self.val.read().unwrap().equal(rhs.val.read().unwrap().deref()) {
+        match self.val.read().equal(rhs.val.read().deref()) {
             Ok(val) => {
                 Ok(Self::val(val))
             },
@@ -228,7 +228,7 @@ impl Variable {
 
     /// Not equal?
     pub fn not_equal(&self, rhs: &Self) -> Result<Self, Error> {
-        match self.val.read().unwrap().not_equal(rhs.val.read().unwrap().deref()) {
+        match self.val.read().not_equal(rhs.val.read().deref()) {
             Ok(val) => {
                 Ok(Self::val(val))
             },
@@ -239,70 +239,70 @@ impl Variable {
     #[inline]
     /// Add.
     pub fn add(&self, rhs: Self, graph: &mut Graph) -> Result<(), Error> {
-        self.val.write().unwrap().add(rhs.val.read().unwrap().clone(), graph)?;
+        self.val.write().add(rhs.val.read().clone(), graph)?;
         Ok(())
     }
 
     #[inline]
     /// Subtract.
     pub fn sub(&self, rhs: Self, graph: &mut Graph) -> Result<(), Error> {
-        self.val.write().unwrap().sub(rhs.val.read().unwrap().clone(), graph)?;
+        self.val.write().sub(rhs.val.read().clone(), graph)?;
         Ok(())
     }
 
     #[inline]
     /// Multiply.
     pub fn mul(&self, rhs: Self, graph: &mut Graph) -> Result<(), Error> {
-        self.val.write().unwrap().mul(rhs.val.read().unwrap().clone(), graph)?;
+        self.val.write().mul(rhs.val.read().clone(), graph)?;
         Ok(())
     }
 
     #[inline]
     /// Divide.
     pub fn div(&self, rhs: Self, graph: &mut Graph) -> Result<(), Error> {
-        self.val.write().unwrap().div(rhs.val.read().unwrap().clone(), graph)?;
+        self.val.write().div(rhs.val.read().clone(), graph)?;
         Ok(())
     }
 
     #[inline]
     /// Mod.
     pub fn rem(&self, rhs: Self, graph: &mut Graph) -> Result<(), Error> {
-        self.val.write().unwrap().rem(rhs.val.read().unwrap().clone(), graph)?;
+        self.val.write().rem(rhs.val.read().clone(), graph)?;
         Ok(())
     }
 
     #[inline]
     /// Bit And.
     pub fn bit_and(&self, rhs: Self) -> Result<(), Error> {
-        self.val.write().unwrap().bit_and(rhs.val.read().unwrap().clone())?;
+        self.val.write().bit_and(rhs.val.read().clone())?;
         Ok(())
     }
 
     #[inline]
     /// Bit Or.
     pub fn bit_or(&self, rhs: Self) -> Result<(), Error> {
-        self.val.write().unwrap().bit_or(rhs.val.read().unwrap().clone())?;
+        self.val.write().bit_or(rhs.val.read().clone())?;
         Ok(())
     }
 
     #[inline]
     /// Bit XOr.
     pub fn bit_xor(&self, rhs: Self) -> Result<(), Error> {
-        self.val.write().unwrap().bit_xor(rhs.val.read().unwrap().clone())?;
+        self.val.write().bit_xor(rhs.val.read().clone())?;
         Ok(())
     }
 
     #[inline]
     /// Bit Shift Left.
     pub fn bit_shl(&self, rhs: Self) -> Result<(), Error> {
-        self.val.write().unwrap().bit_shl(rhs.val.read().unwrap().clone())?;
+        self.val.write().bit_shl(rhs.val.read().clone())?;
         Ok(())
     }
 
     #[inline]
     /// Bit Shift Right.
     pub fn bit_shr(&self, rhs: Self) -> Result<(), Error> {
-        self.val.write().unwrap().bit_shr(rhs.val.read().unwrap().clone())?;
+        self.val.write().bit_shr(rhs.val.read().clone())?;
         Ok(())
     }
 }

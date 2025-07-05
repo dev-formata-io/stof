@@ -16,7 +16,7 @@
 
 use imbl::Vector;
 use serde_json::{Map, Number, Value};
-use crate::{model::{Field, Graph, NodeRef, NOEXPORT_FIELD_ATTR}, runtime::{Num, Val}};
+use crate::{model::{Field, Graph, NodeRef, NOEXPORT_FIELD_ATTR}, runtime::{Num, Val, ValRef}};
 
 
 /// Export a serde_json Value from a node in the graph.
@@ -62,7 +62,7 @@ fn json_value(graph: &Graph, val: Val) -> Value {
         Val::Map(map) => {
             let mut value = Map::new();
             for (k, v) in map {
-                value.insert(k.to_string(), json_value(graph, v));
+                value.insert(k.read().to_string(), json_value(graph, v.read().clone()));
             }
             Value::Object(value)
         },
@@ -70,10 +70,10 @@ fn json_value(graph: &Graph, val: Val) -> Value {
 }
 
 /// Export value from an array of values.
-fn value_from_array(graph: &Graph, vals: Vector<Val>) -> Value {
+fn value_from_array(graph: &Graph, vals: Vector<ValRef<Val>>) -> Value {
     let mut results: Vec<Value> = Vec::new();
     for val in vals {
-        results.push(json_value(graph, val));
+        results.push(json_value(graph, val.read().clone()));
     }
     Value::Array(results)
 }

@@ -17,7 +17,7 @@
 use imbl::Vector;
 use rustc_hash::FxHashMap;
 use serde_json::Value;
-use crate::{model::{Field, Graph, NodeRef, SId, NOEXPORT_FIELD_ATTR}, runtime::{Val, Variable}};
+use crate::{model::{Field, Graph, NodeRef, SId, NOEXPORT_FIELD_ATTR}, runtime::{Val, ValRef, Variable}};
 
 
 /// Parse a serde_json Object value into a graph.
@@ -75,11 +75,11 @@ pub(crate) fn parse_json_field_value(graph: &mut Graph, node: &NodeRef, value: V
 }
 
 /// Parse array values.
-pub(crate) fn parse_json_array_values(graph: &mut Graph, node: &NodeRef, vals: Vec<Value>, res: &mut Vector<Val>) {
+pub(crate) fn parse_json_array_values(graph: &mut Graph, node: &NodeRef, vals: Vec<Value>, res: &mut Vector<ValRef<Val>>) {
     for val in vals {
         match val {
             Value::Null => {
-                res.push_back(Val::Null);
+                res.push_back(ValRef::new(Val::Null));
             },
             Value::Number(v)  => {
                 let val: Val;
@@ -92,24 +92,24 @@ pub(crate) fn parse_json_array_values(graph: &mut Graph, node: &NodeRef, vals: V
                 } else {
                     val = Val::Null
                 }
-                res.push_back(val);
+                res.push_back(ValRef::new(val));
             },
             Value::String(v)  => {
-                res.push_back(Val::from(v.as_str()));
+                res.push_back(ValRef::new(Val::from(v.as_str())));
             },
             Value::Bool(v) => {
-                res.push_back(Val::from(v));
+                res.push_back(ValRef::new(Val::from(v)));
             },
             Value::Array(vals) => {
                 let mut jf_arr = Vector::default();
                 parse_json_array_values(graph, node, vals, &mut jf_arr);
-                res.push_back(Val::List(jf_arr));
+                res.push_back(ValRef::new(Val::List(jf_arr)));
             }
             Value::Object(_) => {
                 let id = SId::default();
                 let child_node = graph.insert_node_id(&id, &id, Some(node.clone()), false);
                 parse_json_object_value(graph, &child_node, val);
-                res.push_back(Val::Obj(child_node));
+                res.push_back(ValRef::new(Val::Obj(child_node)));
             },
         }
     }

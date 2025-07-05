@@ -30,6 +30,10 @@ pub mod whiles;
 pub mod new_obj;
 pub mod empty;
 pub mod trycatch;
+pub mod list;
+pub mod tup;
+pub mod set;
+pub mod map;
 
 
 // static instructions for efficiency
@@ -204,7 +208,7 @@ impl Instruction for Base {
             Self::CtrlTryEnd => {}, // Nothing here... used by instructions...
             Self::Throw => {
                 if let Some(var) = env.stack.pop() {
-                    let dbg = var.val.read().unwrap().debug(&graph);
+                    let dbg = var.val.read().debug(&graph);
                     return Err(Error::Custom(dbg.into()));
                 } else {
                     return Err(Error::Thrown);
@@ -273,7 +277,7 @@ impl Instruction for Base {
                 if let Some(mut var) = env.stack.pop() {
                     var.mutable = true;
                     if *typed {
-                        var.vtype = Some(var.val.read().unwrap().spec_type(&graph));
+                        var.vtype = Some(var.val.read().spec_type(&graph));
                     }
                     env.table.insert(name, var);
                 } else {
@@ -286,7 +290,7 @@ impl Instruction for Base {
                 if let Some(mut var) = env.stack.pop() {
                     var.mutable = false;
                     if *typed {
-                        var.vtype = Some(var.val.read().unwrap().spec_type(&graph));
+                        var.vtype = Some(var.val.read().spec_type(&graph));
                     }
                     env.table.insert(name, var);
                 } else {
@@ -310,7 +314,7 @@ impl Instruction for Base {
                             to_remove = Some(field.value.val.clone());
                         }
                         if let Some(val) = to_remove {
-                            val.read().unwrap().drop_data(graph);
+                            val.read().drop_data(graph);
                         }
                         graph.remove_data(&field, None);
                     } else if let Some(node) = SPath::node(&graph, &name, Some(self_ptr.clone())) {
@@ -326,7 +330,7 @@ impl Instruction for Base {
                         to_remove = Some(field.value.val.clone());
                     }
                     if let Some(val) = to_remove {
-                        val.read().unwrap().drop_data(graph);
+                        val.read().drop_data(graph);
                     }
                     graph.remove_data(&field, None);
                 } else if let Some(node) = SPath::node(&graph, &name, None) {

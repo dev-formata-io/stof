@@ -14,11 +14,13 @@
 // limitations under the License.
 //
 
-pub mod semver;
-pub mod whitespace;
-pub mod number;
-pub mod types;
-pub mod ident;
-pub mod string;
-pub mod literal;
-pub mod expr;
+use std::sync::Arc;
+use nom::{IResult, Parser, combinator::map};
+use crate::{parser::literal::literal, runtime::{instruction::Instruction, instructions::Base}};
+
+
+/// Parse a literal expr (instruction).
+/// Pushes a value onto the stack if found.
+pub fn literal_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+    map(literal, |val| Arc::new(Base::Literal(val)) as Arc<dyn Instruction>).parse(input)
+}

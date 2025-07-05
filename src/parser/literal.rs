@@ -14,23 +14,11 @@
 // limitations under the License.
 //
 
-use std::sync::Arc;
-use arcstr::ArcStr;
 use nom::{branch::alt, bytes::complete::tag, combinator::{map, value}, IResult, Parser};
-use crate::{parser::{ident::ident, number::number, semver::parse_semver, string::string, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::Base, Val}};
+use crate::{parser::{number::number, semver::parse_semver, string::string, whitespace::whitespace}, runtime::Val};
 
 
-/// Parse a literal expr (instruction).
-/// Pushes a literal value or variable (if found) onto the stack.
-pub fn literal_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
-    alt((
-        map(literal, |val| Arc::new(Base::Literal(val)) as Arc<dyn Instruction>),
-        map(ident, |ident| Arc::new(Base::LoadVariable(ArcStr::from(ident))) as Arc<dyn Instruction>)
-    )).parse(input)
-}
-
-
-/// Parse a literal value.
+/// Parse a literal value (bool, null, number, string, or version).
 pub fn literal(input: &str) -> IResult<&str, Val> {
     let (input, _) = whitespace(input)?;
     alt((
