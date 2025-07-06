@@ -16,10 +16,11 @@
 
 use std::sync::Arc;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, multi::{separated_list0, separated_list1}, sequence::{delimited, preceded, separated_pair}, IResult, Parser};
-use crate::{parser::{expr::{literal::literal_expr, math::math_expr}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, AWAIT, NOT_TRUTHY}}};
+use crate::{parser::{expr::{graph::graph_expr, literal::literal_expr, math::math_expr}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, AWAIT, NOT_TRUTHY}}};
 
 pub mod literal;
 pub mod math;
+pub mod graph;
 
 
 /// Parse an expression.
@@ -32,6 +33,8 @@ pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
         set_expr,
         math_expr,
         not_expr,
+        literal_expr,
+        graph_expr,
         literal_expr,
         wrapped_expr,
     ]).parse(input)

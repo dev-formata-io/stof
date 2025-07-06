@@ -25,7 +25,13 @@ use crate::{model::{DataRef, Field, Func, Graph, SId, ASYNC_FUNC_ATTR, SELF_STR_
 /// Call a function instruction (expr).
 /// An expression will add this as the next instruction after a lookup to an internal function.
 pub struct FuncCall {
+    /// Add self when calling this function?
+    /// TODO: remove?
     pub add_self: bool,
+
+    /// Look on the stack for the context of this call.
+    /// Used when chaining stuff together Ex. hello[15].my_func('hi').dude()
+    pub stack_lookup: bool,
 
     /// Function we are calling.
     /// If none, will look on the stack when this gets executed.

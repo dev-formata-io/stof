@@ -147,7 +147,7 @@ pub enum Base {
     DeclareConstVar(ArcStr, bool), // requires val on stack (optionally typed)
     
     DropVariable(ArcStr), // removes from the st/graph
-    LoadVariable(ArcStr), // loads st/graph to stack
+    LoadVariable(ArcStr, bool), // loads st/graph to stack
     SetVariable(ArcStr), // requires val on stack
 
     // Values.
@@ -340,8 +340,8 @@ impl Instruction for Base {
                     graph.remove_data(&func, None);
                 }
             },
-            Self::LoadVariable(name) => {
-                // TODO: loading with self here will not work...
+            Self::LoadVariable(name, stack_lookup) => {
+                // TODO: lookup from a context (obj) on the stack (used in chaining)
                 if !name.contains('.') {
                     if let Some(var) = env.table.get(name) {
                         env.stack.push(var.stack_var());
