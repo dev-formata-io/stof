@@ -15,33 +15,8 @@
 //
 
 use std::sync::Arc;
-use nom::{branch::alt, character::complete::{char, multispace0}, combinator::{opt, recognize}, multi::{separated_list0, separated_list1}, sequence::{delimited, terminated}, IResult, Parser};
-use crate::{model::SId, parser::{expr::{expr, list_expr, literal::literal_expr, map_expr, set_expr, tup_expr, wrapped_expr}, ident::ident, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, call::{FuncCall, NamedArg}, Base}}};
-
-
-/// Expr call.
-/// This is a variant where a literal or wrapped expr is chained with a call.
-/// TODO: move this to the individual inner exprs - much more efficient...
-/// Ex. -5.abs()
-pub fn lit_expr_call(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
-    let (input, first) = terminated(lit_expr_inner_call, char('.')).parse(input)?;
-    let (input, additional) = separated_list1(char('.'), chained_var_func).parse(input)?;
-    
-    let mut block = Block::default();
-    block.ins.push_back(first);
-    for ins in additional { block.ins.push_back(ins); }
-    Ok((input, Arc::new(block)))
-}
-fn lit_expr_inner_call(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
-    alt([
-        tup_expr,
-        list_expr,
-        map_expr,
-        set_expr,
-        literal_expr,
-        wrapped_expr,
-    ]).parse(input)
-}
+use nom::{branch::alt, character::complete::{char, multispace0}, combinator::{opt, recognize}, multi::{separated_list0, separated_list1}, sequence::delimited, IResult, Parser};
+use crate::{model::SId, parser::{expr::expr, ident::ident, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, call::{FuncCall, NamedArg}, Base}}};
 
 
 /// Graph interaction expression.
@@ -67,7 +42,7 @@ pub fn graph_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     for ins in additional { block.ins.push_back(ins); }
     Ok((input, Arc::new(block)))
 }
-pub(self) fn chained_var_func(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub fn chained_var_func(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     // TODO add null check operator instruction "?."... will be an additional [dup, if [nullcheck, jump], ..var_func.., jumptag] sequence
     var_func(input, true)
 }

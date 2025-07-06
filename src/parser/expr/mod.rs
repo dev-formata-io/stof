@@ -15,8 +15,8 @@
 //
 
 use std::sync::Arc;
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, multi::{separated_list0, separated_list1}, sequence::{delimited, preceded, separated_pair}, IResult, Parser};
-use crate::{parser::{expr::{graph::graph_expr, literal::literal_expr, math::math_expr}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, AWAIT, NOT_TRUTHY}}};
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, multi::{separated_list0, separated_list1}, sequence::{delimited, preceded, separated_pair}, IResult, Parser};
+use crate::{parser::{expr::{graph::{chained_var_func, graph_expr}, literal::literal_expr, math::math_expr}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, AWAIT, NOT_TRUTHY}}};
 
 pub mod literal;
 pub mod math;
@@ -50,10 +50,19 @@ pub fn list_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
         char(']')
     ).parse(input)?;
 
+    // Optional chained calls here
+    // Ex. [3, 4].at(0)
+    let (input, additional) = opt(preceded(char('.'), separated_list1(char('.'), chained_var_func))).parse(input)?;
+
     let mut block = Block::default();
     block.ins.push_back(NEW_LIST.clone());
     for expr in exprs {
         block.ins.push_back(Arc::new(ListIns::AppendList(expr)));
+    }
+    if let Some(additional) = additional {
+        for ins in additional {
+            block.ins.push_back(ins);
+        }
     }
 
     Ok((input, Arc::new(block)))
@@ -76,10 +85,19 @@ pub fn tup_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
         }));
     }
 
+    // Optional chained calls here
+    // Ex. (3, 4).at(0)
+    let (input, additional) = opt(preceded(char('.'), separated_list1(char('.'), chained_var_func))).parse(input)?;
+
     let mut block = Block::default();
     block.ins.push_back(NEW_TUP.clone());
     for expr in exprs {
         block.ins.push_back(Arc::new(TupIns::AppendTup(expr)));
+    }
+    if let Some(additional) = additional {
+        for ins in additional {
+            block.ins.push_back(ins);
+        }
     }
 
     Ok((input, Arc::new(block)))
@@ -95,10 +113,19 @@ pub fn set_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
         char('}')
     ).parse(input)?;
 
+    // Optional chained calls here
+    // Ex. {3, 4}.at(0)
+    let (input, additional) = opt(preceded(char('.'), separated_list1(char('.'), chained_var_func))).parse(input)?;
+
     let mut block = Block::default();
     block.ins.push_back(NEW_SET.clone());
     for expr in exprs {
         block.ins.push_back(Arc::new(SetIns::AppendSet(expr)));
+    }
+    if let Some(additional) = additional {
+        for ins in additional {
+            block.ins.push_back(ins);
+        }
     }
 
     Ok((input, Arc::new(block)))
@@ -114,10 +141,19 @@ pub fn map_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
         char('}')
     ).parse(input)?;
 
+    // Optional chained calls here
+    // Ex. {'a': 3, 'b': 4}.at('b')
+    let (input, additional) = opt(preceded(char('.'), separated_list1(char('.'), chained_var_func))).parse(input)?;
+
     let mut block = Block::default();
     block.ins.push_back(NEW_MAP.clone());
     for expr in exprs {
         block.ins.push_back(Arc::new(MapIns::AppendMap(expr)));
+    }
+    if let Some(additional) = additional {
+        for ins in additional {
+            block.ins.push_back(ins);
+        }
     }
 
     Ok((input, Arc::new(block)))
@@ -140,7 +176,19 @@ pub fn await_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 /// Wrapped expression.
 pub fn wrapped_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     let (input, _) = whitespace(input)?;
-    delimited(char('('), delimited(multispace0, expr, multispace0), char(')')).parse(input)
+    let (input, ins) = delimited(char('('), delimited(multispace0, expr, multispace0), char(')')).parse(input)?;
+    let (input, additional) = opt(preceded(char('.'), separated_list1(char('.'), chained_var_func))).parse(input)?;
+
+    if additional.is_none() { return Ok((input, ins)); }
+
+    let mut block = Block::default();
+    block.ins.push_back(ins);
+    if let Some(additional) = additional {
+        for ins in additional {
+            block.ins.push_back(ins);
+        }
+    }
+    Ok((input, Arc::new(block)))
 }
 
 

@@ -15,12 +15,24 @@
 //
 
 use std::sync::Arc;
-use nom::{IResult, Parser, combinator::map};
-use crate::{parser::literal::literal, runtime::{instruction::Instruction, instructions::Base}};
+use nom::{character::complete::char, combinator::{map, opt}, multi::separated_list1, sequence::preceded, IResult, Parser};
+use crate::{parser::{expr::graph::chained_var_func, literal::literal}, runtime::{instruction::Instruction, instructions::{block::Block, Base}}};
 
 
 /// Parse a literal expr (instruction).
 /// Pushes a value onto the stack if found.
 pub fn literal_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
-    map(literal, |val| Arc::new(Base::Literal(val)) as Arc<dyn Instruction>).parse(input)
+    let (input, ins) = map(literal, |val| Arc::new(Base::Literal(val)) as Arc<dyn Instruction>).parse(input)?;
+    
+    let (input, additional) = opt(preceded(char('.'), separated_list1(char('.'), chained_var_func))).parse(input)?;
+    if additional.is_none() { return Ok((input, ins)); }
+
+    let mut block = Block::default();
+    block.ins.push_back(ins);
+    if let Some(additional) = additional {
+        for ins in additional {
+            block.ins.push_back(ins);
+        }
+    }
+    Ok((input, Arc::new(block)))
 }
