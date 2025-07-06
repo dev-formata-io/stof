@@ -16,18 +16,17 @@
 
 use std::sync::Arc;
 use arcstr::ArcStr;
-use imbl::Vector;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{ops::{Op, OpIns}, whiles::WhileIns, Base, NOOP, POP_STACK}, proc::ProcEnv, Error, Val}};
 
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 /// Empty instructions are those that (after all exec) do not modify the current stack.
 /// This inserts the instructions to make sure this is the case.
 /// Ex. { .. } instruction blocks that have a return value but no declaration or other use (empty expr with a ;).
 pub struct EmptyIns {
-    pub ins: Vector<Arc<dyn Instruction>>,
+    pub ins: Arc<dyn Instruction>,
 }
 #[typetag::serde(name = "EmptyIns")]
 impl Instruction for EmptyIns {
@@ -38,7 +37,7 @@ impl Instruction for EmptyIns {
         instructions.push(Arc::new(Base::Literal(Val::Str(marker.clone()))));
 
         // do instructions
-        instructions.append(&self.ins);
+        instructions.push(self.ins.clone());
 
         // while the current stack val != marker, drop the value
         let mut while_ins = WhileIns {
@@ -71,16 +70,16 @@ impl Instruction for EmptyIns {
 mod tests {
     use std::sync::Arc;
     use arcstr::literal;
-    use crate::{model::Graph, runtime::{instructions::{empty::EmptyIns, Base}, Runtime, Val}};
+    use crate::{model::Graph, runtime::{instructions::{block::Block, empty::EmptyIns, Base}, Runtime, Val}};
 
     #[test]
     fn empty() {
-        let mut empty = EmptyIns::default();
+        let mut empty = Block::default();
         empty.ins.push_back(Arc::new(Base::Literal(Val::Bool(true))));
         empty.ins.push_back(Arc::new(Base::Literal(Val::Str(literal!("yo, dude")))));
 
         let mut graph = Graph::default();
-        let res = Runtime::eval(&mut graph, Arc::new(empty)).expect("expected pass");
+        let res = Runtime::eval(&mut graph, Arc::new(EmptyIns { ins: Arc::new(empty) })).expect("expected pass");
         assert_eq!(res, Val::Void);
     }
 }

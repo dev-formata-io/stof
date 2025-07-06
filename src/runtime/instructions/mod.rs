@@ -34,6 +34,7 @@ pub mod list;
 pub mod tup;
 pub mod set;
 pub mod map;
+pub mod ret;
 
 
 // static instructions for efficiency

@@ -14,12 +14,22 @@
 // limitations under the License.
 //
 
-pub mod semver;
-pub mod whitespace;
-pub mod number;
-pub mod types;
-pub mod ident;
-pub mod string;
-pub mod literal;
-pub mod expr;
-pub mod statement;
+use std::sync::Arc;
+use serde::{Deserialize, Serialize};
+use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error}};
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Return instruction.
+pub struct RetIns {
+    pub expr: Option<Arc<dyn Instruction>>
+}
+#[typetag::serde(name = "RetIns")]
+impl Instruction for RetIns {
+    fn exec(&self, instructions: &mut Instructions, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<(), Error> {
+        if let Some(ins) = &self.expr {
+            instructions.push(ins.clone());
+        }
+        Ok(())
+    }
+}

@@ -14,15 +14,12 @@
 // limitations under the License.
 //
 
-
 use nom::{bytes::complete::take_while1, combinator::{opt, recognize}, AsChar, IResult, Parser};
-use crate::parser::whitespace::whitespace;
 
 
 /// Parse an identifier (consumes whitespace beforehand).
 /// Identifiers are used as function names, field names, variable names, etc.
 pub fn ident(input: &str) -> IResult<&str, &str> {
-    let (input, _) = whitespace(input)?;
     recognize(
 (
             take_while1(|c| AsChar::is_alpha(c) || c == '_' || c == '@'),
@@ -46,12 +43,12 @@ mod tests {
     #[test]
     fn start_underscore() {
         assert_eq!(ident("_a").unwrap().1, "_a");
-        assert_eq!(ident("     __a1345: str").unwrap().1, "__a1345");
+        assert_eq!(ident("__a1345: str").unwrap().1, "__a1345");
     }
 
     #[test]
     fn start_at() {
         assert_eq!(ident("@a").unwrap().1, "@a");
-        assert_eq!(ident("     @a13@45: str").unwrap().1, "@a13@45");
+        assert_eq!(ident("@a13@45: str").unwrap().1, "@a13@45");
     }
 }
