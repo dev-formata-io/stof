@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use nom::{branch::alt, bytes::complete::tag, combinator::{map, value}, IResult, Parser};
+use nom::{branch::alt, bytes::complete::tag, combinator::value, IResult, Parser};
 use crate::{parser::{number::number, semver::parse_semver, string::string, whitespace::whitespace}, runtime::Val};
 
 

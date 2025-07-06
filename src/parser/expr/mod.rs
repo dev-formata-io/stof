@@ -15,14 +15,14 @@
 //
 
 use std::sync::Arc;
-use nom::{branch::alt, bytes::complete::tag, character::complete::char, multi::{separated_list0, separated_list1}, sequence::{delimited, preceded, separated_pair}, IResult, Parser};
-use crate::{parser::{expr::literal::literal_expr, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, AWAIT}}};
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, multi::{separated_list0, separated_list1}, sequence::{delimited, preceded, separated_pair}, IResult, Parser};
+use crate::{parser::{expr::{literal::literal_expr, math::math_expr}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, AWAIT, NOT_TRUTHY}}};
 
 pub mod literal;
+pub mod math;
 
 
 /// Parse an expression.
-/// Results in a singular Instruction.
 pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     alt([
         await_expr,
@@ -30,6 +30,8 @@ pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
         list_expr,
         map_expr,
         set_expr,
+        math_expr,
+        not_expr,
         literal_expr,
         wrapped_expr,
     ]).parse(input)
@@ -38,6 +40,7 @@ pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 
 /// List contructor expression.
 pub fn list_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+    let (input, _) = whitespace(input)?;
     let (input, exprs) = delimited(
         char('['),
         separated_list0(char(','), expr),
@@ -56,6 +59,7 @@ pub fn list_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 
 /// Tuple contructor expression.
 pub fn tup_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+    let (input, _) = whitespace(input)?;
     let (input, exprs) = delimited(
         char('('),
         separated_list1(char(','), expr),
@@ -81,6 +85,7 @@ pub fn tup_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 
 /// Set contructor expression.
 pub fn set_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+    let (input, _) = whitespace(input)?;
     let (input, exprs) = delimited(
         char('{'),
         separated_list0(char(','), expr),
@@ -99,6 +104,7 @@ pub fn set_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 
 /// Map contructor expression.
 pub fn map_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+    let (input, _) = whitespace(input)?;
     let (input, exprs) = delimited(
         char('{'),
         separated_list0(char(','), separated_pair(expr, char(':'), expr)),
@@ -130,7 +136,21 @@ pub fn await_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 
 /// Wrapped expression.
 pub fn wrapped_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
-    delimited(char('('), expr, char(')')).parse(input)
+    let (input, _) = whitespace(input)?;
+    delimited(char('('), delimited(multispace0, expr, multispace0), char(')')).parse(input)
+}
+
+
+/// Not expression.
+pub fn not_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+    let (input, _) = whitespace(input)?;
+    let (input, ins) = preceded(char('!'), expr).parse(input)?;
+    
+    let mut block = Block::default();
+    block.ins.push_back(ins);
+    block.ins.push_back(NOT_TRUTHY.clone());
+    
+    Ok((input, Arc::new(block)))
 }
 
 

@@ -17,21 +17,18 @@
 use std::sync::Arc;
 use imbl::Vector;
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{POP_SYMBOL_SCOPE, PUSH_SYMBOL_SCOPE}, proc::ProcEnv, Error}};
+use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-/// Block of instructions to be executed.
+/// Simple block of instructions to be executed.
 pub struct Block {
-    pub scoped: bool,
     pub ins: Vector<Arc<dyn Instruction>>,
 }
 #[typetag::serde(name = "Block")]
 impl Instruction for Block {
     fn exec(&self, instructions: &mut Instructions, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<(), Error> {
-        if self.scoped { instructions.push(PUSH_SYMBOL_SCOPE.clone()); }
         instructions.append(&self.ins);
-        if self.scoped { instructions.push(POP_SYMBOL_SCOPE.clone()); }
         Ok(())
     }
 }
