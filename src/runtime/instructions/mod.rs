@@ -61,6 +61,9 @@ lazy_static! {
     pub static ref DUPLICATE: Arc<dyn Instruction> = Arc::new(Base::Dup);
     pub static ref TRUTHY: Arc<dyn Instruction> = Arc::new(Base::Truthy);
     pub static ref NOT_TRUTHY: Arc<dyn Instruction> = Arc::new(Base::NotTruthy);
+    pub static ref TYPE_OF: Arc<dyn Instruction> = Arc::new(Base::TypeOf);
+    pub static ref TYPE_NAME: Arc<dyn Instruction> = Arc::new(Base::TypeName);
+    pub static ref INSTANCE_OF: Arc<dyn Instruction> = Arc::new(Base::InstanceOf);
 
     pub static ref ADD: Arc<dyn Instruction> = Arc::new(Base::Add);
     pub static ref SUBTRACT: Arc<dyn Instruction> = Arc::new(Base::Sub);
@@ -540,9 +543,15 @@ impl Instruction for Base {
                 }
             },
             Self::InstanceOf => {
-                if let Some(var) = env.stack.pop() {
-                    if let Some(obj) = var.try_obj() {
-                        // TODO
+                if let Some(lhs) = env.stack.pop() {
+                    if let Some(rhs) = env.stack.pop() {
+                        if let Ok(instanceof) = lhs.instance_of(&rhs, &graph) {
+                            env.stack.push(Variable::val(instanceof.into()));
+                        } else {
+                            return Err(Error::StackError);
+                        }
+                    } else {
+                        return Err(Error::StackError);
                     }
                 } else {
                     return Err(Error::StackError);

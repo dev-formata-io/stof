@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, multi::{separated_list0, separated_list1}, sequence::{delimited, preceded, separated_pair}, IResult, Parser};
-use crate::{parser::{expr::{graph::{chained_var_func, graph_expr}, literal::literal_expr, math::math_expr}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, AWAIT, NOT_TRUTHY}}};
+use crate::{parser::{expr::{graph::{chained_var_func, graph_expr}, literal::literal_expr, math::math_expr}, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, Base, AWAIT, NOT_TRUTHY, TYPE_NAME, TYPE_OF}}};
 
 pub mod literal;
 pub mod math;
@@ -25,19 +25,33 @@ pub mod graph;
 
 /// Parse an expression.
 pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
-    alt([
+    let (input, ins) = alt([
         await_expr,
+        typename_expr,
+        typeof_expr,
         tup_expr,
         list_expr,
         map_expr,
         set_expr,
         math_expr,
         not_expr,
-        literal_expr,
         graph_expr,
         literal_expr,
         wrapped_expr,
-    ]).parse(input)
+    ]).parse(input)?;
+
+    // TODO: nullcheck operator "??"
+
+    // Optional "as Type" cast
+    let (input, cast_type) = opt(preceded(delimited(multispace0, tag("as"), multispace0), parse_type)).parse(input)?;
+    if let Some(cast) = cast_type {
+        let mut block = Block::default();
+        block.ins.push_back(ins);
+        block.ins.push_back(Arc::new(Base::Cast(cast)));
+        Ok((input, Arc::new(block)))
+    } else {
+        Ok((input, ins))
+    }
 }
 
 
@@ -200,6 +214,33 @@ pub fn not_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     let mut block = Block::default();
     block.ins.push_back(ins);
     block.ins.push_back(NOT_TRUTHY.clone());
+    
+    Ok((input, Arc::new(block)))
+}
+
+
+/// TypeOf expression.
+pub fn typeof_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+    let (input, _) = whitespace(input)?;
+    let (input, ins) = preceded(tag("typeof"), expr).parse(input)?;
+
+    let mut block = Block::default();
+    block.ins.push_back(ins);
+    block.ins.push_back(TYPE_OF.clone());
+    
+    Ok((input, Arc::new(block)))
+}
+
+
+/// TypeName expression.
+/// A specific type instead of a general one Ex. "MyObj" instead of "obj"
+pub fn typename_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+    let (input, _) = whitespace(input)?;
+    let (input, ins) = preceded(tag("typename"), expr).parse(input)?;
+
+    let mut block = Block::default();
+    block.ins.push_back(ins);
+    block.ins.push_back(TYPE_NAME.clone());
     
     Ok((input, Arc::new(block)))
 }

@@ -21,7 +21,7 @@ use arcstr::{literal, ArcStr};
 use bytes::Bytes;
 use imbl::{vector, OrdMap, OrdSet, Vector};
 use serde::{Deserialize, Serialize};
-use crate::{model::{json_value_from_node, DataRef, Func, Graph, NodeRef, SId}, parser::{number::number, semver::parse_semver_alone}, runtime::{Error, Num, NumT, Type, Units, DATA, OBJ}};
+use crate::{model::{json_value_from_node, DataRef, Func, Graph, NodeRef, Prototype, SId, TYPENAME}, parser::{number::number, semver::parse_semver_alone}, runtime::{Error, Num, NumT, Type, Units, DATA, OBJ}};
 
 
 /// Value reference.
@@ -891,7 +891,11 @@ impl Val {
                 Type::Data(DATA)
             },
             Self::Obj(nref) => {
-                // TODO: prototype
+                if let Some(node) = nref.node(graph) {
+                    if let Some(typename) = node.attributes.get(&TYPENAME) {
+                        return Type::Obj(SId::from(&typename.to_string()));
+                    }
+                }
                 Type::Obj(SId::from(&OBJ))
             },
             _ => self.gen_type()
@@ -902,6 +906,25 @@ impl Val {
     /// Is this value of a type?
     pub fn is_type(&self, target: &Type, graph: &Graph) -> bool {
         &self.gen_type() == target || &self.spec_type(graph) == target
+    }
+
+    /// Is this value an instance of a prototype?
+    pub fn instance_of(&self, other: &Self, graph: &Graph) -> Result<bool, Error> {
+        if let Some(obj) = self.try_obj() {
+            if let Some(other_ref) = other.try_obj() {
+                let proto_nrefs = Prototype::prototype_nodes(graph, &obj);
+                for nref in &proto_nrefs { if nref == &other_ref { return Ok(true); } }
+                for nref in proto_nrefs {
+                    if let Ok(contains) = Self::Obj(nref).instance_of(other, graph) {
+                        if contains {
+                            return Ok(true);
+                        }
+                    }
+                }
+                return Ok(false);
+            }
+        }
+        Err(Error::CastVal)
     }
 
     /// Cast this value to a different type.

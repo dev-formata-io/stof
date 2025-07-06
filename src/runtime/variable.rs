@@ -168,6 +168,12 @@ impl Variable {
     }
 
     #[inline]
+    /// Instance of another variable?
+    pub fn instance_of(&self, other: &Self, graph: &Graph) -> Result<bool, Error> {
+        self.val.read().instance_of(other.val.read().deref(), graph)
+    }
+
+    #[inline]
     /// Get this values library name.
     pub fn lib_name(&self, graph: &Graph) -> ArcStr {
         self.val.read().lib_name(graph)

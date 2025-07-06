@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::map, multi::many0, sequence::preceded, IResult, Parser};
-use crate::{parser::{expr::{await_expr, list_expr, literal::literal_expr, map_expr, not_expr, set_expr, tup_expr, wrapped_expr}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{ops::{Op, OpIns}, Base, NOOP}, Num, Val}};
+use crate::{parser::{expr::{await_expr, graph::graph_expr, list_expr, literal::literal_expr, map_expr, not_expr, set_expr, tup_expr, typename_expr, typeof_expr, wrapped_expr}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{ops::{Op, OpIns}, Base, NOOP}, Num, Val}};
 
 
 /// Parse a math expr.
@@ -172,11 +172,14 @@ fn primary(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 fn atom(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     alt([
         await_expr,
+        typename_expr,
+        typeof_expr,
         tup_expr,
         list_expr,
         map_expr,
         set_expr,
         not_expr,
+        graph_expr,
         literal_expr,
         wrapped_expr,
     ]).parse(input)
