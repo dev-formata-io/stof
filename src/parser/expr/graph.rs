@@ -92,10 +92,9 @@ pub(self) fn var_func(input: &str, chained: bool) -> IResult<&str, Arc<dyn Instr
     // Return a call if there is a call, otherwise return a variable lookup.
     if let Some(args) = call {
         Ok((input, Arc::new(FuncCall {
-            add_self: true,
-            stack_lookup: chained,
+            stack: chained,
             func: None,
-            func_lookup: Some(path.into()),
+            search: Some(path.into()),
             args: args.into_iter().collect(),
         })))
     } else {

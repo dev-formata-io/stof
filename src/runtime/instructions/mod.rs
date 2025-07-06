@@ -340,39 +340,80 @@ impl Instruction for Base {
                     graph.remove_data(&func, None);
                 }
             },
-            Self::LoadVariable(name, stack_lookup) => {
-                // TODO: lookup from a context (obj) on the stack (used in chaining)
-                if !name.contains('.') {
-                    if let Some(var) = env.table.get(name) {
-                        env.stack.push(var.stack_var());
-                        return Ok(());
+            Self::LoadVariable(name, stack) => {
+                if *stack {
+                    if let Some(var) = env.stack.pop() {
+                        if let Some(obj) = var.try_obj() {
+                            if let Some(field) = Field::field_from_path(graph, &name, Some(obj.clone())) {
+                                if let Some(field) = graph.get_stof_data::<Field>(&field) {
+                                    env.stack.push(field.value.stack_var());
+                                    return Ok(());
+                                }
+                            } else if let Some(node) = SPath::node(&graph, &name, Some(obj.clone())) {
+                                env.stack.push(Variable::val(Val::Obj(node)));
+                                return Ok(());
+                            } else if let Some(func) = Func::func_from_path(graph, &name, Some(obj)) {
+                                env.stack.push(Variable::val(Val::Fn(func)));
+                                return Ok(());
+                            }
+                        }
                     }
+                    env.stack.push(Variable::val(Val::Null));
+                    return Ok(());
                 }
-                if name.starts_with(SELF_STR_KEYWORD.as_str()) || name.starts_with(SUPER_STR_KEYWORD.as_str()) {
-                    let self_ptr = env.self_ptr();
-                    if let Some(field) = Field::field_from_path(graph, &name, Some(self_ptr.clone())) {
+
+                let mut split_path = name.split('.').collect::<Vec<_>>();
+                let context;
+                if split_path[0] == SELF_STR_KEYWORD.as_str() {
+                    // Self case
+                    context = Variable::val(Val::Obj(env.self_ptr()));
+                    split_path.remove(0);
+                } else if split_path[0] == SUPER_STR_KEYWORD.as_str() {
+                    // Super case
+                    context = Variable::val(Val::Obj(env.self_ptr()));
+                } else if let Some(var) = env.table.get(split_path[0]) {
+                    // Variable case
+                    context = var.stack_var();
+                    split_path.remove(0);
+                } else {
+                    // Global case
+                    if let Some(field) = Field::field_from_path(graph, &name, None) {
                         if let Some(field) = graph.get_stof_data::<Field>(&field) {
                             env.stack.push(field.value.stack_var());
                             return Ok(());
                         }
-                    } else if let Some(node) = SPath::node(&graph, &name, Some(self_ptr.clone())) {
+                    } else if let Some(node) = SPath::node(&graph, &name, None) {
                         env.stack.push(Variable::val(Val::Obj(node)));
                         return Ok(());
-                    } else if let Some(func) = Func::func_from_path(graph, &name, Some(self_ptr.clone())) {
+                    } else if let Some(func) = Func::func_from_path(graph, &name, None) {
                         env.stack.push(Variable::val(Val::Fn(func)));
                         return Ok(());
                     }
-                } else if let Some(field) = Field::field_from_path(graph, &name, None) {
-                    if let Some(field) = graph.get_stof_data::<Field>(&field) {
-                        env.stack.push(field.value.stack_var());
+                    env.stack.push(Variable::val(Val::Null));
+                    return Ok(());
+                }
+
+                // If the split path is empty, add the context and return now
+                if split_path.is_empty() {
+                    env.stack.push(context);
+                    return Ok(());
+                }
+
+                // Else, the context needs to be an object to continue the lookup!
+                let name = split_path.join(".");
+                if let Some(obj) = context.try_obj() {
+                    if let Some(field) = Field::field_from_path(graph, &name, Some(obj.clone())) {
+                        if let Some(field) = graph.get_stof_data::<Field>(&field) {
+                            env.stack.push(field.value.stack_var());
+                            return Ok(());
+                        }
+                    } else if let Some(node) = SPath::node(&graph, &name, Some(obj.clone())) {
+                        env.stack.push(Variable::val(Val::Obj(node)));
+                        return Ok(());
+                    } else if let Some(func) = Func::func_from_path(graph, &name, Some(obj)) {
+                        env.stack.push(Variable::val(Val::Fn(func)));
                         return Ok(());
                     }
-                } else if let Some(node) = SPath::node(&graph, &name, None) {
-                    env.stack.push(Variable::val(Val::Obj(node)));
-                    return Ok(());
-                } else if let Some(func) = Func::func_from_path(graph, &name, None) {
-                    env.stack.push(Variable::val(Val::Fn(func)));
-                    return Ok(());
                 }
                 env.stack.push(Variable::val(Val::Null));
                 return Ok(());
@@ -462,7 +503,7 @@ impl Instruction for Base {
              *****************************************************************************/
             Self::Dup => {
                 if let Some(val) = env.stack.pop() {
-                    env.stack.push(val.clone());
+                    env.stack.push(val.stack_var());
                     env.stack.push(val);
                 } else {
                     return Err(Error::StackError);

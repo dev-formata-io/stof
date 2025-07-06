@@ -15,6 +15,7 @@
 //
 
 use std::ops::Deref;
+use arcstr::ArcStr;
 use serde::{Deserialize, Serialize};
 use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{Error, Type, Val, ValRef}};
 
@@ -164,6 +165,12 @@ impl Variable {
     /// Specific type.
     pub fn spec_type(&self, graph: &Graph) -> Type {
         self.val.read().spec_type(graph)
+    }
+
+    #[inline]
+    /// Get this values library name.
+    pub fn lib_name(&self, graph: &Graph) -> ArcStr {
+        self.val.read().lib_name(graph)
     }
 
     #[inline]

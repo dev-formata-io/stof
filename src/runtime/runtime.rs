@@ -171,10 +171,9 @@ impl Runtime {
         let mut arguments: Vector<Arc<dyn Instruction>> = Vector::default();
         for arg in args { arguments.push_back(Arc::new(Base::Literal(arg))); }
         let instruction = Arc::new(FuncCall {
-            add_self: true,
-            stack_lookup: false,
+            stack: false,
             func: Some(func.clone()),
-            func_lookup: None,
+            search: None,
             args: arguments,
         });
         Self::eval(graph, instruction)

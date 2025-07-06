@@ -14,8 +14,14 @@
 // limitations under the License.
 //
 
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::model::{NodeRef, StofData};
+use crate::model::{DataRef, Graph, NodeRef, SId, SPath, StofData};
+
+
+lazy_static! {
+    pub static ref TYPENAME: SId = SId::from("typename");
+}
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,5 +38,39 @@ impl StofData for Prototype {
 }
 
 impl Prototype {
+    /// Get a prototype from a dot separated name path string.
+    pub fn from_path(graph: &Graph, path: &str, start: Option<NodeRef>) -> Vec<DataRef> {
+        let spath = SPath::from(path);
+        if spath.path.is_empty() { return vec![]; }
+        if let Some(node) = SPath::node(&graph, spath, start) {
+            return Self::prototype_refs(graph, &node);
+        }
+        vec![]
+    }
     
+    /// Prototype references on a node.
+    pub fn prototype_refs(graph: &Graph, node: &NodeRef) -> Vec<DataRef> {
+        let mut protos = Vec::new();
+        if let Some(node) = node.node(graph) {
+            for (_, dref) in &node.data {
+                if dref.type_of::<Self>(&graph) {
+                    protos.push(dref.clone());
+                }
+            }
+        }
+        protos
+    }
+
+    /// Prototype nodes referenced by a node.
+    pub fn prototype_nodes(graph: &Graph, node: &NodeRef) -> Vec<NodeRef> {
+        let mut protos = Vec::new();
+        if let Some(node) = node.node(graph) {
+            for (_, dref) in &node.data {
+                if let Some(proto) = graph.get_stof_data::<Self>(dref) {
+                    protos.push(proto.node.clone());
+                }
+            }
+        }
+        protos
+    }
 }

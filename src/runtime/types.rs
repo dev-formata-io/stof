@@ -282,6 +282,29 @@ impl Type {
     pub fn md_type_of(&self) -> String {
         self.type_of().replace("<", "\\<")
     }
+
+    /// Generic libname.
+    pub fn gen_lib_name(&self) -> ArcStr {
+        match self {
+            Self::Unknown |
+            Self::Null |
+            Self::Union(_) |
+            Self::Void => literal!("Empty"),
+            Self::List => literal!("List"),
+            Self::Map => literal!("Map"),
+            Self::Set => literal!("Set"),
+            Self::Blob => literal!("Blob"),
+            Self::Bool => literal!("Bool"),
+            Self::Fn => literal!("Fn"),
+            Self::Num(_) => literal!("Num"),
+            Self::Data(_) => literal!("Data"),
+            Self::Str => literal!("Str"),
+            Self::Obj(_) => literal!("Obj"),
+            Self::Promise(_) => literal!("Promise"),
+            Self::Ver => literal!("Ver"),
+            Self::Tup(_) => literal!("Tup"),
+        }
+    }
 }
 impl<T: AsRef<str>> From<T> for Type {
     fn from(value: T) -> Self {

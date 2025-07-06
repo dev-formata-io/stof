@@ -1186,6 +1186,19 @@ impl Val {
         }
     }
 
+    /// Library name for this value.
+    pub fn lib_name(&self, graph: &Graph) -> ArcStr {
+        if let Some(dref) = self.try_data() {
+            if let Some(data) = dref.data(graph) {
+                if !data.core_data() {
+                    // TODO: check that the lib exists
+                    return data.tagname().into();
+                }
+            }
+        }
+        self.spec_type(graph).gen_lib_name()
+    }
+
 
     /*****************************************************************************
      * Boolean.
