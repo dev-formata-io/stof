@@ -14,8 +14,9 @@
 // limitations under the License.
 //
 
-use nom::{bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, multi::separated_list0, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{model::{Func, FuncDoc, Param, SId, ASYNC_FUNC_ATTR}, parser::{context::ParseContext, expr::expr, ident::ident, parse_attributes, statement::block, types::parse_type, whitespace::doc_comment}, runtime::Val};
+use std::sync::Arc;
+use nom::{bytes::complete::tag, branch::alt, character::complete::{char, multispace0}, combinator::opt, multi::separated_list0, sequence::{delimited, preceded, terminated}, IResult, Parser};
+use crate::{model::{Func, FuncDoc, Param, SId, ASYNC_FUNC_ATTR}, parser::{context::ParseContext, expr::expr, ident::ident, parse_attributes, statement::block, types::parse_type, whitespace::doc_comment}, runtime::{instruction::Instruction, instructions::Base, Val}};
 
 
 /// Parse a function into a parse context.
@@ -36,7 +37,7 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
     }
 
     let (input, name) = preceded(tag("fn"), preceded(multispace0, ident)).parse(input)?;
-    let (input, params) = delimited(char('('), separated_list0(char(','), parameter), char(')')).parse(input)?;
+    let (input, params) = delimited(char('('), separated_list0(char(','), alt((parameter, opt_parameter))), char(')')).parse(input)?;
     let (input, return_type) = opt(preceded(delimited(multispace0, tag("->"), multispace0), parse_type)).parse(input)?;
     let (input, instructions) = block(input)?;
 
@@ -62,7 +63,7 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
 
 
 /// Parse a function parameter.
-pub fn parameter(input: &str) -> IResult<&str, Param> {
+fn parameter(input: &str) -> IResult<&str, Param> {
     let (input, _) = multispace0(input)?;
     let (input, name) = ident(input)?;
     let (input, param_type) = preceded(preceded(multispace0, char(':')), preceded(multispace0, parse_type)).parse(input)?;
@@ -76,6 +77,29 @@ pub fn parameter(input: &str) -> IResult<&str, Param> {
         name: SId::from(name),
         param_type,
         default
+    };
+    Ok((input, param))
+}
+
+
+/// Parse an optional function parameter.
+fn opt_parameter(input: &str) -> IResult<&str, Param> {
+    let (input, _) = multispace0(input)?;
+    let (input, name) = ident(input)?;
+    let (input, param_type) = preceded(preceded(multispace0, tag("?:")), preceded(multispace0, parse_type)).parse(input)?;
+
+    let (input, default) = opt(
+        preceded(delimited(multispace0, char('='), multispace0), expr)
+    ).parse(input)?;
+    let (input, _) = multispace0(input)?;
+
+    let mut defalt_expr = Arc::new(Base::Literal(Val::Null)) as Arc<dyn Instruction>;
+    if let Some(def) = default { defalt_expr = def; } // just in case...
+
+    let param = Param {
+        name: SId::from(name),
+        param_type,
+        default: Some(defalt_expr)
     };
     Ok((input, param))
 }
@@ -98,7 +122,7 @@ mod tests {
          * # This is a test function.
          * This function represents the first ever function in Stof v2.
          */
-        fn main(x: float = 5) -> float { x }
+        fn main(x: float = 5, optional?: str) -> float { x }
 
         "#, &mut context).unwrap();
 

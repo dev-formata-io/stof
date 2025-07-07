@@ -84,6 +84,26 @@ pub(self) fn parse_block_doc_comment(input: &str) -> IResult<&str, &str> {
     Ok((input, out))
 }
 
+/// Parse a block style inner doc comment.
+pub fn parse_inner_doc_comment(input: &str) -> IResult<&str, String> {
+    let (input, _) = tag("/*!").parse(input)?;
+    let (input, out) = take_until("*/").parse(input)?;
+    let (input, _) = tag("*/").parse(input)?;
+
+    // filter * from the start of all comment lines if they start with it.
+    let mut filtered = String::default();
+    for mut line in out.split('\n') {
+        line = line.trim();
+        if line.starts_with('*') {
+            line = line.trim_start_matches('*').trim(); // get to the content
+        }
+        filtered.push_str(&format!("{line}\n")); // preserves spacing & formatting
+    }
+    filtered = filtered.trim().into();
+
+    Ok((input, filtered))
+}
+
 
 #[cfg(test)]
 mod tests {
