@@ -17,11 +17,12 @@
 use std::sync::Arc;
 use imbl::{vector, Vector};
 use nom::{branch::alt, combinator::map, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, value}, multi::fold_many0, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
-use crate::{parser::{expr::expr, statement::{assign::assign, declare::declare_statement, ifs::if_statement}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{empty::EmptyIns, ret::RetIns, POP_SYMBOL_SCOPE, PUSH_SYMBOL_SCOPE}}};
+use crate::{parser::{expr::expr, statement::{assign::assign, declare::declare_statement, ifs::if_statement, whiles::{break_statement, continue_statement, while_statement}}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{empty::EmptyIns, ret::RetIns, POP_SYMBOL_SCOPE, PUSH_SYMBOL_SCOPE}}};
 
 pub mod declare;
 pub mod assign;
 pub mod ifs;
+pub mod whiles;
 
 
 /// Parse a block of statements.
@@ -63,15 +64,18 @@ fn multistatements(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
 /// Parse a singular statement into instructions.
 pub fn statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
     let (input, statements) = alt((
+        // control
+        if_statement,
+        while_statement,
+        terminated(continue_statement, preceded(multispace0, char(';'))),
+        terminated(break_statement, preceded(multispace0, char(';'))),
+        
         // return
         return_statement,
 
         // declarations & assignment
         terminated(declare_statement, preceded(multispace0, char(';'))),
         terminated(assign, preceded(multispace0, char(';'))),
-
-        // control
-        if_statement,
         
         // block, standalone expr, and empty statement
         expr_statement,
@@ -157,5 +161,28 @@ mod tests {
         let mut graph = Graph::default();
         let val = Runtime::eval(&mut graph, Arc::new(Block { ins: res })).unwrap();
         assert_eq!(val, 300.into());
+    }
+
+
+    #[test]
+    fn while_statement() {
+        let (_input, res) = block(r#"{
+            let x = 0;
+            let y = 200;
+            'outer while (x < 1e4) {
+                while (y > 0) {
+                    if (y < 5 || x > 300) break 'outer;
+                    y -= 1;
+                }
+                x += 1;
+            }
+            y
+        }"#).unwrap();
+
+        //println!("{res:?}");
+        let mut graph = Graph::default();
+        let val = Runtime::eval(&mut graph, Arc::new(Block { ins: res })).unwrap();
+        //println!("{val:?}");
+        assert_eq!(val, 4.into());
     }
 }

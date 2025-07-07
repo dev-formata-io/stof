@@ -51,9 +51,6 @@ impl Instruction for WhileIns {
 
         instructions.push(Arc::new(Base::Tag(top_tag.clone())));
         {
-            // Create another symbol scope just for this iteration
-            instructions.push(PUSH_SYMBOL_SCOPE.clone());
-
             // Test if the value is truthy, go to end_tag if not
             instructions.push(self.test.clone());
             instructions.push(TRUTHY.clone());
@@ -70,15 +67,13 @@ impl Instruction for WhileIns {
                 instructions.push(inc.clone());
             }
 
-            // Get rid of the iteration symbol table and go back to the top
-            instructions.push(POP_SYMBOL_SCOPE.clone());
+            // Go back to the top
             instructions.push(Arc::new(Base::CtrlBackTo(top_tag)));
         }
 
         // Break statements will go here, as well as our jump if not truthy
         instructions.push(Arc::new(Base::Tag(self.break_tag.clone())));
         instructions.push(Arc::new(Base::Tag(end_tag)));
-        instructions.push(POP_SYMBOL_SCOPE.clone());
         instructions.push(POP_SYMBOL_SCOPE.clone());
         Ok(())
     }

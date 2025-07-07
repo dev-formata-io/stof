@@ -70,14 +70,14 @@ pub fn number(input: &str) -> IResult<&str, Val> {
             opt(
                 (
                     tag("."),
-                    many0(one_of("0123456789_")),
-                    opt((
-                        alt((tag("e"), tag("E"))),
-                        opt(alt((tag("+"), tag("-")))),
-                        many1(one_of("0123456789_")),
-                    ))
+                    many0(one_of("0123456789_"))
                 )
-            )
+            ),
+            opt((
+                alt((tag("e"), tag("E"))),
+                opt(alt((tag("+"), tag("-")))),
+                many1(one_of("0123456789_")),
+            ))
         )
     ).parse(input)?;
 
