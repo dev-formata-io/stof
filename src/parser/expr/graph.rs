@@ -27,8 +27,23 @@ use crate::{model::SId, parser::{expr::expr, ident::ident, whitespace::whitespac
 pub fn graph_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     let (input, _) = whitespace(input)?;
 
+    // Is this a reference?
+    let (input, as_ref) = opt(char('&')).parse(input)?;
+
     // Get a variable or function call onto the stack, then optionally chain on more!
-    let (input, first) = var_func(input, false)?;
+    let (input, mut first) = var_func(input, false)?;
+    if as_ref.is_some() {
+        if let Some(base) = first.as_dyn_any().downcast_ref::<Base>() {
+            match base {
+                Base::LoadVariable(path, chained, _) => {
+                    first = Arc::new(Base::LoadVariable(path.clone(), *chained, true));
+                },
+                _ => {}
+            }
+        }
+    }
+
+    // Get the rest if any more!
     let (input, additional) = separated_list0(char('.'), chained_var_func).parse(input)?;
 
     // If only one, then don't create a block...
@@ -73,7 +88,7 @@ pub(self) fn var_func(input: &str, chained: bool) -> IResult<&str, Arc<dyn Instr
             args: args.into_iter().collect(),
         })))
     } else {
-        Ok((input, Arc::new(Base::LoadVariable(path.into(), chained))))
+        Ok((input, Arc::new(Base::LoadVariable(path.into(), chained, false))))
     }
 }
 

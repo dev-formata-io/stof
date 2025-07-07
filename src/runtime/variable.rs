@@ -26,6 +26,7 @@ use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{Error, Type, Val, V
 pub struct Variable {
     pub val: ValRef<Val>,
     pub mutable: bool,
+    pub as_ref: bool,
     pub vtype: Option<Type>,
 }
 impl Variable {
@@ -35,6 +36,7 @@ impl Variable {
             mutable,
             val: ValRef::new(val),
             vtype: None,
+            as_ref: false,
         };
         if typed {
             var.vtype = Some(var.spec_type(graph));
@@ -49,6 +51,7 @@ impl Variable {
             mutable: true,
             val: ValRef::new(val),
             vtype: None,
+            as_ref: false,
         }
     }
 
@@ -56,27 +59,34 @@ impl Variable {
     /// Will error if not able to set.
     pub fn set(&mut self, var: &Variable, graph: &mut Graph) -> Result<(), Error> {
         if self.mutable {
-            if var.value_type() {
-                // Set by value - clone the internal value and set
-                let mut val = var.val.read().clone();
-                if let Some(vtype) = &self.vtype {
-                    if vtype != &val.spec_type(graph) {
-                        if let Err(error) = val.cast(vtype, graph) {
-                            return Err(error);
-                        }
-                    }
-                }
-                *self.val.write() = val;
-            } else {
-                // Set by reference - set the val as a clone (modifying here will modify there)
+            if var.as_ref {
+                self.val = var.val.clone();
+                self.as_ref = true;
+
                 if let Some(vtype) = &self.vtype {
                     if vtype != &var.spec_type(graph) {
-                        if let Err(error) = var.cast(vtype, graph) {
+                        if let Err(error) = self.val.write().cast(vtype, graph) {
                             return Err(error);
                         }
                     }
+                } else {
+                    self.vtype = var.vtype.clone();
                 }
-                self.val = var.val.clone();
+                return Ok(());
+            }
+
+            let mut val = var.val.read().clone();
+            if let Some(vtype) = &self.vtype {
+                if vtype != &val.spec_type(graph) {
+                    if let Err(error) = val.cast(vtype, graph) {
+                        return Err(error);
+                    }
+                }
+            }
+            if self.value_type() && !self.as_ref {
+                self.val = ValRef::new(val);
+            } else {
+                *self.val.write() = val;
             }
             Ok(())
         } else {
@@ -87,11 +97,13 @@ impl Variable {
     /// Stack var from this var (LoadVariable).
     /// This is the variable that gets loaded onto the stack.
     /// Not always a direct clone because of value types.
-    pub fn stack_var(&self) -> Self {
+    pub fn stack_var(&self, by_ref: bool) -> Self {
         let mut clone = self.clone();
-        if self.value_type() {
+        if !by_ref && !self.as_ref && self.value_type() {
             let val = self.val.read().clone();
             clone.val = ValRef::new(val);
+        } else if by_ref {
+            clone.as_ref = true;
         }
         clone
     }

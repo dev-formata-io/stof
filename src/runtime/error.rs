@@ -35,6 +35,7 @@ pub enum Error {
     AssignSelf,
     AssignSuper,
     AssignRootNonObj,
+    AssignExistingRoot,
 
     JumpTable,
     StackError,

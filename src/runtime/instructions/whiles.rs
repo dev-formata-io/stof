@@ -104,14 +104,14 @@ mod tests {
 
         let mut test_block = Block::default();
         test_block.ins.push_back(Arc::new(OpIns {
-            lhs: Arc::new(Base::LoadVariable(literal!("i"), false)),
+            lhs: Arc::new(Base::LoadVariable(literal!("i"), false, false)),
             op: Op::Less,
             rhs: Arc::new(Base::Literal(Val::Num(Num::Int(100)))),
         }));
 
         let mut inc_block = Block::default();
         inc_block.ins.push_back(Arc::new(OpIns {
-            lhs: Arc::new(Base::LoadVariable(literal!("i"), false)),
+            lhs: Arc::new(Base::LoadVariable(literal!("i"), false, false)),
             op: Op::Add,
             rhs: Arc::new(Base::Literal(Val::Num(Num::Int(1)))),
         }));
@@ -128,7 +128,7 @@ mod tests {
         };
         //while_loop.ins.push_back(Arc::new(Base::CtrlForwardTo(literal!("continue"))));
         while_loop.ins.push_back(Arc::new(OpIns {
-            lhs: Arc::new(Base::LoadVariable(literal!("total"), false)),
+            lhs: Arc::new(Base::LoadVariable(literal!("total"), false, false)),
             op: Op::Add,
             rhs: Arc::new(Base::Literal(Val::Num(Num::Int(1)))),
         }));
@@ -136,7 +136,7 @@ mod tests {
         //while_loop.ins.push_back(Arc::new(Base::CtrlForwardTo(literal!("break"))));
 
         outer_block.ins.push_back(Arc::new(while_loop));
-        outer_block.ins.push_back(Arc::new(Base::LoadVariable(literal!("total"), false))); // return
+        outer_block.ins.push_back(Arc::new(Base::LoadVariable(literal!("total"), false, false))); // return
 
         // run
         let mut graph = Graph::default();

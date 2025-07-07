@@ -88,7 +88,7 @@ pub fn number(input: &str) -> IResult<&str, Val> {
     if let Some(units) = units {
         return Ok((input, Val::Num(Num::Units(float_value, units))));
     }
-    if float_value.fract().abs() < 1e-10 {
+    if !recognized_float_str.contains('.') && float_value.fract().abs() < 1e-10 {
         Ok((input, Val::Num(Num::Int(float_value.trunc() as i64))))
     } else {
         Ok((input, Val::Num(Num::Float(float_value))))

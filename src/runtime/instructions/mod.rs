@@ -151,7 +151,7 @@ pub enum Base {
     DeclareConstVar(ArcStr, bool), // requires val on stack (optionally typed)
     
     DropVariable(ArcStr), // removes from the st/graph
-    LoadVariable(ArcStr, bool), // loads st/graph to stack
+    LoadVariable(ArcStr, bool, bool), // loads st/graph to stack
     SetVariable(ArcStr), // requires val on stack
 
     // Values.
@@ -277,7 +277,7 @@ impl Instruction for Base {
             Self::PopSymbolScope => { env.table.pop(); },
             Self::DeclareVar(name, typed) => {
                 if !env.table.can_declare(name) { return Err(Error::DeclareExisting); }
-                if name.contains('.') { return Err(Error::DeclareInvalidName); }
+                if name.contains('.') || name == &SELF_STR_KEYWORD || name == &SUPER_STR_KEYWORD { return Err(Error::DeclareInvalidName); }
                 if let Some(mut var) = env.stack.pop() {
                     var.mutable = true;
                     if *typed {
@@ -290,7 +290,7 @@ impl Instruction for Base {
             },
             Self::DeclareConstVar(name, typed) => {
                 if !env.table.can_declare(name) { return Err(Error::DeclareExisting); }
-                if name.contains('.') { return Err(Error::DeclareInvalidName); }
+                if name.contains('.') || name == &SELF_STR_KEYWORD || name == &SUPER_STR_KEYWORD { return Err(Error::DeclareInvalidName); }
                 if let Some(mut var) = env.stack.pop() {
                     var.mutable = false;
                     if *typed {
@@ -344,13 +344,13 @@ impl Instruction for Base {
                     graph.remove_data(&func, None);
                 }
             },
-            Self::LoadVariable(name, stack) => {
+            Self::LoadVariable(name, stack, by_ref) => {
                 if *stack {
                     if let Some(var) = env.stack.pop() {
                         if let Some(obj) = var.try_obj() {
                             if let Some(field) = Field::field_from_path(graph, &name, Some(obj.clone())) {
                                 if let Some(field) = graph.get_stof_data::<Field>(&field) {
-                                    env.stack.push(field.value.stack_var());
+                                    env.stack.push(field.value.stack_var(*by_ref));
                                     return Ok(());
                                 }
                             } else if let Some(node) = SPath::node(&graph, &name, Some(obj.clone())) {
@@ -377,13 +377,13 @@ impl Instruction for Base {
                     context = Variable::val(Val::Obj(env.self_ptr()));
                 } else if let Some(var) = env.table.get(split_path[0]) {
                     // Variable case
-                    context = var.stack_var();
+                    context = var.stack_var(*by_ref);
                     split_path.remove(0);
                 } else {
                     // Global case
                     if let Some(field) = Field::field_from_path(graph, &name, None) {
                         if let Some(field) = graph.get_stof_data::<Field>(&field) {
-                            env.stack.push(field.value.stack_var());
+                            env.stack.push(field.value.stack_var(*by_ref));
                             return Ok(());
                         }
                     } else if let Some(node) = SPath::node(&graph, &name, None) {
@@ -408,7 +408,7 @@ impl Instruction for Base {
                 if let Some(obj) = context.try_obj() {
                     if let Some(field) = Field::field_from_path(graph, &name, Some(obj.clone())) {
                         if let Some(field) = graph.get_stof_data::<Field>(&field) {
-                            env.stack.push(field.value.stack_var());
+                            env.stack.push(field.value.stack_var(*by_ref));
                             return Ok(());
                         }
                     } else if let Some(node) = SPath::node(&graph, &name, Some(obj.clone())) {
@@ -428,14 +428,14 @@ impl Instruction for Base {
                         return Ok(());
                     }
 
-                    if name.starts_with(SELF_STR_KEYWORD.as_str()) || name.starts_with(SUPER_STR_KEYWORD.as_str()) {
-                        if name == &SELF_STR_KEYWORD {
-                            return Err(Error::AssignSelf);
-                        }
-                        if name == &SUPER_STR_KEYWORD {
-                            return Err(Error::AssignSuper);
-                        }
-                        
+                    if name == &SELF_STR_KEYWORD {
+                        return Err(Error::AssignSelf);
+                    }
+                    if name == &SUPER_STR_KEYWORD {
+                        return Err(Error::AssignSuper);
+                    }
+
+                    if name.starts_with("self.") || name.starts_with("super.") {
                         let self_ptr = env.self_ptr();
                         if let Some(field_ref) = Field::field_from_path(graph, &name, Some(self_ptr.clone())) {
                             let mut fvar = None;
@@ -479,6 +479,7 @@ impl Instruction for Base {
                         let mut path = SPath::from(name);
                         let field_name = path.path.pop().unwrap();
                         if path.path.len() < 1 { return Err(Error::AssignSelf); }
+
                         if let Some(node) = graph.ensure_named_nodes(path, None, true, None) {
                             let field = Field::new(var, None);
                             graph.insert_stof_data(&node, field_name, Box::new(field), None);
@@ -488,7 +489,12 @@ impl Instruction for Base {
                         }
                     } else {
                         if let Some(nref) = var.try_obj() {
-                            // TODO: drop old root?
+                            // If a root with this name already exists, then error instead of drop or collide
+                            // This is because it's not a desireable behavior to merge, collide, or drop large sections of data without explicitly saying so
+                            if let Some(_) = graph.find_root_named(name) {
+                                return Err(Error::AssignExistingRoot);
+                            }
+
                             if let Some(node) = nref.node_mut(graph) {
                                 node.name = name.into();
                             }
@@ -507,7 +513,7 @@ impl Instruction for Base {
              *****************************************************************************/
             Self::Dup => {
                 if let Some(val) = env.stack.pop() {
-                    env.stack.push(val.stack_var());
+                    env.stack.push(val.stack_var(false));
                     env.stack.push(val);
                 } else {
                     return Err(Error::StackError);
