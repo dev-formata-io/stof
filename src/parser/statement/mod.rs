@@ -17,10 +17,11 @@
 use std::sync::Arc;
 use imbl::{vector, Vector};
 use nom::{branch::alt, combinator::map, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, value}, multi::fold_many0, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
-use crate::{parser::{expr::expr, statement::{assign::assign, declare::declare_statement}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{empty::EmptyIns, ret::RetIns, POP_SYMBOL_SCOPE, PUSH_SYMBOL_SCOPE}}};
+use crate::{parser::{expr::expr, statement::{assign::assign, declare::declare_statement, ifs::if_statement}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{empty::EmptyIns, ret::RetIns, POP_SYMBOL_SCOPE, PUSH_SYMBOL_SCOPE}}};
 
 pub mod declare;
 pub mod assign;
+pub mod ifs;
 
 
 /// Parse a block of statements.
@@ -68,6 +69,9 @@ pub fn statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
         // declarations & assignment
         terminated(declare_statement, preceded(multispace0, char(';'))),
         terminated(assign, preceded(multispace0, char(';'))),
+
+        // control
+        if_statement,
         
         // block, standalone expr, and empty statement
         expr_statement,
@@ -137,5 +141,21 @@ mod tests {
         let mut graph = Graph::default();
         let val = Runtime::eval(&mut graph, Arc::new(Block { ins: res })).unwrap();
         assert_eq!(val, 40.into());
+    }
+
+    #[test]
+    fn if_statement() {
+        let (_input, res) = block(r#"{
+            let x = 10;
+            if (x > 40) 100
+            else if (x == 32) { 42 } // this is a comment here
+            else if (x == 10) 300
+            else 200
+        }"#).unwrap();
+
+        //println!("{res:?}");
+        let mut graph = Graph::default();
+        let val = Runtime::eval(&mut graph, Arc::new(Block { ins: res })).unwrap();
+        assert_eq!(val, 300.into());
     }
 }

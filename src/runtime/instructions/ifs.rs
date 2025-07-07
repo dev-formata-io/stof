@@ -16,17 +16,18 @@
 
 use std::sync::Arc;
 use arcstr::ArcStr;
+use imbl::Vector;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack}, proc::ProcEnv, Error}};
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 /// If statement.
 pub struct IfIns {
-    if_test: Option<Arc<dyn Instruction>>,
-    if_ins: Arc<dyn Instruction>,
-    el_ins: Arc<dyn Instruction>, // place another if here for "else if"
+    pub if_test: Option<Arc<dyn Instruction>>,
+    pub if_ins: Vector<Arc<dyn Instruction>>,
+    pub el_ins: Vector<Arc<dyn Instruction>>, // place another if here for "else if"
 }
 #[typetag::serde(name = "IfIns")]
 impl Instruction for IfIns {
@@ -38,10 +39,10 @@ impl Instruction for IfIns {
         let if_tag: ArcStr = nanoid!(10).into();
         let else_tag: ArcStr = nanoid!(10).into();
         instructions.push(Arc::new(Base::CtrlForwardToIfNotTruthy(else_tag.clone(), ConsumeStack::Consume)));
-        instructions.push(self.if_ins.clone());
+        instructions.append(&self.if_ins);
         instructions.push(Arc::new(Base::CtrlForwardTo(if_tag.clone())));
         instructions.push(Arc::new(Base::Tag(else_tag)));
-        instructions.push(self.el_ins.clone());
+        instructions.append(&self.el_ins);
         instructions.push(Arc::new(Base::Tag(if_tag)));
         Ok(())
     }
@@ -56,11 +57,11 @@ mod tests {
 
     #[test]
     fn if_true() {
-        let ins = IfIns {
-            if_test: Some(Arc::new(Base::Literal(Val::Bool(true)))),
-            if_ins: Arc::new(Base::Literal(Val::Str(literal!("a")))),
-            el_ins: Arc::new(Base::Literal(Val::Str(literal!("b")))),
-        };
+        let mut ins = IfIns::default();
+        ins.if_test = Some(Arc::new(Base::Literal(Val::Bool(true))));
+        ins.if_ins.push_back(Arc::new(Base::Literal(Val::Str(literal!("a")))));
+        ins.el_ins.push_back(Arc::new(Base::Literal(Val::Str(literal!("b")))));
+
         let mut graph = Graph::default();
         let res = Runtime::eval(&mut graph, Arc::new(ins)).expect("expected pass");
         assert_eq!(res, "a".into());
@@ -68,11 +69,11 @@ mod tests {
 
     #[test]
     fn if_false() {
-        let ins = IfIns {
-            if_test: Some(Arc::new(Base::Literal(Val::Bool(false)))),
-            if_ins: Arc::new(Base::Literal(Val::Str(literal!("a")))),
-            el_ins: Arc::new(Base::Literal(Val::Str(literal!("b")))),
-        };
+        let mut ins = IfIns::default();
+        ins.if_test = Some(Arc::new(Base::Literal(Val::Bool(false))));
+        ins.if_ins.push_back(Arc::new(Base::Literal(Val::Str(literal!("a")))));
+        ins.el_ins.push_back(Arc::new(Base::Literal(Val::Str(literal!("b")))));
+
         let mut graph = Graph::default();
         let res = Runtime::eval(&mut graph, Arc::new(ins)).expect("expected pass");
         assert_eq!(res, "b".into());
