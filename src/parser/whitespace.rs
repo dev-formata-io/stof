@@ -18,9 +18,9 @@ use nom::{branch::alt, bytes::complete::{tag, take_until}, character::complete::
 
 
 /// Doc comment.
-/// Also eats up whitespace after.
+/// Also eats up whitespace before and after.
 pub fn doc_comment(input: &str) -> IResult<&str, String> {
-    let (input, _) = multispace0(input)?;
+    let (input, _) = whitespace(input)?;
     let (input, inner) = separated_list0(multispace0, alt((parse_block_doc_comment, parse_single_line_doc_comment))).parse(input)?;
 
     let mut comments = String::default();
@@ -57,6 +57,12 @@ pub fn whitespace(input: &str) -> IResult<&str, &str> {
 /// Parse a single line comment "// comment here \n"
 pub(self) fn parse_single_line_comment(input: &str) -> IResult<&str, &str> {
     let (input, _) = tag("//").parse(input)?;
+
+    if input.starts_with('/') {
+        // this is actually a doc comment, so error
+        return Err(nom::Err::Error(nom::error::Error { input: "", code: nom::error::ErrorKind::IsNot }));
+    }
+
     let (input, out) = not_line_ending(input)?;
     Ok((input, out))
 }
@@ -64,6 +70,12 @@ pub(self) fn parse_single_line_comment(input: &str) -> IResult<&str, &str> {
 /// Parse a block style comment.
 pub(self) fn parse_block_comment(input: &str) -> IResult<&str, &str> {
     let (input, _) = tag("/*").parse(input)?;
+    
+    if input.starts_with('*') {
+        // this is actually a doc comment, so error
+        return Err(nom::Err::Error(nom::error::Error { input: "", code: nom::error::ErrorKind::IsNot }));
+    }
+
     let (input, _) = take_until("*/").parse(input)?;
     let (input, out) = tag("*/").parse(input)?;
     Ok((input, out))

@@ -16,20 +16,25 @@
 
 use std::sync::Arc;
 use nom::{bytes::complete::tag, branch::alt, character::complete::{char, multispace0}, combinator::opt, multi::separated_list0, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{model::{Func, FuncDoc, Param, SId, ASYNC_FUNC_ATTR}, parser::{context::ParseContext, expr::expr, ident::ident, parse_attributes, statement::block, types::parse_type, whitespace::doc_comment}, runtime::{instruction::Instruction, instructions::Base, Val}};
+use crate::{model::{Func, FuncDoc, Param, SId, ASYNC_FUNC_ATTR}, parser::{context::ParseContext, expr::expr, ident::ident, parse_attributes, statement::block, types::parse_type, whitespace::{doc_comment, whitespace}}, runtime::{instruction::Instruction, instructions::Base, Val}};
 
 
 /// Parse a function into a parse context.
 pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, ()> {
     let mut func = Func::default();
-    let (input, attrs) = parse_attributes(input, context)?;
-    func.attributes = attrs;
 
     // Doc comments & whitespace before a function definition
-    let (input, comments) = doc_comment(input)?;
+    let (input, mut comments) = doc_comment(input)?;
 
     let (input, attrs) = parse_attributes(input, context)?;
     for (k, v) in attrs { func.attributes.insert(k, v); }
+
+    let (input, more_comments) = doc_comment(input)?;
+    if more_comments.len() > 0 { if comments.len() > 0 { comments.push('\n'); }  comments.push_str(&more_comments); }
+
+    let (input, attrs) = parse_attributes(input, context)?;
+    for (k, v) in attrs { func.attributes.insert(k, v); }
+    let (input, _) = whitespace(input)?; // clean up anything more before signature...
 
     let (input, async_fn) = opt(terminated(tag("async"), multispace0)).parse(input)?;
     if async_fn.is_some() && !func.attributes.contains_key(ASYNC_FUNC_ATTR.as_str()) {
@@ -113,15 +118,17 @@ mod tests {
     fn basic_func() {
         let mut graph = Graph::default();
         let mut context = ParseContext::new(&mut graph);
-        //context.docs = true;
+        context.docs = true;
 
         let (_input, ()) = parse_function(r#"
  
+        // This is an ignored comment
         #[test('hello')]
         /**
          * # This is a test function.
          * This function represents the first ever function in Stof v2.
          */
+        #[another] // heres another ignored comment.
         fn main(x: float = 5, optional?: str) -> float { x }
 
         "#, &mut context).unwrap();
