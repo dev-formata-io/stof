@@ -16,7 +16,7 @@
 
 use nom::{bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded}, IResult, Parser};
 use rustc_hash::FxHashMap;
-use crate::{model::SId, parser::{context::ParseContext, expr::expr, ident::ident, whitespace::whitespace}, runtime::Val};
+use crate::{parser::{context::ParseContext, expr::expr, ident::ident, whitespace::whitespace}, runtime::Val};
 
 
 pub mod semver;
@@ -34,7 +34,7 @@ pub mod func;
 
 
 /// Parse attributes.
-pub(self) fn parse_attributes<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, FxHashMap<SId, Val>> {
+pub(self) fn parse_attributes<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, FxHashMap<String, Val>> {
     let mut map = FxHashMap::default();
     let mut input = input;
     loop {
@@ -64,7 +64,7 @@ pub(self) fn parse_attributes<'a>(input: &'a str, context: &mut ParseContext) ->
 
 
 /// Parse attribute.
-pub(self) fn parse_attribute<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, (SId, Val)> {
+pub(self) fn parse_attribute<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, (String, Val)> {
     let (input, _) = whitespace(input)?;
     let (input, name) = preceded(tag("#["), preceded(multispace0, ident)).parse(input)?;
     let (input, value_expr) = opt(delimited(char('('), expr, char(')'))).parse(input)?;
@@ -81,5 +81,5 @@ pub(self) fn parse_attribute<'a>(input: &'a str, context: &mut ParseContext) -> 
             }));
         }
     }
-    Ok((input, (SId::from(name), val)))
+    Ok((input, (String::from(name), val)))
 }

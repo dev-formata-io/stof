@@ -15,17 +15,17 @@
 //
 
 use bytes::Bytes;
-use crate::{model::{Graph, NodeRef, SId}, runtime::Error};
+use crate::{model::{Graph, NodeRef}, runtime::Error};
 
 
 /// Format.
 pub trait Format: std::fmt::Debug + Send + Sync {
     /// Identifiers for this format.
     /// These will be the ways this format is referenced on the graph.
-    fn identifiers(&self) -> Vec<SId>;
+    fn identifiers(&self) -> Vec<String>;
 
     /// Content type for this format.
-    fn content_type(&self) -> SId;
+    fn content_type(&self) -> String;
 
     /// String import.
     #[allow(unused)]

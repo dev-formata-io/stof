@@ -892,7 +892,7 @@ impl Val {
             },
             Self::Obj(nref) => {
                 if let Some(node) = nref.node(graph) {
-                    if let Some(typename) = node.attributes.get(&TYPENAME) {
+                    if let Some(typename) = node.attributes.get(TYPENAME.as_str()) {
                         return Type::Obj(SId::from(&typename.to_string()));
                     }
                 }

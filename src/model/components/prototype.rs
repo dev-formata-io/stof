@@ -14,14 +14,13 @@
 // limitations under the License.
 //
 
-use lazy_static::lazy_static;
+use arcstr::{literal, ArcStr};
 use serde::{Deserialize, Serialize};
-use crate::model::{DataRef, Graph, NodeRef, SId, SPath, StofData};
+use crate::model::{DataRef, Graph, NodeRef, SPath, StofData};
 
 
-lazy_static! {
-    pub static ref TYPENAME: SId = SId::from("typename");
-}
+/// Const typename literal.
+pub const TYPENAME: ArcStr = literal!("typename");
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -16,6 +16,7 @@
 
 use std::{any::Any, sync::Arc};
 use bytes::Bytes;
+use colored::Colorize;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 use crate::{model::{Data, DataRef, Format, JsonFormat, Node, NodeRef, SId, SPath, StofData, INVALID_NODE_NEW}, runtime::{table::SymbolTable, Error}};
@@ -40,7 +41,7 @@ pub struct Graph {
     pub data_deadpool: FxHashMap<DataRef, Data>,
 
     #[serde(skip)]
-    pub formats: FxHashMap<SId, Arc<dyn Format>>,
+    pub formats: FxHashMap<String, Arc<dyn Format>>,
 }
 impl Default for Graph {
     fn default() -> Self {
@@ -420,7 +421,7 @@ impl Graph {
         let mut replaced = None;
         if let Some(node) = node.node_mut(self) {
             let dref = data.id.clone();
-            if let Some(old) = node.add_data(data.name.clone(), dref.clone()) {
+            if let Some(old) = node.add_data(data.name.to_string(), dref.clone()) {
                 if old != dref {
                     replaced = Some(old);
                 }
@@ -460,7 +461,7 @@ impl Graph {
 
         let mut replaced = None;
         if let Some(node) = node.node_mut(self) {
-            if let Some(old) = node.add_data(name, data.clone()) {
+            if let Some(old) = node.add_data(name.to_string(), data.clone()) {
                 if &old != data {
                     replaced = Some(old);
                 }
@@ -545,8 +546,8 @@ impl Graph {
         for nref in nodes {
             let mut replaced = None;
             if let Some(node) = nref.node_mut(self) {
-                node.data.remove(&old_name);
-                if let Some(old) = node.add_data(new_name.clone(), data.clone()) {
+                node.data.remove(old_name.as_ref());
+                if let Some(old) = node.add_data(new_name.to_string(), data.clone()) {
                     if &old != data {
                         replaced = Some(old);
                     }
@@ -610,6 +611,22 @@ impl Graph {
         } else {
             None
         }
+    }
+
+
+    /*****************************************************************************
+     * Dump this graph (debugging).
+     *****************************************************************************/
+    
+    /// Dump this graph for debugging.
+    pub fn dump(&self, data: bool) {
+        println!("Dump Graph: {}", &self.id.as_ref().red());
+        for root_ref in &self.roots {
+            if let Some(root) = root_ref.node(self) {
+                println!("{}", root.dump(self, 0, data));
+            }
+        }
+        println!("End Dump");
     }
 
 
@@ -871,13 +888,12 @@ impl Graph {
 
     #[inline(always)]
     /// Get a format.
-    pub fn get_format(&self, id: impl Into<SId>) -> Option<Arc<dyn Format>> {
-        self.formats.get(&id.into()).cloned()
+    pub fn get_format(&self, id: &str) -> Option<Arc<dyn Format>> {
+        self.formats.get(id).cloned()
     }
 
     /// Get a format by content type.
-    pub fn get_format_by_content_type(&self, id: impl Into<SId>) -> Option<Arc<dyn Format>> {
-        let id = id.into();
+    pub fn get_format_by_content_type(&self, id: &str) -> Option<Arc<dyn Format>> {
         for (_, fmt) in &self.formats {
             if fmt.content_type() == id {
                 return Some(fmt.clone());
@@ -888,8 +904,8 @@ impl Graph {
 
     /// Remove this format completely, even if it has other identifiers.
     /// Returns true if the format was found and removed completely.
-    pub fn remove_format(&mut self, id: impl Into<SId>) -> bool {
-        if let Some(format) = self.formats.remove(&id.into()) {
+    pub fn remove_format(&mut self, id: &str) -> bool {
+        if let Some(format) = self.formats.remove(id) {
             for id in format.identifiers() {
                 self.formats.remove(&id);
             }
@@ -901,8 +917,8 @@ impl Graph {
 
     /// Remove a single format ID.
     /// Returns true if the format was completely removed in all of its identifiers.
-    pub fn remove_format_id(&mut self, id: impl Into<SId>) -> bool {
-        if let Some(format) = self.formats.remove(&id.into()) {
+    pub fn remove_format_id(&mut self, id: &str) -> bool {
+        if let Some(format) = self.formats.remove(id) {
             for id in format.identifiers() {
                 if self.formats.contains_key(&id) {
                     return false;
@@ -914,7 +930,7 @@ impl Graph {
     }
 
     /// Available format identifiers.
-    pub fn available_formats(&self) -> FxHashSet<SId> {
+    pub fn available_formats(&self) -> FxHashSet<String> {
         let mut formats = FxHashSet::default();
         for (id, _) in &self.formats {
             formats.insert(id.clone());
@@ -923,60 +939,60 @@ impl Graph {
     }
 
     /// Binary import into this graph, using a loaded format.
-    pub fn binary_import(&mut self, format: impl Into<SId>, bytes: Bytes, node: Option<NodeRef>) -> Result<(), Error> {
-        let id = format.into();
-        if let Some(format) = self.get_format(&id) {
-            format.binary_import(self, id.as_ref(), bytes, node)
-        } else if let Some(format) = self.get_format_by_content_type(&id) {
-            format.binary_import(self, id.as_ref(), bytes, node)
+    pub fn binary_import(&mut self, format: &str, bytes: Bytes, node: Option<NodeRef>) -> Result<(), Error> {
+        let id = format;
+        if let Some(format) = self.get_format(id) {
+            format.binary_import(self, id, bytes, node)
+        } else if let Some(format) = self.get_format_by_content_type(id) {
+            format.binary_import(self, id, bytes, node)
         } else if let Some(format) = self.get_format("bytes") {
-            format.binary_import(self, id.as_ref(), bytes, node)
+            format.binary_import(self, id, bytes, node)
         } else {
             Err(Error::NotImplemented)
         }
     }
 
     /// Import a string into this graph, using a loaded format.
-    pub fn string_import(&mut self, format: impl Into<SId>, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
-        let id = format.into();
-        if let Some(format) = self.get_format(&id) {
-            format.string_import(self, id.as_ref(), src, node)
-        } else if let Some(format) = self.get_format_by_content_type(&id) {
-            format.string_import(self, id.as_ref(), src, node)
+    pub fn string_import(&mut self, format: &str, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
+        let id = format;
+        if let Some(format) = self.get_format(id) {
+            format.string_import(self, id, src, node)
+        } else if let Some(format) = self.get_format_by_content_type(id) {
+            format.string_import(self, id, src, node)
         } else {
             Err(Error::NotImplemented)
         }
     }
 
     /// File import into this graph, using a loaded format.
-    pub fn file_import(&mut self, format: impl Into<SId>, path: &str, node: Option<NodeRef>) -> Result<(), Error> {
-        let id = format.into();
-        if let Some(format) = self.get_format(&id) {
-            format.file_import(self, id.as_ref(), path, node)
+    pub fn file_import(&mut self, format: &str, path: &str, node: Option<NodeRef>) -> Result<(), Error> {
+        let id = format;
+        if let Some(format) = self.get_format(id) {
+            format.file_import(self, id, path, node)
         } else {
             Err(Error::NotImplemented)
         }
     }
 
     /// String export.
-    pub fn string_export(&self, format: impl Into<SId>, node: Option<NodeRef>) -> Result<String, Error> {
-        let id = format.into();
-        if let Some(format) = self.get_format(&id) {
-            format.string_export(self, id.as_ref(), node)
-        } else if let Some(format) = self.get_format_by_content_type(&id) {
-            format.string_export(self, id.as_ref(), node)
+    pub fn string_export(&self, format: &str, node: Option<NodeRef>) -> Result<String, Error> {
+        let id = format;
+        if let Some(format) = self.get_format(id) {
+            format.string_export(self, id, node)
+        } else if let Some(format) = self.get_format_by_content_type(id) {
+            format.string_export(self, id, node)
         } else {
             Err(Error::NotImplemented)
         }
     }
 
     /// Binary export.
-    pub fn binary_export(&self, format: impl Into<SId>, node: Option<NodeRef>) -> Result<Bytes, Error> {
-        let id = format.into();
-        if let Some(format) = self.get_format(&id) {
-            format.binary_export(self, id.as_ref(), node)
-        } else if let Some(format) = self.get_format_by_content_type(&id) {
-            format.binary_export(self, id.as_ref(), node)
+    pub fn binary_export(&self, format: &str, node: Option<NodeRef>) -> Result<Bytes, Error> {
+        let id = format;
+        if let Some(format) = self.get_format(id) {
+            format.binary_export(self, id, node)
+        } else if let Some(format) = self.get_format_by_content_type(id) {
+            format.binary_export(self, id, node)
         } else {
             Err(Error::NotImplemented)
         }

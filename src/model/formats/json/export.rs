@@ -25,7 +25,7 @@ pub(crate) fn json_value_from_node(graph: &Graph, node: &NodeRef) -> Value {
     if let Some(node) = node.node(graph) {
         for (name, dref) in &node.data {
             if let Some(field) = graph.get_stof_data::<Field>(dref) {
-                if !field.attributes.contains_key(&NOEXPORT_FIELD_ATTR) {
+                if !field.attributes.contains_key(NOEXPORT_FIELD_ATTR.as_str()) {
                     // could still be objects... just not child object fields (unles you create another reference...)
                     map.insert(name.to_string(), json_value(graph, field.value.get()));
                 }
@@ -33,7 +33,7 @@ pub(crate) fn json_value_from_node(graph: &Graph, node: &NodeRef) -> Value {
         }
         for child in &node.children {
             if let Some(child) = child.node(graph) {
-                if child.is_field() && !child.attributes.contains_key(&NOEXPORT_FIELD_ATTR) {
+                if child.is_field() && !child.attributes.contains_key(NOEXPORT_FIELD_ATTR.as_str()) {
                     map.insert(child.name.to_string(), json_value(graph, Val::Obj(child.id.clone())));
                 }
             }

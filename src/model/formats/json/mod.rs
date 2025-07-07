@@ -16,13 +16,12 @@
 
 
 pub mod import;
-use arcstr::literal;
 pub use import::*;
 
 pub mod export;
 pub use export::*;
 
-use crate::model::{Format, SId};
+use crate::model::Format;
 
 
 #[derive(Debug)]
@@ -31,11 +30,11 @@ impl JsonFormat {
     
 }
 impl Format for JsonFormat {
-    fn identifiers(&self) -> Vec<SId> {
-        vec![literal!("json").into()]
+    fn identifiers(&self) -> Vec<String> {
+        vec!["json".into()]
     }
-    fn content_type(&self) -> SId {
-        literal!("application/json").into()
+    fn content_type(&self) -> String {
+        "application/json".into()
     }
     // TODO
 }

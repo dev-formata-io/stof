@@ -15,7 +15,7 @@
 //
 
 use std::{collections::BTreeMap, sync::Arc};
-use bytes::Bytes;
+use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
@@ -23,13 +23,13 @@ use crate::{model::{DataRef, Graph, NodeRef, SId, SPath, StofData}, runtime::{in
 
 
 /// Attribute used to denote a main function.
-pub const MAIN_FUNC_ATTR: SId = SId(Bytes::from_static(b"main"));
+pub const MAIN_FUNC_ATTR: ArcStr = literal!("main");
 
 /// Attribute used to denote a test function.
-pub const TEST_FUNC_ATTR: SId = SId(Bytes::from_static(b"test"));
+pub const TEST_FUNC_ATTR: ArcStr = literal!("test");
 
 /// Attribute used to denote an async function.
-pub const ASYNC_FUNC_ATTR: SId = SId(Bytes::from_static(b"async"));
+pub const ASYNC_FUNC_ATTR: ArcStr = literal!("async");
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -37,12 +37,24 @@ pub const ASYNC_FUNC_ATTR: SId = SId(Bytes::from_static(b"async"));
 pub struct Func {
     pub params: Vector<Param>,
     pub return_type: Type,
-    pub attributes: FxHashMap<SId, Val>,
+    pub attributes: FxHashMap<String, Val>,
     pub instructions: Vector<Arc<dyn Instruction>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FuncDoc {
+    pub func: DataRef,
+    pub docs: String,
 }
 
 #[typetag::serde(name = "_Func")]
 impl StofData for Func {
+    fn core_data(&self) -> bool {
+        return true;
+    }
+}
+#[typetag::serde(name = "_FuncDoc")]
+impl StofData for FuncDoc {
     fn core_data(&self) -> bool {
         return true;
     }
@@ -58,7 +70,7 @@ pub struct Param {
 
 impl Func {
     /// Create a new function.
-    pub fn new(params: Vector<Param>, return_type: Type, instructions: Instructions, attrs: Option<FxHashMap<SId, Val>>) -> Self {
+    pub fn new(params: Vector<Param>, return_type: Type, instructions: Instructions, attrs: Option<FxHashMap<String, Val>>) -> Self {
         let mut attributes = FxHashMap::default();
         if let Some(attr) = attrs {
             attributes = attr;
@@ -88,7 +100,7 @@ impl Func {
     /// Func lookup.
     pub fn func(graph: &Graph, node: &NodeRef, func_name: &SId) -> Option<DataRef> {
         if let Some(node) = node.node(graph) {
-            if let Some(dref) = node.data.get(func_name) {
+            if let Some(dref) = node.data.get(func_name.as_ref()) {
                 if dref.type_of::<Self>(&graph) {
                     return Some(dref.clone());
                 }
@@ -98,7 +110,7 @@ impl Func {
     }
 
     /// Get all functions on a node, optionally filtered by attributes and optionally recursively.
-    pub fn functions(graph: &Graph, node: &NodeRef, attrs: &Option<FxHashSet<SId>>, recursive: bool) -> BTreeMap<SId, DataRef> {
+    pub fn functions(graph: &Graph, node: &NodeRef, attrs: &Option<FxHashSet<String>>, recursive: bool) -> BTreeMap<String, DataRef> {
         let mut funcs = BTreeMap::default();
         if let Some(node) = node.node(&graph) {
             for (name, dref) in &node.data {
@@ -126,7 +138,7 @@ impl Func {
     }
 
     /// Get all functions in a graph, optionally filtered by attribute.
-    pub fn all_functions(graph: &Graph, attrs: &Option<FxHashSet<SId>>) -> BTreeMap<SId, DataRef> {
+    pub fn all_functions(graph: &Graph, attrs: &Option<FxHashSet<String>>) -> BTreeMap<String, DataRef> {
         let mut funcs = BTreeMap::default();
         for root in &graph.roots {
             funcs.append(&mut Self::functions(graph, root, attrs, true));
@@ -135,16 +147,16 @@ impl Func {
     }
 
     /// Get all main functions in a graph.
-    pub fn main_functions(graph: &Graph) -> BTreeMap<SId, DataRef> {
+    pub fn main_functions(graph: &Graph) -> BTreeMap<String, DataRef> {
         let mut set = FxHashSet::default();
-        set.insert(MAIN_FUNC_ATTR);
+        set.insert(MAIN_FUNC_ATTR.to_string());
         Self::all_functions(graph, &Some(set))
     }
 
     /// Get all test functions in a graph.
-    pub fn test_functions(graph: &Graph) -> BTreeMap<SId, DataRef> {
+    pub fn test_functions(graph: &Graph) -> BTreeMap<String, DataRef> {
         let mut set = FxHashSet::default();
-        set.insert(TEST_FUNC_ATTR);
+        set.insert(TEST_FUNC_ATTR.to_string());
         Self::all_functions(graph, &Some(set))
     }
 }

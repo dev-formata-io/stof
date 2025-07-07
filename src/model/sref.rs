@@ -59,9 +59,9 @@ impl NodeRef {
     }
 
     /// Node data named.
-    pub fn node_data_named<'a>(&self, graph: &'a Graph, name: impl Into<SId>) -> Option<&'a DataRef> {
+    pub fn node_data_named<'a>(&self, graph: &'a Graph, name: &str) -> Option<&'a DataRef> {
         if let Some(node) = self.node(graph) {
-            node.get_data(&name.into())
+            node.get_data(name)
         } else {
             None
         }

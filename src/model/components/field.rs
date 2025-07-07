@@ -15,17 +15,17 @@
 //
 
 use std::collections::BTreeMap;
-use bytes::Bytes;
+use arcstr::{literal, ArcStr};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Graph, NodeRef, SId, SPath, StofData, SELF_KEYWORD, SUPER_KEYWORD}, runtime::{Val, Variable}};
+use crate::{model::{DataRef, Graph, NodeRef, SPath, StofData, SELF_KEYWORD, SUPER_KEYWORD}, runtime::{Val, Variable}};
 
 /// Marks a field as no export.
 /// Used in export formats.
-pub const NOEXPORT_FIELD_ATTR: SId = SId(Bytes::from_static(b"no-export"));
+pub const NOEXPORT_FIELD_ATTR: ArcStr = literal!("no-export");
 
 /// Can the field be set?
-pub const PRIVATE_FIELD_ATTR: SId = SId(Bytes::from_static(b"private"));
+pub const PRIVATE_FIELD_ATTR: ArcStr = literal!("private");
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,7 +33,7 @@ pub const PRIVATE_FIELD_ATTR: SId = SId(Bytes::from_static(b"private"));
 /// Name specified by the object.
 pub struct Field {
     pub value: Variable,
-    pub attributes: FxHashMap<SId, Val>,
+    pub attributes: FxHashMap<String, Val>,
 }
 
 #[typetag::serde(name = "_Field")]
@@ -55,7 +55,7 @@ impl StofData for Field {
 
 impl Field {
     /// Create a new field.
-    pub fn new(value: Variable, attrs: Option<FxHashMap<SId, Val>>) -> Self {
+    pub fn new(value: Variable, attrs: Option<FxHashMap<String, Val>>) -> Self {
         let mut attributes = FxHashMap::default();
         if let Some(attr) = attrs {
             attributes = attr;
@@ -67,8 +67,9 @@ impl Field {
     }
 
     /// Can set this field?
+    /// TODO: read only instead of private
     pub fn can_set(&self) -> bool {
-        !self.attributes.contains_key(&PRIVATE_FIELD_ATTR)
+        !self.attributes.contains_key(PRIVATE_FIELD_ATTR.as_str())
     }
 
     /// Get a field from a dot separated name path string.
@@ -79,7 +80,7 @@ impl Field {
         
         let field_name = spath.path.pop().unwrap();
         if let Some(node) = SPath::node(&graph, spath, start) {
-            return Self::field(graph, &node, &field_name);
+            return Self::field(graph, &node, field_name.as_ref());
         }
         None
     }
@@ -87,7 +88,7 @@ impl Field {
     #[inline]
     /// Field lookup, but does not create a field for a child node if needed.
     /// This is used for complex node relationships in path finding...
-    pub fn direct_field(graph: &Graph, node: &NodeRef, field_name: &SId) -> Option<DataRef> {
+    pub fn direct_field(graph: &Graph, node: &NodeRef, field_name: &str) -> Option<DataRef> {
         if let Some(node) = node.node(graph) {
             if let Some(dref) = node.data.get(field_name) {
                 if let Some(field) = graph.get_stof_data::<Self>(dref) {
@@ -102,7 +103,7 @@ impl Field {
 
     /// Field lookup an a graph from a singular node and name.
     /// Lazily creates a field for a child node if needed.
-    pub fn field(graph: &mut Graph, node: &NodeRef, field_name: &SId) -> Option<DataRef> {
+    pub fn field(graph: &mut Graph, node: &NodeRef, field_name: &str) -> Option<DataRef> {
         let mut created = None;
         let mut self_parent = None;
         let mut self_name = None;
@@ -116,9 +117,9 @@ impl Field {
             }
             for child in &node.children {
                 if let Some(child) = child.node(&graph) {
-                    if &child.name == field_name && child.is_field() {
+                    if child.name.as_ref() == field_name && child.is_field() {
                         let mut attrs = child.attributes.clone();
-                        attrs.insert(NOEXPORT_FIELD_ATTR, Val::Null); // don't export these lazily created fields
+                        attrs.insert(NOEXPORT_FIELD_ATTR.to_string(), Val::Null); // don't export these lazily created fields
                         let var = Variable::new(graph, true, Val::Obj(child.id.clone()), false);
                         created = Some(Self::new(var, Some(attrs)));
                         break;
@@ -130,7 +131,7 @@ impl Field {
             let mut gp = None;
             if let Some(parent) = &node.parent {
                 if let Some(parent) = parent.node(&graph) {
-                    if (&parent.name == field_name || field_name == &SUPER_KEYWORD) && parent.is_field() {
+                    if (parent.name.as_ref() == field_name || field_name == SUPER_KEYWORD.as_ref()) && parent.is_field() {
                         if let Some(grand) = &parent.parent {
                             if grand.node_exists(&graph) {
                                 gp = Some((grand.clone(), parent.name.clone()));
@@ -140,11 +141,11 @@ impl Field {
                 }
             }
             if let Some((gp, field_name)) = gp {
-                return Self::field(graph, &gp, &field_name);
+                return Self::field(graph, &gp, field_name.as_ref());
             }
 
             // Is this node the thing?
-            if (&node.name == field_name || field_name == &SELF_KEYWORD) && node.is_field() {
+            if (node.name.as_ref() == field_name || field_name == SELF_KEYWORD.as_ref()) && node.is_field() {
                 if let Some(parent) = &node.parent {
                     if parent.node_exists(graph) {
                         self_parent = Some(parent.clone());
@@ -155,7 +156,7 @@ impl Field {
         }
         if let Some(parent) = self_parent {
             if let Some(name) = self_name {
-                return Self::field(graph, &parent, &name);
+                return Self::field(graph, &parent, name.as_ref());
             }
         }
         if let Some(field) = created {
@@ -168,7 +169,7 @@ impl Field {
 
     /// Get all fields on a node.
     /// Will create object fields as needed.
-    pub fn fields(graph: &mut Graph, node: &NodeRef) -> BTreeMap<SId, DataRef> {
+    pub fn fields(graph: &mut Graph, node: &NodeRef) -> BTreeMap<String, DataRef> {
         let mut fields = BTreeMap::default();
         let mut to_create = Vec::new();
 
@@ -183,9 +184,9 @@ impl Field {
 
             for child in &node.children {
                 if let Some(child) = child.node(&graph) {
-                    if child.is_field() && !fields.contains_key(&child.name) {
+                    if child.is_field() && !fields.contains_key(child.name.as_ref()) {
                         let mut attrs = child.attributes.clone();
-                        attrs.insert(NOEXPORT_FIELD_ATTR, Val::Null); // don't export these lazily created fields
+                        attrs.insert(NOEXPORT_FIELD_ATTR.to_string(), Val::Null); // don't export these lazily created fields
                         let var = Variable::new(graph, true, Val::Obj(child.id.clone()), false);
                         to_create.push((child.name.clone(), Self::new(var, Some(attrs))));
                     }
@@ -195,7 +196,7 @@ impl Field {
 
         for (name, field) in to_create {
             if let Some(dref) = graph.insert_stof_data(node, name.clone(), Box::new(field), None) {
-                fields.insert(name, dref);
+                fields.insert(name.to_string(), dref);
             }
         }
         

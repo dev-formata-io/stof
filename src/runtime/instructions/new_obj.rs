@@ -32,7 +32,7 @@ pub struct NewObjIns {
     /// Is this object a field?
     pub field: bool,
     /// Attributes on this object
-    pub attributes: Option<FxHashMap<SId, Val>>,
+    pub attributes: Option<FxHashMap<String, Val>>,
     /// Cast the object to a type?
     pub cast_type: Option<Type>,
 }

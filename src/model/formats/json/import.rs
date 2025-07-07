@@ -68,7 +68,7 @@ pub(crate) fn parse_json_field_value(graph: &mut Graph, node: &NodeRef, value: V
             parse_json_object_value(graph, &child_node, value);
 
             let mut attrs = FxHashMap::default();
-            attrs.insert(NOEXPORT_FIELD_ATTR, Val::Null); // don't export object fields
+            attrs.insert(NOEXPORT_FIELD_ATTR.to_string(), Val::Null); // don't export object fields
             Field::new(Variable::new(graph, true, Val::Obj(child_node), false), Some(attrs))
         },
     }

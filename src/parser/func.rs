@@ -15,7 +15,7 @@
 //
 
 use nom::{bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, multi::separated_list0, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{model::{Func, Param, SId, ASYNC_FUNC_ATTR}, parser::{context::ParseContext, expr::expr, ident::ident, parse_attributes, statement::block, types::parse_type, whitespace::whitespace}, runtime::Val};
+use crate::{model::{Func, FuncDoc, Param, SId, ASYNC_FUNC_ATTR}, parser::{context::ParseContext, expr::expr, ident::ident, parse_attributes, statement::block, types::parse_type, whitespace::doc_comment}, runtime::Val};
 
 
 /// Parse a function into a parse context.
@@ -24,15 +24,15 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
     let (input, attrs) = parse_attributes(input, context)?;
     func.attributes = attrs;
 
-    // TODO doc comments before whitespace
-    let (input, _) = whitespace(input)?;
+    // Doc comments & whitespace before a function definition
+    let (input, comments) = doc_comment(input)?;
 
     let (input, attrs) = parse_attributes(input, context)?;
     for (k, v) in attrs { func.attributes.insert(k, v); }
 
     let (input, async_fn) = opt(terminated(tag("async"), multispace0)).parse(input)?;
-    if async_fn.is_some() && !func.attributes.contains_key(&ASYNC_FUNC_ATTR) {
-        func.attributes.insert(ASYNC_FUNC_ATTR.clone(), Val::Null);
+    if async_fn.is_some() && !func.attributes.contains_key(ASYNC_FUNC_ATTR.as_str()) {
+        func.attributes.insert(ASYNC_FUNC_ATTR.to_string(), Val::Null);
     }
 
     let (input, name) = preceded(tag("fn"), preceded(multispace0, ident)).parse(input)?;
@@ -47,7 +47,15 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
     // Instert the new function in the current parse context
     //println!("({name}){{{func:?}}}");
     let self_ptr = context.self_ptr();
-    context.graph.insert_stof_data(&self_ptr, name, Box::new(func), None);
+    let func_ref = context.graph.insert_stof_data(&self_ptr, name, Box::new(func), None).expect("failed to insert a parsed function into this context");
+
+    // Insert the function doc comments also if requested
+    if context.docs && comments.len() > 0 {
+        context.graph.insert_stof_data(&self_ptr, &format!("{name}_docs"), Box::new(FuncDoc {
+            docs: comments,
+            func: func_ref,
+        }), None);
+    }
 
     Ok((input, ()))
 }
@@ -81,12 +89,14 @@ mod tests {
     fn basic_func() {
         let mut graph = Graph::default();
         let mut context = ParseContext::new(&mut graph);
+        //context.docs = true;
 
         let (_input, ()) = parse_function(r#"
  
         #[test('hello')]
         /**
-         * This is a test function.
+         * # This is a test function.
+         * This function represents the first ever function in Stof v2.
          */
         fn main(x: float = 5) -> float { x }
 
@@ -94,5 +104,7 @@ mod tests {
 
         let res = Runtime::call(&mut graph, "root.main", vec![Val::from(10)]).unwrap();
         assert_eq!(res, 10.into());
+
+        //graph.dump(true);
     }
 }

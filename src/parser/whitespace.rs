@@ -14,8 +14,32 @@
 // limitations under the License.
 //
 
-use nom::{branch::alt, bytes::complete::{tag, take_until}, character::complete::{multispace1, not_line_ending}, IResult, Parser};
+use nom::{branch::alt, bytes::complete::{tag, take_until}, character::complete::{multispace0, multispace1, not_line_ending}, multi::separated_list0, IResult, Parser};
 
+
+/// Doc comment.
+/// Also eats up whitespace after.
+pub fn doc_comment(input: &str) -> IResult<&str, String> {
+    let (input, _) = multispace0(input)?;
+    let (input, inner) = separated_list0(multispace0, alt((parse_block_doc_comment, parse_single_line_doc_comment))).parse(input)?;
+
+    let mut comments = String::default();
+    for inner in inner { comments.push_str(inner); }
+    let (input, _) = whitespace(input)?;
+
+    // filter * from the start of all comment lines if they start with it.
+    let mut filtered = String::default();
+    for mut line in comments.split('\n') {
+        line = line.trim();
+        if line.starts_with('*') {
+            line = line.trim_start_matches('*').trim(); // get to the content
+        }
+        filtered.push_str(&format!("{line}\n")); // preserves spacing & formatting
+    }
+    filtered = filtered.trim().into();
+
+    Ok((input, filtered))
+}
 
 /// Whitespace.
 pub fn whitespace(input: &str) -> IResult<&str, &str> {
@@ -31,24 +55,39 @@ pub fn whitespace(input: &str) -> IResult<&str, &str> {
 }
 
 /// Parse a single line comment "// comment here \n"
-pub fn parse_single_line_comment(input: &str) -> IResult<&str, &str> {
+pub(self) fn parse_single_line_comment(input: &str) -> IResult<&str, &str> {
     let (input, _) = tag("//").parse(input)?;
     let (input, out) = not_line_ending(input)?;
     Ok((input, out))
 }
 
 /// Parse a block style comment.
-pub fn parse_block_comment(input: &str) -> IResult<&str, &str> {
+pub(self) fn parse_block_comment(input: &str) -> IResult<&str, &str> {
     let (input, _) = tag("/*").parse(input)?;
     let (input, _) = take_until("*/").parse(input)?;
     let (input, out) = tag("*/").parse(input)?;
     Ok((input, out))
 }
 
+/// Parse a single line doc comment "/// comment here \n"
+pub(self) fn parse_single_line_doc_comment(input: &str) -> IResult<&str, &str> {
+    let (input, _) = tag("///").parse(input)?;
+    let (input, out) = not_line_ending(input)?;
+    Ok((input, out))
+}
+
+/// Parse a block style doc comment.
+pub(self) fn parse_block_doc_comment(input: &str) -> IResult<&str, &str> {
+    let (input, _) = tag("/**").parse(input)?;
+    let (input, out) = take_until("*/").parse(input)?;
+    let (input, _) = tag("*/").parse(input)?;
+    Ok((input, out))
+}
+
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::whitespace::{parse_block_comment, parse_single_line_comment, whitespace};
+    use crate::parser::whitespace::{doc_comment, parse_block_comment, parse_single_line_comment, whitespace};
 
     #[test]
     fn single_line_comment() {
@@ -79,5 +118,22 @@ mod tests {
 
             hello"#).unwrap();
         assert_eq!(res.0, "hello");
+    }
+
+    #[test]
+    fn doc_comments() {
+        let res = doc_comment(r#"
+        /**
+         * This is a doc comment!
+         * 
+         * With many lines.
+         */
+        /// This is a line doc comment.
+        hello"#).unwrap();
+        assert_eq!(res.0, "hello");
+        assert_eq!(res.1, r#"This is a doc comment!
+
+With many lines.
+This is a line doc comment."#);
     }
 }

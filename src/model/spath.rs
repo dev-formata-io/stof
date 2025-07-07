@@ -148,7 +148,7 @@ impl SPath {
             // Look for a field in the current node with a name that points to another object
             // Children are already handled above, so just look for direct fields
             // This is before parents because it is basically the same as looking for a child
-            if let Some(dref) = Field::direct_field(graph, &current_node.id, &next_name) {
+            if let Some(dref) = Field::direct_field(graph, &current_node.id, next_name.as_ref()) {
                 if let Some(field) = graph.get_stof_data::<Field>(&dref) {
                     if let Some(nref) = field.value.try_obj() {
                         if let Some(node) = nref.node(graph) {

@@ -28,9 +28,10 @@ lazy_static! {
 pub struct ParseContext<'ctx> {
     pub graph: &'ctx mut Graph,
     pub runtime: Runtime,
+    pub docs: bool,
 }
 impl<'ctx> ParseContext<'ctx> {
-    /// Create a new parse context.
+    /// Create a new parse context with a default config.
     pub fn new(graph: &'ctx mut Graph) -> Self {
         let mut runtime = Runtime::default();
         
@@ -42,6 +43,7 @@ impl<'ctx> ParseContext<'ctx> {
         Self {
             graph,
             runtime,
+            docs: false,
         }
     }
 

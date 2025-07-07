@@ -15,10 +15,12 @@
 //
 
 use std::collections::{BTreeMap, BTreeSet};
+use arcstr::{literal, ArcStr};
 use bytes::Bytes;
+use colored::Colorize;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, NodeRef, SId}, runtime::Val};
+use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::Val};
 
 
 /// Invalid/dirty new symbol.
@@ -41,7 +43,7 @@ pub const INVALID_NODE_ATTRS: SId = SId(Bytes::from_static(b"attributes"));
 
 /// Field node attribute.
 /// Used for lazy field creation of nodes.
-const FIELD_NODE_ATTR: SId = SId(Bytes::from_static(b"field"));
+const FIELD_NODE_ATTR: ArcStr = literal!("field");
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -51,8 +53,8 @@ pub struct Node {
     pub name: SId,
     pub parent: Option<NodeRef>,
     pub children: BTreeSet<NodeRef>,  // keeps order
-    pub data: BTreeMap<SId, DataRef>, // keeps order
-    pub attributes: FxHashMap<SId, Val>,
+    pub data: BTreeMap<String, DataRef>, // keeps order
+    pub attributes: FxHashMap<String, Val>,
 
     #[serde(skip)]
     pub dirty: FxHashSet<SId>,
@@ -63,7 +65,7 @@ impl Node {
         let mut attributes = FxHashMap::default();
         if field {
             // marks this node as also a field
-            attributes.insert(FIELD_NODE_ATTR, Val::Null);
+            attributes.insert(FIELD_NODE_ATTR.to_string(), Val::Null);
         }
         Self {
             id,
@@ -79,14 +81,14 @@ impl Node {
     #[inline(always)]
     /// Is this node also a field?
     pub fn is_field(&self) -> bool {
-        self.attributes.contains_key(&FIELD_NODE_ATTR)
+        self.attributes.contains_key(FIELD_NODE_ATTR.as_str())
     }
 
     #[inline]
     /// Make this node a field.
     /// Returns whether this object was not previously a field (or if changed as thats easier to think about).
     pub fn make_field(&mut self) -> bool {
-        let res = self.attributes.insert(FIELD_NODE_ATTR, Val::Null).is_none();
+        let res = self.attributes.insert(FIELD_NODE_ATTR.to_string(), Val::Null).is_none();
         if res {
             self.invalidate_attrs();
         }
@@ -99,7 +101,7 @@ impl Node {
     /// Returns whether this object was previously a field or not (or if changed).
     #[inline]
     pub fn not_field(&mut self) -> bool {
-        let res = self.attributes.remove(&FIELD_NODE_ATTR).is_some();
+        let res = self.attributes.remove(FIELD_NODE_ATTR.as_str()).is_some();
         if res {
             self.invalidate_attrs();
         }
@@ -200,7 +202,7 @@ impl Node {
 
     #[inline]
     /// Insert an attribute.
-    pub fn insert_attribute(&mut self, id: SId, val: Val) -> bool {
+    pub fn insert_attribute(&mut self, id: String, val: Val) -> bool {
         let res = self.attributes.insert(id, val).is_none();
         if res {
             self.invalidate_attrs();
@@ -210,7 +212,7 @@ impl Node {
 
     #[inline]
     /// Remove an attribute.
-    pub fn remove_attribute(&mut self, id: &SId) -> bool {
+    pub fn remove_attribute(&mut self, id: &str) -> bool {
         let res = self.attributes.remove(id).is_some();
         if res {
             self.invalidate_attrs();
@@ -260,7 +262,7 @@ impl Node {
 
     #[inline(always)]
     /// Has data by name?
-    pub fn has_data_named(&self, name: &SId) -> bool {
+    pub fn has_data_named(&self, name: &str) -> bool {
         self.data.contains_key(name)
     }
 
@@ -276,7 +278,7 @@ impl Node {
     #[inline]
     /// Add data.
     /// If this name already exists on this node, the old ref is returned.
-    pub fn add_data(&mut self, name: SId, data: DataRef) -> Option<DataRef> {
+    pub fn add_data(&mut self, name: String, data: DataRef) -> Option<DataRef> {
         let old = self.data.insert(name, data);
         self.invalidate_data();
         old
@@ -300,13 +302,70 @@ impl Node {
 
     #[inline(always)]
     /// Remove data by name.
-    pub fn remove_data_named(&mut self, name: &SId) -> Option<DataRef> {
+    pub fn remove_data_named(&mut self, name: &str) -> Option<DataRef> {
         self.data.remove(name)
     }
 
     #[inline(always)]
     /// Get named data.
-    pub fn get_data(&self, name: &SId) -> Option<&DataRef> {
+    pub fn get_data(&self, name: &str) -> Option<&DataRef> {
         self.data.get(name)
+    }
+
+
+    /*****************************************************************************
+     * Dump.
+     *****************************************************************************/
+    
+    /// Dump this node.
+    pub fn dump(&self, graph: &Graph, level: i32, data: bool) -> String {
+        let mut res = String::new();
+        
+        let mut ident = String::from("\n");
+        for _ in 0..level { ident.push('\t'); }
+
+        // Open the braces for this node
+        let mut parent_str = "None".to_string();
+        if let Some(parent) = &self.parent {
+            parent_str = format!("{}", &parent);
+        }
+        res.push_str(&format!("{}{} ({}{}, {}{}) {}", &ident, &self.name.as_ref().blue(), "ID: ".dimmed(), &self.id.as_ref().cyan(), "parent: ".dimmed(), &parent_str.purple(), "{".bright_blue()));
+        if level < 1 { res = res.replace('\n', ""); }
+
+        // Dump data?
+        if data {
+            let mut ident = String::from("\n");
+            for _ in 0..(level + 1) { ident.push('\t'); }
+
+            let mut iident = String::from("\n");
+            for _ in 0..(level + 2) { iident.push('\t'); }
+
+            for (data_name, data_ref) in &self.data {
+                if let Some(data) = data_ref.data(graph) {
+                    res.push_str(&format!("{}{} ({}{}) {}", &ident, &data_name.green(), "ID: ".dimmed(), &data_ref.as_ref().cyan().dimmed(), "{".green()));
+
+                    let json = serde_json::to_string(&data.data);
+                    if let Ok(json) = json {
+                        res.push_str(&format!("{}{}", &iident, json.dimmed()));
+                    } else {
+                        res.push_str(&format!("{}{}", &iident, "DATA SERIALIZATION ERROR".red()));
+                    }
+                    res.push_str(&format!("{}{}", &ident, "}".green()));
+                }
+            }
+
+            res.push('\n');
+        }
+
+        // Do all children
+        for child_ref in &self.children {
+            if let Some(child) = child_ref.node(graph) {
+                res.push_str(&child.dump(graph, level + 1, data));
+            }
+        }
+
+        // Close the braces for this node
+        res.push_str(&format!("{}{}", &ident, "}".bright_blue()));
+        res
     }
 }

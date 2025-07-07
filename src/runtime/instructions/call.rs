@@ -137,7 +137,7 @@ impl FuncCall {
             if let Some(node) = &start {
                 if let Some(node) = node.node(&graph) {
                     let type_path = path.split("::").collect::<Vec<_>>();
-                    if let Some(val) = node.attributes.get(&TYPENAME) {
+                    if let Some(val) = node.attributes.get(TYPENAME.as_str()) {
                         if type_path[0] != val.to_string() {
                             allow_node_contemplation = false;
                         }
@@ -220,7 +220,7 @@ impl Instruction for FuncCall {
             params = func.params.clone();
             func_instructions = func.instructions.clone();
             rtype = func.return_type.clone();
-            is_async = func.attributes.contains_key(&ASYNC_FUNC_ATTR);
+            is_async = func.attributes.contains_key(ASYNC_FUNC_ATTR.as_str());
         } else {
             return Err(Error::FuncDne);
         }
