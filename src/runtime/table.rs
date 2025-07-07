@@ -32,6 +32,12 @@ impl SymbolTable {
     }
 
     #[inline(always)]
+    /// Clear this table.
+    pub fn clear(&mut self) {
+        self.scopes.clear();
+    }
+
+    #[inline(always)]
     /// Pop a scope from this table.
     pub fn pop(&mut self) -> bool {
         self.scopes.pop().is_some()

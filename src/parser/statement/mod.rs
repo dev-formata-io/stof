@@ -111,7 +111,7 @@ fn expr_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
     if ins.1.is_some() {
         res.push_back(Arc::new(EmptyIns { ins: ins.0 }) as Arc<dyn Instruction>);
     } else {
-        res.push_back(ins.0); // return variant of the expr (put here for parse performance reasons)
+        res.push_back(Arc::new(RetIns { expr: Some(ins.0) })); // return variant of the expr (put here for parse performance reasons)
     }
     Ok((input, res))
 }

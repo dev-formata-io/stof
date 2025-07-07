@@ -90,23 +90,18 @@ impl FuncCall {
         // In this case, we are searching for a generic path, using the symbol table, libraries, and graph
         let context;
         if split_path[0] == SELF_STR_KEYWORD.as_str() {
-            // self.other.func();
+            // Note: keep "self" on the path otherwise drops to lib call
             context = ValRef::new(Val::Obj(env.self_ptr()));
-            split_path.remove(0);
         } else if split_path[0] == SUPER_STR_KEYWORD.as_str() {
-            // super.other.func();
             context = ValRef::new(Val::Obj(env.self_ptr()));
         } else if let Some(var) = env.table.get(split_path[0]) {
-            // var.abs();
             context = var.val.clone();
             split_path.remove(0);
         } else {
-            // Root.path.function();
             // Look for a function at the root of the graph before resorting to a library
             if let Ok(res) = self.object_search(path, None, graph, false) {
                 return Ok(res);
             }
-            // CustomLib.function();
             // Only a valid libcall if the length is 2
             if split_path.len() == 2 {
                 return Ok(CallContext { lib: Some(split_path[0].to_string().into()), prototype: false, func: SId::from(split_path[1]) });
@@ -199,6 +194,7 @@ impl FuncCall {
 }
 
 
+#[derive(Debug)]
 pub(self) struct CallContext {
     pub lib: Option<ArcStr>,
     pub prototype: bool,

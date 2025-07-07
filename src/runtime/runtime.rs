@@ -158,13 +158,33 @@ impl Runtime {
         }
     }
 
+    /// Clear this runtime completely.
+    pub fn clear(&mut self) {
+        self.running.clear();
+        self.waiting.clear();
+        self.done.clear();
+        self.errored.clear();
+    }
 
     /*****************************************************************************
      * Static functions.
      *****************************************************************************/
     
     /// Call a singular function with this runtime.
-    pub fn call(graph: &mut Graph, func: &DataRef, args: Vec<Val>) -> Result<Val, Error> {
+    pub fn call(graph: &mut Graph, search: &str, args: Vec<Val>) -> Result<Val, Error> {
+        let mut arguments: Vector<Arc<dyn Instruction>> = Vector::default();
+        for arg in args { arguments.push_back(Arc::new(Base::Literal(arg))); }
+        let instruction = Arc::new(FuncCall {
+            stack: false,
+            func: None,
+            search: Some(search.into()),
+            args: arguments,
+        });
+        Self::eval(graph, instruction)
+    }
+    
+    /// Call a singular function with this runtime.
+    pub fn call_func(graph: &mut Graph, func: &DataRef, args: Vec<Val>) -> Result<Val, Error> {
         if !func.type_of::<Func>(&graph) {
             return Err(Error::FuncDne);
         }

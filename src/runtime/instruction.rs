@@ -45,6 +45,14 @@ impl Instructions {
         Self { instructions, ..Default::default() }
     }
 
+    #[inline]
+    /// Clear these instructions.
+    pub fn clear(&mut self) {
+        self.instructions.clear();
+        self.executed.clear();
+        self.try_catch_count = 0;
+    }
+
     #[inline(always)]
     /// Are there more instructions to process?
     pub fn more(&self) -> bool {
