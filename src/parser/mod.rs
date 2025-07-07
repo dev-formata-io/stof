@@ -23,3 +23,4 @@ pub mod string;
 pub mod literal;
 pub mod expr;
 pub mod statement;
+pub mod func;

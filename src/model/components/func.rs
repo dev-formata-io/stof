@@ -32,7 +32,7 @@ pub const TEST_FUNC_ATTR: SId = SId(Bytes::from_static(b"test"));
 pub const ASYNC_FUNC_ATTR: SId = SId(Bytes::from_static(b"async"));
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 /// Function.
 pub struct Func {
     pub params: Vector<Param>,
