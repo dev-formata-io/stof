@@ -23,6 +23,8 @@ use serde::{Deserialize, Serialize};
 /// Error.
 /// TODO.
 pub enum Error {
+    ParseFailure(String),
+
     Custom(ArcStr),
     NotImplemented,
     Thrown,

@@ -36,7 +36,7 @@ pub(self) fn raw_double_string(input: &str) -> IResult<&str, String> {
 }
 
 /// Parse a double quoted string.
-pub(self) fn double_string(input: &str) -> IResult<&str, String> {
+pub fn double_string(input: &str) -> IResult<&str, String> {
     let normal = none_of("\"\\"); // everything but backslash or double quote
     let inner = escaped_transform(normal, '\\', alt((
         value("\\", tag("\\")),
@@ -49,7 +49,7 @@ pub(self) fn double_string(input: &str) -> IResult<&str, String> {
 }
 
 /// Parse a single quoted string.
-pub(self) fn single_string(input: &str) -> IResult<&str, String> {
+pub fn single_string(input: &str) -> IResult<&str, String> {
     let normal = none_of("'\\"); // everything but backslash or double quote
     let inner = escaped_transform(normal, '\\', alt((
         value("\\", tag("\\")),

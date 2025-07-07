@@ -36,6 +36,12 @@ pub struct Field {
     pub attributes: FxHashMap<String, Val>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FieldDoc {
+    pub field: DataRef,
+    pub docs: String,
+}
+
 #[typetag::serde(name = "_Field")]
 impl StofData for Field {
     fn core_data(&self) -> bool {
@@ -50,6 +56,12 @@ impl StofData for Field {
         } else {
             false
         }
+    }
+}
+#[typetag::serde(name = "_FieldDoc")]
+impl StofData for FieldDoc {
+    fn core_data(&self) -> bool {
+        return true;
     }
 }
 

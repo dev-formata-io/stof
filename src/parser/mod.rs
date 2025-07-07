@@ -31,6 +31,8 @@ pub mod statement;
 
 pub mod context;
 pub mod func;
+pub mod field;
+pub mod doc;
 
 
 /// Parse attributes.
