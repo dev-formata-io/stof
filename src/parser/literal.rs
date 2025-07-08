@@ -26,7 +26,7 @@ pub fn literal(input: &str) -> IResult<&str, Val> {
         value(Val::Bool(true), tag("true")),
         value(Val::Bool(false), tag("false")),
         string,
-        number,
         parse_semver,
+        number,
     )).parse(input)
 }
