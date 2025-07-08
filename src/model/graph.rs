@@ -1028,6 +1028,12 @@ impl Graph {
 
         Runtime::call(self, &search, args)
     }
+
+    #[inline]
+    /// Test this graph, calling all #[test] functions, optionally resulting in an Err or always Ok.
+    pub fn test(&mut self, context: Option<String>, throw: bool) -> Result<String, String> {
+        Runtime::test(self, context, throw)
+    }
 }
 
 

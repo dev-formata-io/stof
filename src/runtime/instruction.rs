@@ -27,7 +27,7 @@ pub struct Instructions {
     /// Uses structural sharing, then only copies the Arc when needed lazily.
     /// Store instructions in a Func, then clone into the proc without any copies.
     pub instructions: Vector<Arc<dyn Instruction>>,
-    executed: Vector<Arc<dyn Instruction>>,
+    pub executed: Vector<Arc<dyn Instruction>>,
     try_catch_count: u8,
 }
 impl From<Arc<dyn Instruction>> for Instructions {

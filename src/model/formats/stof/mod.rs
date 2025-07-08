@@ -49,3 +49,38 @@ impl Format for StofFormat {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use crate::model::Graph;
+
+    #[test]
+    fn stof_suite() {
+        let stof = r#"
+        #[test]
+        fn test_function() -> str {
+            'hello, world'
+        }
+
+        #[test]
+        fn errors() {
+            42
+        }
+
+        #[test]
+        #[errors]
+        fn errors_but_ok() -> int {
+            4.2.3 + 43
+        }
+        "#;
+
+        let mut graph = Graph::default();
+        graph.parse(stof, None).unwrap();
+        let res = graph.test(None, false);
+        match res {
+            Ok(res) => println!("{res}"),
+            Err(err) => panic!("{err}")
+        }
+    }
+}

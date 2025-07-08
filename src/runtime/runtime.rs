@@ -14,7 +14,8 @@
 // limitations under the License.
 //
 
-use std::sync::Arc;
+use std::{sync::Arc, time::SystemTime};
+use colored::Colorize;
 use imbl::Vector;
 use rustc_hash::FxHashMap;
 use crate::{model::{DataRef, Func, Graph, SId}, runtime::{instruction::Instruction, instructions::{call::FuncCall, Base}, proc::{ProcRes, Process}, Error, Val}};
@@ -28,8 +29,8 @@ pub struct Runtime {
     pub done: FxHashMap<SId, Process>,
     pub errored: FxHashMap<SId, Process>,
 
-    pub done_callback: Option<Box<dyn FnMut(&Process)>>,
-    pub err_callback: Option<Box<dyn FnMut(&Process)>>,
+    pub done_callback: Option<Box<dyn FnMut(&Graph, &Process)->bool>>,
+    pub err_callback: Option<Box<dyn FnMut(&Graph, &Process)->bool>>,
 }
 impl Runtime {
     #[inline]
@@ -61,12 +62,17 @@ impl Runtime {
 
     #[inline(always)]
     /// Move from running to done.
-    fn move_running_to_done(&mut self, id: &SId) {
+    fn move_running_to_done(&mut self, graph: &Graph, id: &SId) {
         let proc = self.remove_running(id);
         if let Some(cb) = &mut self.done_callback {
-            cb(&proc);
+            if cb(graph, &proc) {
+                self.done.insert(id.clone(), proc);
+            } else {
+                self.errored.insert(id.clone(), proc);
+            }
+        } else {
+            self.done.insert(id.clone(), proc);
         }
-        self.done.insert(id.clone(), proc);
     }
 
     #[inline(always)]
@@ -78,12 +84,17 @@ impl Runtime {
 
     #[inline(always)]
     /// Move from running to errored.
-    fn move_running_to_error(&mut self, id: &SId) {
+    fn move_running_to_error(&mut self, graph: &Graph, id: &SId) {
         let proc = self.remove_running(id);
         if let Some(cb) = &mut self.err_callback {
-            cb(&proc);
+            if cb(graph, &proc) {
+                self.errored.insert(id.clone(), proc);
+            } else {
+                self.done.insert(id.clone(), proc);
+            }
+        } else {
+            self.errored.insert(id.clone(), proc);
         }
-        self.errored.insert(id.clone(), proc);
     }
 
     /// Run to completion.
@@ -96,9 +107,10 @@ impl Runtime {
         while !self.running.is_empty() {
             // any limit < 1 will progress the process as much as possible
             let mut limit = 0;
-            if self.running.len() > 1 {
-                // set a limit when multiple running processes so that everyone makes progress together
-                limit = 3000 / (self.running.len() as i32);
+            if self.running.len() > 1 && self.running.len() <= 200 {
+                // everyone makes progress together, with shared CPU time
+                // if more than 200 processes, then finish something first!
+                limit = 1500;
             }
 
             for proc in self.running.iter_mut() {
@@ -132,7 +144,7 @@ impl Runtime {
             }
 
             for id in to_done.drain(..) {
-                self.move_running_to_done(&id);
+                self.move_running_to_done(&graph, &id);
             }
 
             if !to_wait.is_empty() {
@@ -143,7 +155,7 @@ impl Runtime {
 
             if !to_err.is_empty() {
                 for id in to_err.drain(..) {
-                    self.move_running_to_error(&id);
+                    self.move_running_to_error(&graph, &id);
                 }
             }
             if !to_spawn.is_empty() {
@@ -180,6 +192,181 @@ impl Runtime {
         self.waiting.clear();
         self.done.clear();
         self.errored.clear();
+    }
+
+
+    /*****************************************************************************
+     * Test.
+     *****************************************************************************/
+    
+    /// Test every #[test] function within this graph.
+    /// Will insert callbacks into this runtime for printing results.
+    /// If throw is false, this will only return Ok.
+    pub fn test(graph: &mut Graph, context: Option<String>, throw: bool) -> Result<String, String> {
+        // Create a fresh runtime
+        let mut rt = Self::default();
+
+        // Load all processes for all test functions
+        let mut count = 0;
+        for (_, func_ref) in Func::test_functions(&graph) {
+            if let Some(context) = &context {
+                for node in func_ref.data_nodes(&graph) {
+                    if let Some(node_path) = node.node_path(&graph, true) {
+                        let path = node_path.join(".");
+                        if path.contains(context) {
+                            let instruction = Arc::new(FuncCall {
+                                stack: false,
+                                func: Some(func_ref),
+                                search: None,
+                                args: Default::default(),
+                            }) as Arc<dyn Instruction>;
+                            let proc = Process::from(instruction);
+                            count += 1;
+                            rt.push_running_proc(proc, graph);
+                            break;
+                        }
+                    }
+                }
+            } else {
+                let instruction = Arc::new(FuncCall {
+                    stack: false,
+                    func: Some(func_ref),
+                    search: None,
+                    args: Default::default(),
+                }) as Arc<dyn Instruction>;
+                let proc = Process::from(instruction);
+                count += 1;
+                rt.push_running_proc(proc, graph);
+            }
+        }
+
+        // Create and set callbacks for printing successes and failures
+        rt.done_callback = Some(Box::new(|graph, success| {
+            // if this is top-level and executed something, print out a success message
+            if success.env.call_stack.len() < 1 && success.instructions.executed.len() > 0 {
+                let func = success.instructions.executed[0].clone();
+                if let Some(func) = func.as_dyn_any().downcast_ref::<Base>() {
+                    match func {
+                        Base::Literal(val) => {
+                            if let Some(func_ref) = val.try_func() {
+                                if let Some(name) = func_ref.data_name(graph) {
+                                    if let Some(func) = graph.get_stof_data::<Func>(&func_ref) {
+                                        if func.attributes.contains_key("errors") {
+                                            if !func.attributes.contains_key("silent") {
+                                                let mut func_path = String::from("<unknown>");
+                                                for node in func_ref.data_nodes(graph) {
+                                                    func_path = node.node_path(graph, true).unwrap().join(".");
+                                                }
+                                                println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().blue(), "...".dimmed(), "failed".bold().red());
+                                            }
+                                            return false; // push to error instead of done
+                                        } else if !func.attributes.contains_key("silent") {
+                                            let mut func_path = String::from("<unknown>");
+                                            for node in func_ref.data_nodes(graph) {
+                                                func_path = node.node_path(graph, true).unwrap().join(".");
+                                            }
+                                            println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().blue(), "...".dimmed(), "ok".bold().green());
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        _ => {}
+                    }
+                }
+            }
+            true
+        }));
+        rt.err_callback = Some(Box::new(|graph, errored| {
+            // if this is top-level and executed something, print out an error message
+            if errored.env.call_stack.len() > 0 {
+                let func_ref = errored.env.call_stack.first().unwrap();
+                if let Some(name) = func_ref.data_name(graph) {
+                    if let Some(func) = graph.get_stof_data::<Func>(&func_ref) {
+                        if func.attributes.contains_key("errors") {
+                            if !func.attributes.contains_key("silent") {
+                                let mut func_path = String::from("<unknown>");
+                                for node in func_ref.data_nodes(graph) {
+                                    func_path = node.node_path(graph, true).unwrap().join(".");
+                                }
+                                println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().blue(), "...".dimmed(), "ok".bold().green());
+                            }
+                            return false; // push to done instead of to errored
+                        } else if !func.attributes.contains_key("silent") {
+                            let mut func_path = String::from("<unknown>");
+                            for node in func_ref.data_nodes(graph) {
+                                func_path = node.node_path(graph, true).unwrap().join(".");
+                            }
+                            println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().blue(), "...".dimmed(), "failed".bold().red());
+                        }
+                    }
+                }
+            }
+            true
+        }));
+
+        // Run to completion
+        println!("{} {} {} {}", "running".bold(), count, "tests".bold(), "...".dimmed());
+        let start = SystemTime::now();
+        rt.run_to_complete(graph);
+        let duration = start.elapsed().unwrap();
+
+        // Gather results and output
+        let mut output = "\n".to_string();
+        let mut result = "ok".bold().green();
+        if rt.errored.len() > 0 {
+            result = "failed".bold().red();
+            output.push_str(&format!("{} failures:\n", rt.errored.len()));
+            for (_, failure) in &rt.errored {
+                let func_ref;
+                let mut err_str = String::default();
+                if failure.env.call_stack.len() > 0 {
+                    func_ref = failure.env.call_stack.first().unwrap().clone();
+                    if let Some(err) = &failure.error {
+                        err_str = err.to_string();
+                    }
+                } else if failure.env.call_stack.len() < 1 && failure.instructions.executed.len() > 0 {
+                    let func = failure.instructions.executed[0].clone();
+                    if let Some(func) = func.as_dyn_any().downcast_ref::<Base>() {
+                        match func {
+                            Base::Literal(val) => {
+                                if let Some(fref) = val.try_func() {
+                                    func_ref = fref;
+                                    err_str = format!("expected to error, but received a result of '{:?}'", failure.result);
+                                } else {
+                                    continue;
+                                }
+                            },
+                            _ => {
+                                continue;
+                            },
+                        }
+                    } else {
+                        continue;
+                    }
+                } else {
+                    continue;
+                }
+
+                if let Some(name) = func_ref.data_name(graph) {
+                    let mut func_path = String::from("<unknown>");
+                    for node in func_ref.data_nodes(graph) {
+                        func_path = node.node_path(graph, true).unwrap().join(".");
+                    }
+                    output.push_str(&format!("\n{}: {} @ {} ...\n\t{}\n", "failed".bold().red(), name.as_ref().blue(), func_path.italic().dimmed(), err_str.bold()));
+                }
+            }
+            output.push('\n');
+        }
+        let passed = count - rt.errored.len();
+        let dur = (duration.as_secs_f32() * 100.0).round() / 100.0;
+        output.push_str(&format!("\ntest result: {}. {} passed; {} failed; finished in {}s\n", result, passed, rt.errored.len(), dur));
+
+        if throw && rt.errored.len() > 0 {
+            Err(output)
+        } else {
+            Ok(output)
+        }
     }
 
 
