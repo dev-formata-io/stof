@@ -236,11 +236,18 @@ impl Instructions {
                     }
                 }
 
-                // Some fresh instructions for ya
-                let mut dynamic = Self::default();
-                let res = ins.exec(&mut dynamic, env, graph);
+                let res = ins.exec(env, graph);
                 match res {
-                    Ok(_) => {},
+                    Ok(replacements) => {
+                        if let Some(mut dynamic) = replacements {
+                            if dynamic.more() {
+                                self.executed.pop_back(); // replacing this instruction with these instructions
+                                while dynamic.more() {
+                                    self.instructions.push_front(dynamic.instructions.pop_back().unwrap());
+                                }
+                            }
+                        }
+                    },
                     Err(error) => {
                         if self.try_catch_count > 0 && self.unwind_try() {
                             env.stack.push(Variable::val(Val::Str(error.to_string().into()))); // TODO better errors?
@@ -249,13 +256,6 @@ impl Instructions {
                             return Err(error);
                         }
                     },
-                }
-
-                if dynamic.more() {
-                    self.executed.pop_back(); // replacing this instruction with these instructions
-                    while dynamic.more() {
-                        self.instructions.push_front(dynamic.instructions.pop_back().unwrap());
-                    }
                 }
             } else {
                 break;
@@ -292,7 +292,7 @@ impl Instructions {
 /// Instruction trait for an operation within the runtime.
 pub trait Instruction: InsDynAny + std::fmt::Debug + InsClone + Send + Sync {
     /// Execute this instruction given the process it's running on and the graph.
-    fn exec(&self, instructions: &mut Instructions, env: &mut ProcEnv, graph: &mut Graph) -> Result<(), Error>;
+    fn exec(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions>, Error>;
 }
 
 

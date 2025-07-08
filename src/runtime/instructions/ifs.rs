@@ -31,7 +31,8 @@ pub struct IfIns {
 }
 #[typetag::serde(name = "IfIns")]
 impl Instruction for IfIns {
-    fn exec(&self, instructions: &mut Instructions, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<(), Error> {
+    fn exec(&self, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
+        let mut instructions = Instructions::default();
         if let Some(test) = &self.if_test {
             instructions.push(test.clone());
         }
@@ -44,7 +45,7 @@ impl Instruction for IfIns {
         instructions.push(Arc::new(Base::Tag(else_tag)));
         instructions.append(&self.el_ins);
         instructions.push(Arc::new(Base::Tag(if_tag)));
-        Ok(())
+        Ok(Some(instructions))
     }
 }
 

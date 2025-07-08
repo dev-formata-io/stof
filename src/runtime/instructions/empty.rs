@@ -30,7 +30,8 @@ pub struct EmptyIns {
 }
 #[typetag::serde(name = "EmptyIns")]
 impl Instruction for EmptyIns {
-    fn exec(&self, instructions: &mut Instructions, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<(), Error> {
+    fn exec(&self, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
+        let mut instructions = Instructions::default();
         let marker: ArcStr = nanoid!(5).into();
 
         // push a marker value onto the stack
@@ -61,7 +62,7 @@ impl Instruction for EmptyIns {
         instructions.push(POP_STACK.clone());
 
         // now the stack is the same as when we started!
-        Ok(())
+        Ok(Some(instructions))
     }
 }
 

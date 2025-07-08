@@ -27,8 +27,9 @@ pub struct Block {
 }
 #[typetag::serde(name = "Block")]
 impl Instruction for Block {
-    fn exec(&self, instructions: &mut Instructions, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<(), Error> {
+    fn exec(&self, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
+        let mut instructions = Instructions::default();
         instructions.append(&self.ins);
-        Ok(())
+        Ok(Some(instructions))
     }
 }

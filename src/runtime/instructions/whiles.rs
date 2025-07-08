@@ -39,7 +39,8 @@ pub struct WhileIns {
 }
 #[typetag::serde(name = "WhileIns")]
 impl Instruction for WhileIns {
-    fn exec(&self, instructions: &mut Instructions, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<(), Error> {
+    fn exec(&self, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
+        let mut instructions = Instructions::default();
         instructions.push(PUSH_SYMBOL_SCOPE.clone());
 
         if let Some(declare) = &self.declare {
@@ -75,7 +76,7 @@ impl Instruction for WhileIns {
         instructions.push(Arc::new(Base::Tag(self.break_tag.clone())));
         instructions.push(Arc::new(Base::Tag(end_tag)));
         instructions.push(POP_SYMBOL_SCOPE.clone());
-        Ok(())
+        Ok(Some(instructions))
     }
 }
 

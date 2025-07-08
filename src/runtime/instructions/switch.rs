@@ -31,7 +31,7 @@ pub struct SwitchIns {
 }
 #[typetag::serde(name = "SwitchIns")]
 impl Instruction for SwitchIns {
-    fn exec(&self, instructions: &mut Instructions, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<(), Error> {
+    fn exec(&self, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         let mut table = FxHashMap::default();
         let mut default = None;
 
@@ -53,10 +53,12 @@ impl Instruction for SwitchIns {
         table_instructions.push(Arc::new(Base::Tag(end_tag)));
 
         if !table.is_empty() || default.is_some() {
+            let mut instructions = Instructions::default();
             instructions.push(Arc::new(Base::CtrlJumpTable(table, default)));
             instructions.append(&table_instructions.instructions);
+            return Ok(Some(instructions));
         }
-        Ok(())
+        Ok(None)
     }
 }
 

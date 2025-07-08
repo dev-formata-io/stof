@@ -56,7 +56,8 @@ pub struct OpIns {
 }
 #[typetag::serde(name = "OpIns")]
 impl Instruction for OpIns {
-    fn exec(&self, instructions: &mut Instructions, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<(), Error> {
+    fn exec(&self, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
+        let mut instructions = Instructions::default();
         instructions.push(self.rhs.clone());
         instructions.push(self.lhs.clone()); // lhs first, so reversed
         match self.op {
@@ -103,7 +104,7 @@ impl Instruction for OpIns {
                 instructions.push(Arc::new(Base::Tag(end_tag)));
             },
         }
-        Ok(())
+        Ok(Some(instructions))
     }
 }
 

@@ -204,11 +204,11 @@ pub(self) struct CallContext {
 
 #[typetag::serde(name = "FuncCall")]
 impl Instruction for FuncCall {
-    fn exec(&self, instructions: &mut Instructions, env: &mut ProcEnv, graph: &mut Graph) -> Result<(), Error> {
+    fn exec(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         let func_context = self.get_func_context(env, graph)?;
         if let Some(_libname) = func_context.lib {
             // TODO call into a library function, using context.func as lib name
-            return Ok(());
+            return Ok(None);
         }
         let func = func_context.func;
         
@@ -228,6 +228,7 @@ impl Instruction for FuncCall {
         }
        
         // Push call stack, start a new scope, and add self if needed
+        let mut instructions = Instructions::default();
         instructions.push(Arc::new(Base::Literal(Val::Fn(func.clone()))));
         instructions.push(PUSH_CALL.clone());
         instructions.push(PUSH_SYMBOL_SCOPE.clone());
@@ -332,13 +333,13 @@ impl Instruction for FuncCall {
 
         // Handle async function call
         if is_async {
-            let async_instructions = instructions.clone();
-            instructions.clear();
-
-            instructions.push(Arc::new(Base::Spawn((async_instructions, rtype)))); // adds a Promise<rtype> to the stack when executed!
-            instructions.push(SUSPEND.clone()); // make sure to spawn the process right after with the runtime... this is not an await
+            let mut async_instructions = Instructions::default();
+            async_instructions.push(Arc::new(Base::Spawn((instructions, rtype)))); // adds a Promise<rtype> to the stack when executed!
+            async_instructions.push(SUSPEND.clone()); // make sure to spawn the process right after with the runtime... this is not an await
+            Ok(Some(async_instructions))
+        } else {
+            Ok(Some(instructions))
         }
-        Ok(())
     }
 }
 
@@ -353,8 +354,9 @@ pub struct NamedArg {
 }
 #[typetag::serde(name = "NamedArg")]
 impl Instruction for NamedArg {
-    fn exec(&self, instructions: &mut Instructions, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<(), Error> {
+    fn exec(&self, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
+        let mut instructions = Instructions::default();
         instructions.push(self.ins.clone());
-        Ok(())
+        Ok(Some(instructions))
     }
 }

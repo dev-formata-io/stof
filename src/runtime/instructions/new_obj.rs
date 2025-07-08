@@ -38,7 +38,7 @@ pub struct NewObjIns {
 }
 #[typetag::serde(name = "NewObjIns")]
 impl Instruction for NewObjIns {
-    fn exec(&self, _instructions: &mut Instructions, env: &mut ProcEnv, graph: &mut Graph) -> Result<(), Error> {
+    fn exec(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         let mut id = SId::default();
         if let Some(cid) = &self.id { id = cid.clone(); }
 
@@ -68,6 +68,6 @@ impl Instruction for NewObjIns {
             val.cast(cast_type, graph)?;
         }
         env.stack.push(Variable::val(val));
-        Ok(())
+        Ok(None)
     }
 }

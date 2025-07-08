@@ -38,7 +38,7 @@ pub enum SetIns {
 }
 #[typetag::serde(name = "SetIns")]
 impl Instruction for SetIns {
-    fn exec(&self, instructions: &mut Instructions, env: &mut ProcEnv, _graph: &mut Graph) -> Result<(), Error> {
+    fn exec(&self, env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         match self {
             Self::NewSet => {
                 env.stack.push(Variable::val(Val::Set(Default::default())));
@@ -65,10 +65,12 @@ impl Instruction for SetIns {
              * High-level.
              *****************************************************************************/
             Self::AppendSet(ins) => {
+                let mut instructions = Instructions::default();
                 instructions.push(ins.clone());
                 instructions.push(PUSH_SET.clone());
+                return Ok(Some(instructions));
             },
         }
-        Ok(())
+        Ok(None)
     }
 }

@@ -38,7 +38,7 @@ pub enum MapIns {
 }
 #[typetag::serde(name = "MapIns")]
 impl Instruction for MapIns {
-    fn exec(&self, instructions: &mut Instructions, env: &mut ProcEnv, _graph: &mut Graph) -> Result<(), Error> {
+    fn exec(&self, env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         match self {
             Self::NewMap => {
                 env.stack.push(Variable::val(Val::Map(Default::default())));
@@ -67,11 +67,13 @@ impl Instruction for MapIns {
              * High-level.
              *****************************************************************************/
             Self::AppendMap((key, value)) => {
+                let mut instructions = Instructions::default();
                 instructions.push(key.clone());
                 instructions.push(value.clone());
                 instructions.push(PUSH_MAP.clone());
+                return Ok(Some(instructions));
             },
         }
-        Ok(())
+        Ok(None)
     }
 }

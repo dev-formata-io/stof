@@ -26,10 +26,12 @@ pub struct RetIns {
 }
 #[typetag::serde(name = "RetIns")]
 impl Instruction for RetIns {
-    fn exec(&self, instructions: &mut Instructions, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<(), Error> {
+    fn exec(&self, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         if let Some(ins) = &self.expr {
+            let mut instructions = Instructions::default();
             instructions.push(ins.clone());
+            return Ok(Some(instructions));
         }
-        Ok(())
+        Ok(None)
     }
 }

@@ -38,7 +38,7 @@ pub enum TupIns {
 }
 #[typetag::serde(name = "TupIns")]
 impl Instruction for TupIns {
-    fn exec(&self, instructions: &mut Instructions, env: &mut ProcEnv, _graph: &mut Graph) -> Result<(), Error> {
+    fn exec(&self, env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         match self {
             Self::NewTup => {
                 env.stack.push(Variable::val(Val::Tup(Default::default())));
@@ -65,10 +65,12 @@ impl Instruction for TupIns {
              * High-level.
              *****************************************************************************/
             Self::AppendTup(ins) => {
+                let mut instructions = Instructions::default();
                 instructions.push(ins.clone());
                 instructions.push(PUSH_TUP.clone());
+                return Ok(Some(instructions));
             },
         }
-        Ok(())
+        Ok(None)
     }
 }

@@ -38,7 +38,7 @@ pub enum ListIns {
 }
 #[typetag::serde(name = "ListIns")]
 impl Instruction for ListIns {
-    fn exec(&self, instructions: &mut Instructions, env: &mut ProcEnv, _graph: &mut Graph) -> Result<(), Error> {
+    fn exec(&self, env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         match self {
             Self::NewList => {
                 env.stack.push(Variable::val(Val::List(Default::default())));
@@ -65,10 +65,12 @@ impl Instruction for ListIns {
              * High-level.
              *****************************************************************************/
             Self::AppendList(ins) => {
+                let mut instructions = Instructions::default();
                 instructions.push(ins.clone());
                 instructions.push(PUSH_LIST.clone());
+                return Ok(Some(instructions));
             },
         }
-        Ok(())
+        Ok(None)
     }
 }

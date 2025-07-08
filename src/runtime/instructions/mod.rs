@@ -188,7 +188,7 @@ pub enum Base {
 impl Instruction for Base {
     /// Base instructions do not replace themselves and are used by other higher-order instructions.
     /// Know what you are doing if using these.
-    fn exec(&self, _instructions: &mut Instructions, env: &mut ProcEnv, graph: &mut Graph) -> Result<(), Error> {
+    fn exec(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         match self {
             /*****************************************************************************
              * Suspend.
@@ -226,7 +226,7 @@ impl Instruction for Base {
                 if let Some(var) = env.stack.pop() {
                     if let Some(obj) = var.try_obj() {
                         env.self_stack.push(obj);
-                        return Ok(());
+                        return Ok(None);
                     }
                 }
                 return Err(Error::SelfStackError);
@@ -237,7 +237,7 @@ impl Instruction for Base {
                 if let Some(var) = env.stack.pop() {
                     if let Some(func) = var.try_func() {
                         env.call_stack.push(func);
-                        return Ok(());
+                        return Ok(None);
                     }
                 }
                 return Err(Error::CallStackError);
@@ -248,7 +248,7 @@ impl Instruction for Base {
                 if let Some(var) = env.stack.pop() {
                     if let Some(obj) = var.try_obj() {
                         env.new_stack.push(obj);
-                        return Ok(());
+                        return Ok(None);
                     }
                 }
                 return Err(Error::NewStackError);
@@ -309,7 +309,7 @@ impl Instruction for Base {
                 if !name.contains('.') {
                     if let Some(var) = env.table.drop_var(name) {
                         var.drop_data(graph);
-                        return Ok(());
+                        return Ok(None);
                     }
                 }
                 
@@ -362,19 +362,19 @@ impl Instruction for Base {
                                         }
                                     }
                                     env.stack.push(field.value.stack_var(*by_ref));
-                                    return Ok(());
+                                    return Ok(None);
                                 }
                             } else if let Some(node) = SPath::node(&graph, &name, Some(obj.clone())) {
                                 env.stack.push(Variable::val(Val::Obj(node)));
-                                return Ok(());
+                                return Ok(None);
                             } else if let Some(func) = Func::func_from_path(graph, &name, Some(obj)) {
                                 env.stack.push(Variable::val(Val::Fn(func)));
-                                return Ok(());
+                                return Ok(None);
                             }
                         }
                     }
                     env.stack.push(Variable::val(Val::Null));
-                    return Ok(());
+                    return Ok(None);
                 }
 
                 let mut split_path = name.split('.').collect::<Vec<_>>();
@@ -402,23 +402,23 @@ impl Instruction for Base {
                                 }
                             }
                             env.stack.push(field.value.stack_var(*by_ref));
-                            return Ok(());
+                            return Ok(None);
                         }
                     } else if let Some(node) = SPath::node(&graph, &name, None) {
                         env.stack.push(Variable::val(Val::Obj(node)));
-                        return Ok(());
+                        return Ok(None);
                     } else if let Some(func) = Func::func_from_path(graph, &name, None) {
                         env.stack.push(Variable::val(Val::Fn(func)));
-                        return Ok(());
+                        return Ok(None);
                     }
                     env.stack.push(Variable::val(Val::Null));
-                    return Ok(());
+                    return Ok(None);
                 }
 
                 // If the split path is empty, add the context and return now
                 if split_path.is_empty() {
                     env.stack.push(context);
-                    return Ok(());
+                    return Ok(None);
                 }
 
                 // Else, the context needs to be an object to continue the lookup!
@@ -434,23 +434,23 @@ impl Instruction for Base {
                                 }
                             }
                             env.stack.push(field.value.stack_var(*by_ref));
-                            return Ok(());
+                            return Ok(None);
                         }
                     } else if let Some(node) = SPath::node(&graph, &name, Some(obj.clone())) {
                         env.stack.push(Variable::val(Val::Obj(node)));
-                        return Ok(());
+                        return Ok(None);
                     } else if let Some(func) = Func::func_from_path(graph, &name, Some(obj)) {
                         env.stack.push(Variable::val(Val::Fn(func)));
-                        return Ok(());
+                        return Ok(None);
                     }
                 }
                 env.stack.push(Variable::val(Val::Null));
-                return Ok(());
+                return Ok(None);
             },
             Self::SetVariable(name) => {
                 if let Some(var) = env.stack.pop() {
                     if !name.contains('.') && env.table.set(name, &var, graph)? {
-                        return Ok(());
+                        return Ok(None);
                     }
 
                     if name == &SELF_STR_KEYWORD {
@@ -474,7 +474,7 @@ impl Instruction for Base {
                             if let Some(field) = field_ref.data_mut(graph) {
                                 field.invalidate_value();
                             }
-                            return Ok(());
+                            return Ok(None);
                         } else {
                             let mut path = SPath::from(name);
                             let field_name = path.path.pop().unwrap();
@@ -482,7 +482,7 @@ impl Instruction for Base {
                             if let Some(node) = graph.ensure_named_nodes(path, Some(self_ptr.clone()), true, None) {
                                 let field = Field::new(var, None);
                                 graph.insert_stof_data(&node, field_name, Box::new(field), None);
-                                return Ok(());
+                                return Ok(None);
                             } else {
                                 return Err(Error::AssignSelf);
                             }
@@ -499,7 +499,7 @@ impl Instruction for Base {
                         if let Some(field) = field_ref.data_mut(graph) {
                             field.invalidate_value();
                         }
-                        return Ok(());
+                        return Ok(None);
                     } else if name.contains('.') {
                         let mut path = SPath::from(name);
                         let field_name = path.path.pop().unwrap();
@@ -508,7 +508,7 @@ impl Instruction for Base {
                         if let Some(node) = graph.ensure_named_nodes(path, None, true, None) {
                             let field = Field::new(var, None);
                             graph.insert_stof_data(&node, field_name, Box::new(field), None);
-                            return Ok(());
+                            return Ok(None);
                         } else {
                             return Err(Error::AssignSelf);
                         }
@@ -524,7 +524,7 @@ impl Instruction for Base {
                                 node.name = name.into();
                             }
                             graph.roots.insert(nref);
-                            return Ok(());
+                            return Ok(None);
                         }
                         return Err(Error::AssignRootNonObj);
                     }
@@ -822,6 +822,6 @@ impl Instruction for Base {
                 }
             },
         };
-        Ok(())
+        Ok(None)
     }
 }

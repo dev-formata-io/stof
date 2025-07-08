@@ -30,10 +30,11 @@ pub struct TryCatchIns {
 }
 #[typetag::serde(name = "TryCatchIns")]
 impl Instruction for TryCatchIns {
-    fn exec(&self, instructions: &mut Instructions, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<(), Error> {
+    fn exec(&self, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         let catch_tag: ArcStr = nanoid!(10).into();
         let end_tag: ArcStr = nanoid!(10).into();
 
+        let mut instructions = Instructions::default();
         instructions.push(Arc::new(Base::CtrlTry(catch_tag.clone()))); // Go here when theres an error & inc try count
         instructions.append(&self.try_ins);
 
@@ -43,7 +44,7 @@ impl Instruction for TryCatchIns {
 
         instructions.push(Arc::new(Base::Tag(end_tag)));
         instructions.push(END_TRY.clone()); // de-increment the try count.
-        Ok(())
+        Ok(Some(instructions))
     }
 }
 
