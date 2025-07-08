@@ -16,7 +16,7 @@
 
 use imbl::vector;
 use nanoid::nanoid;
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, opt}, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, opt, peek}, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
 use rustc_hash::FxHashMap;
 use crate::{model::{Field, FieldDoc}, parser::{context::ParseContext, doc::document_statement, expr::expr, ident::ident, parse_attributes, string::{double_string, single_string}, types::parse_type, whitespace::{doc_comment, whitespace}}, runtime::{Val, Variable}};
 
@@ -72,8 +72,8 @@ pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
         value.vtype = Some(cast_type); // keep the field this type when assigning in the future
     }
 
-    // Optionally end the field declaration with a semicolon
-    let (input, _) = opt(preceded(multispace0, char(';'))).parse(input)?;
+    // Optionally end the field declaration with a semicolon or a comma
+    let (input, _) = opt(preceded(multispace0, alt((char(';'), char(','))))).parse(input)?;
 
     // Instert the new field in the current parse context
     let field = Field::new(value, Some(attributes));
@@ -190,6 +190,12 @@ fn object_value<'a>(input: &'a str, name: &str, context: &mut ParseContext) -> I
     }
     context.pop_self();
     let (input, _) = char('}')(input)?;
+
+    // Peek at the next value, if its async, then don't do the as below...
+    let (input, peek_async) = opt(peek(preceded(multispace0, tag("async")))).parse(input)?;
+    if peek_async.is_some() {
+        return Ok((input, value));
+    }
 
     // Optional object cast at the end (useful when creating arrays especially)
     let (input, cast_type) = opt(preceded(preceded(multispace0, tag("as")), preceded(multispace0, parse_type))).parse(input)?;
