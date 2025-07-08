@@ -163,6 +163,15 @@ mod tests {
                 "hello": 450
             }
 
+            list subobj: [
+                {
+                    fn hello() -> str { 'hi' }
+                } as obj,
+                {
+                    field: 'dude'
+                }
+            ];
+
             async fn another_yet(max: int = self.max) -> int {
                 let total = 0;
                 for (let i = 0; i < max; i += 1) total += 1;

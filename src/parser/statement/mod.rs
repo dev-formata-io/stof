@@ -17,13 +17,14 @@
 use std::sync::Arc;
 use imbl::{vector, Vector};
 use nom::{branch::alt, combinator::map, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, value}, multi::fold_many0, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
-use crate::{parser::{expr::expr, statement::{assign::assign, declare::declare_statement, fors::for_loop, ifs::if_statement, whiles::{break_statement, continue_statement, while_statement}}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{empty::EmptyIns, ret::RetIns, POP_SYMBOL_SCOPE, PUSH_SYMBOL_SCOPE}}};
+use crate::{parser::{expr::expr, statement::{assign::assign, declare::declare_statement, fors::for_loop, ifs::if_statement, switch::switch_statement, whiles::{break_statement, continue_statement, while_statement}}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{empty::EmptyIns, ret::RetIns, POP_SYMBOL_SCOPE, PUSH_SYMBOL_SCOPE}}};
 
 pub mod declare;
 pub mod assign;
 pub mod ifs;
 pub mod whiles;
 pub mod fors;
+pub mod switch;
 
 
 /// Parse a block of statements.
@@ -69,6 +70,7 @@ pub fn statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
         if_statement,
         while_statement,
         for_loop,
+        switch_statement,
         terminated(continue_statement, preceded(multispace0, char(';'))),
         terminated(break_statement, preceded(multispace0, char(';'))),
         
@@ -206,5 +208,26 @@ mod tests {
         let val = Runtime::eval(&mut graph, Arc::new(Block { ins: res })).unwrap();
         //println!("{val:?}");
         assert_eq!(val, 4163.into());
+    }
+
+    #[test]
+    fn switch_statement() {
+        let (_input, res) = block(r#"{
+            const val = 'hii';
+            switch (val) {
+                case 'a': 42
+                case 'hi': 100
+                case 'hello': 32
+                default: {
+                    700
+                }
+            }
+        }"#).unwrap();
+
+        //println!("{res:?}");
+        let mut graph = Graph::default();
+        let val = Runtime::eval(&mut graph, Arc::new(Block { ins: res })).unwrap();
+        //println!("{val:?}");
+        assert_eq!(val, 700.into());
     }
 }

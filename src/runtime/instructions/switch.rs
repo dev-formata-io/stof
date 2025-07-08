@@ -16,6 +16,7 @@
 
 use std::sync::Arc;
 use arcstr::ArcStr;
+use imbl::Vector;
 use nanoid::nanoid;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
@@ -26,7 +27,7 @@ use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, in
 /// Switch statement.
 pub struct SwitchIns {
     pub map: FxHashMap<Val, Arc<dyn Instruction>>,
-    pub def: Option<Arc<dyn Instruction>>,
+    pub def: Option<Vector<Arc<dyn Instruction>>>,
 }
 #[typetag::serde(name = "SwitchIns")]
 impl Instruction for SwitchIns {
@@ -34,19 +35,22 @@ impl Instruction for SwitchIns {
         let mut table = FxHashMap::default();
         let mut default = None;
 
+        let end_tag: ArcStr = nanoid!(12).into();
         let mut table_instructions = Instructions::default();
         for (v, ins) in &self.map {
             let tag: ArcStr = nanoid!(12).into();
             table_instructions.push(Arc::new(Base::Tag(tag.clone())));
             table_instructions.push(ins.clone());
+            table_instructions.push(Arc::new(Base::CtrlForwardTo(end_tag.clone())));
             table.insert(v.clone(), tag);
         }
         if let Some(def) = &self.def {
             let tag: ArcStr = nanoid!(12).into();
             table_instructions.push(Arc::new(Base::Tag(tag.clone())));
-            table_instructions.push(def.clone());
+            table_instructions.append(def);
             default = Some(tag);
         }
+        table_instructions.push(Arc::new(Base::Tag(end_tag)));
 
         if !table.is_empty() || default.is_some() {
             instructions.push(Arc::new(Base::CtrlJumpTable(table, default)));
