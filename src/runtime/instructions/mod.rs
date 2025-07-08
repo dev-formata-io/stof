@@ -262,8 +262,12 @@ impl Instruction for Base {
             
             Self::Spawn((async_ins, ty)) => {
                 // Creates a new PID every time here, avoiding a lot of issues...
-                let proc = Process::from(async_ins.clone());
+                let mut proc = Process::from(async_ins.clone());
                 let pid = proc.env.pid.clone();
+                proc.env = env.clone(); // clone this environment
+                proc.env.spawn = None;
+                proc.env.pid = pid.clone();
+
                 env.spawn = Some(Box::new(proc));
                 env.stack.push(Variable::val(Val::Promise(pid, ty.clone())));
                 // up to the caller to add the suspend to actually spawn (don't want this ins replaced)

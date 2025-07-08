@@ -76,9 +76,9 @@ impl From<Arc<dyn Instruction>> for Process {
 }
 impl Process {
     #[inline(always)]
-    /// Progress this process by one instruction.
-    pub(super) fn progress(&mut self, graph: &mut Graph) -> Result<ProcRes, Error> {
-        match self.instructions.exec(&mut self.env, graph) {
+    /// Progress this process.
+    pub(super) fn progress(&mut self, graph: &mut Graph, limit: i32) -> Result<ProcRes, Error> {
+        match self.instructions.exec(&mut self.env, graph, limit) {
             Ok(res) => {
                 Ok(res)
             },

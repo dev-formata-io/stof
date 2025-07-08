@@ -121,8 +121,14 @@ impl Instructions {
     #[inline]
     /// Execute one instruction, in order.
     /// This will pop the first instruction, leaving the next ready to be consumed later.
-    pub fn exec(&mut self, env: &mut ProcEnv, graph: &mut Graph) -> Result<ProcRes, Error> {
+    pub fn exec(&mut self, env: &mut ProcEnv, graph: &mut Graph, mut limit: i32) -> Result<ProcRes, Error> {
+        let keep_count = limit > 0;
         'exec_loop: loop {
+            if keep_count {
+                if limit <= 0 { return Ok(ProcRes::More); }
+                limit -= 1;
+            }
+
             if let Some(ins) = self.instructions.pop_front() {
                 self.executed.push_back(ins.clone());
 
@@ -143,6 +149,8 @@ impl Instructions {
                                 if let Some((pid, _)) = promise.try_promise() {
                                     return Ok(ProcRes::Wait(pid.clone()));
                                 } else {
+                                    // TODO: expand array of promises by adding them each to the stack with additional awaits for each
+
                                     env.stack.push(promise); // put it back because not a promise
                                 }
                             }
@@ -151,7 +159,7 @@ impl Instructions {
                         Base::CtrlSuspend => {
                             // Go to the next processes instructions
                             // Used to spawn new processes as well
-                            break 'exec_loop;
+                            return Ok(ProcRes::More);
                         },
                         Base::CtrlBackTo(tag) => {
                             self.back_to(tag);

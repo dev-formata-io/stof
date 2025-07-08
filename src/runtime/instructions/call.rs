@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::{mem::swap, sync::Arc};
+use std::sync::Arc;
 use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use serde::{Deserialize, Serialize};
@@ -307,9 +307,6 @@ impl Instruction for FuncCall {
             instructions.push(Arc::new(Base::Cast(param.param_type.clone())));
             instructions.push(Arc::new(Base::DeclareVar(param.name.to_string().into(), true))); // these must keep their type
         }
-        for arg in args {
-            instructions.push(arg);
-        }
 
         // Push the function instructions
         instructions.push(PUSH_SYMBOL_SCOPE.clone());
@@ -333,8 +330,8 @@ impl Instruction for FuncCall {
 
         // Handle async function call
         if is_async {
-            let mut async_instructions = Instructions::default();
-            swap(&mut async_instructions, instructions); // instructions now empty again
+            let async_instructions = instructions.clone();
+            instructions.clear();
 
             instructions.push(Arc::new(Base::Spawn((async_instructions, rtype)))); // adds a Promise<rtype> to the stack when executed!
             instructions.push(SUSPEND.clone()); // make sure to spawn the process right after with the runtime... this is not an await

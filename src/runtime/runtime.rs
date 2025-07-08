@@ -85,8 +85,15 @@ impl Runtime {
         let mut to_run = Vec::new();
         let mut to_spawn = Vec::new();
         while !self.running.is_empty() {
+            // any limit < 1 will progress the process as much as possible
+            let mut limit = 0;
+            if self.running.len() > 1 {
+                // set a limit when multiple running processes so that everyone makes progress together
+                limit = 3000 / (self.running.len() as i32);
+            }
+
             for proc in self.running.iter_mut() {
-                match proc.progress(graph) {
+                match proc.progress(graph, limit) {
                     Ok(state) => {
                         match state {
                             ProcRes::Wait(pid) => {
@@ -115,36 +122,16 @@ impl Runtime {
                 }
             }
 
-            if !to_done.is_empty() {
-                for id in to_done.drain(..) {
-                    self.move_running_to_done(&id);
-                }
-
-                for (id, waiting_proc) in &mut self.waiting {
-                    if let Some(wait_id) = &waiting_proc.waiting {
-                        if let Some(done_proc) = self.done.remove(wait_id) {
-                            // If the completed process has a result, push that to the waiting processes stack
-                            if let Some(res) = done_proc.result {
-                                waiting_proc.env.stack.push(res);
-                            }
-                            to_run.push(id.clone());
-                        }
-                    }
-                }
-                if !to_run.is_empty() {
-                    for id in to_run.drain(..) {
-                        if let Some(mut proc) = self.waiting.remove(&id) {
-                            proc.waiting = None;
-                            self.running.push(proc);
-                        }
-                    }
-                }
+            for id in to_done.drain(..) {
+                self.move_running_to_done(&id);
             }
+
             if !to_wait.is_empty() {
                 for id in to_wait.drain(..) {
                     self.move_running_to_waiting(&id);
                 }
             }
+
             if !to_err.is_empty() {
                 for id in to_err.drain(..) {
                     self.move_running_to_error(&id);
@@ -153,6 +140,26 @@ impl Runtime {
             if !to_spawn.is_empty() {
                 for proc in to_spawn.drain(..) {
                     self.push_running_proc(*proc, graph);
+                }
+            }
+
+            for (id, waiting_proc) in &mut self.waiting {
+                if let Some(wait_id) = &waiting_proc.waiting {
+                    if let Some(done_proc) = self.done.remove(wait_id) {
+                        // If the completed process has a result, push that to the waiting processes stack
+                        if let Some(res) = done_proc.result {
+                            waiting_proc.env.stack.push(res);
+                        }
+                        to_run.push(id.clone());
+                    }
+                }
+            }
+            if !to_run.is_empty() {
+                for id in to_run.drain(..) {
+                    if let Some(mut proc) = self.waiting.remove(&id) {
+                        proc.waiting = None;
+                        self.running.push(proc);
+                    }
                 }
             }
         }

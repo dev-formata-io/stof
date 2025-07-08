@@ -141,3 +141,40 @@ fn json_statements<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
     let (input, _) = char('}')(input)?;
     Ok((input, ()))
 }
+
+
+#[cfg(test)]
+mod tests {
+    use crate::{model::Graph, parser::{context::ParseContext, doc::document}, runtime::{Runtime, Val}};
+
+    #[test]
+    fn basic_doc() {
+        let mut graph = Graph::default();
+        let mut context = ParseContext::new(&mut graph);
+        context.docs = true;
+
+        document(r#"
+
+        async fn another_yet(max: int = 100) -> int {
+            let total = 0;
+            for (let i = 0; i < max; i += 1) total += 1;
+            total
+        }
+ 
+        fn main(x: float = 5) -> float {
+            let a = self.another_yet(200);
+            let b = self.another_yet(4000);
+            let c = self.another_yet(1000);
+            let d = self.another_yet(800);
+
+            (await a) + (await b) + (await c) + (await d)
+        }
+
+        "#, &mut context).unwrap();
+
+        graph.dump(true);
+
+        let res = Runtime::call(&mut graph, "root.main", vec![Val::from(10)]).unwrap();
+        assert_eq!(res, 6000.into());
+    }
+}
