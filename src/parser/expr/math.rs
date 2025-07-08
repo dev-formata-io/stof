@@ -176,12 +176,12 @@ fn atom(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
         typeof_expr,
         tup_expr,
         list_expr,
-        map_expr,
         set_expr,
+        map_expr,
         not_expr,
-        graph_expr,
         block_expr,
         literal_expr,
+        graph_expr,
         wrapped_expr,
     ]).parse(input)
 }

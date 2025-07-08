@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use lazy_static::lazy_static;
-use crate::{model::{Graph, NodeRef, SId}, runtime::{instruction::Instruction, proc::Process, Error, Runtime, Val}};
+use crate::{model::{Graph, NodeRef, SId}, runtime::{instruction::Instruction, proc::Process, Error, Runtime, Val, Variable}};
 
 
 lazy_static! {
@@ -59,6 +59,24 @@ impl<'ctx> ParseContext<'ctx> {
             proc.env.self_ptr()
         } else {
             self.graph.ensure_main_root()
+        }
+    }
+
+    /// Push self stack as a variable.
+    pub fn push_self(&mut self, name: &str, field: bool) -> Variable {
+        let parent = self.self_ptr();
+        // TODO: collisions?
+        let nref = self.graph.insert_node(name, Some(parent), field);
+        let proc = self.parse_proc();
+        proc.env.self_stack.push(nref.clone());
+        Variable::val(Val::Obj(nref))
+    }
+
+    /// Pop self stack.
+    pub fn pop_self(&mut self) {
+        let proc = self.parse_proc();
+        if proc.env.self_stack.len() > 1 {
+            proc.env.self_stack.pop();
         }
     }
 

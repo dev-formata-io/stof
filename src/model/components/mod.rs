@@ -23,3 +23,18 @@ pub use field::*;
 
 pub mod prototype;
 pub use prototype::*;
+
+use serde::{Deserialize, Serialize};
+use crate::model::StofData;
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InnerDoc {
+    pub docs: String,
+}
+#[typetag::serde(name = "_InnerDoc")]
+impl StofData for InnerDoc {
+    fn core_data(&self) -> bool {
+        return true;
+    }
+}

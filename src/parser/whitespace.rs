@@ -71,7 +71,7 @@ pub(self) fn parse_single_line_comment(input: &str) -> IResult<&str, &str> {
 pub(self) fn parse_block_comment(input: &str) -> IResult<&str, &str> {
     let (input, _) = tag("/*").parse(input)?;
     
-    if input.starts_with('*') {
+    if input.starts_with('*') || input.starts_with('!') {
         // this is actually a doc comment, so error
         return Err(nom::Err::Error(nom::error::Error { input: "", code: nom::error::ErrorKind::IsNot }));
     }
