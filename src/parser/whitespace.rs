@@ -54,6 +54,24 @@ pub fn whitespace(input: &str) -> IResult<&str, &str> {
     Ok((rest, ""))
 }
 
+/// Whitespace, but can fail.
+pub fn whitespace_fail(input: &str) -> IResult<&str, &str> {
+    let mut rest = input;
+    let mut success = false;
+    while let Ok(res) = alt((
+        parse_block_comment,
+        parse_single_line_comment,
+        multispace1
+    )).parse(rest) {
+        rest = res.0;
+        success = true;
+    }
+    if !success {
+        return Err(nom::Err::Error(nom::error::Error { input: "", code: nom::error::ErrorKind::IsNot }));
+    }
+    Ok((rest, ""))
+}
+
 /// Parse a single line comment "// comment here \n"
 pub(self) fn parse_single_line_comment(input: &str) -> IResult<&str, &str> {
     let (input, _) = tag("//").parse(input)?;

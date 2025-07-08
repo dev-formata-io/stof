@@ -15,7 +15,7 @@
 //
 
 use std::sync::Arc;
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, multi::{separated_list0, separated_list1}, sequence::{delimited, preceded, separated_pair}, IResult, Parser};
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, peek}, multi::{separated_list0, separated_list1}, sequence::{delimited, preceded, separated_pair}, IResult, Parser};
 use crate::{parser::{expr::{graph::{chained_var_func, graph_expr}, literal::literal_expr, math::math_expr}, statement::block, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, Base, AWAIT, NOOP, NOT_TRUTHY, TYPE_NAME, TYPE_OF}}};
 
 pub mod literal;
@@ -42,6 +42,12 @@ pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     ]).parse(input)?;
 
     // TODO: nullcheck operator "??"
+
+    // Peek at the next value, if its async, then don't do the as below...
+    let (input, peek_async) = opt(peek(preceded(multispace0, tag("async")))).parse(input)?;
+    if peek_async.is_some() {
+        return Ok((input, ins));
+    }
 
     // Optional "as Type" cast
     let (input, cast_type) = opt(preceded(delimited(multispace0, tag("as"), multispace0), parse_type)).parse(input)?;

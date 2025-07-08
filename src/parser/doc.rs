@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use crate::{model::InnerDoc, parser::{context::ParseContext, field::parse_field, func::parse_function, whitespace::{parse_inner_doc_comment, whitespace}}, runtime::Error};
+use crate::{model::InnerDoc, parser::{context::ParseContext, field::parse_field, func::parse_function, whitespace::{parse_inner_doc_comment, whitespace_fail}}, runtime::Error};
 use nanoid::nanoid;
 use nom::{character::complete::char, combinator::eof, Err, IResult};
 
@@ -111,7 +111,7 @@ pub fn document_statement<'a>(input: &'a str, context: &mut ParseContext) -> IRe
     }
 
     // Whitespace in the document
-    if let Ok((input, _)) = whitespace(input) {
+    if let Ok((input, _)) = whitespace_fail(input) {
         return Ok((input, ()));
     }
 
@@ -155,14 +155,16 @@ mod tests {
 
         document(r#"
 
-        async fn another_yet(max: int = 100) -> int {
+        max: 200
+
+        async fn another_yet(max: int = self.max) -> int {
             let total = 0;
             for (let i = 0; i < max; i += 1) total += 1;
             total
         }
  
         fn main(x: float = 5) -> float {
-            let a = self.another_yet(200);
+            let a = self.another_yet();
             let b = self.another_yet(4000);
             let c = self.another_yet(1000);
             let d = self.another_yet(800);
@@ -172,7 +174,7 @@ mod tests {
 
         "#, &mut context).unwrap();
 
-        graph.dump(true);
+        //graph.dump(true);
 
         let res = Runtime::call(&mut graph, "root.main", vec![Val::from(10)]).unwrap();
         assert_eq!(res, 6000.into());
