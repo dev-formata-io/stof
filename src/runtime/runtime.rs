@@ -20,13 +20,16 @@ use rustc_hash::FxHashMap;
 use crate::{model::{DataRef, Func, Graph, SId}, runtime::{instruction::Instruction, instructions::{call::FuncCall, Base}, proc::{ProcRes, Process}, Error, Val}};
 
 
-#[derive(Default, Debug)]
+#[derive(Default)]
 /// Runtime.
 pub struct Runtime {
     running: Vec<Process>,
     waiting: FxHashMap<SId, Process>,
     pub done: FxHashMap<SId, Process>,
     pub errored: FxHashMap<SId, Process>,
+
+    pub done_callback: Option<Box<dyn FnMut(&Process)>>,
+    pub err_callback: Option<Box<dyn FnMut(&Process)>>,
 }
 impl Runtime {
     #[inline]
@@ -60,6 +63,9 @@ impl Runtime {
     /// Move from running to done.
     fn move_running_to_done(&mut self, id: &SId) {
         let proc = self.remove_running(id);
+        if let Some(cb) = &mut self.done_callback {
+            cb(&proc);
+        }
         self.done.insert(id.clone(), proc);
     }
 
@@ -74,6 +80,9 @@ impl Runtime {
     /// Move from running to errored.
     fn move_running_to_error(&mut self, id: &SId) {
         let proc = self.remove_running(id);
+        if let Some(cb) = &mut self.err_callback {
+            cb(&proc);
+        }
         self.errored.insert(id.clone(), proc);
     }
 
@@ -172,6 +181,7 @@ impl Runtime {
         self.done.clear();
         self.errored.clear();
     }
+
 
     /*****************************************************************************
      * Static functions.

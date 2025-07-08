@@ -2343,8 +2343,15 @@ impl Val {
     }
 
     /// Debug print.
-    /// TODO: dump objects
-    pub fn debug(&self, _graph: &Graph) -> String {
+    pub fn debug(&self, graph: &Graph) -> String {
+        match self {
+            Self::Obj(nref) => {
+                if let Some(node) = nref.node(graph) {
+                    return node.dump(graph, 0, true);
+                }
+            },
+            _ => {}
+        }
         self.to_string()
     }
 }

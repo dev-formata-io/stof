@@ -19,7 +19,7 @@ use bytes::Bytes;
 use colored::Colorize;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{Data, DataRef, Format, JsonFormat, Node, NodeRef, SId, SPath, StofData, INVALID_NODE_NEW}, runtime::{table::SymbolTable, Error}};
+use crate::{model::{Data, DataRef, Format, JsonFormat, Node, NodeRef, SId, SPath, StofData, StofFormat, INVALID_NODE_NEW}, runtime::{table::SymbolTable, Error, Runtime, Val}};
 
 
 /// Root node name.
@@ -876,6 +876,7 @@ impl Graph {
     
     /// Load standard (included) formats.
     pub fn load_std_formats(&mut self) {
+        self.load_format(Arc::new(StofFormat::default()));
         self.load_format(Arc::new(JsonFormat{}));
     }
     
@@ -996,6 +997,36 @@ impl Graph {
         } else {
             Err(Error::NotImplemented)
         }
+    }
+
+
+    /*****************************************************************************
+     * Stof Language.
+     *****************************************************************************/
+    
+    #[inline]
+    /// Parse stof into this graph, optionally into a specific node.
+    /// Use file_import for files...
+    pub fn parse(&mut self, stof: &str, node: Option<NodeRef>) -> Result<(), Error> {
+        self.string_import("stof", stof, node)
+    }
+
+    /// Call a function (by named '.' separated path) in this graph.
+    pub fn call(&mut self, func_path: &str, start: Option<NodeRef>, args: Vec<Val>) -> Result<Val, Error> {
+        let search;
+        if let Some(start) = start {
+            if let Some(nodepath) = start.node_path(&self, true) {
+                search = format!("{}.{}", nodepath.join("."), func_path);
+            } else {
+                return Err(Error::Custom("Graph call start node doesn't exist".into()));
+            }
+        } else if func_path.split('.').collect::<Vec<_>>().len() < 2 {
+            search = format!("root.{func_path}");
+        } else {
+            search = func_path.to_string();
+        }
+
+        Runtime::call(self, &search, args)
     }
 }
 

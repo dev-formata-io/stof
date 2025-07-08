@@ -352,8 +352,15 @@ impl Instruction for Base {
                 if *stack {
                     if let Some(var) = env.stack.pop() {
                         if let Some(obj) = var.try_obj() {
-                            if let Some(field) = Field::field_from_path(graph, &name, Some(obj.clone())) {
-                                if let Some(field) = graph.get_stof_data::<Field>(&field) {
+                            if let Some(field_ref) = Field::field_from_path(graph, &name, Some(obj.clone())) {
+                                if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
+                                    if field.is_private() {
+                                        let self_ptr = env.self_ptr();
+                                        let field_nodes = field_ref.data_nodes(&graph);
+                                        if !field_nodes.contains(&self_ptr) {
+                                            return Err(Error::FieldPrivate);
+                                        }
+                                    }
                                     env.stack.push(field.value.stack_var(*by_ref));
                                     return Ok(());
                                 }
@@ -385,8 +392,15 @@ impl Instruction for Base {
                     split_path.remove(0);
                 } else {
                     // Global case
-                    if let Some(field) = Field::field_from_path(graph, &name, None) {
-                        if let Some(field) = graph.get_stof_data::<Field>(&field) {
+                    if let Some(field_ref) = Field::field_from_path(graph, &name, None) {
+                        if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
+                            if field.is_private() {
+                                let self_ptr = env.self_ptr();
+                                let field_nodes = field_ref.data_nodes(&graph);
+                                if !field_nodes.contains(&self_ptr) {
+                                    return Err(Error::FieldPrivate);
+                                }
+                            }
                             env.stack.push(field.value.stack_var(*by_ref));
                             return Ok(());
                         }
@@ -410,8 +424,15 @@ impl Instruction for Base {
                 // Else, the context needs to be an object to continue the lookup!
                 let name = split_path.join(".");
                 if let Some(obj) = context.try_obj() {
-                    if let Some(field) = Field::field_from_path(graph, &name, Some(obj.clone())) {
-                        if let Some(field) = graph.get_stof_data::<Field>(&field) {
+                    if let Some(field_ref) = Field::field_from_path(graph, &name, Some(obj.clone())) {
+                        if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
+                            if field.is_private() {
+                                let self_ptr = env.self_ptr();
+                                let field_nodes = field_ref.data_nodes(&graph);
+                                if !field_nodes.contains(&self_ptr) {
+                                    return Err(Error::FieldPrivate);
+                                }
+                            }
                             env.stack.push(field.value.stack_var(*by_ref));
                             return Ok(());
                         }
@@ -444,7 +465,7 @@ impl Instruction for Base {
                         if let Some(field_ref) = Field::field_from_path(graph, &name, Some(self_ptr.clone())) {
                             let mut fvar = None;
                             if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
-                                if !field.can_set() { return Err(Error::FieldPrivateSet); }
+                                if !field.can_set() { return Err(Error::FieldReadOnlySet); }
                                 fvar = Some(field.value.clone());
                             }
                             if let Some(mut fvar) = fvar {
@@ -469,7 +490,7 @@ impl Instruction for Base {
                     } else if let Some(field_ref) = Field::field_from_path(graph, &name, None) {
                         let mut fvar = None;
                         if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
-                            if !field.can_set() { return Err(Error::FieldPrivateSet); }
+                            if !field.can_set() { return Err(Error::FieldReadOnlySet); }
                             fvar = Some(field.value.clone());
                         }
                         if let Some(mut fvar) = fvar {

@@ -220,7 +220,9 @@ impl Instruction for FuncCall {
             params = func.params.clone();
             func_instructions = func.instructions.clone();
             rtype = func.return_type.clone();
-            is_async = func.attributes.contains_key(ASYNC_FUNC_ATTR.as_str());
+
+            // Only async if we have the attribute and we are not a top level function
+            is_async = func.attributes.contains_key(ASYNC_FUNC_ATTR.as_str()) && env.call_stack.len() > 0;
         } else {
             return Err(Error::FuncDne);
         }

@@ -24,8 +24,11 @@ use crate::{model::{DataRef, Graph, NodeRef, SPath, StofData, SELF_KEYWORD, SUPE
 /// Used in export formats.
 pub const NOEXPORT_FIELD_ATTR: ArcStr = literal!("no-export");
 
-/// Can the field be set?
+/// Can the field be viewed outside of its scope?
 pub const PRIVATE_FIELD_ATTR: ArcStr = literal!("private");
+
+/// Can this field be set or just read?
+pub const READ_ONLY_FIELD_ATTR: ArcStr = literal!("readonly");
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -79,9 +82,13 @@ impl Field {
     }
 
     /// Can set this field?
-    /// TODO: read only instead of private
     pub fn can_set(&self) -> bool {
-        !self.attributes.contains_key(PRIVATE_FIELD_ATTR.as_str())
+        !self.attributes.contains_key(READ_ONLY_FIELD_ATTR.as_str())
+    }
+
+    /// Can read this field?
+    pub fn is_private(&self) -> bool {
+        self.attributes.contains_key(PRIVATE_FIELD_ATTR.as_str())
     }
 
     /// Get a field from a dot separated name path string.

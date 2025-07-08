@@ -19,3 +19,6 @@ pub use format::*;
 
 pub mod json;
 pub use json::*;
+
+pub mod stof;
+pub use stof::*;

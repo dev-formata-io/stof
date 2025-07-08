@@ -21,7 +21,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// Error.
-/// TODO.
 pub enum Error {
     ParseFailure(String),
 
@@ -33,7 +32,8 @@ pub enum Error {
     DeclareInvalidName,
     AssignConst,
     VariableSet,
-    FieldPrivateSet,
+    FieldReadOnlySet,
+    FieldPrivate,
     AssignSelf,
     AssignSuper,
     AssignRootNonObj,

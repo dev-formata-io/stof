@@ -72,6 +72,12 @@ impl<'ctx> ParseContext<'ctx> {
         Variable::val(Val::Obj(nref))
     }
 
+    /// Push self node.
+    pub fn push_self_node(&mut self, node: NodeRef) {
+        let proc = self.parse_proc();
+        proc.env.self_stack.push(node);
+    }
+
     /// Pop self stack.
     pub fn pop_self(&mut self) {
         let proc = self.parse_proc();
