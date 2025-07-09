@@ -17,6 +17,7 @@
 use std::{ops::Deref, sync::Arc};
 use arcstr::{literal, ArcStr};
 use imbl::Vector;
+use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use crate::{model::{DataRef, Field, Func, Graph, LibFunc, NodeRef, Prototype, SId, ASYNC_FUNC_ATTR, SELF_STR_KEYWORD, SUPER_STR_KEYWORD, TYPENAME}, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, POP_CALL, POP_SELF, POP_SYMBOL_SCOPE, PUSH_CALL, PUSH_SELF, PUSH_SYMBOL_SCOPE, SUSPEND}, proc::ProcEnv, Error, Type, Val, ValRef, Variable}};
 
@@ -266,18 +267,20 @@ impl FuncCall {
             return Err(Error::FuncArgs);
         }
         for index in 0..(args.len() + arg_len_adjust) {
-            let param = &params[index];
             if stack_arg && index == 0 {
                 // No arg to push
             } else {
                 let arg = &args[index];
                 instructions.push(arg.clone());
             }
-            if !param.param_type.empty() {
-                instructions.push(Arc::new(Base::Cast(param.param_type.clone())));
-            }
-            if func.args_to_symbol_table {
-                instructions.push(Arc::new(Base::DeclareVar(param.name.to_string().into(), true))); // these must keep their type
+            if params.len() > 0 && index < params.len() {
+                let param = &params[index];
+                if !param.param_type.empty() {
+                    instructions.push(Arc::new(Base::Cast(param.param_type.clone())));
+                }
+                if func.args_to_symbol_table {
+                    instructions.push(Arc::new(Base::DeclareVar(param.name.to_string().into(), true))); // these must keep their type
+                }
             }
         }
 
@@ -304,7 +307,6 @@ impl FuncCall {
             async_instructions.push(SUSPEND.clone()); // make sure to spawn the process right after with the runtime... this is not an await
             Ok(Some(async_instructions))
         } else {
-            println!("{instructions:?}");
             Ok(Some(instructions))
         }
     }
@@ -436,12 +438,17 @@ impl Instruction for FuncCall {
 
         // Push the function instructions
         instructions.push(PUSH_SYMBOL_SCOPE.clone());
-        instructions.append(&func_instructions);
         if !rtype.empty() {
+            instructions.append(&func_instructions);
             instructions.push(Arc::new(Base::Cast(rtype.clone())));
         } else {
             // Make sure we get an error if the last value is not void (or doesn't exist on stack)
-            instructions.push(Arc::new(Base::Cast(Type::Void)));
+            let val = Val::Str(nanoid!(10).into());
+            instructions.push(Arc::new(Base::Literal(val.clone())));
+            instructions.append(&func_instructions);
+            // This will pop the last val from the stack and compare with this val
+            // will throw an error if the values are not equal (void func)
+            instructions.push(Arc::new(Base::FuncVoidRet(val)));
         }
 
         // Cleanup stacks

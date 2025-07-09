@@ -15,10 +15,9 @@
 //
 
 use std::sync::Arc;
-use arcstr::ArcStr;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{ops::{Op, OpIns}, whiles::WhileIns, Base, NOOP, POP_STACK}, proc::ProcEnv, Error, Val}};
+use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error, Val}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,34 +31,11 @@ pub struct EmptyIns {
 impl Instruction for EmptyIns {
     fn exec(&self, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         let mut instructions = Instructions::default();
-        let marker: ArcStr = nanoid!(5).into();
+        let val = Val::Str(nanoid!(10).into());
 
-        // push a marker value onto the stack
-        instructions.push(Arc::new(Base::Literal(Val::Str(marker.clone()))));
-
-        // do instructions
+        instructions.push(Arc::new(Base::Literal(val.clone())));
         instructions.push(self.ins.clone());
-
-        // while the current stack val != marker, drop the value
-        let mut while_ins = WhileIns {
-            continue_tag: marker.clone(), // doesn't matter
-            break_tag: marker.clone(), // doesn't matter
-            declare: None,
-            inc: None,
-
-            // while (current != marker)
-            test: Arc::new(OpIns {
-                lhs: NOOP.clone(), // current stack value
-                op: Op::Neq,
-                rhs: Arc::new(Base::Literal(Val::Str(marker))),
-            }),
-            ins: Default::default(),
-        };
-        while_ins.ins.push_back(POP_STACK.clone()); // pop the current value off the stack
-        instructions.push(Arc::new(while_ins));
-
-        // drop the marker value from the stack
-        instructions.push(POP_STACK.clone());
+        instructions.push(Arc::new(Base::PopUntilAndIncluding(val)));
 
         // now the stack is the same as when we started!
         Ok(Some(instructions))

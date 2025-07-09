@@ -139,6 +139,8 @@ pub enum Base {
 
     // Pop a variable from the stack. (drop val)
     PopStack,
+    PopUntilAndIncluding(Val),
+    FuncVoidRet(Val),
 
     // Spawn a new process.
     Spawn((Instructions, Type)),
@@ -548,6 +550,23 @@ impl Instruction for Base {
                 env.stack.push(Variable::val(val.clone()));
             },
             Self::PopStack => { env.stack.pop(); },
+            Self::PopUntilAndIncluding(val) => {
+                while let Some(var) = env.stack.pop() {
+                    let res = var.val.read().equal(val)?;
+                    if res.truthy() { break; }
+                }
+            },
+            Self::FuncVoidRet(val) => {
+                while let Some(var) = env.stack.pop() {
+                    let res = var.val.read().equal(val)?;
+                    if !res.truthy() {
+                        // The function ended and has added to the stack, so error
+                        return Err(Error::FuncNotVoid);
+                    } else {
+                        break;
+                    }
+                }
+            },
             Self::Cast(target) => {
                 if let Some(var) = env.stack.pop() {
                     var.cast(target, graph)?;

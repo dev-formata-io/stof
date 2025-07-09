@@ -54,6 +54,7 @@ pub enum Error {
     FuncDne,
     FuncDefaultArg(Box<Self>),
     FuncArgs,
+    FuncNotVoid,
 
     // Value errors
     Truthy,

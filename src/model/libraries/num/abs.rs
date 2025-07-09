@@ -19,7 +19,7 @@ use imbl::vector;
 use crate::{model::{num::{ABS, NUM_LIB}, LibFunc, Param}, runtime::{instruction::Instructions, Type}};
 
 
-/// Absolute value library function (float output version (or units)).
+/// Absolute value library function.
 pub fn num_abs() -> LibFunc {
     LibFunc {
         library: NUM_LIB.clone(),
