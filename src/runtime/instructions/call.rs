@@ -204,6 +204,7 @@ impl FuncCall {
         let params = func.params;
         let rtype = func.return_type;
         let is_async = func.is_async;
+        let unbounded = func.unbounded_args;
         
         // Arguments
         let mut arg_len_adjust = 0;
@@ -222,8 +223,11 @@ impl FuncCall {
                     index += 1;
                 }
                 if !found {
-                    // TODO
-                    return Err(Error::FuncArgs);
+                    if !unbounded {
+                        return Err(Error::FuncArgs);
+                    } else {
+                        args.push(arg.clone());
+                    }
                 }
             } else {
                 args.push(arg.clone());
@@ -258,7 +262,7 @@ impl FuncCall {
                 index += 1;
             }
         }
-        if args.len() + arg_len_adjust != params.len() {
+        if !unbounded && (args.len() + arg_len_adjust != params.len()) {
             return Err(Error::FuncArgs);
         }
         for index in 0..(args.len() + arg_len_adjust) {

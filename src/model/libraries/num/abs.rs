@@ -31,6 +31,7 @@ pub fn num_abs() -> LibFunc {
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None, // no need to cast the return value
+        unbounded_args: false, // should only have one arg
         args_to_symbol_table: false, // keep the arg on the stack instead of putting it into st
         func: Arc::new(|_arg_count, _env, _graph| {
             let mut instructions = Instructions::default();

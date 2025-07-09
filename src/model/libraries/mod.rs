@@ -44,6 +44,9 @@ pub struct LibFunc {
     /// Arguments will be placed in this order, according to name.
     pub params: Vector<Param>,
 
+    /// Allow unbounded arguments? Ex. pln(a, b, c, d, ...)
+    pub unbounded_args: bool,
+
     /// Return type of this func.
     /// If None, no cast will be performed at the end of instructions.
     pub return_type: Option<Type>,
