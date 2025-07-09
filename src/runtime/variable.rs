@@ -55,6 +55,16 @@ impl Variable {
         }
     }
 
+    /// Create a new refval variable.
+    pub fn refval(val: ValRef<Val>) -> Self {
+        Self {
+            mutable: true,
+            val,
+            vtype: None,
+            as_ref: false,
+        }
+    }
+
     /// Try to set this variable.
     /// Will error if not able to set.
     pub fn set(&mut self, var: &Variable, graph: &mut Graph) -> Result<(), Error> {
@@ -196,6 +206,7 @@ impl Variable {
     pub fn drop_data(self, graph: &mut Graph) {
         self.val.read().drop_data(graph);
     }
+    
 
     /*****************************************************************************
      * Ops.

@@ -14,11 +14,11 @@
 // limitations under the License.
 //
 
-use std::sync::Arc;
+use std::{ops::Deref, sync::Arc};
 use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Field, Func, Graph, NodeRef, Prototype, SId, ASYNC_FUNC_ATTR, SELF_STR_KEYWORD, SUPER_STR_KEYWORD, TYPENAME}, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, POP_CALL, POP_SELF, POP_SYMBOL_SCOPE, PUSH_CALL, PUSH_SELF, PUSH_SYMBOL_SCOPE, SUSPEND}, proc::ProcEnv, Error, Type, Val, ValRef}};
+use crate::{model::{DataRef, Field, Func, Graph, LibFunc, NodeRef, Prototype, SId, ASYNC_FUNC_ATTR, SELF_STR_KEYWORD, SUPER_STR_KEYWORD, TYPENAME}, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, POP_CALL, POP_SELF, POP_SYMBOL_SCOPE, PUSH_CALL, PUSH_SELF, PUSH_SYMBOL_SCOPE, SUSPEND}, proc::ProcEnv, Error, Type, Val, ValRef, Variable}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,7 +44,7 @@ impl FuncCall {
     /// Uses search or the stack to find the function we are going to call if needed.
     pub(self) fn get_func_context(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<CallContext, Error> {
         if let Some(dref) = &self.func {
-            return Ok(CallContext { lib: None, prototype: false, func: dref.clone() });
+            return Ok(CallContext { lib: None, stack_arg: false, prototype: false, func: dref.clone() });
         }
         if let Some(search) = &self.search {
             return self.search_func(&search, env, graph);
@@ -76,7 +76,8 @@ impl FuncCall {
                         }
                     }
                     let libname = var.lib_name(&graph);
-                    return Ok(CallContext { lib: Some(libname), prototype: false, func: SId::from(split_path[0]) });
+                    env.stack.push(var); // push it back so that it can become an arg
+                    return Ok(CallContext { lib: Some(libname), stack_arg: true, prototype: false, func: SId::from(split_path[0]) });
                 }
             }
             return Err(Error::FuncDne);
@@ -84,7 +85,7 @@ impl FuncCall {
 
         // In this case, we are calling into the standard library functions
         if split_path.len() < 2 {
-            return Ok(CallContext { lib: Some(literal!("Std")), prototype: false, func: SId::from(split_path[0]) });
+            return Ok(CallContext { lib: Some(literal!("Std")), stack_arg: false, prototype: false, func: SId::from(split_path[0]) });
         }
         
         // In this case, we are searching for a generic path, using the symbol table, libraries, and graph
@@ -104,7 +105,7 @@ impl FuncCall {
             }
             // Only a valid libcall if the length is 2
             if split_path.len() == 2 {
-                return Ok(CallContext { lib: Some(split_path[0].to_string().into()), prototype: false, func: SId::from(split_path[1]) });
+                return Ok(CallContext { lib: Some(split_path[0].to_string().into()), stack_arg: false, prototype: false, func: SId::from(split_path[1]) });
             }
             return Err(Error::FuncDne);
         }
@@ -120,7 +121,8 @@ impl FuncCall {
         if split_path.len() < 2 {
             // var.split('.'); // string variable for example
             let libname = context.read().lib_name(&graph);
-            return Ok(CallContext { lib: Some(libname), prototype: false, func: SId::from(split_path[0]) });
+            env.stack.push( Variable::refval(context)); // push onto the stack so that it can become an arg
+            return Ok(CallContext { lib: Some(libname), stack_arg: true, prototype: false, func: SId::from(split_path[0]) });
         }
 
         Err(Error::FuncDne)
@@ -149,7 +151,7 @@ impl FuncCall {
         if allow_node_contemplation {
             // Look for a function on the object at the path first (always highest priority)
             if let Some(func) = Func::func_from_path(graph, path, start.clone()) {
-                return Ok(CallContext { lib: None, prototype: in_proto, func });
+                return Ok(CallContext { lib: None, stack_arg: false, prototype: in_proto, func });
             }
 
             // Look for a field on the object at the path next that is a function
@@ -157,7 +159,7 @@ impl FuncCall {
             if let Some(field) = Field::field_from_path(graph, path, start.clone()) {
                 if let Some(field) = graph.get_stof_data::<Field>(&field) {
                     if let Some(func) = field.value.try_func() {
-                        return Ok(CallContext { lib: None, prototype: in_proto, func });
+                        return Ok(CallContext { lib: None, stack_arg: false, prototype: in_proto, func });
                     }
                 }
             }
@@ -191,6 +193,115 @@ impl FuncCall {
 
         Err(Error::FuncDne)
     }
+
+    /// Call library function.
+    /// This is from exec after we've concluded this is a lib func.
+    pub(self) fn call_libfunc(&self, func: LibFunc, stack_arg: bool, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions>, Error> {
+        // Push call stack, start a new scope, and add self if needed
+        let mut instructions = Instructions::default();
+        instructions.push(PUSH_SYMBOL_SCOPE.clone());
+
+        let params = func.params;
+        let func_instructions = func.func.deref()(env, graph)?;
+        let rtype = func.return_type;
+        let is_async = func.is_async;
+        
+        // Arguments
+        let mut arg_len_adjust = 0;
+        if stack_arg { arg_len_adjust = 1; }
+        let mut named_args = Vec::new();
+        let mut args = Vec::new();
+        for arg in &self.args {
+            if let Some(named) = arg.as_dyn_any().downcast_ref::<NamedArg>() {
+                let mut index = 0;
+                let mut found = false;
+                for pn in &params {
+                    if pn.name == named.name {
+                        named_args.push((index, named.ins.clone()));
+                        found = true; break;
+                    }
+                    index += 1;
+                }
+                if !found {
+                    // TODO
+                    return Err(Error::FuncArgs);
+                }
+            } else {
+                args.push(arg.clone());
+            }
+        }
+        if !named_args.is_empty() {
+            named_args.sort_by(|a, b| a.0.cmp(&b.0));
+            for (index, ins) in named_args {
+                while index > args.len() {
+                    if let Some(param) = params.get(args.len()) {
+                        if let Some(default) = &param.default {
+                            args.push(default.clone());
+                        } else {
+                            return Err(Error::FuncArgs);
+                        }
+                    } else {
+                        return Err(Error::FuncArgs);
+                    }
+                }
+                args.insert(index, ins);
+            }
+        }
+        if args.len() + arg_len_adjust < params.len() {
+            let mut index = args.len();
+            while index < params.len() {
+                let param = &params[index];
+                if let Some(default) = &param.default {
+                    args.push(default.clone());
+                } else {
+                    break;
+                }
+                index += 1;
+            }
+        }
+        if args.len() + arg_len_adjust != params.len() {
+            return Err(Error::FuncArgs);
+        }
+        for index in 0..(args.len() + arg_len_adjust) {
+            let param = &params[index];
+            if stack_arg && index == 0 {
+                // No arg to push
+            } else {
+                let arg = &args[index];
+                instructions.push(arg.clone());
+            }
+            if !param.param_type.empty() {
+                instructions.push(Arc::new(Base::Cast(param.param_type.clone())));
+            }
+            instructions.push(Arc::new(Base::DeclareVar(param.name.to_string().into(), true))); // these must keep their type
+        }
+
+        // Push the function instructions
+        instructions.push(PUSH_SYMBOL_SCOPE.clone());
+        instructions.append(&func_instructions.instructions);
+        if let Some(rtype) = &rtype {
+            instructions.push(Arc::new(Base::Cast(rtype.clone())));
+        } // else it is up to the lib to do this if needed
+
+        // Cleanup stacks
+        instructions.push(POP_SYMBOL_SCOPE.clone());
+        instructions.push(POP_SYMBOL_SCOPE.clone());
+
+        // Handle async function call
+        if is_async {
+            let mut inner_rtype = Type::Void;
+            if let Some(rtype) = rtype {
+                inner_rtype = rtype;
+            }
+            let mut async_instructions = Instructions::default();
+            async_instructions.push(Arc::new(Base::Spawn((instructions, inner_rtype)))); // adds a Promise<rtype> to the stack when executed!
+            async_instructions.push(SUSPEND.clone()); // make sure to spawn the process right after with the runtime... this is not an await
+            Ok(Some(async_instructions))
+        } else {
+            println!("{instructions:?}");
+            Ok(Some(instructions))
+        }
+    }
 }
 
 
@@ -199,6 +310,7 @@ pub(self) struct CallContext {
     pub lib: Option<ArcStr>,
     pub prototype: bool,
     pub func: SId,
+    pub stack_arg: bool,
 }
 
 
@@ -206,12 +318,17 @@ pub(self) struct CallContext {
 impl Instruction for FuncCall {
     fn exec(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         let func_context = self.get_func_context(env, graph)?;
-        if let Some(_libname) = func_context.lib {
-            // TODO call into a library function, using context.func as lib name
-            return Ok(None);
-        }
-        let func = func_context.func;
         
+        // If this is a library function context, then make that call instead
+        if let Some(libname) = func_context.lib {
+            let name = func_context.func.as_ref();
+            if let Some(func) = graph.libfunc(&libname, name) {
+                return self.call_libfunc(func, func_context.stack_arg, env, graph);
+            }
+            return Err(Error::FuncDne);
+        }
+
+        let func = func_context.func;
         let params;
         let func_instructions;
         let rtype;

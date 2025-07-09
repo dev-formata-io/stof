@@ -64,6 +64,7 @@ mod tests {
         }
 
         #[test]
+        #[errors]
         fn errors() {
             42
         }
@@ -72,6 +73,15 @@ mod tests {
         #[errors]
         fn errors_but_ok() -> int {
             4.2.3 + 43
+        }
+
+        #[test]
+        fn test_abs_lib() {
+            let v = -45;
+            v = v.abs();
+            if (v < 0) {
+                v += 1.2.3; // throw an error lol
+            }
         }
         "#;
 

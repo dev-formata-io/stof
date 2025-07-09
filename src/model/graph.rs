@@ -15,11 +15,12 @@
 //
 
 use std::{any::Any, sync::Arc};
+use arcstr::ArcStr;
 use bytes::Bytes;
 use colored::Colorize;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{Data, DataRef, Format, JsonFormat, Node, NodeRef, SId, SPath, StofData, StofFormat, INVALID_NODE_NEW}, runtime::{table::SymbolTable, Error, Runtime, Val}};
+use crate::{model::{num::insert_number_lib, Data, DataRef, Format, JsonFormat, LibFunc, Node, NodeRef, SId, SPath, StofData, StofFormat, INVALID_NODE_NEW}, runtime::{table::SymbolTable, Error, Runtime, Val}};
 
 
 /// Root node name.
@@ -42,6 +43,9 @@ pub struct Graph {
 
     #[serde(skip)]
     pub formats: FxHashMap<String, Arc<dyn Format>>,
+
+    #[serde(skip)]
+    pub libfuncs: FxHashMap<ArcStr, FxHashMap<String, LibFunc>>,
 }
 impl Default for Graph {
     fn default() -> Self {
@@ -53,8 +57,10 @@ impl Default for Graph {
             node_deadpool: Default::default(),
             data_deadpool: Default::default(),
             formats: Default::default(),
+            libfuncs: Default::default(),
         };
         graph.load_std_formats();
+        graph.insert_std_lib();
         graph
     }
 }
@@ -103,6 +109,55 @@ impl Graph {
         } else {
             self.insert_root(ROOT_NODE_NAME)
         }
+    }
+
+
+    /*****************************************************************************
+     * Library Functions.
+     *****************************************************************************/
+    
+    /// Insert standard library functions.
+    pub fn insert_std_lib(&mut self) {
+        insert_number_lib(self);
+    }
+    
+    /// Insert a library function to this graph.
+    /// Will replace one with the same name and lib if it already exists.
+    pub fn insert_libfunc(&mut self, libfunc: LibFunc) {
+        if let Some(lib) = self.libfuncs.get_mut(&libfunc.library) {
+            lib.insert(libfunc.name.clone(), libfunc);
+        } else {
+            let lib = libfunc.library.clone();
+            let mut funcs = FxHashMap::default();
+            funcs.insert(libfunc.name.clone(), libfunc);
+            self.libfuncs.insert(lib, funcs);
+        }
+    }
+
+    /// Get a library function.
+    pub fn libfunc(&self, library: &ArcStr, name: &str) -> Option<LibFunc> {
+        if let Some(lib) = self.libfuncs.get(library) {
+            if let Some(func) = lib.get(name) {
+                return Some(func.clone());
+            }
+        }
+        None
+    }
+
+    #[inline]
+    /// Remove a library function.
+    pub fn remove_libfunc(&mut self, library: &ArcStr, name: &str) -> Option<LibFunc> {
+        if let Some(lib) = self.libfuncs.get_mut(library) {
+            lib.remove(name)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    /// Remove a library.
+    pub fn remove_lib(&mut self, library: &ArcStr) -> Option<FxHashMap<String, LibFunc>> {
+        self.libfuncs.remove(library)
     }
 
 

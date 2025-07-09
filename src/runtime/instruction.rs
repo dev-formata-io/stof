@@ -147,6 +147,8 @@ impl Instructions {
                         Base::CtrlAwait => {
                             if let Some(promise) = env.stack.pop() {
                                 if let Some((pid, _)) = promise.try_promise() {
+                                    // Cast to promise type is handled in its instructions and kept in the promise value
+                                    // type so that that value can be treated as the resulting type in ops
                                     return Ok(ProcRes::Wait(pid.clone()));
                                 } else {
                                     // TODO: expand array of promises by adding them each to the stack with additional awaits for each

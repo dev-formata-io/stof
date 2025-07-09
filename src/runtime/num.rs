@@ -16,7 +16,7 @@
 
 use std::hash::Hash;
 use serde::{Deserialize, Serialize};
-use crate::runtime::{NumT, Units};
+use crate::runtime::{Error, NumT, Units};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Copy)]
@@ -993,6 +993,7 @@ impl Num {
         }
     }
 
+
     /*****************************************************************************
      * Bitwise operations.
      *****************************************************************************/
@@ -1130,5 +1131,26 @@ impl Num {
                 }
             },
         }
+    }
+
+
+    /*****************************************************************************
+     * Library ops.
+     *****************************************************************************/
+    
+    /// Abs.
+    pub fn abs(&mut self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                *v = v.abs();
+            },
+            Self::Int(v) => {
+                *v = v.abs();
+            },
+            Self::Units(v, _) => {
+                *v = v.abs();
+            }
+        }
+        Ok(())
     }
 }

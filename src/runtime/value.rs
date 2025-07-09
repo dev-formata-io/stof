@@ -824,6 +824,16 @@ impl Val {
         }
     }
 
+    /// Try getting a number value from.
+    pub fn try_num(&mut self) -> Option<&mut Num> {
+        match &mut *self {
+            Self::Num(num) => {
+                Some(num)
+            },
+            _ => None
+        }
+    }
+
 
     /*****************************************************************************
      * Drop.

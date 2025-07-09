@@ -228,6 +228,14 @@ impl Type {
         }
     }
 
+    #[inline]
+    pub fn null(&self) -> bool {
+        match self {
+            Self::Null => true,
+            _ => false,
+        }
+    }
+
     pub fn type_of(&self) -> ArcStr {
         match self {
             Self::Union(types) => {
