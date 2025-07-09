@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use imbl::vector;
-use crate::{model::{num::{ABS, NUM_LIB}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, NumT, Type}};
+use crate::{model::{num::{ABS, NUM_LIB}, LibFunc, Param}, runtime::{instruction::Instructions, Type}};
 
 
 /// Absolute value library function (float output version (or units)).
@@ -27,13 +27,13 @@ pub fn num_abs() -> LibFunc {
         is_async: false,
         docs: r#""#.into(),
         params: vector![
-            // Param is void type to prevent a need to cast to unknown or something
+            // no need to cast this param val
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
-        return_type: Some(Type::Num(NumT::Float)),
-        func: Arc::new(|_env, _graph| {
+        return_type: None, // no need to cast the return value
+        args_to_symbol_table: false, // keep the arg on the stack instead of putting it into st
+        func: Arc::new(|_arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
-            instructions.push(Arc::new(Base::LoadVariable("val".into(), false, false)));
             instructions.push(ABS.clone());
             Ok(instructions)
         })

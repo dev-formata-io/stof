@@ -19,19 +19,43 @@ use arcstr::ArcStr;
 use imbl::Vector;
 use crate::{model::{Graph, Param}, runtime::{instruction::Instructions, proc::ProcEnv, Error, Type}};
 
+pub mod stof_std;
 pub mod num;
 
 
 #[derive(Clone)]
 /// Library function.
 pub struct LibFunc {
+    /// What library does this function belong to?
+    /// This is how this func will be referenced from within Stof.
+    /// Ex. Num.abs(v), where the library is "Num".
     pub library: ArcStr,
+
+    /// Name of this function within the library.
     pub name: String,
+
+    /// Should this function be executed in its own process?
     pub is_async: bool,
+
+    /// Docs for this lib func.
     pub docs: String,
+
+    /// Parameters for this function.
+    /// Arguments will be placed in this order, according to name.
     pub params: Vector<Param>,
+
+    /// Return type of this func.
+    /// If None, no cast will be performed at the end of instructions.
     pub return_type: Option<Type>,
-    pub func: Arc<dyn Fn(&mut ProcEnv, &mut Graph)->Result<Instructions, Error>>
+
+    /// When adding arguments before this call, should they go to the symbol table
+    /// under the parameter name? If false, they will be left on the stack and the
+    /// func below will be required to pop values according to the arg_count.
+    pub args_to_symbol_table: bool,
+
+    /// fn(arg_count, env, graph) -> Instructions
+    /// What instructions will this library function execute?
+    pub func: Arc<dyn Fn(usize, &mut ProcEnv, &mut Graph)->Result<Instructions, Error>>
 }
 impl Display for LibFunc {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

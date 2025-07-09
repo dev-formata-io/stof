@@ -202,7 +202,6 @@ impl FuncCall {
         instructions.push(PUSH_SYMBOL_SCOPE.clone());
 
         let params = func.params;
-        let func_instructions = func.func.deref()(env, graph)?;
         let rtype = func.return_type;
         let is_async = func.is_async;
         
@@ -273,11 +272,14 @@ impl FuncCall {
             if !param.param_type.empty() {
                 instructions.push(Arc::new(Base::Cast(param.param_type.clone())));
             }
-            instructions.push(Arc::new(Base::DeclareVar(param.name.to_string().into(), true))); // these must keep their type
+            if func.args_to_symbol_table {
+                instructions.push(Arc::new(Base::DeclareVar(param.name.to_string().into(), true))); // these must keep their type
+            }
         }
 
         // Push the function instructions
         instructions.push(PUSH_SYMBOL_SCOPE.clone());
+        let func_instructions = func.func.deref()(args.len() + arg_len_adjust, env, graph)?;
         instructions.append(&func_instructions.instructions);
         if let Some(rtype) = &rtype {
             instructions.push(Arc::new(Base::Cast(rtype.clone())));
