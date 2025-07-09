@@ -14,9 +14,9 @@
 // limitations under the License.
 //
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{instruction::{Instruction, Instructions}, table::SymbolTable, Error, Variable}};
+use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{instruction::{Instruction, Instructions}, table::SymbolTable, Error, Variable, WakeRef, Waker}};
 
 
 #[derive(Debug)]
@@ -25,6 +25,8 @@ pub enum ProcRes {
     Done,
     More,
     Wait(SId),
+    SleepFor(Duration),
+    Sleep(WakeRef),
 }
 
 
@@ -86,5 +88,17 @@ impl Process {
                 Err(error)
             }
         }
+    }
+
+    #[inline]
+    /// Create a waker for this process with a wake reference.
+    pub(super) fn waker_ref(&self, wref: WakeRef) -> Waker {
+        Waker { pid: self.env.pid.clone(), at: None, with: wref }
+    }
+
+    #[inline]
+    /// Create a waker for this process with a wake time.
+    pub(super) fn waker_time(&self, at: Duration) -> Waker {
+        Waker { pid: self.env.pid.clone(), at: Some(at), with: Default::default() }
     }
 }

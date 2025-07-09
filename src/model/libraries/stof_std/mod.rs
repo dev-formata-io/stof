@@ -14,12 +14,14 @@
 // limitations under the License.
 //
 
+use std::{sync::Arc, time::Duration};
 use arcstr::{literal, ArcStr};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{stof_std::print::{dbg, err, pln}, Graph}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Type}};
+use crate::{model::{stof_std::{print::{dbg, err, pln}, sleep::stof_sleep}, Graph}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error, Type, Units}};
 
 mod print;
+mod sleep;
 
 
 /// Add the std library to a graph.
@@ -27,6 +29,7 @@ pub fn stof_std_lib(graph: &mut Graph) {
     graph.insert_libfunc(pln());
     graph.insert_libfunc(dbg());
     graph.insert_libfunc(err());
+    graph.insert_libfunc(stof_sleep());
 }
 
 
@@ -46,6 +49,8 @@ pub enum StdIns {
     Pln(usize),
     Dbg(usize),
     Err(usize),
+
+    Sleep,
 }
 #[typetag::serde(name = "StdIns")]
 impl Instruction for StdIns {
@@ -117,6 +122,23 @@ impl Instruction for StdIns {
                 if !seen_str { sep = ", " }
                 eprintln!("{}", output.join(sep));
             }
+            
+            Self::Sleep => {
+                let duration;
+                if let Some(val) = env.stack.pop() {
+                    if let Some(num) = val.val.write().try_num() {
+                        duration = num.float(Some(Units::Milliseconds));
+                    } else {
+                        return Err(Error::StackError);
+                    }
+                } else {
+                    return Err(Error::StackError);
+                }
+
+                let mut instructions = Instructions::default();
+                instructions.push(Arc::new(Base::CtrlSleepFor(Duration::from_millis(duration.abs() as u64))));
+                return Ok(Some(instructions));
+            },
         }
         Ok(None)
     }

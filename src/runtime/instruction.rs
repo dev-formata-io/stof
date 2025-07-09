@@ -163,6 +163,14 @@ impl Instructions {
                             // Used to spawn new processes as well
                             return Ok(ProcRes::More);
                         },
+                        Base::CtrlSleepFor(dur) => {
+                            // Instruct this process to sleep for an amount of time
+                            return Ok(ProcRes::SleepFor(dur.clone()));
+                        },
+                        Base::CtrlSleepRef(wref) => {
+                            // Instruct this process to sleep until the wake reference has been set
+                            return Ok(ProcRes::Sleep(wref.clone()));
+                        },
                         Base::CtrlBackTo(tag) => {
                             self.back_to(tag);
                             continue 'exec_loop;

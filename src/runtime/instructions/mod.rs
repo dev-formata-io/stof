@@ -14,12 +14,12 @@
 // limitations under the License.
 //
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use arcstr::ArcStr;
 use lazy_static::lazy_static;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
-use crate::{model::{Field, Func, Graph, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, proc::{ProcEnv, Process}, Error, Type, Val, Variable}};
+use crate::{model::{Field, Func, Graph, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, proc::{ProcEnv, Process}, Error, Type, Val, Variable, WakeRef}};
 
 pub mod call;
 pub mod block;
@@ -125,6 +125,10 @@ pub enum Base {
     CtrlTryEnd,
     Throw, // Will error with the debug contents of the last stack val if any
 
+    // Sleep instructions.
+    CtrlSleepFor(Duration),
+    CtrlSleepRef(WakeRef),
+
     // Self stack.
     PushSelf,
     PopSelf,
@@ -198,6 +202,12 @@ impl Instruction for Base {
             Self::CtrlSuspend => {}, // Nothing here...
             Self::CtrlAwait => {}, // Nothing here...
             Self::CtrlNoOp => {}, // Does nothing
+
+            /*****************************************************************************
+             * Sleep.
+             *****************************************************************************/
+            Self::CtrlSleepFor(_) => {}, // Nothing here... used by instructions...
+            Self::CtrlSleepRef(_) => {}, // Nothing here... used by instructions...
             
             /*****************************************************************************
              * Tags.

@@ -14,11 +14,11 @@
 // limitations under the License.
 //
 
-use std::{sync::Arc, time::SystemTime};
+use std::{sync::Arc, time::{SystemTime, UNIX_EPOCH}};
 use colored::Colorize;
 use imbl::Vector;
 use rustc_hash::FxHashMap;
-use crate::{model::{DataRef, Func, Graph, SId}, runtime::{instruction::Instruction, instructions::{call::FuncCall, Base}, proc::{ProcRes, Process}, Error, Val}};
+use crate::{model::{DataRef, Func, Graph, SId}, runtime::{instruction::Instruction, instructions::{call::FuncCall, Base}, proc::{ProcRes, Process}, Error, Val, Waker}};
 
 
 #[derive(Default)]
@@ -28,6 +28,9 @@ pub struct Runtime {
     waiting: FxHashMap<SId, Process>,
     pub done: FxHashMap<SId, Process>,
     pub errored: FxHashMap<SId, Process>,
+
+    sleeping: FxHashMap<SId, Process>,
+    wakers: Vec<Waker>,
 
     pub done_callback: Option<Box<dyn FnMut(&Graph, &Process)->bool>>,
     pub err_callback: Option<Box<dyn FnMut(&Graph, &Process)->bool>>,
@@ -97,6 +100,13 @@ impl Runtime {
         }
     }
 
+    #[inline(always)]
+    /// Move from running to sleeping.
+    fn move_running_to_sleeping(&mut self, id: &SId) {
+        let proc = self.remove_running(id);
+        self.sleeping.insert(id.clone(), proc);
+    }
+
     /// Run to completion.
     pub fn run_to_complete(&mut self, graph: &mut Graph) {
         let mut to_done = Vec::new();
@@ -104,13 +114,34 @@ impl Runtime {
         let mut to_err = Vec::new();
         let mut to_run = Vec::new();
         let mut to_spawn = Vec::new();
-        while !self.running.is_empty() {
+        let mut to_sleep = Vec::new();
+        while !self.running.is_empty() || !self.sleeping.is_empty() {
+            // Check to see if any sleeping processes need to be woken up first
+            if !self.sleeping.is_empty() {
+                let mut to_wake = Vec::new();
+                let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+                self.wakers.retain(|waker| {
+                    let woken = waker.woken(&now);
+                    if woken { to_wake.push(waker.pid.clone()); }
+                    !woken
+                });
+                for id in to_wake {
+                    if let Some(proc) = self.sleeping.remove(&id) {
+                        self.running.push(proc);
+                    }
+                }
+            }
+
             // any limit < 1 will progress the process as much as possible
             let mut limit = 0;
             if self.running.len() > 1 && self.running.len() <= 200 {
                 // everyone makes progress together, with shared CPU time
                 // if more than 200 processes, then finish something first!
                 limit = 1500;
+            }
+            if !self.sleeping.is_empty() {
+                // Set the limit to be much lower for a decent sleep tolarance
+                limit = 100; // TODO: test and optimize
             }
 
             for proc in self.running.iter_mut() {
@@ -120,6 +151,13 @@ impl Runtime {
                             ProcRes::Wait(pid) => {
                                 proc.waiting = Some(pid);
                                 to_wait.push(proc.env.pid.clone());
+                            },
+                            ProcRes::Sleep(wref) => {
+                                to_sleep.push((proc.env.pid.clone(), proc.waker_ref(wref)));
+                            },
+                            ProcRes::SleepFor(dur) => {
+                                let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+                                to_sleep.push((proc.env.pid.clone(), proc.waker_time(now + dur)));
                             },
                             ProcRes::More => {
                                 if let Some(spawn) = proc.env.spawn.take() {
@@ -158,9 +196,17 @@ impl Runtime {
                     self.move_running_to_error(&graph, &id);
                 }
             }
+
             if !to_spawn.is_empty() {
                 for proc in to_spawn.drain(..) {
                     self.push_running_proc(*proc, graph);
+                }
+            }
+
+            if !to_sleep.is_empty() {
+                for (id, waker) in to_sleep.drain(..) {
+                    self.move_running_to_sleeping(&id);
+                    self.wakers.push(waker);
                 }
             }
 
