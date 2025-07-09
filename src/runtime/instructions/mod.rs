@@ -277,6 +277,7 @@ impl Instruction for Base {
                 let mut proc = Process::from(async_ins.clone());
                 let pid = proc.env.pid.clone();
                 proc.env = env.clone(); // clone this environment
+                proc.env.stack.clear(); // new stack for this new proc
                 proc.env.spawn = None;
                 proc.env.pid = pid.clone();
 

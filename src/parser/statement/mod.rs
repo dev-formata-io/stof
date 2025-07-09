@@ -80,6 +80,7 @@ pub fn statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
         return_statement,
 
         // declarations & assignment
+        // TODO: make sure expr returns something here
         terminated(declare_statement, preceded(multispace0, char(';'))),
         terminated(assign, preceded(multispace0, char(';'))),
         
