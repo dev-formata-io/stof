@@ -17,9 +17,21 @@
 use nom::{bytes::complete::take_while1, combinator::{opt, recognize}, AsChar, IResult, Parser};
 
 
-/// Parse an identifier (consumes whitespace beforehand).
+/// Parse an identifier.
 /// Identifiers are used as function names, field names, variable names, etc.
 pub fn ident(input: &str) -> IResult<&str, &str> {
+    recognize(
+(
+            take_while1(|c| AsChar::is_alpha(c) || c == '_' || c == '@' || c == '<'),
+            opt(take_while1(|c| AsChar::is_alphanum(c) || c == '_' || c == '@' || c == '-' || c == '<' || c == '>'))
+        )
+    ).parse(input)
+}
+
+
+/// Parse an identifier.
+/// Identifiers are used as function names, field names, variable names, etc.
+pub fn ident_type(input: &str) -> IResult<&str, &str> {
     recognize(
 (
             take_while1(|c| AsChar::is_alpha(c) || c == '_' || c == '@'),

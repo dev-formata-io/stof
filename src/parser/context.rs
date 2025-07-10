@@ -17,7 +17,7 @@
 use std::{path::PathBuf, sync::Arc};
 use lazy_static::lazy_static;
 use rustc_hash::{FxHashMap, FxHashSet};
-use crate::{model::{Graph, NodeRef, SId}, runtime::{instruction::Instruction, proc::Process, Error, Runtime, Val, Variable}};
+use crate::{model::{Graph, NodeRef, SId, PROTOTYPE_TYPE_ATTR}, runtime::{instruction::Instruction, proc::Process, Error, Runtime, Val, Variable}};
 
 
 lazy_static! {
@@ -158,10 +158,30 @@ impl<'ctx> ParseContext<'ctx> {
     }
 
     /// Push self stack as a variable.
-    pub fn push_self(&mut self, name: &str, field: bool) -> Variable {
+    pub fn push_self(&mut self, name: &str, field: bool, attributes: &mut FxHashMap<String, Val>) -> Variable {
         let parent = self.self_ptr();
+        
         // TODO: collisions?
+
         let nref = self.graph.insert_node(name, Some(parent), field);
+        if let Some(node) = nref.node_mut(&mut self.graph) {
+            node.attributes = attributes.clone(); // set node attributes as the same as field attrs
+        }
+
+        // Is this object a type? If so, put it in the typemap for quick lookup.
+        if let Some(type_attr) = attributes.get(PROTOTYPE_TYPE_ATTR.as_str()) {
+            match type_attr {
+                Val::Str(name) => {
+                    // Overridden type name
+                    self.graph.insert_type(name.as_str(), &nref);
+                },
+                _ => {
+                    // Use the object name
+                    self.graph.insert_type(name, &nref);
+                }
+            }
+        }
+
         let proc = self.parse_proc();
         proc.env.self_stack.push(nref.clone());
         Variable::val(Val::Obj(nref))

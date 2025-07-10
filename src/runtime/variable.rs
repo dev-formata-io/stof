@@ -67,7 +67,7 @@ impl Variable {
 
     /// Try to set this variable.
     /// Will error if not able to set.
-    pub fn set(&mut self, var: &Variable, graph: &mut Graph) -> Result<(), Error> {
+    pub fn set(&mut self, var: &Variable, graph: &mut Graph, context: Option<NodeRef>) -> Result<(), Error> {
         if self.mutable {
             if var.as_ref {
                 self.val = var.val.clone();
@@ -75,7 +75,7 @@ impl Variable {
 
                 if let Some(vtype) = &self.vtype {
                     if vtype != &var.spec_type(graph) {
-                        if let Err(error) = self.val.write().cast(vtype, graph) {
+                        if let Err(error) = self.val.write().cast(vtype, graph, context) {
                             return Err(error);
                         }
                     }
@@ -88,7 +88,7 @@ impl Variable {
             let mut val = var.val.read().clone();
             if let Some(vtype) = &self.vtype {
                 if vtype != &val.spec_type(graph) {
-                    if let Err(error) = val.cast(vtype, graph) {
+                    if let Err(error) = val.cast(vtype, graph, context) {
                         return Err(error);
                     }
                 }
@@ -151,8 +151,8 @@ impl Variable {
 
     #[inline]
     /// Cast this variable to a new type.
-    pub fn cast(&self, target: &Type, graph: &mut Graph) -> Result<(), Error> {
-        self.val.write().cast(target, graph)
+    pub fn cast(&self, target: &Type, graph: &mut Graph, context: Option<NodeRef>) -> Result<(), Error> {
+        self.val.write().cast(target, graph, context)
     }
 
     #[inline]
@@ -192,7 +192,10 @@ impl Variable {
     #[inline]
     /// Instance of another variable?
     pub fn instance_of(&self, other: &Self, graph: &Graph) -> Result<bool, Error> {
-        self.val.read().instance_of(other.val.read().deref(), graph)
+        if let Some(oref) = other.try_obj() {
+            return self.val.read().instance_of(&oref, graph);
+        }
+        Ok(false)
     }
 
     #[inline]

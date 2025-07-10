@@ -58,12 +58,13 @@ pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
     let (input, _) = delimited(multispace0, char(':'), multispace0).parse(input)?;
 
     // Value (variable)
-    let (input, mut value) = value(input, &name, context)?;
+    let (input, mut value) = value(input, &name, context, &mut attributes)?;
     if is_const.is_some() {
         value.mutable = false; // this field is const
     }
     if let Some(cast_type) = field_type {
-        if let Err(_error) = value.cast(&cast_type, &mut context.graph) {
+        let context_node = Some(context.self_ptr());
+        if let Err(_error) = value.cast(&cast_type, &mut context.graph, context_node) {
             return Err(nom::Err::Failure(nom::error::Error {
                 input: "cast error",
                 code: nom::error::ErrorKind::Fail
@@ -93,9 +94,9 @@ pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
 
 
 /// Parse a field value.
-fn value<'a>(input: &'a str, name: &str, context: &mut ParseContext) -> IResult<&'a str, Variable> {
+fn value<'a>(input: &'a str, name: &str, context: &mut ParseContext, attributes: &mut FxHashMap<String, Val>) -> IResult<&'a str, Variable> {
     // Try an object value first
-    let obj_res = object_value(input, name, context);
+    let obj_res = object_value(input, name, context, attributes);
     match obj_res {
         Ok((input, var)) => {
             return Ok((input, var));
@@ -147,8 +148,9 @@ fn array_value<'a>(input: &'a str, _name: &str, context: &mut ParseContext) -> I
     let (input, _) = char('[')(input)?;
     let (mut input, _) = whitespace(input)?;
     let mut values = vector![];
+    let mut default_attrs = FxHashMap::default();
     loop {
-        let res = value(input, &nanoid!(17), context);
+        let res = value(input, &nanoid!(17), context, &mut default_attrs);
         match res {
             Ok((rest, var)) => {
                 input = rest;
@@ -171,9 +173,9 @@ fn array_value<'a>(input: &'a str, _name: &str, context: &mut ParseContext) -> I
 
 
 /// Create a new object and parse it for this field's value.
-fn object_value<'a>(input: &'a str, name: &str, context: &mut ParseContext) -> IResult<&'a str, Variable> {
+fn object_value<'a>(input: &'a str, name: &str, context: &mut ParseContext, attributes: &mut FxHashMap<String, Val>) -> IResult<&'a str, Variable> {
     let (mut input, _) = char('{')(input)?;
-    let value = context.push_self(name, true);
+    let value = context.push_self(name, true, attributes);
     loop {
         let res = document_statement(input, context);
         match res {
@@ -200,7 +202,8 @@ fn object_value<'a>(input: &'a str, name: &str, context: &mut ParseContext) -> I
     // Optional object cast at the end (useful when creating arrays especially)
     let (input, cast_type) = opt(preceded(preceded(multispace0, tag("as")), preceded(multispace0, parse_type))).parse(input)?;
     if let Some(cast_type) = cast_type {
-        if let Err(_error) = value.cast(&cast_type, &mut context.graph) {
+        let context_node = Some(context.self_ptr());
+        if let Err(_error) = value.cast(&cast_type, &mut context.graph, context_node) {
             return Err(nom::Err::Failure(nom::error::Error {
                 input: "cast error",
                 code: nom::error::ErrorKind::Fail

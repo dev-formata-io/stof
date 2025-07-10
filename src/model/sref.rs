@@ -170,7 +170,6 @@ impl NodeRef {
     /// Distance to another node in the graph.
     /// If a node doesn't exist, -2.
     /// If same node, distance is 0.
-    /// If nodes are not in the same graph or are in different roots, distance is -1.
     /// Otherwise, distance is the path length from this node to other node.
     pub fn distance_to(&self, graph: &Graph, other: &Self) -> i32 {
         if !self.node_exists(graph) { return -2; }
@@ -179,8 +178,13 @@ impl NodeRef {
 
         let mut node_a_id_path = self.node_path(graph, false).unwrap().path;
         let mut node_b_id_path = other.node_path(graph, false).unwrap().path;
-        if node_a_id_path.len() < 1 || node_b_id_path.len() < 1 || &node_a_id_path[0] != &node_b_id_path[0] {
+        if node_a_id_path.len() < 1 || node_b_id_path.len() < 1 {
             return -1;
+        }
+
+        if &node_a_id_path[0] != &node_b_id_path[0] {
+            // nodes are in different roots, so add the depths together
+            return (node_a_id_path.len() as i32 - 1) + (node_b_id_path.len() as i32 - 1);
         }
 
         if node_a_id_path.len() > node_b_id_path.len() {
@@ -287,5 +291,43 @@ impl DataRef {
         } else {
             false
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use crate::model::Graph;
+
+    #[test]
+    fn distance_to() {
+        let mut graph = Graph::default();
+        let root = graph.ensure_main_root();
+        let base;
+        let a;
+        {
+            base = graph.insert_child("base", &root, false);
+            {
+                a = graph.insert_child("a", &base, false);
+            }
+        }
+        let another = graph.insert_root("Another");
+        let top;
+        let b;
+        {
+            top = graph.insert_child("top", &another, false);
+            {
+                b = graph.insert_child("b", &top, false);
+            }
+        }
+
+        assert_eq!(a.distance_to(&graph, &b), 4);
+        assert_eq!(b.distance_to(&graph, &a), 4);
+        assert_eq!(a.distance_to(&graph, &base), 1);
+        assert_eq!(a.distance_to(&graph, &root), 2);
+        assert_eq!(b.distance_to(&graph, &top), 1);
+        assert_eq!(b.distance_to(&graph, &b), 0);
+        assert_eq!(b.distance_to(&graph, &root), 2);
+        assert_eq!(top.distance_to(&graph, &base), 2);
     }
 }

@@ -84,10 +84,10 @@ impl SymbolTable {
 
     /// Set an existing variable in this symbol table.
     /// Will return an error if the var exists but is const.
-    pub fn set(&mut self, name: impl AsRef<str>, var: &Variable, graph: &mut Graph) -> Result<bool, Error> {
+    pub fn set(&mut self, name: impl AsRef<str>, var: &Variable, graph: &mut Graph, context: Option<NodeRef>) -> Result<bool, Error> {
         let name = name.as_ref();
         for scope in self.scopes.iter_mut().rev() {
-            if scope.set(name, var, graph)? {
+            if scope.set(name, var, graph, context.clone())? {
                 return Ok(true);
             }
         }
@@ -150,9 +150,9 @@ impl Scope {
 
     #[inline]
     /// Set a variable.
-    pub fn set(&mut self, name: impl AsRef<str>, var: &Variable, graph: &mut Graph) -> Result<bool, Error> {
+    pub fn set(&mut self, name: impl AsRef<str>, var: &Variable, graph: &mut Graph, context: Option<NodeRef>) -> Result<bool, Error> {
         if let Some(svar) = self.get_mut(name) {
-            svar.set(var, graph)?;
+            svar.set(var, graph, context)?;
             Ok(true)
         } else {
             Ok(false)

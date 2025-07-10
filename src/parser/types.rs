@@ -15,8 +15,8 @@
 //
 
 use arcstr::literal;
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, value}, error::{Error, ErrorKind}, multi::separated_list1, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{model::SId, parser::ident::ident, runtime::{NumT, Type, Units}};
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, recognize, value}, error::{Error, ErrorKind}, multi::separated_list1, sequence::{delimited, preceded, terminated}, IResult, Parser};
+use crate::{model::SId, parser::ident::ident_type, runtime::{NumT, Type, Units}};
 
 
 /// Parse type standalone parser.
@@ -99,7 +99,7 @@ fn parse_units(input: &str) -> IResult<&str, Type> {
 /// Parse object type.
 fn parse_obj(input: &str) -> IResult<&str, Type> {
     map(
-        ident,
+        recognize(separated_list1(char('.'), ident_type)),
         |res| Type::Obj(res.into())
     ).parse(input)
 }
@@ -139,7 +139,7 @@ fn parse_union_list(input: &str) -> IResult<&str, Vec<Type>> {
 /// Parse custom data type.
 fn parse_custom_data(input: &str) -> IResult<&str, Type> {
     map(
-        delimited(tag("Data<"), ident, char('>')),
+        delimited(tag("Data<"), ident_type, char('>')),
         |ct| Type::Data(ct.into())
     ).parse(input)
 }

@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::{any::Any, sync::Arc};
+use std::{any::Any, i32, sync::Arc};
 use arcstr::ArcStr;
 use bytes::Bytes;
 use colored::Colorize;
@@ -35,6 +35,7 @@ pub struct Graph {
     pub roots: FxHashSet<NodeRef>,
     pub nodes: FxHashMap<NodeRef, Node>,
     pub data: FxHashMap<DataRef, Data>,
+    pub typemap: FxHashMap<String, FxHashSet<NodeRef>>,
 
     #[serde(skip)]
     pub node_deadpool: FxHashMap<NodeRef, Node>,
@@ -54,6 +55,7 @@ impl Default for Graph {
             roots: Default::default(),
             nodes: Default::default(),
             data: Default::default(),
+            typemap: Default::default(),
             node_deadpool: Default::default(),
             data_deadpool: Default::default(),
             formats: Default::default(),
@@ -109,6 +111,57 @@ impl Graph {
         } else {
             self.insert_root(ROOT_NODE_NAME)
         }
+    }
+
+    
+    /*****************************************************************************
+     * Types.
+     *****************************************************************************/
+    
+    /// Insert a type by typename.
+    pub fn insert_type(&mut self, name: &str, node: &NodeRef) {
+        if let Some(types) = self.typemap.get_mut(name) {
+            types.insert(node.clone());
+        } else {
+            let mut types = FxHashSet::default();
+            types.insert(node.clone());
+            self.typemap.insert(name.to_string(), types);
+        }
+    }
+
+    /// Remove an object from types.
+    pub fn remove_type(&mut self, node: &NodeRef) {
+        let mut to_remove = Vec::new();
+        for (id, types) in &mut self.typemap {
+            if types.remove(node) && types.is_empty() {
+                to_remove.push(id.clone());
+            }
+        }
+        for id in to_remove {
+            self.typemap.remove(&id);
+        }
+    }
+
+    /// Find a type by name, resolving to the closest to the context if collisions.
+    pub fn find_type(&self, name: &str, context: Option<NodeRef>) -> Option<NodeRef> {
+        if let Some(types) = self.typemap.get(name) {
+            if types.len() == 1 || context.is_none() {
+                for ty in types.iter() { return Some(ty.clone()); }
+            } else if types.len() > 1 {
+                let context = context.unwrap();
+                let mut best = None;
+                let mut closest = i32::MAX;
+                for ty in types.iter() {
+                    let dist = context.distance_to(self, ty);
+                    if dist >= 0 && dist < closest {
+                        closest = dist;
+                        best = Some(ty.clone());
+                    }
+                }
+                return best;
+            }
+        }
+        None
     }
 
 
@@ -329,7 +382,8 @@ impl Graph {
                 }
             }
 
-            // Insert into the deadpool
+            // Insert into the deadpool and remove types
+            self.remove_type(&node.id);
             self.node_deadpool.insert(node.id.clone(), node);
 
             return true;

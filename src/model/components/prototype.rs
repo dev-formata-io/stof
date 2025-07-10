@@ -19,8 +19,8 @@ use serde::{Deserialize, Serialize};
 use crate::model::{DataRef, Graph, NodeRef, SPath, StofData};
 
 
-/// Const typename literal.
-pub const TYPENAME: ArcStr = literal!("typename");
+/// Const prototype "type" literal.
+pub const PROTOTYPE_TYPE_ATTR: ArcStr = literal!("type");
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

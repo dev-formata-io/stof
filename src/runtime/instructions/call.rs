@@ -19,7 +19,7 @@ use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Field, Func, Graph, LibFunc, NodeRef, Prototype, SId, ASYNC_FUNC_ATTR, SELF_STR_KEYWORD, SUPER_STR_KEYWORD, TYPENAME}, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, POP_CALL, POP_SELF, POP_SYMBOL_SCOPE, PUSH_CALL, PUSH_SELF, PUSH_SYMBOL_SCOPE, SUSPEND}, proc::ProcEnv, Error, Type, Val, ValRef, Variable}};
+use crate::{model::{DataRef, Field, Func, Graph, LibFunc, NodeRef, Prototype, SId, ASYNC_FUNC_ATTR, PROTOTYPE_TYPE_ATTR, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, POP_CALL, POP_SELF, POP_SYMBOL_SCOPE, PUSH_CALL, PUSH_SELF, PUSH_SYMBOL_SCOPE, SUSPEND}, proc::ProcEnv, Error, Type, Val, ValRef, Variable}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,7 +45,7 @@ impl FuncCall {
     /// Uses search or the stack to find the function we are going to call if needed.
     pub(self) fn get_func_context(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<CallContext, Error> {
         if let Some(dref) = &self.func {
-            return Ok(CallContext { lib: None, stack_arg: false, prototype: false, func: dref.clone() });
+            return Ok(CallContext { lib: None, stack_arg: false, prototype_self: None, func: dref.clone() });
         }
         if let Some(search) = &self.search {
             return self.search_func(&search, env, graph);
@@ -66,19 +66,19 @@ impl FuncCall {
                     // {val}.additional...function_call() case, where val is a stack variable and not in path
                     // In this case, val must be an object to continue the lookup
                     if let Some(obj) = var.try_obj() {
-                        return self.object_search(path, Some(obj), graph, false);
+                        return self.object_search(path, Some(obj), env, graph, false);
                     }
                 } else {
                     // {val}.function_call() case, where val is a stack variable and not in path
                     if let Some(obj) = var.try_obj() {
                         // Try finding a function with this name on the object before using the obj lib
-                        if let Ok(res) = self.object_search(path, Some(obj), graph, false) {
+                        if let Ok(res) = self.object_search(path, Some(obj), env, graph, false) {
                             return Ok(res);
                         }
                     }
                     let libname = var.lib_name(&graph);
                     env.stack.push(var); // push it back so that it can become an arg
-                    return Ok(CallContext { lib: Some(libname), stack_arg: true, prototype: false, func: SId::from(split_path[0]) });
+                    return Ok(CallContext { lib: Some(libname), stack_arg: true, prototype_self: None, func: SId::from(split_path[0]) });
                 }
             }
             return Err(Error::FuncDne);
@@ -86,7 +86,7 @@ impl FuncCall {
 
         // In this case, we are calling into the standard library functions
         if split_path.len() < 2 {
-            return Ok(CallContext { lib: Some(literal!("Std")), stack_arg: false, prototype: false, func: SId::from(split_path[0]) });
+            return Ok(CallContext { lib: Some(literal!("Std")), stack_arg: false, prototype_self: None, func: SId::from(split_path[0]) });
         }
         
         // In this case, we are searching for a generic path, using the symbol table, libraries, and graph
@@ -101,12 +101,12 @@ impl FuncCall {
             split_path.remove(0);
         } else {
             // Look for a function at the root of the graph before resorting to a library
-            if let Ok(res) = self.object_search(path, None, graph, false) {
+            if let Ok(res) = self.object_search(path, None, env, graph, false) {
                 return Ok(res);
             }
             // Only a valid libcall if the length is 2
             if split_path.len() == 2 {
-                return Ok(CallContext { lib: Some(split_path[0].to_string().into()), stack_arg: false, prototype: false, func: SId::from(split_path[1]) });
+                return Ok(CallContext { lib: Some(split_path[0].to_string().into()), stack_arg: false, prototype_self: None, func: SId::from(split_path[1]) });
             }
             return Err(Error::FuncDne);
         }
@@ -115,7 +115,7 @@ impl FuncCall {
         if let Some(obj) = context.read().try_obj() {
             // self.path.function();
             // super.path.function();
-            if let Ok(res) = self.object_search(&context_path, Some(obj), graph, false) {
+            if let Ok(res) = self.object_search(&context_path, Some(obj), env, graph, false) {
                 return Ok(res);
             }
         }
@@ -123,7 +123,7 @@ impl FuncCall {
             // var.split('.'); // string variable for example
             let libname = context.read().lib_name(&graph);
             env.stack.push( Variable::refval(context)); // push onto the stack so that it can become an arg
-            return Ok(CallContext { lib: Some(libname), stack_arg: true, prototype: false, func: SId::from(split_path[0]) });
+            return Ok(CallContext { lib: Some(libname), stack_arg: true, prototype_self: None, func: SId::from(split_path[0]) });
         }
 
         Err(Error::FuncDne)
@@ -131,18 +131,34 @@ impl FuncCall {
 
     /// Use the remaining path to find a function at the path starting at an object.
     /// This should include any prototypes that the object has.
-    fn object_search(&self, path: &str, start: Option<NodeRef>, graph: &mut Graph, in_proto: bool) -> Result<CallContext, Error> {
+    fn object_search(&self, path: &str, start: Option<NodeRef>, env: &mut ProcEnv, graph: &mut Graph, in_proto: bool) -> Result<CallContext, Error> {
         let mut allow_node_contemplation = true;
 
         // If we are in a prototype, check to see if the path has a specific type associated with it Ex. MyType::special_func().
         // If there's a special type and this node has the wrong typename, don't allow a function to resolve on it.
-        if in_proto && path.contains("::") {
+        let mut adjusted_path = path.to_string();
+        if in_proto && path.contains("<") {
             if let Some(node) = &start {
                 if let Some(node) = node.node(&graph) {
-                    let type_path = path.split("::").collect::<Vec<_>>();
-                    if let Some(val) = node.attributes.get(TYPENAME.as_str()) {
-                        if type_path[0] != val.to_string() {
-                            allow_node_contemplation = false;
+                    let mut type_path = path.split("<").collect::<Vec<_>>();
+                    if let Some(type_attr) = node.attributes.get(PROTOTYPE_TYPE_ATTR.as_str()) {
+                        match type_attr {
+                            Val::Str(name) => {
+                                adjusted_path = type_path.pop().unwrap().trim_end_matches(">").to_string();
+                                if adjusted_path != name.as_str() {
+                                    allow_node_contemplation = false;
+                                } else {
+                                    adjusted_path = type_path.join("<");
+                                }
+                            },
+                            _ => {
+                                adjusted_path = type_path.pop().unwrap().trim_end_matches(">").to_string();
+                                if adjusted_path != node.name.as_ref() {
+                                    allow_node_contemplation = false;
+                                } else {
+                                    adjusted_path = type_path.join("<");
+                                }
+                            }
                         }
                     }
                 }
@@ -151,16 +167,18 @@ impl FuncCall {
         
         if allow_node_contemplation {
             // Look for a function on the object at the path first (always highest priority)
-            if let Some(func) = Func::func_from_path(graph, path, start.clone()) {
-                return Ok(CallContext { lib: None, stack_arg: false, prototype: in_proto, func });
+            if let Some(func) = Func::func_from_path(graph, &adjusted_path, start.clone()) {
+                // prototype_self gets set below
+                return Ok(CallContext { lib: None, stack_arg: false, prototype_self: None, func });
             }
 
             // Look for a field on the object at the path next that is a function
             // TODO: test this out and see if its wierd. means self.myobj.field() will work if field points to a function...
-            if let Some(field) = Field::field_from_path(graph, path, start.clone()) {
+            if let Some(field) = Field::field_from_path(graph, &adjusted_path, start.clone()) {
                 if let Some(field) = graph.get_stof_data::<Field>(&field) {
                     if let Some(func) = field.value.try_func() {
-                        return Ok(CallContext { lib: None, stack_arg: false, prototype: in_proto, func });
+                        // prototype_self will get set below
+                        return Ok(CallContext { lib: None, stack_arg: false, prototype_self: None, func });
                     }
                 }
             }
@@ -168,7 +186,7 @@ impl FuncCall {
 
         // Look for a prototype that this object has next
         {
-            let mut proto_context = start;
+            let mut proto_context = start.clone();
             let mut proto_path = path.split('.').collect::<Vec<_>>();
             let func_name = proto_path.pop().unwrap();
 
@@ -182,15 +200,38 @@ impl FuncCall {
             if let Some(node) = proto_context {
                 for prototype in Prototype::prototype_nodes(graph, &node) {
                     // by making this recursive, we fulfill the sub-typing lookups ("extends" types)
-                    if let Ok(res) = self.object_search(func_name, Some(prototype), graph, true) {
+                    if let Ok(mut res) = self.object_search(func_name, Some(prototype), env, graph, true) {
+                        if !in_proto {
+                            // add this node to the self stack and mark as a prototype
+                            res.prototype_self = Some(node);
+                        }
                         return Ok(res);
                     }
                 }
             }
         }
 
-        // TODO
-        // Look for a static function on a prototype with "::" (only works with "type" objects, not regular objects as a prototype)
+        // Look for a static function on a prototype (only works with "type" objects, not regular objects as a prototype)
+        // Ex. <MyType>.static_function();
+        if !in_proto && path.starts_with('<') && path.contains('.') {
+            let mut proto_path = path.split('.').collect::<Vec<_>>();
+            let mut proto_name = proto_path.remove(0).trim_start_matches('<');
+            if proto_name.ends_with('>') {
+                proto_name = proto_name.trim_end_matches('>');
+
+                let mut obj_type = Type::Obj(proto_name.into());
+                obj_type.obj_to_proto(graph, start);
+                match obj_type {
+                    Type::Obj(proto_id) => {
+                        if proto_id.node_exists(graph) {
+                            let path = proto_path.join(".");
+                            return self.object_search(&path, Some(proto_id), env, graph, false);
+                        }
+                    },
+                    _ => {}
+                }
+            }
+        }
 
         Err(Error::FuncDne)
     }
@@ -316,7 +357,7 @@ impl FuncCall {
 #[derive(Debug)]
 pub(self) struct CallContext {
     pub lib: Option<ArcStr>,
-    pub prototype: bool,
+    pub prototype_self: Option<NodeRef>,
     pub func: SId,
     pub stack_arg: bool,
 }
@@ -359,7 +400,10 @@ impl Instruction for FuncCall {
         instructions.push(PUSH_SYMBOL_SCOPE.clone());
         
         // Add self to self stack if not a prototype function
-        if !func_context.prototype {
+        if let Some(proto_self) = func_context.prototype_self {
+            instructions.push(Arc::new(Base::Literal(Val::Obj(proto_self))));
+            instructions.push(PUSH_SELF.clone());
+        } else {
             let mut set = false;
             for nref in func.data_nodes(graph) {
                 if nref.node_exists(graph) {
@@ -456,10 +500,8 @@ impl Instruction for FuncCall {
         instructions.push(POP_SYMBOL_SCOPE.clone());
         instructions.push(POP_CALL.clone());
         
-        // Pop self stack
-        if !func_context.prototype {
-            instructions.push(POP_SELF.clone());
-        }
+        // Pop self stack - always happens, even when there's a prototype
+        instructions.push(POP_SELF.clone());
 
         // Handle async function call
         if is_async {

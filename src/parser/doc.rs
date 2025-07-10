@@ -62,8 +62,8 @@ pub fn document_statement<'a>(input: &'a str, context: &mut ParseContext) -> IRe
 
     // Field
     {
-        let func_res = parse_field(input, context);
-        match func_res {
+        let field_res = parse_field(input, context);
+        match field_res {
             Ok((input, _)) => {
                 return Ok((input, ()));
             },

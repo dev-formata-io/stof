@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use nom::{branch::alt, bytes::complete::{escaped_transform, tag, take_until}, character::complete::{char, none_of}, combinator::{into, value}, sequence::delimited, IResult, Parser};
+use nom::{branch::alt, bytes::complete::{escaped_transform, tag, take_until}, character::complete::{char, none_of}, combinator::{into, map, opt, value}, sequence::delimited, IResult, Parser};
 use crate::{parser::whitespace::whitespace, runtime::Val};
 
 
@@ -45,7 +45,7 @@ pub fn double_string(input: &str) -> IResult<&str, String> {
         value("\r", tag("r")),
         value("\t", tag("t")),
     )));
-    delimited(char('"'), inner, char('"')).parse(input)
+    delimited(char('"'), map(opt(inner), |opt| opt.unwrap_or_default()), char('"')).parse(input)
 }
 
 /// Parse a single quoted string.
@@ -58,7 +58,7 @@ pub fn single_string(input: &str) -> IResult<&str, String> {
         value("\r", tag("r")),
         value("\t", tag("t")),
     )));
-    delimited(char('\''), inner, char('\'')).parse(input)
+    delimited(char('\''), map(opt(inner), |opt| opt.unwrap_or_default()), char('\'')).parse(input)
 }
 
 

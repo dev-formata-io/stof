@@ -16,12 +16,13 @@
 
 use core::str;
 use parking_lot::RwLock;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::{cmp::Ordering, hash::{Hash, Hasher}, ops::{Deref, DerefMut}, sync::Arc};
 use arcstr::{literal, ArcStr};
 use bytes::Bytes;
 use imbl::{vector, OrdMap, OrdSet, Vector};
 use serde::{Deserialize, Serialize};
-use crate::{model::{json_value_from_node, DataRef, Func, Graph, NodeRef, Prototype, SId, TYPENAME}, parser::{number::number, semver::parse_semver_alone}, runtime::{Error, Num, NumT, Type, Units, DATA, OBJ}};
+use crate::{model::{json_value_from_node, DataRef, Field, Func, Graph, NodeRef, Prototype, SId}, parser::{number::number, semver::parse_semver_alone}, runtime::{Error, Num, NumT, Type, Units, DATA, OBJ}};
 
 
 /// Value reference.
@@ -901,10 +902,13 @@ impl Val {
                 Type::Data(DATA)
             },
             Self::Obj(nref) => {
-                if let Some(node) = nref.node(graph) {
-                    if let Some(typename) = node.attributes.get(TYPENAME.as_str()) {
-                        return Type::Obj(SId::from(&typename.to_string()));
-                    }
+                let mut prototypes = Prototype::prototype_nodes(graph, nref);
+                if prototypes.len() == 1 {
+                    return Type::Obj(prototypes.pop().unwrap());
+                } else if prototypes.len() > 1 {
+                    let mut types = vector![];
+                    for ty in prototypes { types.push_back(Type::Obj(ty)); }
+                    return Type::Union(types);
                 }
                 Type::Obj(SId::from(&OBJ))
             },
@@ -919,29 +923,27 @@ impl Val {
     }
 
     /// Is this value an instance of a prototype?
-    pub fn instance_of(&self, other: &Self, graph: &Graph) -> Result<bool, Error> {
+    pub fn instance_of(&self, other: &NodeRef, graph: &Graph) -> Result<bool, Error> {
         if let Some(obj) = self.try_obj() {
-            if let Some(other_ref) = other.try_obj() {
-                let proto_nrefs = Prototype::prototype_nodes(graph, &obj);
-                for nref in &proto_nrefs { if nref == &other_ref { return Ok(true); } }
-                for nref in proto_nrefs {
-                    if let Ok(contains) = Self::Obj(nref).instance_of(other, graph) {
-                        if contains {
-                            return Ok(true);
-                        }
+            let proto_nrefs = Prototype::prototype_nodes(graph, &obj);
+            for nref in &proto_nrefs { if nref == other { return Ok(true); } }
+            for nref in proto_nrefs {
+                if let Ok(contains) = Self::Obj(nref).instance_of(other, graph) {
+                    if contains {
+                        return Ok(true);
                     }
                 }
-                return Ok(false);
             }
+            return Ok(false);
         }
         Err(Error::CastVal)
     }
 
     /// Cast this value to a different type.
-    pub fn cast(&mut self, target: &Type, graph: &mut Graph) -> Result<(), Error> {
+    pub fn cast(&mut self, target: &Type, graph: &mut Graph, context: Option<NodeRef>) -> Result<(), Error> {
         // Cast object must come before type check here due to "obj" type
         if self.obj() {
-            return self.cast_object(target, graph);
+            return self.cast_object(target, graph, context);
         }
         if self.is_type(target, &graph) {
             return Ok(());
@@ -949,7 +951,7 @@ impl Val {
         match target {
             Type::Union(types) => {
                 for ty in types {
-                    match self.cast(ty, graph) {
+                    match self.cast(ty, graph, context.clone()) {
                         Ok(_) => return Ok(()),
                         Err(_) => {}
                     }
@@ -1010,7 +1012,7 @@ impl Val {
                         }
                         if values.len() == types.len() {
                             for i in 0..values.len() {
-                                values[i].write().cast(&types[i], graph)?;
+                                values[i].write().cast(&types[i], graph, context.clone())?;
                             }
                             *self = Self::Tup(values.clone());
                             return Ok(());
@@ -1134,7 +1136,7 @@ impl Val {
                             NumT::Int => {
                                 match number(&val) {
                                     Ok((_, mut res)) => {
-                                        res.cast(target, graph)?; // get the number into the right type, no matter the string
+                                        res.cast(target, graph, context)?; // get the number into the right type, no matter the string
                                         *self = res;
                                         Ok(())
                                     },
@@ -1177,7 +1179,7 @@ impl Val {
                     Type::Tup(types) => {
                         if values.len() == types.len() {
                             for i in 0..values.len() {
-                                values[i].write().cast(&types[i], graph)?;
+                                values[i].write().cast(&types[i], graph, context.clone())?;
                             }
                             return Ok(());
                         }
@@ -1202,20 +1204,149 @@ impl Val {
             _ => Err(Error::NotImplemented)
         }
     }
-    fn cast_object(&self, target: &Type, graph: &mut Graph) -> Result<(), Error> {
+    fn cast_object(&self, target: &Type, graph: &mut Graph, context: Option<NodeRef>) -> Result<(), Error> {
+        // Get the object we are casting
+        let obj = self.try_obj().unwrap(); // will err if not done right
+
+        // Get the target type in terms of prototypes
+        let mut target = target.clone();
+        target.obj_to_proto(graph, context);
+
         match target {
             Type::Union(types) => {
-                // TODO
+                // TODO check if we are an instance of any of these types first
                 Err(Error::NotImplemented)
             },
-            Type::Obj(prototype) => {
-                if prototype == &SId::from(&OBJ) {
-                    return Ok(());
+            Type::Obj(proto_id) => {
+                if proto_id == SId::from(&OBJ) {
+                    return Ok(()); // no need to cast to general type as it always works
                 }
-                // TODO
-                Err(Error::NotImplemented)
+                if !proto_id.node_exists(graph) {
+                    return Err(Error::ObjectCastProtoDne);
+                }
+                if !self.instance_of(&proto_id, graph)? {
+                    // Remove all current prototypes from the object and add the new one
+                    let existing_prototypes = Prototype::prototype_refs(graph, &obj);
+                    for dref in existing_prototypes { graph.remove_data(&dref, Some(obj.clone())); }
+                    graph.insert_stof_data(&obj, "__proto__", Box::new(Prototype { node: proto_id.clone() }), None);
+                
+                    // Perform field initializations and checks for the type
+                    for (fname, fref) in Field::fields(graph, &proto_id) {
+                        if let Some(field) = graph.get_stof_data::<Field>(&fref) {
+                            //println!("{fname}, {field:?}");
+                        }
+                    }
+
+                    // TODO: schemafy the obj with the type (this will be very nice)
+                }
+                Ok(())
             },
             _ => Err(Error::CastVal)
+        }
+    }
+
+    /// Schemafy an object.
+    /// Use the fields on a source object to control/set fields on a target object.
+    pub fn schemafy(graph: &mut Graph, source: &NodeRef, target: &NodeRef, remove_invalid: bool, remove_undefined: bool) -> bool {
+        // Get all of the fields on this schema to apply on the target object
+        // Field name -> #[field] attribute value
+        let mut source_fields: FxHashMap<String, (DataRef, Val)> = FxHashMap::default();
+        for (fname, fref) in Field::fields(graph, source) {
+            if let Some(field) = graph.get_stof_data::<Field>(&fref) {
+                if let Some(schema_val) = field.attributes.get("field") {
+                    source_fields.insert(fname, (fref, schema_val.clone()));
+                }
+            }
+        }
+        let source_fieldnames = source_fields.keys().cloned().collect::<FxHashSet<String>>();
+
+        // Get all invalid fields on the target and remove them, while applying any transforms in the field attribute
+        let mut valid = true;
+        for (fname, (fref, value)) in source_fields {
+            if !Self::schemafy_field(graph, source, target, &fname, value, remove_invalid, remove_undefined) {
+                valid = false;
+                if remove_invalid {
+                    graph.remove_data(&fref, Some(target.clone()));
+                }
+            }
+        }
+
+        // Remove all undefined fields on the target (not matching the source)
+        if remove_undefined {
+            for (fname, fref) in Field::fields(graph, target) {
+                if !source_fieldnames.contains(&fname) {
+                    graph.remove_data(&fref, Some(target.clone()));
+                }
+            }
+        }
+
+        valid
+    }
+    fn schemafy_field(graph: &mut Graph, source: &NodeRef, target: &NodeRef, fname: &str, value: Val, remove_invalid: bool, remove_undefined: bool) -> bool {
+        match value {
+            Val::Void |
+            Val::Null => {
+                let mut source_field_obj = None;
+                let mut target_field_obj = None;
+                if let Some(field) = Field::direct_field(graph, source, fname) {
+                    if let Some(field) = graph.get_stof_data::<Field>(&field) {
+                        if let Some(obj) = field.value.try_obj() {
+                            source_field_obj = Some(obj);
+                        }
+                    }
+                }
+                if let Some(field) = Field::direct_field(graph, target, fname) {
+                    if let Some(field) = graph.get_stof_data::<Field>(&field) {
+                        if let Some(obj) = field.value.try_obj() {
+                            target_field_obj = Some(obj);
+                        }
+                    }
+                }
+                if let Some(source) = source_field_obj {
+                    if let Some(target) = target_field_obj {
+                        return Self::schemafy(graph, &source, &target, remove_invalid, remove_undefined);
+                    }
+                }
+                true // valid otherwise
+            },
+            Val::Obj(another_source) => {
+                let mut another_val = None;
+                if let Some(field) = Field::direct_field(graph, &another_source, fname) {
+                    if let Some(field) = graph.get_stof_data::<Field>(&field) {
+                        if let Some(val) = field.attributes.get("field") {
+                            another_val = Some(val.clone());
+                        }
+                    }
+                }
+                if let Some(another_val) = another_val {
+                    return Self::schemafy_field(graph, &another_source, target, fname, another_val, remove_invalid, remove_undefined);
+                }
+                false
+            },
+            Val::Tup(vals) |
+            Val::List(vals) => {
+                for val in vals {
+                    let val = val.read().clone();
+                    if !Self::schemafy_field(graph, source, target, fname, val, remove_invalid, remove_undefined) {
+                        return false;
+                    }
+                }
+                true
+            },
+            Val::Set(vals) => {
+                for val in vals {
+                    let val = val.read().clone();
+                    if !Self::schemafy_field(graph, source, target, fname, val, remove_invalid, remove_undefined) {
+                        return false;
+                    }
+                }
+                true
+            },
+            Val::Fn(_dref) => {
+                // TODO
+                true
+            },
+            _ => false,
         }
     }
 
@@ -2268,7 +2399,7 @@ impl Val {
             Self::Fn(_) |
             Self::Blob(_) => self.to_string(),
             Self::Promise(..) |
-            Self::Data(_) => self.spec_type(graph).type_of().to_string(),
+            Self::Data(_) => self.spec_type(graph).rt_type_of(graph).to_string(),
             Self::Map(map) => {
                 let mut res = String::default();
                 let mut first = true;

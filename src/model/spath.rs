@@ -16,7 +16,6 @@
 
 use arcstr::{literal, ArcStr};
 use bytes::Bytes;
-use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 use crate::model::{Field, Graph, NodeRef, SId};
 
@@ -220,30 +219,6 @@ impl SPath {
             Self {
                 names: true,
                 path: names
-            }
-        }
-    }
-
-    /// Remove "__stof__.proto" scope from this path.
-    pub fn remove_type_scope(&mut self, graph: &Graph) {
-        let mut set = FxHashSet::default();
-        set.insert("__stof__");
-        set.insert("proto");
-        if self.names {
-            while !self.path.is_empty() && set.contains(self.path.first().unwrap().as_ref()) {
-                self.path.remove(0);
-            }
-        } else {
-            while !self.path.is_empty() {
-                if let Some(first) = self.path.first().unwrap().node(graph) {
-                    if set.contains(first.name.as_ref()) {
-                        self.path.remove(0);
-                    } else {
-                        break;
-                    }
-                } else {
-                    break;
-                }
             }
         }
     }

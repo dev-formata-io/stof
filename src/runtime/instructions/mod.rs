@@ -452,7 +452,7 @@ impl Instruction for Base {
             },
             Self::SetVariable(name) => {
                 if let Some(var) = env.stack.pop() {
-                    if !name.contains('.') && env.table.set(name, &var, graph)? {
+                    if !name.contains('.') && env.table.set(name, &var, graph, Some(env.self_ptr()))? {
                         return Ok(None);
                     }
 
@@ -472,7 +472,7 @@ impl Instruction for Base {
                                 fvar = Some(field.value.clone());
                             }
                             if let Some(mut fvar) = fvar {
-                                fvar.set(&var, graph)?;
+                                fvar.set(&var, graph, Some(env.self_ptr()))?;
                             }
                             if let Some(field) = field_ref.data_mut(graph) {
                                 field.invalidate_value();
@@ -497,7 +497,7 @@ impl Instruction for Base {
                             fvar = Some(field.value.clone());
                         }
                         if let Some(mut fvar) = fvar {
-                            fvar.set(&var, graph)?;
+                            fvar.set(&var, graph, Some(env.self_ptr()))?;
                         }
                         if let Some(field) = field_ref.data_mut(graph) {
                             field.invalidate_value();
@@ -570,7 +570,7 @@ impl Instruction for Base {
             },
             Self::Cast(target) => {
                 if let Some(var) = env.stack.pop() {
-                    var.cast(target, graph)?;
+                    var.cast(target, graph, Some(env.self_ptr()))?;
                     env.stack.push(var);
                 } else if target.empty() {
                     // nothing to do in this case
@@ -581,7 +581,7 @@ impl Instruction for Base {
             Self::TypeOf => {
                 if let Some(var) = env.stack.pop() {
                     let vt = var.gen_type();
-                    env.stack.push(Variable::val(Val::Str(vt.type_of())));
+                    env.stack.push(Variable::val(Val::Str(vt.rt_type_of(&graph))));
                 } else {
                     return Err(Error::StackError);
                 }
@@ -589,7 +589,7 @@ impl Instruction for Base {
             Self::TypeName => {
                 if let Some(var) = env.stack.pop() {
                     let vt = var.spec_type(&graph);
-                    env.stack.push(Variable::val(Val::Str(vt.type_of())));
+                    env.stack.push(Variable::val(Val::Str(vt.rt_type_of(&graph))));
                 } else {
                     return Err(Error::StackError);
                 }

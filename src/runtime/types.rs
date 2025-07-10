@@ -17,7 +17,7 @@
 use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use serde::{Deserialize, Serialize};
-use crate::{model::SId, parser::types::parse_type_complete, runtime::Units};
+use crate::{model::{Graph, NodeRef, SId, PROTOTYPE_TYPE_ATTR}, parser::types::parse_type_complete, runtime::{Units, Val}};
 
 
 // Literal string types.
@@ -232,6 +232,36 @@ impl Type {
         }
     }
 
+    /// If this is an object type as a name, find the prototype and swap it.
+    /// Or if a union, make sure all objects in the union are NodeRefs.
+    pub fn obj_to_proto(&mut self, graph: &Graph, mut context: Option<NodeRef>) {
+        match &mut *self {
+            Self::Union(types) => {
+                for ty in types { ty.obj_to_proto(graph, context.clone()); }
+            },
+            Self::Obj(name_or_id) => {
+                if !name_or_id.node_exists(graph) { // not a node ref, so must be a name
+                    if context.is_none() { context = graph.main_root(); }
+
+                    let mut path = name_or_id.as_ref().to_string();
+                    if path.contains('.') {
+                        let mut split = path.split('.').collect::<Vec<_>>();
+                        let typename = split.pop().unwrap();
+                        if let Some(node) = graph.find_node_named(&split.join("."), context.clone()) {
+                            context = Some(node);
+                            path = typename.to_string();
+                        }
+                    }
+
+                    if let Some(proto_id) = graph.find_type(&path, context) {
+                        *name_or_id = proto_id;
+                    }
+                }
+            },
+            _ => {}
+        }
+    }
+
     pub fn type_of(&self) -> ArcStr {
         match self {
             Self::Union(types) => {
@@ -283,8 +313,73 @@ impl Type {
         }
     }
 
-    pub fn md_type_of(&self) -> String {
-        self.type_of().replace("<", "\\<")
+    pub fn rt_type_of(&self, graph: &Graph) -> ArcStr {
+        match self {
+            Self::Union(types) => {
+                let mut geo = String::default();
+                for ty in types {
+                    if geo.len() < 1 {
+                        geo.push_str(&ty.rt_type_of(graph));
+                    } else {
+                        geo.push_str(&format!(" | {}", ty.rt_type_of(graph)));
+                    }
+                }
+                geo.into()
+            },
+            Self::Unknown => UNKNOWN,
+            Self::Map => MAP,
+            Self::Set => SET,
+            Self::List => LIST,
+            Self::Bool => BOOL,
+            Self::Blob => BLOB,
+            Self::Fn => FUNC,
+            Self::Data(tname) => {
+                let dta = DATA;
+                if tname == &dta {
+                    return dta;
+                }
+                format!("Data<{}>", tname).into()
+            },
+            Self::Null => NULL,
+            Self::Num(num) => num.type_of(),
+            Self::Ver => VER,
+            Self::Str => STR,
+            Self::Tup(vals) => {
+                let mut res = "(".to_string();
+                for i in 0..vals.len() {
+                    let v = &vals[i];
+                    let type_of = v.rt_type_of(graph);
+                    if i < vals.len() - 1 {
+                        res.push_str(&format!("{}, ", type_of));
+                    } else {
+                        res.push_str(&type_of);
+                    }
+                }
+                res.push_str(")");
+                res.into()
+            },
+            Self::Void => VOID,
+            Self::Obj(ctype) => {
+                if let Some(node) = ctype.node(graph) {
+                    if let Some(type_attr) = node.attributes.get(PROTOTYPE_TYPE_ATTR.as_str()) {
+                        match type_attr {
+                            Val::Str(name) => {
+                                return name.clone();
+                            },
+                            _ => {
+                                return node.name.as_ref().into();
+                            }
+                        }
+                    }
+                }
+                ctype.as_ref().into()
+            },
+            Self::Promise(ty) => format!("Promise<{}>", ty.rt_type_of(graph)).into(),
+        }
+    }
+
+    pub fn md_type_of(&self, graph: &Graph) -> String {
+        self.rt_type_of(graph).replace("<", "\\<")
     }
 
     /// Generic libname.

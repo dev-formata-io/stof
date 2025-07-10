@@ -16,9 +16,51 @@
 
 
 /*!
- * This module is where we'll test basic language features, like control flow.
- * Scope: root.Lang
+ * Tests for custom Stof types.
+ * Scope: root.Lang.Types
  */
 
-import './control/mod' as self.Control;
-import './types/mod' as self.Types;
+
+/*type Point2D {
+    x?: float;
+    x: float = 0.0;
+}*/
+
+
+#[type]
+Point2D: {
+    #[field]
+    float x: 0.;
+    
+    #[field]
+    float y: 0.;
+
+    
+    fn add() -> float {
+        pln(self);
+        self.x + self.y
+    }
+
+    const life: 42;
+    fn myfunc() -> int {
+        self.life
+    }
+}
+
+
+obj test: {
+    x: 1;
+    y: 4;
+}
+
+
+#[test]
+fn cast_to_point() {
+    let x: Point2D = self.test;
+    x = x as obj;
+    pln(typename x);
+    pln(x.add());
+
+    const y = <Point2D>.myfunc();
+    pln(y);
+}

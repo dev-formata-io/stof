@@ -65,7 +65,7 @@ impl Instruction for NewObjIns {
         // cast value if needed
         let mut val = Val::Obj(nref);
         if let Some(cast_type) = &self.cast_type {
-            val.cast(cast_type, graph)?;
+            val.cast(cast_type, graph, Some(env.self_ptr()))?;
         }
         env.stack.push(Variable::val(val));
         Ok(None)
