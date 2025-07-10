@@ -17,6 +17,7 @@
 use std::fmt::Display;
 use arcstr::ArcStr;
 use serde::{Deserialize, Serialize};
+use crate::runtime::Val;
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,6 +50,7 @@ pub enum Error {
     /*****************************************************************************
      * Standard Library Errors.
      *****************************************************************************/
+    Thrown(Val),
     AssertFailed(String),
     AssertNotFailed(String),
     AssertEqFailed(String),
@@ -61,7 +63,6 @@ pub enum Error {
 
     Custom(ArcStr),
     NotImplemented,
-    Thrown,
 
     DeclareExisting,
     DeclareInvalidName,

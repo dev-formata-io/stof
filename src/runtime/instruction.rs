@@ -260,7 +260,14 @@ impl Instructions {
                     },
                     Err(error) => {
                         if self.try_catch_count > 0 && self.unwind_try() {
-                            env.stack.push(Variable::val(Val::Str(error.to_string().into()))); // TODO better errors?
+                            match error {
+                                Error::Thrown(val) => {
+                                    env.stack.push(Variable::val(val));
+                                },
+                                _ => {
+                                    env.stack.push(Variable::val(Val::Str(error.to_string().into())));
+                                }
+                            }
                             continue 'exec_loop;
                         } else {
                             return Err(error);

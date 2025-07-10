@@ -43,7 +43,6 @@ lazy_static! {
     pub static ref AWAIT: Arc<dyn Instruction> = Arc::new(Base::CtrlAwait);
     pub static ref NOOP: Arc<dyn Instruction> = Arc::new(Base::CtrlNoOp);
     pub static ref END_TRY: Arc<dyn Instruction> = Arc::new(Base::CtrlTryEnd);
-    pub static ref THROW_ERROR: Arc<dyn Instruction> = Arc::new(Base::Throw);
 
     pub static ref PUSH_SELF: Arc<dyn Instruction> = Arc::new(Base::PushSelf);
     pub static ref POP_SELF: Arc<dyn Instruction> = Arc::new(Base::PopSelf);
@@ -123,7 +122,6 @@ pub enum Base {
     // Go forward to this tag if an error occurrs.
     CtrlTry(ArcStr),
     CtrlTryEnd,
-    Throw, // Will error with the debug contents of the last stack val if any
 
     // Sleep instructions.
     CtrlSleepFor(Duration),
@@ -222,14 +220,6 @@ impl Instruction for Base {
 
             Self::CtrlTry(_) => {}, // Nothing here... used by instructions...
             Self::CtrlTryEnd => {}, // Nothing here... used by instructions...
-            Self::Throw => {
-                if let Some(var) = env.stack.pop() {
-                    let dbg = var.val.read().debug(&graph);
-                    return Err(Error::Custom(dbg.into()));
-                } else {
-                    return Err(Error::Thrown);
-                }
-            },
 
             /*****************************************************************************
              * Special stacks.

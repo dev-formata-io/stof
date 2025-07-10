@@ -15,8 +15,31 @@
 //
 
 use std::sync::Arc;
+use arcstr::literal;
 use imbl::vector;
-use crate::{model::{stof_std::{ASSERT, ASSERT_EQ, ASSERT_NEQ, ASSERT_NOT, STD_LIB}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Type, Val}};
+use crate::{model::{stof_std::{ASSERT, ASSERT_EQ, ASSERT_NEQ, ASSERT_NOT, STD_LIB, THROW}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Type, Val}};
+
+
+/// Throw error function.
+pub fn throw() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "throw".into(),
+        is_async: false,
+        docs: "# Throw an error\nUsed to force an error anywhere inside Stof.".into(),
+        params: vector![
+            Param { name: "value".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Str(literal!("Std.throw()"))))) }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(THROW.clone());
+            Ok(instructions)
+        })
+    }
+}
 
 
 /// Standard assert function.

@@ -18,7 +18,7 @@ use std::{sync::Arc, time::Duration};
 use arcstr::{literal, ArcStr};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not}, print::{dbg, err, pln}, sleep::stof_sleep}, Graph}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error, Type, Units}};
+use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, print::{dbg, err, pln}, sleep::stof_sleep}, Graph}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error, Type, Units}};
 
 mod print;
 mod sleep;
@@ -31,6 +31,7 @@ pub fn stof_std_lib(graph: &mut Graph) {
     graph.insert_libfunc(dbg());
     graph.insert_libfunc(err());
     graph.insert_libfunc(stof_sleep());
+    graph.insert_libfunc(throw());
 
     graph.insert_libfunc(assert());
     graph.insert_libfunc(assert_not());
@@ -46,6 +47,7 @@ pub(self) const STD_LIB: ArcStr = literal!("Std");
 // Static instructions.
 lazy_static! {
     pub(self) static ref SLEEP: Arc<dyn Instruction> = Arc::new(StdIns::Sleep);
+    pub(self) static ref THROW: Arc<dyn Instruction> = Arc::new(StdIns::Throw);
     pub(self) static ref ASSERT: Arc<dyn Instruction> = Arc::new(StdIns::Assert);
     pub(self) static ref ASSERT_NOT: Arc<dyn Instruction> = Arc::new(StdIns::AssertNot);
     pub(self) static ref ASSERT_EQ: Arc<dyn Instruction> = Arc::new(StdIns::AssertEq);
@@ -60,6 +62,7 @@ pub enum StdIns {
     Dbg(usize),
     Err(usize),
 
+    Throw,
     Sleep,
 
     Assert,
@@ -153,6 +156,12 @@ impl Instruction for StdIns {
                 let mut instructions = Instructions::default();
                 instructions.push(Arc::new(Base::CtrlSleepFor(Duration::from_millis(duration.abs() as u64))));
                 return Ok(Some(instructions));
+            },
+
+            Self::Throw => {
+                if let Some(val) = env.stack.pop() {
+                    return Err(Error::Thrown(val.get()));
+                }
             },
 
             Self::Assert => {

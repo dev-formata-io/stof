@@ -52,26 +52,8 @@ impl Instruction for TryCatchIns {
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
+    use crate::{model::Graph, runtime::{instructions::{trycatch::TryCatchIns, Base}, Num, Runtime, Val}};
 
-    use crate::{model::Graph, runtime::{instructions::{trycatch::TryCatchIns, Base, THROW_ERROR}, Num, Runtime, Val}};
-
-    #[test]
-    fn thrown() {
-        let mut graph = Graph::default();
-        let res = Runtime::eval(&mut graph, THROW_ERROR.clone());
-        assert!(res.is_err());
-    }
-
-    #[test]
-    fn catch() {
-        let mut try_catch = TryCatchIns::default();
-        try_catch.try_ins.push_back(THROW_ERROR.clone());
-        try_catch.catch_ins.push_back(Arc::new(Base::Literal(Val::Num(Num::Float(42.2)))));
-
-        let mut graph = Graph::default();
-        let res = Runtime::eval(&mut graph, Arc::new(try_catch)).unwrap();
-        assert_eq!(res, 42.2.into());
-    }
 
     #[test]
     fn no_catch() {

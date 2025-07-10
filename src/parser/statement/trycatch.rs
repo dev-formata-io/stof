@@ -18,7 +18,7 @@ use std::sync::Arc;
 use arcstr::ArcStr;
 use imbl::{vector, Vector};
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded}, IResult, Parser};
-use crate::{model::{Param, SId}, parser::{ident::ident, statement::{block, statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{trycatch::TryCatchIns, Base, POP_STACK}}};
+use crate::{model::{Param, SId}, parser::{ident::ident, statement::{block, statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{trycatch::TryCatchIns, Base, POP_STACK}, Type}};
 
 
 /// Try catch statement.
@@ -41,8 +41,8 @@ pub fn try_catch_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruct
     )).parse(input)?;
     if let Some(error_param) = error_param {
         // declare const variable that is the error (type irrelivant)
-        // TODO: error val type and casts
-        catch_ins.push_front(Arc::new(Base::DeclareConstVar(ArcStr::from(error_param.name.as_ref()), error_param.param_type)));
+        catch_ins.push_front(Arc::new(Base::DeclareConstVar(ArcStr::from(error_param.name.as_ref()), error_param.param_type.clone())));
+        catch_ins.push_front(Arc::new(Base::Cast(error_param.param_type)));
     } else {
         // pop error from stack
         catch_ins.push_front(POP_STACK.clone());
@@ -56,12 +56,17 @@ pub fn try_catch_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruct
 fn error_parameter(input: &str) -> IResult<&str, Param> {
     let (input, _) = multispace0(input)?;
     let (input, name) = ident(input)?;
-    let (input, param_type) = preceded(preceded(multispace0, char(':')), preceded(multispace0, parse_type)).parse(input)?;
+    let (input, param_type) = opt(preceded(preceded(multispace0, char(':')), preceded(multispace0, parse_type))).parse(input)?;
     let (input, _) = multispace0(input)?;
+
+    let mut ptype = Type::Unknown;
+    if let Some(pty) = param_type {
+        ptype = pty;
+    }
 
     let param = Param {
         name: SId::from(name),
-        param_type,
+        param_type: ptype,
         default: None
     };
     Ok((input, param))
