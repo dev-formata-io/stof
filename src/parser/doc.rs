@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use crate::{model::InnerDoc, parser::{context::ParseContext, field::parse_field, func::parse_function, whitespace::{parse_inner_doc_comment, whitespace_fail}}, runtime::Error};
+use crate::{model::InnerDoc, parser::{context::ParseContext, field::parse_field, func::parse_function, import::import, whitespace::{parse_inner_doc_comment, whitespace_fail}}, runtime::Error};
 use nanoid::nanoid;
 use nom::{character::complete::char, combinator::eof, Err, IResult};
 
@@ -40,9 +40,6 @@ pub fn document(mut input: &str, context: &mut ParseContext) -> Result<(), Error
 
 /// Parse a singular document statement.
 /// TODO types
-/// TODO extern
-/// TODO import
-/// TODO ref field
 pub fn document_statement<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, ()> {
     // Function
     {
@@ -67,6 +64,25 @@ pub fn document_statement<'a>(input: &'a str, context: &mut ParseContext) -> IRe
     {
         let func_res = parse_field(input, context);
         match func_res {
+            Ok((input, _)) => {
+                return Ok((input, ()));
+            },
+            Err(error) => {
+                match error {
+                    Err::Incomplete(_) |
+                    Err::Error(_) => {},
+                    Err::Failure(_) => {
+                        return Err(error);
+                    }
+                }
+            }
+        }
+    }
+
+    // Import
+    {
+        let import_res = import(input, context);
+        match import_res {
             Ok((input, _)) => {
                 return Ok((input, ()));
             },

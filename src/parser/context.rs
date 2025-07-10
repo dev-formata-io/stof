@@ -14,8 +14,9 @@
 // limitations under the License.
 //
 
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 use lazy_static::lazy_static;
+use rustc_hash::{FxHashMap, FxHashSet};
 use crate::{model::{Graph, NodeRef, SId}, runtime::{instruction::Instruction, proc::Process, Error, Runtime, Val, Variable}};
 
 
@@ -29,6 +30,9 @@ pub struct ParseContext<'ctx> {
     pub graph: &'ctx mut Graph,
     pub runtime: Runtime,
     pub docs: bool,
+    
+    relative_import_stack: Vec<PathBuf>,
+    seen_import_paths: FxHashMap<NodeRef, FxHashSet<String>>,
 }
 impl<'ctx> ParseContext<'ctx> {
     /// Create a new parse context with a default config.
@@ -44,7 +48,98 @@ impl<'ctx> ParseContext<'ctx> {
             graph,
             runtime,
             docs: false,
+            relative_import_stack: Default::default(),
+            seen_import_paths: Default::default(),
         }
+    }
+
+    /// Parse from a file path into a node or self.
+    pub fn parse_from_file(&mut self, format: &str, path: &str, node: Option<NodeRef>) -> Result<(), Error> {
+        let node = node.unwrap_or(self.self_ptr());
+        let mut path = path.to_string();
+
+        path = self.create_import_path(format, &path).expect("could not create Stof import path");
+        if !self.fresh_import_for_node(&node, &path) {
+            self.pop_relative_import_stack();
+            return Ok(()); // already parsed this path
+        }
+
+        self.push_self_node(node);
+        if let Some(format_impl) = self.graph.get_format(format) {
+            match format_impl.parser_import(format, &path, self) {
+                Ok(_) => {},
+                Err(error) => {
+                    self.pop_relative_import_stack();
+                    self.pop_self();
+                    return Err(Error::ParseContextParseFailure(error.to_string()));
+                }
+            }
+        }
+        self.pop_self();
+        self.pop_relative_import_stack();
+        
+        Ok(())
+    }
+
+    /// Create an import path.
+    /// Takes a possibly relative import path and returns a full path.
+    fn create_import_path(&mut self, format: &str, path: &str) -> Result<String, Error> {
+        if self.relative_import_stack.is_empty() {
+            if let Ok(working) = std::env::current_dir() {
+                self.relative_import_stack.push(working);
+            }
+        }
+
+        let mut path = path.replace("@", "__stof__").replace(" ", "");
+        if path.starts_with(".") {
+            if self.relative_import_stack.is_empty() {
+                return Err(Error::RelativeImportWithoutContext);
+            }
+
+            let mut prefix = self.relative_import_stack.last().unwrap().as_path();
+            while path.starts_with("../") && !prefix.parent().is_some() {
+                prefix = prefix.parent().unwrap();
+                path = path.strip_prefix("../").unwrap().to_string();
+            }
+            path = path.trim_start_matches("./").to_string();
+            path = path.replace("./", "/");
+
+            let prefix_path = prefix.as_os_str().to_os_string().into_string();
+            if prefix_path.is_err() { return Err(Error::ImportOsStringError); }
+
+            path = format!("{}/{}", prefix_path.unwrap(), path.trim_start_matches("/").trim_end_matches("/"));
+        }
+
+        if format == "stof" && !path.ends_with(".stof") {
+            path.push_str(".stof");
+        }
+
+        let mut relative_buffer = PathBuf::from(&path);
+        relative_buffer.pop();
+        self.relative_import_stack.push(relative_buffer);
+
+        Ok(path)
+    }
+
+    /// Pop relative import stack.
+    fn pop_relative_import_stack(&mut self) {
+        self.relative_import_stack.pop();
+    }
+
+    /// Chech to see that the import path hasn't been seen before.
+    /// If it hasnt, add it and return true.
+    fn fresh_import_for_node(&mut self, node: &NodeRef, path: &str) -> bool {
+        if let Some(seen) = self.seen_import_paths.get_mut(node) {
+            if seen.contains(path) {
+                return false;
+            }
+            seen.insert(path.to_string());
+        } else {
+            let mut set = FxHashSet::default();
+            set.insert(path.to_string());
+            self.seen_import_paths.insert(node.clone(), set);
+        }
+        true
     }
 
     /// Get the current parse process.

@@ -15,20 +15,23 @@
 //
 
 use std::fs;
-use arcstr::literal;
-use crate::{model::{Format, Graph, NodeRef}, parser::{context::ParseContext, doc::document}, runtime::Error};
+
+use crate::{model::{filesys::FS_LIB, Format, Graph, NodeRef}, parser::{context::ParseContext, doc::document}, runtime::Error};
 
 
 #[derive(Debug, Default)]
 /// Stof language format.
 pub struct StofFormat;
 impl Format for StofFormat {
+
     fn identifiers(&self) -> Vec<String> {
         vec!["stof".into()]
     }
+
     fn content_type(&self) -> String {
         "application/stof".into()
     }
+
     fn string_import(&self, graph: &mut Graph, _format: &str, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
         let mut context = ParseContext::new(graph);
         if let Some(node) = node {
@@ -37,16 +40,28 @@ impl Format for StofFormat {
         document(src, &mut context)?;
         Ok(())
     }
-    fn file_import(&self, graph: &mut Graph, format: &str, path: &str, node: Option<NodeRef>) -> Result<(), Error> {
-        // TODO remove this function and use a lib in Format
-        match fs::read_to_string(path) {
-            Ok(src) => {
-                self.string_import(graph, format, &src, node)
-            },
-            Err(_error) => {
-                Err(Error::Custom(literal!("Stof file read error: file is not a text file.")))
+    
+    /// Parser import.
+    fn parser_import(&self, _format: &str, path: &str, context: &mut ParseContext) -> Result<(), Error> {
+        if let Some(_lib) = context.graph.libfunc(&FS_LIB, "read") {
+            match fs::read(path) {
+                Ok(content) => {
+                    match std::str::from_utf8(&content) {
+                        Ok(src) => {
+                            document(src, context)?;
+                            return Ok(());
+                        },
+                        Err(_error) => {
+                            return Err(Error::FormatBinaryImportUtf8Error);
+                        }
+                    }
+                },
+                Err(error) => {
+                    return Err(Error::FormatFileImportFsError(error.to_string()));
+                }
             }
         }
+        Err(Error::FormatFileImportNotAllowed)
     }
 }
 
@@ -57,37 +72,9 @@ mod tests {
 
     #[test]
     fn stof_suite() {
-        let stof = r#"
-        #[test]
-        fn test_function() -> str {
-            'hello, world'
-        }
-
-        #[test]
-        #[errors]
-        fn errors() {
-            42
-        }
-
-        #[test]
-        #[errors]
-        fn errors_but_ok() -> int {
-            4.2.3 + 43
-        }
-
-        #[test]
-        fn test_abs_lib() {
-            let v = -45;
-            v = v.abs();
-            if (v < 0) {
-                v += 1.2.3; // throw an error lol
-            }
-        }
-        "#;
-
         let mut graph = Graph::default();
-        graph.parse(stof, None).unwrap();
-        let res = graph.test(None, false);
+        graph.parse_stof_file("stof", "src/model/formats/stof/tests/tests.stof", None, false).unwrap();
+        let res = graph.test(None, true);
         match res {
             Ok(res) => println!("{res}"),
             Err(err) => panic!("{err}")

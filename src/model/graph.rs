@@ -20,7 +20,7 @@ use bytes::Bytes;
 use colored::Colorize;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{num::insert_number_lib, stof_std::stof_std_lib, Data, DataRef, Format, JsonFormat, LibFunc, Node, NodeRef, SId, SPath, StofData, StofFormat, INVALID_NODE_NEW}, runtime::{table::SymbolTable, Error, Runtime, Val}};
+use crate::{model::{filesys::fs_library, num::insert_number_lib, stof_std::stof_std_lib, Data, DataRef, Format, JsonFormat, LibFunc, Node, NodeRef, SId, SPath, StofData, StofFormat, INVALID_NODE_NEW}, parser::context::ParseContext, runtime::{table::SymbolTable, Error, Runtime, Val}};
 
 
 /// Root node name.
@@ -120,6 +120,7 @@ impl Graph {
     pub fn insert_std_lib(&mut self) {
         stof_std_lib(self);
         insert_number_lib(self);
+        fs_library(self);
     }
     
     /// Insert a library function to this graph.
@@ -1005,7 +1006,7 @@ impl Graph {
         } else if let Some(format) = self.get_format("bytes") {
             format.binary_import(self, id, bytes, node)
         } else {
-            Err(Error::NotImplemented)
+            Err(Error::GraphFormatNotFound)
         }
     }
 
@@ -1017,7 +1018,7 @@ impl Graph {
         } else if let Some(format) = self.get_format_by_content_type(id) {
             format.string_import(self, id, src, node)
         } else {
-            Err(Error::NotImplemented)
+            Err(Error::GraphFormatNotFound)
         }
     }
 
@@ -1027,7 +1028,7 @@ impl Graph {
         if let Some(format) = self.get_format(id) {
             format.file_import(self, id, path, node)
         } else {
-            Err(Error::NotImplemented)
+            Err(Error::GraphFormatNotFound)
         }
     }
 
@@ -1039,7 +1040,7 @@ impl Graph {
         } else if let Some(format) = self.get_format_by_content_type(id) {
             format.string_export(self, id, node)
         } else {
-            Err(Error::NotImplemented)
+            Err(Error::GraphFormatNotFound)
         }
     }
 
@@ -1051,7 +1052,7 @@ impl Graph {
         } else if let Some(format) = self.get_format_by_content_type(id) {
             format.binary_export(self, id, node)
         } else {
-            Err(Error::NotImplemented)
+            Err(Error::GraphFormatNotFound)
         }
     }
 
@@ -1063,8 +1064,17 @@ impl Graph {
     #[inline]
     /// Parse stof into this graph, optionally into a specific node.
     /// Use file_import for files...
-    pub fn parse(&mut self, stof: &str, node: Option<NodeRef>) -> Result<(), Error> {
+    pub fn parse_stof_src(&mut self, stof: &str, node: Option<NodeRef>) -> Result<(), Error> {
+        // stof format creates a new context
         self.string_import("stof", stof, node)
+    }
+
+    /// Parse a stof file into this graph, optionally into a specific node.
+    /// This serves as an entrypoint for parsing Stof into a graph.
+    pub fn parse_stof_file(&mut self, format: &str, path: &str, node: Option<NodeRef>, docs: bool) -> Result<(), Error> {
+        let mut context = ParseContext::new(self);
+        context.docs = docs;
+        context.parse_from_file(format, path, node)
     }
 
     /// Call a function (by named '.' separated path) in this graph.

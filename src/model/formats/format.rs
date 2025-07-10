@@ -14,8 +14,9 @@
 // limitations under the License.
 //
 
+use std::fs;
 use bytes::Bytes;
-use crate::{model::{Graph, NodeRef}, runtime::Error};
+use crate::{model::{filesys::FS_LIB, Graph, NodeRef}, parser::context::ParseContext, runtime::Error};
 
 
 /// Format.
@@ -30,14 +31,24 @@ pub trait Format: std::fmt::Debug + Send + Sync {
     /// String import.
     #[allow(unused)]
     fn string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
-        Err(Error::NotImplemented)
+        Err(Error::FormatStringImportNotImplemented)
     }
 
     /// File import.
-    /// TODO: look for FS lib and by default try binary import.
     #[allow(unused)]
     fn file_import(&self, graph: &mut Graph, format: &str, path: &str, node: Option<NodeRef>) -> Result<(), Error> {
-        Err(Error::NotImplemented)
+        if let Some(_lib) = graph.libfunc(&FS_LIB, "read") {
+            // Only allow reads if the FS library function is available
+            match fs::read(path) {
+                Ok(content) => {
+                    return self.binary_import(graph, format, Bytes::from(content), node);
+                },
+                Err(error) => {
+                    return Err(Error::FormatFileImportFsError(error.to_string()));
+                }
+            }
+        }
+        Err(Error::FormatFileImportNotAllowed)
     }
 
     /// Binary import.
@@ -49,7 +60,7 @@ pub trait Format: std::fmt::Debug + Send + Sync {
                 self.string_import(graph, format, src, node)
             },
             Err(_error) => {
-                Err(Error::NotImplemented)
+                Err(Error::FormatBinaryImportUtf8Error)
             }
         }
     }
@@ -57,7 +68,7 @@ pub trait Format: std::fmt::Debug + Send + Sync {
     /// String export.
     #[allow(unused)]
     fn string_export(&self, graph: &Graph, format: &str, node: Option<NodeRef>) -> Result<String, Error> {
-        Err(Error::NotImplemented)
+        Err(Error::FormatStringExportNotImplemented)
     }
 
     /// Binary export.
@@ -71,5 +82,12 @@ pub trait Format: std::fmt::Debug + Send + Sync {
                 Err(error)
             }
         }
+    }
+
+    #[allow(unused)]
+    /// Parser import.
+    fn parser_import(&self, format: &str, path: &str, context: &mut ParseContext) -> Result<(), Error> {
+        let node = context.self_ptr();
+        self.file_import(&mut context.graph, format, path, Some(node))
     }
 }

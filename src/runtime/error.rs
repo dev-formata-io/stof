@@ -22,6 +22,33 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// Error.
 pub enum Error {
+
+    /*****************************************************************************
+     * Format Errors.
+     *****************************************************************************/
+    FormatStringImportNotImplemented,
+    FormatFileImportFsError(String),
+    FormatFileImportNotAllowed,
+    FormatBinaryImportUtf8Error,
+    FormatStringExportNotImplemented,
+    GraphFormatNotFound,
+    RelativeImportWithoutContext,
+    ParseContextParseFailure(String),
+    ImportOsStringError,
+
+    /*****************************************************************************
+     * Filesystem Library.
+     *****************************************************************************/
+    FsReadStringStackError,
+    FsReadStringError(String),
+    FsReadStackError,
+    FsReadError(String),
+    FsWriteStackError,
+    FsWriteError(String),
+
+    /*****************************************************************************
+     * Old.
+     *****************************************************************************/
     ParseFailure(String),
 
     Custom(ArcStr),

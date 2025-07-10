@@ -19,6 +19,7 @@ use arcstr::ArcStr;
 use imbl::Vector;
 use crate::{model::{Graph, Param}, runtime::{instruction::Instructions, proc::ProcEnv, Error, Type}};
 
+pub mod filesys;
 pub mod stof_std;
 pub mod num;
 
