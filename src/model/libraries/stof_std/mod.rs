@@ -18,10 +18,11 @@ use std::{sync::Arc, time::Duration};
 use arcstr::{literal, ArcStr};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{stof_std::{print::{dbg, err, pln}, sleep::stof_sleep}, Graph}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error, Type, Units}};
+use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not}, print::{dbg, err, pln}, sleep::stof_sleep}, Graph}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error, Type, Units}};
 
 mod print;
 mod sleep;
+mod assert;
 
 
 /// Add the std library to a graph.
@@ -30,6 +31,11 @@ pub fn stof_std_lib(graph: &mut Graph) {
     graph.insert_libfunc(dbg());
     graph.insert_libfunc(err());
     graph.insert_libfunc(stof_sleep());
+
+    graph.insert_libfunc(assert());
+    graph.insert_libfunc(assert_not());
+    graph.insert_libfunc(assert_eq());
+    graph.insert_libfunc(assert_neq());
 }
 
 
@@ -39,7 +45,11 @@ pub(self) const STD_LIB: ArcStr = literal!("Std");
 
 // Static instructions.
 lazy_static! {
-    
+    pub(self) static ref SLEEP: Arc<dyn Instruction> = Arc::new(StdIns::Sleep);
+    pub(self) static ref ASSERT: Arc<dyn Instruction> = Arc::new(StdIns::Assert);
+    pub(self) static ref ASSERT_NOT: Arc<dyn Instruction> = Arc::new(StdIns::AssertNot);
+    pub(self) static ref ASSERT_EQ: Arc<dyn Instruction> = Arc::new(StdIns::AssertEq);
+    pub(self) static ref ASSERT_NEQ: Arc<dyn Instruction> = Arc::new(StdIns::AssertNeq);
 }
 
 
@@ -51,6 +61,11 @@ pub enum StdIns {
     Err(usize),
 
     Sleep,
+
+    Assert,
+    AssertNot,
+    AssertEq,
+    AssertNeq,
 }
 #[typetag::serde(name = "StdIns")]
 impl Instruction for StdIns {
@@ -138,6 +153,47 @@ impl Instruction for StdIns {
                 let mut instructions = Instructions::default();
                 instructions.push(Arc::new(Base::CtrlSleepFor(Duration::from_millis(duration.abs() as u64))));
                 return Ok(Some(instructions));
+            },
+
+            Self::Assert => {
+                if let Some(val) = env.stack.pop() {
+                    if !val.val.read().truthy() {
+                        let message = format!("{} is not truthy", val.val.read().print(&graph));
+                        return Err(Error::AssertFailed(message));
+                    }
+                }
+            },
+            Self::AssertNot => {
+                if let Some(val) = env.stack.pop() {
+                    if val.val.read().truthy() {
+                        let message = format!("{} is truthy", val.val.read().print(&graph));
+                        return Err(Error::AssertNotFailed(message));
+                    }
+                }
+            },
+            Self::AssertEq => {
+                if let Some(val) = env.stack.pop() {
+                    if let Some(other) = env.stack.pop() {
+                        if let Ok(res) = val.equal(&other) {
+                            if !res.val.read().truthy() {
+                                let message = format!("{} does not equal {}", val.val.read().print(&graph), other.val.read().print(&graph));
+                                return Err(Error::AssertEqFailed(message));
+                            }
+                        }
+                    }
+                }
+            },
+            Self::AssertNeq => {
+                if let Some(val) = env.stack.pop() {
+                    if let Some(other) = env.stack.pop() {
+                        if let Ok(res) = val.equal(&other) {
+                            if res.val.read().truthy() {
+                                let message = format!("{} equals {}", val.val.read().print(&graph), other.val.read().print(&graph));
+                                return Err(Error::AssertNotEqFailed(message));
+                            }
+                        }
+                    }
+                }
             },
         }
         Ok(None)

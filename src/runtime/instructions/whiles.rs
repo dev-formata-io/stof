@@ -85,18 +85,18 @@ impl Instruction for WhileIns {
 mod tests {
     use std::sync::Arc;
     use arcstr::literal;
-    use crate::{model::Graph, runtime::{instructions::{block::Block, ops::{Op, OpIns}, whiles::WhileIns, Base}, Num, Runtime, Val}};
+    use crate::{model::Graph, runtime::{instructions::{block::Block, ops::{Op, OpIns}, whiles::WhileIns, Base}, Num, Runtime, Type, Val}};
 
 
     #[test]
     fn for_range_loop() {
         let mut outer_block = Block::default();
         outer_block.ins.push_back(Arc::new(Base::Literal(Val::Num(Num::Int(0)))));
-        outer_block.ins.push_back(Arc::new(Base::DeclareVar(literal!("total"), true)));
+        outer_block.ins.push_back(Arc::new(Base::DeclareVar(literal!("total"), Type::Void)));
 
         let mut declare = Block::default();
         declare.ins.push_back(Arc::new(Base::Literal(Val::Num(Num::Int(0)))));
-        declare.ins.push_back(Arc::new(Base::DeclareVar(literal!("i"), true)));
+        declare.ins.push_back(Arc::new(Base::DeclareVar(literal!("i"), Type::Void)));
 
         let mut test_block = Block::default();
         test_block.ins.push_back(Arc::new(OpIns {

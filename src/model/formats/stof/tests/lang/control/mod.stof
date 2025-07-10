@@ -16,7 +16,8 @@
 
 
 /*!
- * This is the Stof test suite.
+ * Control flow tests.
+ * Scope: root.Lang.Control
  */
 
-import './lang/mod' as self.Lang;
+import './if' as self.If;

@@ -279,7 +279,7 @@ impl FuncCall {
                     instructions.push(Arc::new(Base::Cast(param.param_type.clone())));
                 }
                 if func.args_to_symbol_table {
-                    instructions.push(Arc::new(Base::DeclareVar(param.name.to_string().into(), true))); // these must keep their type
+                    instructions.push(Arc::new(Base::DeclareVar(param.name.to_string().into(), param.param_type.clone()))); // these must keep their type
                 }
             }
         }
@@ -433,7 +433,7 @@ impl Instruction for FuncCall {
             let arg = &args[index];
             instructions.push(arg.clone());
             instructions.push(Arc::new(Base::Cast(param.param_type.clone())));
-            instructions.push(Arc::new(Base::DeclareVar(param.name.to_string().into(), true))); // these must keep their type
+            instructions.push(Arc::new(Base::DeclareVar(param.name.to_string().into(), param.param_type.clone()))); // these must keep their type
         }
 
         // Push the function instructions

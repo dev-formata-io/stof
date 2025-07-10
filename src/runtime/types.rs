@@ -69,6 +69,7 @@ pub enum Type {
 impl PartialEq for Type {
     fn eq(&self, other: &Self) -> bool {
         match other {
+            Self::Null => return true,
             Self::Unknown => return true,
             Self::Union(types) => {
                 match self {
@@ -126,12 +127,6 @@ impl PartialEq for Type {
             Self::Void => {
                 match other {
                     Self::Void => true,
-                    _ => false,
-                }
-            },
-            Self::Null => {
-                match other {
-                    Self::Null => true,
                     _ => false,
                 }
             },
@@ -213,6 +208,7 @@ impl PartialEq for Type {
                     _ => **ty == *other,
                 }
             },
+            Self::Null |
             Self::Unknown => true,
         }
     }

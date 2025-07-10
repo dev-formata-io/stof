@@ -16,7 +16,8 @@
 
 
 /*!
- * This is the Stof test suite.
+ * This module is where we'll test basic language features, like control flow.
+ * Scope: root.Lang
  */
 
-import './lang/mod' as self.Lang;
+import './control/mod' as self.Control;

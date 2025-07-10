@@ -153,8 +153,8 @@ pub enum Base {
     PushSymbolScope,
     PopSymbolScope,
 
-    DeclareVar(ArcStr, bool), // requires val on stack (optionally typed)
-    DeclareConstVar(ArcStr, bool), // requires val on stack (optionally typed)
+    DeclareVar(ArcStr, Type), // requires val on stack (optionally typed)
+    DeclareConstVar(ArcStr, Type), // requires val on stack (optionally typed)
     
     DropVariable(ArcStr), // removes from the st/graph
     LoadVariable(ArcStr, bool, bool), // loads st/graph to stack
@@ -292,26 +292,26 @@ impl Instruction for Base {
             
             Self::PushSymbolScope => env.table.push(),
             Self::PopSymbolScope => { env.table.pop(); },
-            Self::DeclareVar(name, typed) => {
+            Self::DeclareVar(name, vtype) => {
                 if !env.table.can_declare(name) { return Err(Error::DeclareExisting); }
                 if name.contains('.') || name == &SELF_STR_KEYWORD || name == &SUPER_STR_KEYWORD { return Err(Error::DeclareInvalidName); }
                 if let Some(mut var) = env.stack.pop() {
                     var.mutable = true;
-                    if *typed {
-                        var.vtype = Some(var.val.read().spec_type(&graph));
+                    if !vtype.empty() {
+                        var.vtype = Some(vtype.clone());
                     }
                     env.table.insert(name, var);
                 } else {
                     return Err(Error::StackError);
                 }
             },
-            Self::DeclareConstVar(name, typed) => {
+            Self::DeclareConstVar(name, vtype) => {
                 if !env.table.can_declare(name) { return Err(Error::DeclareExisting); }
                 if name.contains('.') || name == &SELF_STR_KEYWORD || name == &SUPER_STR_KEYWORD { return Err(Error::DeclareInvalidName); }
                 if let Some(mut var) = env.stack.pop() {
                     var.mutable = false;
-                    if *typed {
-                        var.vtype = Some(var.val.read().spec_type(&graph));
+                    if !vtype.empty() {
+                        var.vtype = Some(vtype.clone());
                     }
                     env.table.insert(name, var);
                 } else {

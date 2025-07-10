@@ -42,7 +42,7 @@ pub fn try_catch_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruct
     if let Some(error_param) = error_param {
         // declare const variable that is the error (type irrelivant)
         // TODO: error val type and casts
-        catch_ins.push_front(Arc::new(Base::DeclareConstVar(ArcStr::from(error_param.name.as_ref()), true)));
+        catch_ins.push_front(Arc::new(Base::DeclareConstVar(ArcStr::from(error_param.name.as_ref()), error_param.param_type)));
     } else {
         // pop error from stack
         catch_ins.push_front(POP_STACK.clone());

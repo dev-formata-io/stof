@@ -17,13 +17,13 @@
 use std::sync::Arc;
 use imbl::Vector;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded}, IResult, Parser};
-use crate::{parser::{expr::expr, ident::ident, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::Base}};
+use crate::{parser::{expr::expr, ident::ident, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::Base, Type, Val}};
 
 
 /// Declare a variable.
 pub fn declare_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
     let (input, _) = whitespace(input)?;
-    alt((declare_const_var, declare_mut_var)).parse(input)
+    alt((declare_const_var, declare_mut_var, declare_null_var)).parse(input)
 }
 
 
@@ -37,11 +37,12 @@ pub(self) fn declare_mut_var(input: &str) -> IResult<&str, Vector<Arc<dyn Instru
 
     let mut block = Vector::default();
     block.push_back(expr);
-    let typed = cast_type.is_some();
     if let Some(cast_type) = cast_type {
-        block.push_back(Arc::new(Base::Cast(cast_type)));
+        block.push_back(Arc::new(Base::Cast(cast_type.clone())));
+        block.push_back(Arc::new(Base::DeclareVar(varname.to_string().into(), cast_type)));
+    } else {
+        block.push_back(Arc::new(Base::DeclareVar(varname.to_string().into(), Type::Void))); // no type enforcement
     }
-    block.push_back(Arc::new(Base::DeclareVar(varname.to_string().into(), typed)));
     Ok((input, block))
 }
 
@@ -56,10 +57,29 @@ pub(self) fn declare_const_var(input: &str) -> IResult<&str, Vector<Arc<dyn Inst
 
     let mut block = Vector::default();
     block.push_back(expr);
-    let typed = cast_type.is_some();
     if let Some(cast_type) = cast_type {
-        block.push_back(Arc::new(Base::Cast(cast_type)));
+        block.push_back(Arc::new(Base::Cast(cast_type.clone())));
+        block.push_back(Arc::new(Base::DeclareConstVar(varname.to_string().into(), cast_type)));
+    } else {
+        block.push_back(Arc::new(Base::DeclareConstVar(varname.to_string().into(), Type::Void))); // no type enforcement
     }
-    block.push_back(Arc::new(Base::DeclareConstVar(varname.to_string().into(), typed)));
+    Ok((input, block))
+}
+
+
+/// Mutable empty var declaration (initialized to null).
+/// let var;
+pub(self) fn declare_null_var(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+    let (input, varname) = delimited(tag("let"), preceded(multispace0, ident), multispace0).parse(input)?;
+    let (input, cast_type) = opt(preceded(char(':'), parse_type)).parse(input)?; 
+
+    let mut block = Vector::default();
+    block.push_back(Arc::new(Base::Literal(Val::Null)) as Arc<dyn Instruction>);
+    if let Some(cast_type) = cast_type {
+        block.push_back(Arc::new(Base::Cast(cast_type.clone())));
+        block.push_back(Arc::new(Base::DeclareVar(varname.to_string().into(), cast_type)));
+    } else {
+        block.push_back(Arc::new(Base::DeclareVar(varname.to_string().into(), Type::Void))); // no type enforcement
+    }
     Ok((input, block))
 }

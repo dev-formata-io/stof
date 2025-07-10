@@ -303,7 +303,7 @@ impl Runtime {
                                                 for node in func_ref.data_nodes(graph) {
                                                     func_path = node.node_path(graph, true).unwrap().join(".");
                                                 }
-                                                println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().blue(), "...".dimmed(), "failed".bold().red());
+                                                println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "failed".bold().red());
                                             }
                                             return false; // push to error instead of done
                                         } else if !func.attributes.contains_key("silent") {
@@ -311,7 +311,7 @@ impl Runtime {
                                             for node in func_ref.data_nodes(graph) {
                                                 func_path = node.node_path(graph, true).unwrap().join(".");
                                             }
-                                            println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().blue(), "...".dimmed(), "ok".bold().green());
+                                            println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "ok".bold().green());
                                         }
                                     }
                                 }
@@ -335,7 +335,7 @@ impl Runtime {
                                 for node in func_ref.data_nodes(graph) {
                                     func_path = node.node_path(graph, true).unwrap().join(".");
                                 }
-                                println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().blue(), "...".dimmed(), "ok".bold().green());
+                                println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "ok".bold().green());
                             }
                             return false; // push to done instead of to errored
                         } else if !func.attributes.contains_key("silent") {
@@ -343,7 +343,7 @@ impl Runtime {
                             for node in func_ref.data_nodes(graph) {
                                 func_path = node.node_path(graph, true).unwrap().join(".");
                             }
-                            println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().blue(), "...".dimmed(), "failed".bold().red());
+                            println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "failed".bold().red());
                         }
                     }
                 }
@@ -399,7 +399,7 @@ impl Runtime {
                     for node in func_ref.data_nodes(graph) {
                         func_path = node.node_path(graph, true).unwrap().join(".");
                     }
-                    output.push_str(&format!("\n{}: {} @ {} ...\n\t{}\n", "failed".bold().red(), name.as_ref().blue(), func_path.italic().dimmed(), err_str.bold()));
+                    output.push_str(&format!("\n{}: {}{}{} ...\n\t{}\n", "failed".bold().red(), func_path.italic().purple(), " @ ".dimmed(), name.as_ref().italic().blue(), err_str.bold().bright_cyan()));
                 }
             }
             output.push('\n');

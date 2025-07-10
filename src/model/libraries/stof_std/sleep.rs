@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use imbl::vector;
-use crate::{model::{stof_std::{StdIns, STD_LIB}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Num, NumT, Type, Val}};
+use crate::{model::{stof_std::{SLEEP, STD_LIB}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Num, NumT, Type, Val}};
 
 
 /// Standard process sleep function.
@@ -34,7 +34,7 @@ pub fn stof_sleep() -> LibFunc {
         args_to_symbol_table: false,
         func: Arc::new(|_arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
-            instructions.push(Arc::new(StdIns::Sleep));
+            instructions.push(SLEEP.clone());
             Ok(instructions)
         })
     }

@@ -47,6 +47,14 @@ pub enum Error {
     FsWriteError(String),
 
     /*****************************************************************************
+     * Standard Library Errors.
+     *****************************************************************************/
+    AssertFailed(String),
+    AssertNotFailed(String),
+    AssertEqFailed(String),
+    AssertNotEqFailed(String),
+
+    /*****************************************************************************
      * Old.
      *****************************************************************************/
     ParseFailure(String),
