@@ -19,7 +19,7 @@ use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Field, Func, Graph, LibFunc, NodeRef, Prototype, SId, ASYNC_FUNC_ATTR, PROTOTYPE_TYPE_ATTR, SELF_STR_KEYWORD, SUPER_STR_KEYWORD, UNSELF_FUNC_ATTR}, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, POP_CALL, POP_SELF, POP_SYMBOL_SCOPE, PUSH_CALL, PUSH_SELF, PUSH_SYMBOL_SCOPE, SUSPEND}, proc::ProcEnv, Error, Type, Val, ValRef, Variable}};
+use crate::{model::{DataRef, Field, Func, Graph, LibFunc, NodeRef, Prototype, SId, ASYNC_FUNC_ATTR, PROTOTYPE_TYPE_ATTR, SELF_STR_KEYWORD, SUPER_STR_KEYWORD, UNSELF_FUNC_ATTR}, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, POP_CALL, POP_SELF, PUSH_CALL, PUSH_SELF, PUSH_SYMBOL_SCOPE, SUSPEND}, proc::ProcEnv, Error, Type, Val, ValRef, Variable}};
 
 
 /// Tag name for return statement jumps.
@@ -249,6 +249,9 @@ impl FuncCall {
     /// Call library function.
     /// This is from exec after we've concluded this is a lib func.
     pub(self) fn call_libfunc(&self, func: LibFunc, stack_arg: bool, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions>, Error> {
+        // Record symbol scope depth for poping later
+        let scope_depth = env.table.scopes.len();
+        
         // Push call stack, start a new scope, and add self if needed
         let mut instructions = Instructions::default();
         instructions.push(PUSH_SYMBOL_SCOPE.clone());
@@ -336,7 +339,6 @@ impl FuncCall {
         }
 
         // Push the function instructions
-        instructions.push(PUSH_SYMBOL_SCOPE.clone());
         let mut func_instructions = func.func.deref()(args.len() + arg_len_adjust, env, graph)?;
         func_instructions.push(Arc::new(Base::Tag(FUNC_RET_TAG.clone())));
         instructions.append(&func_instructions.instructions);
@@ -345,8 +347,7 @@ impl FuncCall {
         } // else it is up to the lib to do this if needed
 
         // Cleanup stacks
-        instructions.push(POP_SYMBOL_SCOPE.clone());
-        instructions.push(POP_SYMBOL_SCOPE.clone());
+        instructions.push(Arc::new(Base::PopSymbolScopeUntilDepth(scope_depth)));
 
         // Handle async function call
         if is_async {
@@ -410,6 +411,9 @@ impl Instruction for FuncCall {
 
         // Add return tag to the end of the func statements
         func_instructions.push_back(Arc::new(Base::Tag(FUNC_RET_TAG.clone())));
+
+        // Record the current table depth, because we need to pop until we get back here at the end
+        let scope_depth = env.table.scopes.len();
        
         // Push call stack, start a new scope, and add self if needed
         let mut instructions = Instructions::default();
@@ -501,7 +505,6 @@ impl Instruction for FuncCall {
         }
 
         // Push the function instructions
-        instructions.push(PUSH_SYMBOL_SCOPE.clone());
         if !rtype.empty() {
             instructions.append(&func_instructions);
             instructions.push(Arc::new(Base::Cast(rtype.clone())));
@@ -516,8 +519,7 @@ impl Instruction for FuncCall {
         }
 
         // Cleanup stacks
-        instructions.push(POP_SYMBOL_SCOPE.clone());
-        instructions.push(POP_SYMBOL_SCOPE.clone());
+        instructions.push(Arc::new(Base::PopSymbolScopeUntilDepth(scope_depth)));
         instructions.push(POP_CALL.clone());
         
         // Pop self stack

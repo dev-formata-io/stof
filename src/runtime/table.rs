@@ -22,7 +22,7 @@ use crate::{model::{DataRef, Graph, NodeRef}, runtime::{Error, Variable}};
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 /// Symbol table for a process.
 pub struct SymbolTable {
-    scopes: Vec<Scope>,
+    pub scopes: Vec<Scope>,
 }
 impl SymbolTable {
     #[inline(always)]
@@ -114,7 +114,7 @@ impl SymbolTable {
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 /// Symbol table scope.
-struct Scope {
+pub struct Scope {
     variables: FxHashMap<String, Variable>,
 }
 impl Scope {

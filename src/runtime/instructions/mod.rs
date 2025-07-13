@@ -160,6 +160,7 @@ pub enum Base {
     // Symbol table / Graph.
     PushSymbolScope,
     PopSymbolScope,
+    PopSymbolScopeUntilDepth(usize),
 
     DeclareVar(ArcStr, Type), // requires val on stack (optionally typed)
     DeclareConstVar(ArcStr, Type), // requires val on stack (optionally typed)
@@ -301,6 +302,11 @@ impl Instruction for Base {
             
             Self::PushSymbolScope => env.table.push(),
             Self::PopSymbolScope => { env.table.pop(); },
+            Self::PopSymbolScopeUntilDepth(depth) => {
+                while env.table.scopes.len() > *depth {
+                    env.table.pop();
+                }
+            },
             Self::DeclareVar(name, vtype) => {
                 if !env.table.can_declare(name) { return Err(Error::DeclareExisting); }
                 if name.contains('.') || name == &SELF_STR_KEYWORD || name == &SUPER_STR_KEYWORD { return Err(Error::DeclareInvalidName); }
