@@ -270,9 +270,11 @@ impl Instruction for Base {
 
             Self::PushLoop(tag) => {
                 env.loop_stack.push(tag.clone());
+                env.table.push();
             },
             Self::PopLoop => {
                 env.loop_stack.pop();
+                env.table.pop();
             },
             Self::CtrlBreak => {}, // Nothing here...
             Self::CtrlContinue => {}, // Nothing here...

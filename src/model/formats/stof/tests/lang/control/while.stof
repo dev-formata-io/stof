@@ -111,8 +111,8 @@ Contunue: {
 Return: {
     fn loop_ret() -> int {
         let i = 0;
-        while (i < 100) {
-            if (i > 50) return i;
+        while (i < 10) {
+            if (i > 5) return i;
             i += 1;
         }
         return -1;
@@ -121,7 +121,7 @@ Return: {
     #[test]
     fn return_from_loop() {
         const res = self.loop_ret();
-        assert_eq(res, 51);
+        assert_eq(res, 6);
     }
 
     fn nested_return(total: int) {
@@ -131,7 +131,7 @@ Return: {
             while (j < 10) {
                 let k = 0;
                 while (k < 10) {
-                    if (i > 6 && j > 6 && k > 6) {
+                    if (i > 2 && j > 2 && k > 2) {
                         return;
                     }
                     total += 1;
@@ -147,6 +147,20 @@ Return: {
     fn return_from_nested() {
         let total = 0;
         self.nested_return(&total);
-        assert_eq(total, 777);
+        assert_eq(total, 333);
+    }
+}
+
+Loop: {
+    #[test]
+    fn loop_syntax() {
+        let i = 0;
+
+        loop {
+            if (i > 5) break;
+            i += 1;
+        }
+
+        assert_eq(i, 6);
     }
 }

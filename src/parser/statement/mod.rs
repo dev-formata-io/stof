@@ -17,7 +17,7 @@
 use std::sync::Arc;
 use imbl::{vector, Vector};
 use nom::{branch::alt, combinator::map, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, value}, multi::fold_many0, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
-use crate::{parser::{expr::expr, statement::{assign::assign, declare::declare_statement, fors::for_loop, ifs::if_statement, switch::switch_statement, trycatch::try_catch_statement, whiles::{break_statement, continue_statement, while_statement}}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{empty::EmptyIns, ret::RetIns, POP_SYMBOL_SCOPE, PUSH_SYMBOL_SCOPE}}};
+use crate::{parser::{expr::expr, statement::{assign::assign, declare::declare_statement, fors::for_loop, ifs::if_statement, switch::switch_statement, trycatch::try_catch_statement, whiles::{break_statement, continue_statement, loop_statement, while_statement}}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{empty::EmptyIns, ret::RetIns, POP_SYMBOL_SCOPE, PUSH_SYMBOL_SCOPE}}};
 
 pub mod declare;
 pub mod assign;
@@ -70,6 +70,7 @@ pub fn statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
         // control
         if_statement,
         while_statement,
+        loop_statement,
         for_loop,
         switch_statement,
         try_catch_statement,

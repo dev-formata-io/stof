@@ -18,7 +18,7 @@ use std::sync::Arc;
 use arcstr::ArcStr;
 use imbl::{vector, Vector};
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{parser::{expr::expr, ident::ident, statement::{block, statement}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{whiles::WhileIns, Base, BREAK_LOOP, CONTINUE_LOOP}}};
+use crate::{parser::{expr::expr, ident::ident, statement::{block, statement}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{whiles::WhileIns, Base, BREAK_LOOP, CONTINUE_LOOP}, Val}};
 
 
 /// While statement.
@@ -40,6 +40,33 @@ pub fn while_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>
     let while_ins = WhileIns {
         tag,
         test: test_expr,
+        ins,
+        declare: None,
+        inc: None,
+    };
+    Ok((input, vector![Arc::new(while_ins) as Arc<dyn Instruction>]))
+}
+
+
+/// Loop statement.
+pub fn loop_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+    let (input, _) = whitespace(input)?;
+
+    let (input, loop_tag) = opt(terminated(preceded(char('^'), ident), multispace0)).parse(input)?;
+    let (input, _) = terminated(tag("loop"), multispace0).parse(input)?;
+    let (input, ins) = alt((
+        block,
+        statement
+    )).parse(input)?;
+
+    let mut tag = None;
+    if let Some(ltag) = loop_tag {
+        tag = Some(ArcStr::from(ltag));
+    }
+
+    let while_ins = WhileIns {
+        tag,
+        test: Arc::new(Base::Literal(Val::Bool(true))), // while (true)
         ins,
         declare: None,
         inc: None,
