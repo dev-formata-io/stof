@@ -15,8 +15,8 @@
 //
 
 use arcstr::literal;
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, recognize, value}, error::{Error, ErrorKind}, multi::separated_list1, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{model::SId, parser::ident::ident_type, runtime::{NumT, Type, Units}};
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, recognize, value}, multi::separated_list1, sequence::{delimited, preceded, terminated}, IResult, Parser};
+use crate::{model::SId, parser::{ident::ident_type}, runtime::{NumT, Type, Units}};
 
 
 /// Parse type standalone parser.
@@ -48,8 +48,7 @@ pub fn parse_type(input: &str) -> IResult<&str, Type> {
             value(Type::Map, tag("map")),
             parse_custom_data,
             parse_promise,
-            parse_units,
-            parse_obj,
+            parse_obj_or_units,
             parse_tuple,
         ))
     ), |(_, ty)| ty).parse(input)
@@ -78,30 +77,23 @@ fn parse_inner_union(input: &str) -> IResult<&str, Type> {
             value(Type::Map, tag("map")),
             parse_custom_data,
             parse_promise,
-            parse_units,
-            parse_obj,
+            parse_obj_or_units,
             parse_tuple,
         )),
         multispace0
     ), |(_, ty, _)| ty).parse(input)
 }
 
-/// Parse unit type.
-fn parse_units(input: &str) -> IResult<&str, Type> {
-    let units = Units::from(input);
-    if units.has_units() && !units.is_undefined() {
-        Ok(("", Type::Num(NumT::Units(units))))
-    } else {
-        Err(nom::Err::Error(Error { input, code: ErrorKind::IsNot }))
-    }
-}
+/// Parse object or units type.
+fn parse_obj_or_units(input: &str) -> IResult<&str, Type> {
+    let (input, parsed) = recognize(separated_list1(char('.'), ident_type)).parse(input)?;
 
-/// Parse object type.
-fn parse_obj(input: &str) -> IResult<&str, Type> {
-    map(
-        recognize(separated_list1(char('.'), ident_type)),
-        |res| Type::Obj(res.into())
-    ).parse(input)
+    let units = Units::from(parsed);
+    if units.has_units() && !units.is_undefined() {
+        Ok((input, Type::Num(NumT::Units(units))))
+    } else {
+        Ok((input, Type::Obj(parsed.into())))
+    }
 }
 
 /// Parse tuple type.
@@ -170,8 +162,7 @@ fn parse_inner_promise(input: &str) -> IResult<&str, Type> {
         value(Type::Set, tag("set")),
         value(Type::Map, tag("map")),
         parse_custom_data,
-        parse_units,
-        parse_obj,
+        parse_obj_or_units,
         parse_tuple,
     )).parse(input)
 }

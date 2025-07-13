@@ -17,13 +17,14 @@
 use std::sync::Arc;
 use imbl::{vector, Vector};
 use nom::{branch::alt, combinator::map, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, value}, multi::fold_many0, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
-use crate::{parser::{expr::expr, statement::{assign::assign, declare::declare_statement, fors::for_loop, ifs::if_statement, switch::switch_statement, trycatch::try_catch_statement, whiles::{break_statement, continue_statement, loop_statement, while_statement}}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{empty::EmptyIns, ret::RetIns, POP_SYMBOL_SCOPE, PUSH_SYMBOL_SCOPE}}};
+use crate::{parser::{expr::expr, statement::{assign::assign, declare::declare_statement, forin::for_in_loop, fors::for_loop, ifs::if_statement, switch::switch_statement, trycatch::try_catch_statement, whiles::{break_statement, continue_statement, loop_statement, while_statement}}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{empty::EmptyIns, ret::RetIns, POP_SYMBOL_SCOPE, PUSH_SYMBOL_SCOPE}}};
 
 pub mod declare;
 pub mod assign;
 pub mod ifs;
 pub mod whiles;
 pub mod fors;
+pub mod forin;
 pub mod switch;
 pub mod trycatch;
 
@@ -40,6 +41,18 @@ pub fn block(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
 
     statements.push_front(PUSH_SYMBOL_SCOPE.clone());
     statements.push_back(POP_SYMBOL_SCOPE.clone());
+    Ok((input, statements))
+}
+
+
+/// Parse a block of statements.
+pub fn noscope_block(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+    let (input, _) = whitespace(input)?;
+    let (input, statements) = delimited(
+        char('{'), 
+        multistatements,
+        preceded(whitespace, char('}'))
+    ).parse(input)?;
     Ok((input, statements))
 }
 
@@ -71,6 +84,7 @@ pub fn statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
         if_statement,
         while_statement,
         loop_statement,
+        for_in_loop,
         for_loop,
         switch_statement,
         try_catch_statement,
