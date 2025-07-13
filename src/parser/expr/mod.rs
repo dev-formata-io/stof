@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, peek}, multi::{separated_list0, separated_list1}, sequence::{delimited, preceded, separated_pair}, IResult, Parser};
-use crate::{parser::{expr::{func::func_expr, graph::{chained_var_func, graph_expr}, literal::literal_expr, math::math_expr}, statement::{block, switch::switch_statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, Base, AWAIT, NOOP, NOT_TRUTHY, TYPE_NAME, TYPE_OF}}};
+use crate::{parser::{expr::{func::func_expr, graph::{chained_var_func, graph_expr}, literal::literal_expr, math::math_expr}, statement::{block, switch::switch_statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, call::FUNC_RET_TAG, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, Base, AWAIT, NOOP, NOT_TRUTHY, TYPE_NAME, TYPE_OF}}};
 
 pub mod literal;
 pub mod math;
@@ -26,7 +26,7 @@ pub mod func;
 
 /// Parse an expression.
 pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
-    let (input, ins) = alt([
+    let (input, mut ins) = alt([
         await_expr,
         typename_expr,
         typeof_expr,
@@ -45,6 +45,8 @@ pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     ]).parse(input)?;
 
     // TODO: nullcheck operator "??"
+
+    // TODO: ternary operation "?"
 
     // Peek at the next value, if its async, then don't do the as below...
     let (input, peek_async) = opt(peek(preceded(multispace0, tag("async")))).parse(input)?;
@@ -67,16 +69,24 @@ pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 
 /// Block expression.
 pub fn block_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
-    let (input, statements) = block(input)?;
+    let (input, mut statements) = block(input)?;
     if statements.is_empty() { return Ok((input, NOOP.clone())); }
+
+    // return statements within a block expression return the block, not the function
+    statements.push_back(Arc::new(Base::Tag(FUNC_RET_TAG.clone())));
+
     Ok((input, Arc::new(Block { ins: statements })))
 }
 
 
 /// Switch expression.
 pub fn switch_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
-    let (input, statements) = switch_statement(input)?;
+    let (input, mut statements) = switch_statement(input)?;
     if statements.is_empty() { return Ok((input, NOOP.clone())); }
+
+    // return statements within a switch expression return the block, not the function
+    statements.push_back(Arc::new(Base::Tag(FUNC_RET_TAG.clone())));
+
     Ok((input, Arc::new(Block { ins: statements })))
 }
 

@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error}};
+use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FUNC_RET_TAG, Base}, proc::ProcEnv, Error}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,6 +30,7 @@ impl Instruction for RetIns {
         if let Some(ins) = &self.expr {
             let mut instructions = Instructions::default();
             instructions.push(ins.clone());
+            instructions.push(Arc::new(Base::CtrlForwardTo(FUNC_RET_TAG.clone())));
             return Ok(Some(instructions));
         }
         Ok(None)

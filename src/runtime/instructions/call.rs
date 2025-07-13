@@ -22,6 +22,10 @@ use serde::{Deserialize, Serialize};
 use crate::{model::{DataRef, Field, Func, Graph, LibFunc, NodeRef, Prototype, SId, ASYNC_FUNC_ATTR, PROTOTYPE_TYPE_ATTR, SELF_STR_KEYWORD, SUPER_STR_KEYWORD, UNSELF_FUNC_ATTR}, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, POP_CALL, POP_SELF, POP_SYMBOL_SCOPE, PUSH_CALL, PUSH_SELF, PUSH_SYMBOL_SCOPE, SUSPEND}, proc::ProcEnv, Error, Type, Val, ValRef, Variable}};
 
 
+/// Tag name for return statement jumps.
+pub(crate) const FUNC_RET_TAG: ArcStr = literal!("FRET");
+
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// Call a function instruction (expr).
 /// An expression will add this as the next instruction after a lookup to an internal function.
@@ -333,7 +337,8 @@ impl FuncCall {
 
         // Push the function instructions
         instructions.push(PUSH_SYMBOL_SCOPE.clone());
-        let func_instructions = func.func.deref()(args.len() + arg_len_adjust, env, graph)?;
+        let mut func_instructions = func.func.deref()(args.len() + arg_len_adjust, env, graph)?;
+        func_instructions.push(Arc::new(Base::Tag(FUNC_RET_TAG.clone())));
         instructions.append(&func_instructions.instructions);
         if let Some(rtype) = &rtype {
             instructions.push(Arc::new(Base::Cast(rtype.clone())));
@@ -385,7 +390,7 @@ impl Instruction for FuncCall {
 
         let func = func_context.func;
         let params;
-        let func_instructions;
+        let mut func_instructions;
         let rtype;
         let is_async;
         let unself;
@@ -402,6 +407,9 @@ impl Instruction for FuncCall {
         } else {
             return Err(Error::FuncDne);
         }
+
+        // Add return tag to the end of the func statements
+        func_instructions.push_back(Arc::new(Base::Tag(FUNC_RET_TAG.clone())));
        
         // Push call stack, start a new scope, and add self if needed
         let mut instructions = Instructions::default();
