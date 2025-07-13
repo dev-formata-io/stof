@@ -66,3 +66,21 @@ fn test_arenas() {
     self.somescope.arenas(self.arena);
     assert(self.arena.done);
 }
+
+#[test]
+fn cast_on_return() {
+    let func = async (): kg => 45;
+    let res: g = func(); // can cast promises with normal types
+    assert_eq(typeof res, 'Promise<g>');
+    assert_eq(typeof await res, 'g');
+}
+
+fn takes_fn(pointer: fn) -> int {
+    pointer()
+}
+#[test]
+fn pass_function_pointer() {
+    // Can pass async here because promise types work with normal types
+    let res = self.takes_fn(async ():int => 42);
+    assert_eq(await res, 42);
+}

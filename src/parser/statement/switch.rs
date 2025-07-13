@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use imbl::{vector, Vector};
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, multi::fold_many0, sequence::{delimited, preceded, terminated}, IResult, Parser};
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, peek}, multi::fold_many0, sequence::{delimited, preceded, terminated}, IResult, Parser};
 use rustc_hash::FxHashMap;
 use crate::{model::Graph, parser::{context::ParseContext, expr::expr, statement::{block, statement}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, switch::SwitchIns}}};
 
@@ -85,6 +85,9 @@ fn case(input: &str) -> IResult<&str, Case> {
     let (input, _) = whitespace(input)?;
     let (input, expr) = preceded(tag("case"), preceded(multispace0, expr)).parse(input)?;
     let (input, _) = delimited(multispace0, char(':'), multispace0).parse(input)?;
+
+    let (input, peeked) = opt(peek(alt((tag("default"), tag("case"))))).parse(input)?;
+    if peeked.is_some() { return Ok((input, Case { expr, ins: None })); }
 
     let (input, ins) = opt(alt((
         block,

@@ -16,11 +16,40 @@
 
 
 /*!
- * Control flow tests.
- * Scope: root.Lang.Control
+ * Switch statement tests.
  */
 
-import './if' as self.If;
-import './while' as self.While;
-import './for' as self.For;
-import './switch' as self.Switch;
+#[test]
+fn fall_into_default() {
+    let res = false;
+    switch ('d') {
+        case 'a':
+        case 'hello': {
+            res = false;
+        }
+        case 'd':
+        default: {
+            res = true;
+        }
+    }
+    assert(res);
+}
+
+#[test]
+fn normal() {
+    let res = false;
+    switch ('hi') {
+        case 'hi': res = true;
+    }
+    assert(res);
+}
+
+#[test]
+fn switch_expr() {
+    let res = switch ('yo') {
+        case 'yo': 42 // these are return values btw (no ;)
+        case 'other': 100
+        default: 500
+    };
+    assert_eq(res, 42);
+}

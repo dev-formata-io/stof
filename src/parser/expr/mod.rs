@@ -27,6 +27,7 @@ pub mod func;
 /// Parse an expression.
 pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     let (input, mut ins) = alt([
+        func_expr,
         await_expr,
         async_expr,
         typename_expr,
@@ -39,7 +40,6 @@ pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
         not_expr,
         block_expr,
         switch_expr,
-        func_expr,
         literal_expr,
         graph_expr,
         wrapped_expr,

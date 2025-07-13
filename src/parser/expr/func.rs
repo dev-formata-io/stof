@@ -16,14 +16,15 @@
 
 use std::sync::Arc;
 use imbl::vector;
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, map}, multi::separated_list0, sequence::{delimited, preceded}, IResult, Parser};
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, opt}, multi::separated_list0, sequence::{delimited, preceded, terminated}, IResult, Parser};
 use rustc_hash::FxHashMap;
-use crate::{model::{Func, UNSELF_FUNC_ATTR}, parser::{expr::expr, func::{opt_parameter, parameter}, statement::block, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::func::FuncLit, Type, Val}};
+use crate::{model::{Func, ASYNC_FUNC_ATTR, UNSELF_FUNC_ATTR}, parser::{expr::expr, func::{opt_parameter, parameter}, statement::block, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::func::FuncLit, Type, Val}};
 
 
 /// Arrow function "literal" value.
 pub fn func_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     let (input, _) = whitespace(input)?;
+    let (input, async_fn) = opt(terminated(tag("async"), multispace0)).parse(input)?;
     let (input, params) = delimited(char('('), separated_list0(char(','), alt((parameter, opt_parameter))), char(')')).parse(input)?;
     let (input, return_type) = opt(preceded(delimited(multispace0, alt((tag(":"), tag("->"))), multispace0), parse_type)).parse(input)?;
     let (input, _) = delimited(multispace0, tag("=>"), multispace0).parse(input)?;
@@ -36,8 +37,13 @@ pub fn func_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     if let Some(ty) = return_type {
         rtype = ty;
     }
+    
     let mut attrs = FxHashMap::default();
     attrs.insert(UNSELF_FUNC_ATTR.to_string(), Val::Null); // this func won't add self (just like a prototype)
+    if async_fn.is_some() {
+        attrs.insert(ASYNC_FUNC_ATTR.to_string(), Val::Null); // this is an async arrow function
+    }
+
     let arrow_func = Func::new(params.into_iter().collect(), rtype, Instructions::from(instructions), Some(attrs));
     Ok((input, Arc::new(FuncLit { func: arrow_func }) as Arc<dyn Instruction>))
 }
