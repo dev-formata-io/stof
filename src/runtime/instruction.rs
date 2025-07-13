@@ -14,11 +14,11 @@
 // limitations under the License.
 //
 
-use std::{any::Any, sync::Arc};
+use std::{any::Any, ops::Deref, sync::Arc};
 use arcstr::ArcStr;
 use imbl::{vector, Vector};
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{instructions::{Base, ConsumeStack}, proc::{ProcEnv, ProcRes}, Error, Val, Variable}};
+use crate::{model::Graph, runtime::{instructions::{list::{NEW_LIST, PUSH_LIST}, Base, ConsumeStack, AWAIT}, proc::{ProcEnv, ProcRes}, Error, Val, Variable}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -154,17 +154,66 @@ impl Instructions {
                         },
                         Base::CtrlAwait => {
                             if let Some(promise) = env.stack.pop() {
-                                if let Some((pid, _)) = promise.try_promise() {
-                                    // Cast to promise type is handled in its instructions and kept in the promise value
-                                    // type so that that value can be treated as the resulting type in ops
+                                if let Some((pid, cast_type)) = promise.try_promise() {
+                                    if !cast_type.empty() {
+                                        // Special instruction to cast the awaited value when we return to this process
+                                        self.instructions.push_front(Arc::new(Base::CtrlAwaitCast(cast_type)));
+                                    }
                                     return Ok(ProcRes::Wait(pid.clone()));
-                                } else {
-                                    // TODO: expand array of promises by adding them each to the stack with additional awaits for each
+                                } else if promise.val.read().list() || promise.val.read().set() {
+                                    let mut gtg = true;
+                                    let mut awaits = Vec::new();
 
+                                    match promise.val.read().deref() {
+                                        Val::List(vals) => {
+                                            for val in vals {
+                                                if let Some(_) = val.read().try_promise() {
+                                                    awaits.push(Arc::new(Base::Literal(val.read().clone())));
+                                                } else {
+                                                    gtg = false;
+                                                }
+                                            }
+                                        },
+                                        Val::Set(set) => {
+                                            for val in set {
+                                                if let Some(_) = val.read().try_promise() {
+                                                    awaits.push(Arc::new(Base::Literal(val.read().clone())));
+                                                } else {
+                                                    gtg = false;
+                                                }
+                                            }
+                                        },
+                                        _ => {}
+                                    }
+
+                                    if gtg {
+                                        self.executed.pop_back();
+                                        for promise in awaits.into_iter().rev() {
+                                            self.instructions.push_front(PUSH_LIST.clone());
+                                            self.instructions.push_front(AWAIT.clone());
+                                            self.instructions.push_front(promise);
+                                        }
+                                        self.instructions.push_front(NEW_LIST.clone());
+                                    } else {
+                                        env.stack.push(promise); // not a collection of promises
+                                    }
+                                } else {
                                     env.stack.push(promise); // put it back because not a promise
                                 }
                             }
                             // Awaits on anything else are a passthrough operation...
+                        },
+                        Base::CtrlAwaitCast(cast_type) => {
+                            self.executed.pop_back(); // This one doesn't stick around, which makes it special
+                            if let Some(var) = env.stack.pop() {
+                                var.cast(cast_type, graph, Some(env.self_ptr()))?;
+                                env.stack.push(var);
+                            } else if cast_type.empty() {
+                                // nothing to do in this case
+                            } else {
+                                return Err(Error::CastStackError);
+                            }
+                            continue 'exec_loop;
                         },
                         Base::CtrlSuspend => {
                             // Go to the next processes instructions

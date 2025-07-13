@@ -109,6 +109,8 @@ pub enum Base {
     // Instruct the system to wait for this process before continuing. Looks for a Promise on the stack.
     // Load a promise onto the stack, then insert this instruction to wait for the process to complete.
     CtrlAwait,
+    CtrlAwaitCast(Type), // Special cast instruction for awaits with custom rules
+    CtrlAwaitError(Error), // Special error propagation for other processes
 
     // Does nothing...
     CtrlNoOp,
@@ -210,6 +212,8 @@ impl Instruction for Base {
              *****************************************************************************/
             Self::CtrlSuspend => {}, // Nothing here...
             Self::CtrlAwait => {}, // Nothing here...
+            Self::CtrlAwaitCast(_) => {}, // Nothing here...
+            Self::CtrlAwaitError(err) => { return Err(err.clone()); },
             Self::CtrlNoOp => {}, // Does nothing
 
             /*****************************************************************************

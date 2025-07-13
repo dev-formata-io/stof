@@ -1199,6 +1199,17 @@ impl Val {
                     _ => Err(Error::NotImplemented)
                 }
             },
+            Self::Promise(_, ptype) => {
+                match target {
+                    Type::Promise(optype) => {
+                        *ptype = *optype.clone();
+                    },
+                    _ => {
+                        *ptype = target.clone();
+                    }
+                }
+                Ok(())
+            },
             _ => Err(Error::NotImplemented)
         }
     }

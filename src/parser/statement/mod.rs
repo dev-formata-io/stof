@@ -17,7 +17,7 @@
 use std::sync::Arc;
 use imbl::{vector, Vector};
 use nom::{branch::alt, combinator::map, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, value}, multi::fold_many0, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
-use crate::{parser::{expr::expr, statement::{assign::assign, declare::declare_statement, forin::for_in_loop, fors::for_loop, ifs::if_statement, switch::switch_statement, trycatch::try_catch_statement, whiles::{break_statement, continue_statement, loop_statement, while_statement}}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{empty::EmptyIns, ret::RetIns, POP_SYMBOL_SCOPE, PUSH_SYMBOL_SCOPE}}};
+use crate::{parser::{expr::expr, statement::{assign::assign, declare::declare_statement, forin::for_in_loop, fors::for_loop, ifs::if_statement, switch::switch_statement, trycatch::try_catch_statement, whiles::{break_statement, continue_statement, loop_statement, while_statement}}, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{empty::EmptyIns, ret::RetIns, Base, POP_STACK, POP_SYMBOL_SCOPE, PUSH_SYMBOL_SCOPE, SUSPEND}, Type}};
 
 pub mod declare;
 pub mod assign;
@@ -100,6 +100,7 @@ pub fn statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
         terminated(assign, preceded(multispace0, char(';'))),
         
         // block, standalone expr, and empty statement
+        async_block,
         expr_statement,
         block,
         value(Vector::default(), preceded(whitespace, char(';'))) // empty statement ";"
@@ -133,6 +134,23 @@ fn expr_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
     } else {
         res.push_back(Arc::new(RetIns { expr: Some(ins.0) })); // return variant of the expr (put here for parse performance reasons)
     }
+    Ok((input, res))
+}
+
+
+/// Async block statement.
+fn async_block(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+    let (input, _) = whitespace(input)?;
+    let (input, ins) = preceded(tag("async"), alt((
+        block,
+        statement
+    ))).parse(input)?;
+
+    let res: Vector<Arc<dyn Instruction>> = vector![
+        Arc::new(Base::Spawn((Instructions::from(ins), Type::Void))) as Arc<dyn Instruction>,
+        POP_STACK.clone(), // pop the promise from the stack
+        SUSPEND.clone(), // start the new process
+    ];
     Ok((input, res))
 }
 

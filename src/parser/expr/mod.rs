@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, peek}, multi::{separated_list0, separated_list1}, sequence::{delimited, preceded, separated_pair}, IResult, Parser};
-use crate::{parser::{expr::{func::func_expr, graph::{chained_var_func, graph_expr}, literal::literal_expr, math::math_expr}, statement::{block, switch::switch_statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, call::FUNC_RET_TAG, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, Base, AWAIT, NOOP, NOT_TRUTHY, TYPE_NAME, TYPE_OF}}};
+use crate::{parser::{expr::{func::func_expr, graph::{chained_var_func, graph_expr}, literal::literal_expr, math::math_expr}, statement::{block, switch::switch_statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FUNC_RET_TAG, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, Base, AWAIT, NOOP, NOT_TRUTHY, SUSPEND, TYPE_NAME, TYPE_OF}, Type}};
 
 pub mod literal;
 pub mod math;
@@ -28,6 +28,7 @@ pub mod func;
 pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     let (input, mut ins) = alt([
         await_expr,
+        async_expr,
         typename_expr,
         typeof_expr,
         tup_expr,
@@ -219,6 +220,21 @@ pub fn await_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     block.ins.push_back(ins); // a promise (maybe)
     block.ins.push_back(AWAIT.clone()); // will only do something if its a promise
     
+    Ok((input, Arc::new(block)))
+}
+
+
+/// Async expression.
+/// Spawns a new process with an expr.
+pub fn async_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+    let (input, _) = whitespace(input)?;
+    let (input, ins) = preceded(tag("async"), expr).parse(input)?;
+
+    // Spawn will put a new Promise<unknown> on the stack for you use if you want
+    let mut block = Block::default();
+    block.ins.push_back(Arc::new(Base::Spawn((Instructions::from(ins), Type::Void)))); // no casting by default
+    block.ins.push_back(SUSPEND.clone()); // start the new process right away
+
     Ok((input, Arc::new(block)))
 }
 

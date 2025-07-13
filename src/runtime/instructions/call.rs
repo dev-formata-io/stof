@@ -342,9 +342,12 @@ impl FuncCall {
         let mut func_instructions = func.func.deref()(args.len() + arg_len_adjust, env, graph)?;
         func_instructions.push(Arc::new(Base::Tag(FUNC_RET_TAG.clone())));
         instructions.append(&func_instructions.instructions);
-        if let Some(rtype) = &rtype {
-            instructions.push(Arc::new(Base::Cast(rtype.clone())));
-        } // else it is up to the lib to do this if needed
+        
+        if !is_async {
+            if let Some(rtype) = &rtype {
+                instructions.push(Arc::new(Base::Cast(rtype.clone())));
+            }
+        }
 
         // Cleanup stacks
         instructions.push(Arc::new(Base::PopSymbolScopeUntilDepth(scope_depth)));
@@ -507,7 +510,10 @@ impl Instruction for FuncCall {
         // Push the function instructions
         if !rtype.empty() {
             instructions.append(&func_instructions);
-            instructions.push(Arc::new(Base::Cast(rtype.clone())));
+            
+            if !is_async { // await will perform the cast
+                instructions.push(Arc::new(Base::Cast(rtype.clone())));
+            }
         } else {
             // Make sure we get an error if the last value is not void (or doesn't exist on stack)
             let val = Val::Str(nanoid!(10).into());

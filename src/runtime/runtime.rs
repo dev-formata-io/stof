@@ -218,6 +218,12 @@ impl Runtime {
                             waiting_proc.env.stack.push(res);
                         }
                         to_run.push(id.clone());
+                    } else if let Some(error_proc) = self.errored.remove(wait_id) {
+                        // Propagate the error back to the awaiting process, so that it can optionally handle it itself
+                        if let Some(error) = error_proc.error {
+                            waiting_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Error::AwaitError(Box::new(error)))));
+                        }
+                        to_run.push(id.clone());
                     }
                 }
             }
