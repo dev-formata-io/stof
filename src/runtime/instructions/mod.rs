@@ -35,6 +35,7 @@ pub mod tup;
 pub mod set;
 pub mod map;
 pub mod ret;
+pub mod func;
 
 
 // static instructions for efficiency

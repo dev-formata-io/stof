@@ -19,7 +19,7 @@ use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Field, Func, Graph, LibFunc, NodeRef, Prototype, SId, ASYNC_FUNC_ATTR, PROTOTYPE_TYPE_ATTR, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, POP_CALL, POP_SELF, POP_SYMBOL_SCOPE, PUSH_CALL, PUSH_SELF, PUSH_SYMBOL_SCOPE, SUSPEND}, proc::ProcEnv, Error, Type, Val, ValRef, Variable}};
+use crate::{model::{DataRef, Field, Func, Graph, LibFunc, NodeRef, Prototype, SId, ASYNC_FUNC_ATTR, PROTOTYPE_TYPE_ATTR, SELF_STR_KEYWORD, SUPER_STR_KEYWORD, UNSELF_FUNC_ATTR}, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, POP_CALL, POP_SELF, POP_SYMBOL_SCOPE, PUSH_CALL, PUSH_SELF, PUSH_SYMBOL_SCOPE, SUSPEND}, proc::ProcEnv, Error, Type, Val, ValRef, Variable}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,8 +84,15 @@ impl FuncCall {
             return Err(Error::FuncDne);
         }
 
-        // In this case, we are calling into the standard library functions
+        // In this case, we are calling into the standard library functions (or a variable function)
         if split_path.len() < 2 {
+            let name = split_path[0];
+            if let Some(var) = env.table.get(name) {
+                if let Some(func) = var.try_func() {
+                    // Calling directly into a variable function
+                    return Ok(CallContext { lib: None, prototype_self: None, func, stack_arg: false });
+                }
+            }
             return Ok(CallContext { lib: Some(literal!("Std")), stack_arg: false, prototype_self: None, func: SId::from(split_path[0]) });
         }
         
@@ -173,7 +180,6 @@ impl FuncCall {
             }
 
             // Look for a field on the object at the path next that is a function
-            // TODO: test this out and see if its wierd. means self.myobj.field() will work if field points to a function...
             if let Some(field) = Field::field_from_path(graph, &adjusted_path, start.clone()) {
                 if let Some(field) = graph.get_stof_data::<Field>(&field) {
                     if let Some(func) = field.value.try_func() {
@@ -382,6 +388,7 @@ impl Instruction for FuncCall {
         let func_instructions;
         let rtype;
         let is_async;
+        let unself;
         if let Some(func) = graph.get_stof_data::<Func>(&func) {
             params = func.params.clone();
             func_instructions = func.instructions.clone();
@@ -389,6 +396,9 @@ impl Instruction for FuncCall {
 
             // Only async if we have the attribute and we are not a top level function
             is_async = func.attributes.contains_key(ASYNC_FUNC_ATTR.as_str()) && env.call_stack.len() > 0;
+
+            // Should this function add itself to the self stack?
+            unself = func.attributes.contains_key(UNSELF_FUNC_ATTR.as_str());
         } else {
             return Err(Error::FuncDne);
         }
@@ -400,10 +410,13 @@ impl Instruction for FuncCall {
         instructions.push(PUSH_SYMBOL_SCOPE.clone());
         
         // Add self to self stack if not a prototype function
+        let mut pushed_self = false;
         if let Some(proto_self) = func_context.prototype_self {
             instructions.push(Arc::new(Base::Literal(Val::Obj(proto_self))));
             instructions.push(PUSH_SELF.clone());
-        } else {
+            pushed_self = true;
+        } else if !unself {
+            pushed_self = true;
             let mut set = false;
             for nref in func.data_nodes(graph) {
                 if nref.node_exists(graph) {
@@ -500,8 +513,10 @@ impl Instruction for FuncCall {
         instructions.push(POP_SYMBOL_SCOPE.clone());
         instructions.push(POP_CALL.clone());
         
-        // Pop self stack - always happens, even when there's a prototype
-        instructions.push(POP_SELF.clone());
+        // Pop self stack
+        if pushed_self {
+            instructions.push(POP_SELF.clone());
+        }
 
         // Handle async function call
         if is_async {

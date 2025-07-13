@@ -176,17 +176,19 @@ fn array_value<'a>(input: &'a str, _name: &str, context: &mut ParseContext) -> I
 fn object_value<'a>(input: &'a str, name: &str, context: &mut ParseContext, attributes: &mut FxHashMap<String, Val>) -> IResult<&'a str, Variable> {
     let (mut input, _) = char('{')(input)?;
     let value = context.push_self(name, true, attributes);
-    loop {
-        let res = document_statement(input, context);
-        match res {
-            Ok((rest, _)) => {
-                input = rest;
-                if input.starts_with('}') {
-                    break;
+    if !input.starts_with('}') { // account for an empty object case "{}"
+        loop {
+            let res = document_statement(input, context);
+            match res {
+                Ok((rest, _)) => {
+                    input = rest;
+                    if input.starts_with('}') {
+                        break;
+                    }
+                },
+                Err(error) => {
+                    return Err(error);
                 }
-            },
-            Err(error) => {
-                return Err(error);
             }
         }
     }

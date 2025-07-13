@@ -22,3 +22,4 @@
 
 import './control/mod' as self.Control;
 import './types/mod' as self.Types;
+import './funcs/mod' as self.Funcs;

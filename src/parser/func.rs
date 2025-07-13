@@ -68,7 +68,7 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
 
 
 /// Parse a function parameter.
-fn parameter(input: &str) -> IResult<&str, Param> {
+pub fn parameter(input: &str) -> IResult<&str, Param> {
     let (input, _) = multispace0(input)?;
     let (input, name) = ident(input)?;
     let (input, param_type) = preceded(preceded(multispace0, char(':')), preceded(multispace0, parse_type)).parse(input)?;
@@ -88,7 +88,7 @@ fn parameter(input: &str) -> IResult<&str, Param> {
 
 
 /// Parse an optional function parameter.
-fn opt_parameter(input: &str) -> IResult<&str, Param> {
+pub fn opt_parameter(input: &str) -> IResult<&str, Param> {
     let (input, _) = multispace0(input)?;
     let (input, name) = ident(input)?;
     let (input, param_type) = preceded(preceded(multispace0, tag("?:")), preceded(multispace0, parse_type)).parse(input)?;

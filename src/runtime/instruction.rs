@@ -38,6 +38,14 @@ impl From<Arc<dyn Instruction>> for Instructions {
         }
     }
 }
+impl From<Vector<Arc<dyn Instruction>>> for Instructions {
+    fn from(value: Vector<Arc<dyn Instruction>>) -> Self {
+        Self {
+            instructions: value,
+            ..Default::default()
+        }
+    }
+}
 impl Instructions {
     #[inline(always)]
     /// Create a new Instructions.

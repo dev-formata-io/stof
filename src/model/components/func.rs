@@ -31,6 +31,9 @@ pub const TEST_FUNC_ATTR: ArcStr = literal!("test");
 /// Attribute used to denote an async function.
 pub const ASYNC_FUNC_ATTR: ArcStr = literal!("async");
 
+/// If present, the function will not add its location to the self stack when called.
+pub const UNSELF_FUNC_ATTR: ArcStr = literal!("unself");
+
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 /// Function.

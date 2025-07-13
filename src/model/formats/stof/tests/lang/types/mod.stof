@@ -59,7 +59,7 @@ fn cast_to_point() {
     let x: Point2D = self.test;
     x = x as obj;
     pln(typename x);
-    pln(x.add());
+    pln(x.add<Point2D>());
 
     const y = <Point2D>.myfunc();
     pln(y);
