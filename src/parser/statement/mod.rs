@@ -175,9 +175,9 @@ mod tests {
         let (_input, res) = block(r#"{
             let x = 0;
             let y = 200;
-            'outer while (x < 1e4) {
+            ^outer while (x < 1e4) {
                 while (y > 0) {
-                    if (y < 5 || x > 300) break 'outer;
+                    if (y < 5 || x > 300) break ^outer;
                     y -= 1;
                 }
                 x += 1;
@@ -196,10 +196,10 @@ mod tests {
     fn for_statement() {
         let (_input, res) = block(r#"{
             let total = 0;
-            'outer for (let x = 0; x < 100; x += 1) {
+            ^outer for (let x = 0; x < 100; x += 1) {
                 for (let y = 0; y < 50; y += 1) {
                     total += 1;
-                    if (x > 80 && y > 30) break 'outer;
+                    if (x > 80 && y > 30) break ^outer;
                 }
                 total += 1;
             }

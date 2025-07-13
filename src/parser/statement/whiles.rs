@@ -15,40 +15,30 @@
 //
 
 use std::sync::Arc;
-use arcstr::{literal, ArcStr};
+use arcstr::ArcStr;
 use imbl::{vector, Vector};
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{parser::{expr::expr, ident::ident, statement::{block, statement}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{whiles::WhileIns, Base}}};
-
-
-/// Default tagname for continue statements.
-pub const CONTINUE: ArcStr = literal!("CLP");
-
-/// Default tagname for break statements.
-pub const BREAK: ArcStr = literal!("BLP");
+use crate::{parser::{expr::expr, ident::ident, statement::{block, statement}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{whiles::WhileIns, Base, BREAK_LOOP, CONTINUE_LOOP}}};
 
 
 /// While statement.
 pub fn while_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
     let (input, _) = whitespace(input)?;
 
-    let (input, loop_tag) = opt(terminated(preceded(char('\''), ident), multispace0)).parse(input)?;
+    let (input, loop_tag) = opt(terminated(preceded(char('^'), ident), multispace0)).parse(input)?;
     let (input, test_expr) = preceded(terminated(tag("while"), multispace0), delimited(char('('), expr, char(')'))).parse(input)?;
     let (input, ins) = alt((
         block,
         statement
     )).parse(input)?;
 
-    let mut continue_tag = CONTINUE.clone();
-    let mut break_tag = BREAK.clone();
-    if let Some(custom) = loop_tag {
-        continue_tag = format!("{custom}{}", &CONTINUE).into();
-        break_tag = format!("{custom}{}", &BREAK).into();
+    let mut tag = None;
+    if let Some(ltag) = loop_tag {
+        tag = Some(ArcStr::from(ltag));
     }
 
     let while_ins = WhileIns {
-        continue_tag,
-        break_tag,
+        tag,
         test: test_expr,
         ins,
         declare: None,
@@ -61,24 +51,30 @@ pub fn while_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>
 /// Continue statement.
 pub fn continue_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
     let (input, _) = whitespace(input)?;
-    let (input, loop_tag) = preceded(terminated(tag("continue"), multispace0), opt(preceded(char('\''), ident))).parse(input)?;
+    let (input, loop_tag) = preceded(terminated(tag("continue"), multispace0), opt(preceded(char('^'), ident))).parse(input)?;
 
-    let mut continue_tag = CONTINUE.clone();
+    let instruction: Arc<dyn Instruction>;
     if let Some(custom) = loop_tag {
-        continue_tag = format!("{custom}{}", &CONTINUE).into();
+        let continue_tag: ArcStr = format!("{}_con", custom).into();
+        instruction = Arc::new(Base::CtrlForwardTo(continue_tag));
+    } else {
+        instruction = CONTINUE_LOOP.clone();
     }
-    Ok((input, vector![Arc::new(Base::CtrlForwardTo(continue_tag)) as Arc<dyn Instruction>]))
+    Ok((input, vector![instruction]))
 }
 
 
 /// Break statement.
 pub fn break_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
     let (input, _) = whitespace(input)?;
-    let (input, loop_tag) = preceded(terminated(tag("break"), multispace0), opt(preceded(char('\''), ident))).parse(input)?;
+    let (input, loop_tag) = preceded(terminated(tag("break"), multispace0), opt(preceded(char('^'), ident))).parse(input)?;
 
-    let mut break_tag = BREAK.clone();
+    let instruction: Arc<dyn Instruction>;
     if let Some(custom) = loop_tag {
-        break_tag = format!("{custom}{}", &BREAK).into();
+        let break_tag: ArcStr = format!("{}_brk", custom).into();
+        instruction = Arc::new(Base::CtrlForwardTo(break_tag));
+    } else {
+        instruction = BREAK_LOOP.clone();
     }
-    Ok((input, vector![Arc::new(Base::CtrlForwardTo(break_tag)) as Arc<dyn Instruction>]))
+    Ok((input, vector![instruction]))
 }

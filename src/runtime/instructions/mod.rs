@@ -58,6 +58,9 @@ lazy_static! {
 
     pub static ref PUSH_SYMBOL_SCOPE: Arc<dyn Instruction> = Arc::new(Base::PushSymbolScope);
     pub static ref POP_SYMBOL_SCOPE: Arc<dyn Instruction> = Arc::new(Base::PopSymbolScope);
+    pub static ref POP_LOOP: Arc<dyn Instruction> = Arc::new(Base::PopLoop);
+    pub static ref BREAK_LOOP: Arc<dyn Instruction> = Arc::new(Base::CtrlBreak);
+    pub static ref CONTINUE_LOOP: Arc<dyn Instruction> = Arc::new(Base::CtrlContinue);
 
     pub static ref DUPLICATE: Arc<dyn Instruction> = Arc::new(Base::Dup);
     pub static ref TRUTHY: Arc<dyn Instruction> = Arc::new(Base::Truthy);
@@ -139,6 +142,12 @@ pub enum Base {
     // New obj stack.
     PushNew,
     PopNew,
+
+    // Loop stack.
+    PushLoop(ArcStr),
+    PopLoop,
+    CtrlBreak,
+    CtrlContinue,
 
     // Pop a variable from the stack. (drop val)
     PopStack,
@@ -257,6 +266,15 @@ impl Instruction for Base {
                 return Err(Error::NewStackError);
             },
             Self::PopNew => { env.new_stack.pop(); },
+
+            Self::PushLoop(tag) => {
+                env.loop_stack.push(tag.clone());
+            },
+            Self::PopLoop => {
+                env.loop_stack.pop();
+            },
+            Self::CtrlBreak => {}, // Nothing here...
+            Self::CtrlContinue => {}, // Nothing here...
 
             
             /*****************************************************************************

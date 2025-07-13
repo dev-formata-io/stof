@@ -21,3 +21,4 @@
  */
 
 import './if' as self.If;
+import './while' as self.While;

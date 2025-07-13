@@ -15,6 +15,7 @@
 //
 
 use std::{sync::Arc, time::Duration};
+use arcstr::ArcStr;
 use serde::{Deserialize, Serialize};
 use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{instruction::{Instruction, Instructions}, table::SymbolTable, Error, Variable, WakeRef, Waker}};
 
@@ -39,6 +40,7 @@ pub struct ProcEnv {
     pub new_stack: Vec<NodeRef>,
     pub stack: Vec<Variable>,
     pub table: Box<SymbolTable>,
+    pub loop_stack: Vec<ArcStr>,
 
     // Setting this will put the process into a waiting mode
     pub spawn: Option<Box<Process>>,

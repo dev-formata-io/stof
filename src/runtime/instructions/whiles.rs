@@ -19,15 +19,14 @@ use arcstr::ArcStr;
 use imbl::Vector;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack, POP_SYMBOL_SCOPE, PUSH_SYMBOL_SCOPE, TRUTHY}, proc::ProcEnv, Error}};
+use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack, POP_LOOP, TRUTHY}, proc::ProcEnv, Error}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// While statement.
 pub struct WhileIns {
-    // custom continue and break tags (cannot be generic!)
-    pub continue_tag: ArcStr,
-    pub break_tag: ArcStr,
+    // optional custom tag for this loop
+    pub tag: Option<ArcStr>,
 
     // the real stuff
     pub test: Arc<dyn Instruction>,
@@ -40,8 +39,18 @@ pub struct WhileIns {
 #[typetag::serde(name = "WhileIns")]
 impl Instruction for WhileIns {
     fn exec(&self, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
+        // Create a tag for this loop (control statements)
+        let mut tag: ArcStr = nanoid!(10).into();
+        if let Some(ctag) = &self.tag {
+            tag = ctag.clone();
+        }
+
+        // Create break and continue tags
+        let continue_tag: ArcStr = format!("{}_con", &tag).into();
+        let break_tag: ArcStr = format!("{}_brk", &tag).into();
+
         let mut instructions = Instructions::default();
-        instructions.push(PUSH_SYMBOL_SCOPE.clone());
+        instructions.push(Arc::new(Base::PushLoop(tag)));
 
         if let Some(declare) = &self.declare {
             instructions.push(declare.clone());
@@ -61,7 +70,7 @@ impl Instruction for WhileIns {
             instructions.append(&self.ins);
 
             // Continue statements will go to here
-            instructions.push(Arc::new(Base::Tag(self.continue_tag.clone())));
+            instructions.push(Arc::new(Base::Tag(continue_tag)));
 
             // If we have an inc expr, do that now before we start the loop again
             if let Some(inc) = &self.inc {
@@ -73,9 +82,9 @@ impl Instruction for WhileIns {
         }
 
         // Break statements will go here, as well as our jump if not truthy
-        instructions.push(Arc::new(Base::Tag(self.break_tag.clone())));
+        instructions.push(Arc::new(Base::Tag(break_tag)));
         instructions.push(Arc::new(Base::Tag(end_tag)));
-        instructions.push(POP_SYMBOL_SCOPE.clone());
+        instructions.push(POP_LOOP.clone());
         Ok(Some(instructions))
     }
 }
@@ -115,8 +124,7 @@ mod tests {
 
         // let total: int = 0; for (int i in 0..100) { total += 1; } total
         let mut while_loop = WhileIns {
-            continue_tag: literal!("continue"),
-            break_tag: literal!("break"),
+            tag: None,
             test: Arc::new(test_block),
             ins: Default::default(),
             declare: Some(Arc::new(declare)),

@@ -15,27 +15,26 @@
 //
 
 use std::sync::Arc;
+use arcstr::ArcStr;
 use imbl::{vector, Vector};
 use nom::{bytes::complete::tag, branch::alt, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{parser::{expr::expr, ident::ident, statement::{assign::assign, block, declare::declare_statement, statement, whiles::{BREAK, CONTINUE}}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, whiles::WhileIns, Base}, Val}};
+use crate::{parser::{expr::expr, ident::ident, statement::{assign::assign, block, declare::declare_statement, statement}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, whiles::WhileIns, Base}, Val}};
 
 
 /// For loop statement.
 pub fn for_loop(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
     let (input, _) = whitespace(input)?;
 
-    let (input, loop_tag) = opt(terminated(preceded(char('\''), ident), multispace0)).parse(input)?;
+    let (input, loop_tag) = opt(terminated(preceded(char('^'), ident), multispace0)).parse(input)?;
     let (input, control) = preceded(terminated(tag("for"), multispace0), delimited(char('('), declare_test_inc, char(')'))).parse(input)?;
     let (input, ins) = alt((
         block,
         statement
     )).parse(input)?;
 
-    let mut continue_tag = CONTINUE.clone();
-    let mut break_tag = BREAK.clone();
-    if let Some(custom) = loop_tag {
-        continue_tag = format!("{custom}{}", &CONTINUE).into();
-        break_tag = format!("{custom}{}", &BREAK).into();
+    let mut tag = None;
+    if let Some(ltag) = loop_tag {
+        tag = Some(ArcStr::from(ltag));
     }
 
     let mut declare = None;
@@ -52,8 +51,7 @@ pub fn for_loop(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
     }
 
     let while_ins = WhileIns {
-        continue_tag,
-        break_tag,
+        tag,
         test: test_expr,
         ins,
         declare,

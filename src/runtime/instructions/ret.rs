@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FUNC_RET_TAG, Base}, proc::ProcEnv, Error}};
+use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FUNC_RET_TAG, Base, POP_LOOP}, proc::ProcEnv, Error}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,13 +26,19 @@ pub struct RetIns {
 }
 #[typetag::serde(name = "RetIns")]
 impl Instruction for RetIns {
-    fn exec(&self, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
+    fn exec(&self, env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
+        let mut instructions = Instructions::default();
+        
         if let Some(ins) = &self.expr {
-            let mut instructions = Instructions::default();
             instructions.push(ins.clone());
-            instructions.push(Arc::new(Base::CtrlForwardTo(FUNC_RET_TAG.clone())));
-            return Ok(Some(instructions));
         }
-        Ok(None)
+
+        // If we are in a loop, we will be skipping over the POP_LOOP instruction at the end, so do that here
+        for _loop_tag in &env.loop_stack {
+            instructions.push(POP_LOOP.clone());
+        }
+
+        instructions.push(Arc::new(Base::CtrlForwardTo(FUNC_RET_TAG.clone())));
+        Ok(Some(instructions))
     }
 }

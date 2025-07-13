@@ -187,6 +187,20 @@ impl Instructions {
                             self.forward_to(tag);
                             continue 'exec_loop;
                         },
+                        Base::CtrlBreak => {
+                            if let Some(loop_tag) = env.loop_stack.last() {
+                                let break_tag: ArcStr = format!("{}_brk", &loop_tag).into();
+                                self.forward_to(&break_tag);
+                                continue 'exec_loop;
+                            }
+                        },
+                        Base::CtrlContinue => {
+                            if let Some(loop_tag) = env.loop_stack.last() {
+                                let continue_tag: ArcStr = format!("{}_con", &loop_tag).into();
+                                self.forward_to(&continue_tag);
+                                continue 'exec_loop;
+                            }
+                        },
                         Base::CtrlJumpTable(table, default) => {
                             // Compares the value on the top of the stack and jumps forwards to the associated tag
                             // Throws a JumpTable error if not found in the table (and no default)
