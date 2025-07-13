@@ -330,7 +330,6 @@ impl Instruction for Base {
                         }
                         graph.remove_data(&field, None);
                     } else if let Some(node) = SPath::node(&graph, &name, Some(self_ptr.clone())) {
-                        // TODO remove types for node
                         graph.remove_node(&node, false);
                     } else if let Some(func) = Func::func_from_path(graph, &name, Some(self_ptr.clone())) {
                         graph.remove_data(&func, None);
@@ -346,7 +345,6 @@ impl Instruction for Base {
                     }
                     graph.remove_data(&field, None);
                 } else if let Some(node) = SPath::node(&graph, &name, None) {
-                        // TODO remove types for node
                         graph.remove_node(&node, false);
                 } else if let Some(func) = Func::func_from_path(graph, &name, None) {
                     graph.remove_data(&func, None);

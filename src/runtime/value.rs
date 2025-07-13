@@ -845,8 +845,6 @@ impl Val {
     pub fn drop_data(&self, graph: &mut Graph) {
         match self {
             Self::Obj(nref) => {
-                // TODO: remove types for this node
-                // TODO: schedule GC?
                 graph.remove_node(nref, false);
             },
             Self::Data(dref) => {

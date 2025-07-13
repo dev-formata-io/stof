@@ -15,7 +15,7 @@
 //
 
 use std::sync::Arc;
-use nom::{branch::alt, character::complete::{char, multispace0}, combinator::{opt, recognize}, multi::{separated_list0, separated_list1}, sequence::delimited, IResult, Parser};
+use nom::{branch::alt, character::complete::{char, multispace0}, combinator::{opt, recognize}, multi::{many0, separated_list0, separated_list1}, sequence::{delimited, preceded}, IResult, Parser};
 use crate::{model::SId, parser::{expr::expr, ident::ident, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, call::{FuncCall, NamedArg}, Base}}};
 
 
@@ -44,7 +44,10 @@ pub fn graph_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     }
 
     // Get the rest if any more!
-    let (input, additional) = separated_list0(char('.'), chained_var_func).parse(input)?;
+    let (input, additional) = many0(alt((
+        preceded(char('.'), chained_var_func),
+        chained_var_func
+    ))).parse(input)?;
 
     // If only one, then don't create a block...
     if additional.is_empty() {
@@ -62,6 +65,17 @@ pub fn chained_var_func(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     var_func(input, true)
 }
 pub(self) fn var_func(input: &str, chained: bool) -> IResult<&str, Arc<dyn Instruction>> {
+    // Special case of [idx][idx][idx] chaining
+    if chained && input.starts_with('[') {
+        let (input, idx) = index_expr(input)?;
+        return Ok((input, Arc::new(FuncCall {
+            stack: chained,
+            func: None,
+            search: Some("at".into()),
+            args: idx.into_iter().collect(),
+        })));
+    }
+
     // Variable portion is not optional
     let (input, path) = variable_expr(input)?;
     let mut path = path.to_string();

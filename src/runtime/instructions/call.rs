@@ -446,7 +446,6 @@ impl Instruction for FuncCall {
                     index += 1;
                 }
                 if !found {
-                    // TODO
                     return Err(Error::FuncArgs);
                 }
             } else {
