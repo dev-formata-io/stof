@@ -15,8 +15,9 @@
 //
 
 use std::sync::Arc;
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, peek}, multi::{separated_list0, separated_list1}, sequence::{delimited, preceded, separated_pair}, IResult, Parser};
-use crate::{parser::{expr::{func::func_expr, graph::{chained_var_func, graph_expr}, literal::literal_expr, math::math_expr}, statement::{block, switch::switch_statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FUNC_RET_TAG, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, nullcheck::NullcheckIns, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, Base, AWAIT, NOOP, NOT_TRUTHY, SUSPEND, TYPE_NAME, TYPE_OF}, Type}};
+use imbl::vector;
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, peek}, multi::{separated_list0, separated_list1}, sequence::{delimited, preceded, separated_pair, terminated}, IResult, Parser};
+use crate::{parser::{expr::{func::func_expr, graph::{chained_var_func, graph_expr}, literal::literal_expr, math::math_expr}, statement::{block, switch::switch_statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FUNC_RET_TAG, ifs::IfIns, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, nullcheck::NullcheckIns, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, Base, AWAIT, NOOP, NOT_TRUTHY, SUSPEND, TYPE_NAME, TYPE_OF}, Type}};
 
 pub mod literal;
 pub mod math;
@@ -45,8 +46,6 @@ pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
         wrapped_expr,
     ]).parse(input)?;
 
-    // TODO: ternary operation "?"
-
     // Peek at the next value, if its async, then don't do the as below...
     let (mut input, peek_async) = opt(peek(preceded(multispace0, tag("async")))).parse(input)?;
     if peek_async.is_none() {
@@ -71,7 +70,27 @@ pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
         });
     }
 
+    // Ternary operator "?"
+    let (input, ternary) = opt(ternary_operator).parse(input)?;
+    if let Some((if_expr, else_expr)) = ternary {
+        ins = Arc::new(IfIns {
+            if_test: Some(ins),
+            if_ins: vector![if_expr],
+            el_ins: vector![else_expr],
+        });
+    }
+
     Ok((input, ins))
+}
+
+
+/// Ternary operator.
+/// test_expr ? if_expr : else_expr
+fn ternary_operator(input: &str) -> IResult<&str, (Arc<dyn Instruction>, Arc<dyn Instruction>)> {
+    let (input, _) = delimited(multispace0, char('?'), multispace0).parse(input)?;
+    let (input, if_expr) = terminated(expr, delimited(multispace0, char(':'), multispace0)).parse(input)?;
+    let (input, else_expr) = expr(input)?;
+    Ok((input, (if_expr, else_expr)))
 }
 
 

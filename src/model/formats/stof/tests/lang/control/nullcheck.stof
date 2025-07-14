@@ -36,3 +36,27 @@ fn falsy_nullcheck() {
     let x = false ?? 'hi';
     assert_eq(x, false);
 }
+
+#[test]
+fn as_nullcheck() {
+    let x = null as kg ?? 43 as g;
+    assert_eq(x, 43000mg);
+}
+
+#[test]
+fn ternary_operator() {
+    let x = 'hi' ? 42 : 50;
+    assert_eq(x, 42);
+}
+
+#[test]
+fn falsy_ternary() {
+    let x = 0 ? 'nope' : 'yup';
+    assert_eq(x, 'yup');
+}
+
+#[test]
+fn nested_ternary() {
+    let x = 0 ? 30 : true as int ? null ?? 76 : 'man';
+    assert_eq(x, 76);
+}
