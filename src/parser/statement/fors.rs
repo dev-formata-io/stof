@@ -18,7 +18,7 @@ use std::sync::Arc;
 use arcstr::ArcStr;
 use imbl::{vector, Vector};
 use nom::{bytes::complete::tag, branch::alt, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{parser::{expr::expr, ident::ident, statement::{assign::assign, block, declare::declare_statement, statement}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, whiles::WhileIns, Base}, Val}};
+use crate::{parser::{expr::expr, ident::ident, statement::{assign::assign, noscope_block, declare::declare_statement, statement}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, whiles::WhileIns, Base}, Val}};
 
 
 /// For loop statement.
@@ -28,7 +28,7 @@ pub fn for_loop(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
     let (input, loop_tag) = opt(terminated(preceded(char('^'), ident), multispace0)).parse(input)?;
     let (input, control) = preceded(terminated(tag("for"), multispace0), delimited(char('('), declare_test_inc, char(')'))).parse(input)?;
     let (input, ins) = alt((
-        block,
+        noscope_block,
         statement
     )).parse(input)?;
 

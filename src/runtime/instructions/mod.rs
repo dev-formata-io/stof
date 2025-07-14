@@ -176,6 +176,7 @@ pub enum Base {
     // Values.
     Dup,
     Literal(Val), // load a literal onto the stack
+    Variable(Variable), // load a variable onto the stack
     Cast(Type), // Cast value on the back of the stack to a specific type
     TypeOf,
     TypeName,
@@ -581,6 +582,9 @@ impl Instruction for Base {
             },
             Self::Literal(val) => {
                 env.stack.push(Variable::val(val.clone()));
+            },
+            Self::Variable(var) => {
+                env.stack.push(var.clone());
             },
             Self::PopStack => { env.stack.pop(); },
             Self::PopUntilAndIncluding(val) => {

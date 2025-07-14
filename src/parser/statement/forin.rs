@@ -18,7 +18,7 @@ use std::sync::Arc;
 use arcstr::{literal, ArcStr};
 use imbl::{vector, Vector};
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{parser::{expr::expr, ident::ident, statement::{noscope_block, statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FuncCall, ops::{Op, OpIns}, whiles::WhileIns, Base, DUPLICATE, POP_SYMBOL_SCOPE, PUSH_SYMBOL_SCOPE}, Num, NumT, Type, Val}};
+use crate::{parser::{expr::expr, ident::ident, statement::{noscope_block, statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FuncCall, ops::{Op, OpIns}, whiles::WhileIns, Base, DUPLICATE}, Num, NumT, Type, Val}};
 
 
 /// For in loop.
@@ -99,7 +99,6 @@ pub fn for_in_loop(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
     let mut inner_instructions = Instructions::default();
     let mut vartype = Type::Void;
     if let Some(vt) = inner.typed { vartype = vt; }
-    inner_instructions.push(PUSH_SYMBOL_SCOPE.clone()); // no scope from block this time
 
     inner_instructions.push(Arc::new(FuncCall {
         func: None,
@@ -118,7 +117,6 @@ pub fn for_in_loop(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
     }
 
     inner_instructions.append(&ins);
-    inner_instructions.push(POP_SYMBOL_SCOPE.clone());
 
     let mut tag = None;
     if let Some(ltag) = loop_tag {

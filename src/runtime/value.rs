@@ -1129,34 +1129,14 @@ impl Val {
                             Err(Error::CastVal)
                         }
                     },
-                    Type::Num(num) => {
-                        match num {
-                            NumT::Int => {
-                                match number(&val) {
-                                    Ok((_, mut res)) => {
-                                        res.cast(target, graph, context)?; // get the number into the right type, no matter the string
-                                        *self = res;
-                                        Ok(())
-                                    },
-                                    Err(_) => Err(Error::CastVal)
-                                }
+                    Type::Num(_) => {
+                        match number(&val) {
+                            Ok((_, mut res)) => {
+                                res.cast(target, graph, context)?; // get the number into the right type, no matter the string
+                                *self = res;
+                                Ok(())
                             },
-                            NumT::Float => {
-                                if let Ok(res) = val.replace('+', "").replace("_", "").parse::<f64>() {
-                                    *self = Self::Num(Num::Float(res));
-                                    Ok(())
-                                } else {
-                                    Err(Error::CastVal)
-                                }
-                            },
-                            NumT::Units(units) => {
-                                if let Ok(res) = val.replace('+', "").replace("_", "").parse::<f64>() {
-                                    *self = Self::Num(Num::Units(res, *units));
-                                    Ok(())
-                                } else {
-                                    Err(Error::CastVal)
-                                }
-                            },
+                            Err(_) => Err(Error::CastVal)
                         }
                     },
                     _ => Err(Error::NotImplemented)
@@ -2510,5 +2490,88 @@ impl Val {
             _ => {}
         }
         self.to_string()
+    }
+
+
+    /*****************************************************************************
+     * Max & Min.
+     *****************************************************************************/
+    
+    /// Get the max value from this value.
+    pub fn maximum(&self, graph: &Graph) -> Result<Self, Error> {
+        match self {
+            Self::List(vals) => {
+                let mut res = Self::Void;
+                for val in vals {
+                    let gt = val.read().gt(&res, graph)?;
+                    if gt.truthy() || res.empty() {
+                        res = val.read().clone();
+                    }
+                }
+                Ok(res)
+            },
+            Self::Tup(vals) => {
+                let mut res = Self::Void;
+                for val in vals {
+                    let gt = val.read().gt(&res, graph)?;
+                    if gt.truthy() || res.empty() {
+                        res = val.read().clone();
+                    }
+                }
+                Ok(res)
+            },
+            Self::Set(set) => {
+                let mut res = Self::Void;
+                for val in set {
+                    let gt = val.read().gt(&res, graph)?;
+                    if gt.truthy() || res.empty() {
+                        res = val.read().clone();
+                    }
+                }
+                Ok(res)
+            },
+            _ => {
+                Ok(self.clone())
+            }
+        }
+    }
+
+    /// Get the min value from this value.
+    pub fn minimum(&self, graph: &Graph) -> Result<Self, Error> {
+        match self {
+            Self::List(vals) => {
+                let mut res = Self::Null;
+                for val in vals {
+                    let lt = val.read().lt(&res, graph)?;
+                    if lt.truthy() || res.empty() {
+                        res = val.read().clone();
+                    }
+                }
+                Ok(res)
+            },
+            Self::Tup(vals) => {
+                let mut res = Self::Null;
+                for val in vals {
+                    let lt = val.read().lt(&res, graph)?;
+                    if lt.truthy() || res.empty() {
+                        res = val.read().clone();
+                    }
+                }
+                Ok(res)
+            },
+            Self::Set(set) => {
+                let mut res = Self::Null;
+                for val in set {
+                    let lt = val.read().lt(&res, graph)?;
+                    if lt.truthy() || res.empty() {
+                        res = val.read().clone();
+                    }
+                }
+                Ok(res)
+            },
+            _ => {
+                Ok(self.clone())
+            }
+        }
     }
 }

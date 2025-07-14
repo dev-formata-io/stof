@@ -18,14 +18,22 @@ use std::sync::Arc;
 use arcstr::{literal, ArcStr};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{num::abs::num_abs, Graph}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error}};
+use crate::{model::{num::{abs::num_abs, iter::{num_at, num_len}, maxmin::{num_max, num_min}}, Graph}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Variable}};
 
 mod abs;
+mod maxmin;
+mod iter;
 
 
 /// Add the number library to a graph.
 pub fn insert_number_lib(graph: &mut Graph) {
     graph.insert_libfunc(num_abs());
+    
+    graph.insert_libfunc(num_max());
+    graph.insert_libfunc(num_min());
+
+    graph.insert_libfunc(num_len());
+    graph.insert_libfunc(num_at());
 }
 
 
@@ -36,6 +44,7 @@ pub(self) const NUM_LIB: ArcStr = literal!("Num");
 // Static instructions.
 lazy_static! {
     pub(self) static ref ABS: Arc<dyn Instruction> = Arc::new(NumIns::Abs);
+    pub(self) static ref AT: Arc<dyn Instruction> = Arc::new(NumIns::At);
 }
 
 
@@ -43,23 +52,84 @@ lazy_static! {
 /// Number Instruction.
 pub enum NumIns {
     Abs,
+
+    Max(usize),
+    Min(usize),
+
+    At,
 }
 #[typetag::serde(name = "NumIns")]
 impl Instruction for NumIns {
-    fn exec(&self, env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions> , Error> {
+    fn exec(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions> , Error> {
         match self {
             Self::Abs => {
                 if let Some(var) = env.stack.pop() {
                     if let Some(num) = var.val.write().try_num() {
                         num.abs()?;
                     } else {
-                        return Err(Error::StackError)
+                        return Err(Error::NumAbsStack)
                     }
                     env.stack.push(var);
                 } else {
-                    return Err(Error::StackError)
+                    return Err(Error::NumAbsStack)
                 }
-            }
+            },
+            Self::Max(stack_count) => {
+                let mut res = None;
+                for _ in 0..*stack_count {
+                    if let Some(var) = env.stack.pop() {
+                        let max_var = var.val.read().maximum(graph)?;
+                        if let Some(current) = res {
+                            let gt = max_var.gt(&current, &graph)?;
+                            if gt.truthy() {
+                                res = Some(max_var);
+                            } else {
+                                res = Some(current);
+                            }
+                        } else {
+                            res = Some(max_var);
+                        }
+                    }
+                }
+                if let Some(res) = res {
+                    env.stack.push(Variable::val(res));
+                }
+            },
+            Self::Min(stack_count) => {
+                let mut res = None;
+                for _ in 0..*stack_count {
+                    if let Some(var) = env.stack.pop() {
+                        let min_var = var.val.read().minimum(graph)?;
+                        if let Some(current) = res {
+                            let lt = min_var.lt(&current, &graph)?;
+                            if lt.truthy() {
+                                res = Some(min_var);
+                            } else {
+                                res = Some(current);
+                            }
+                        } else {
+                            res = Some(min_var);
+                        }
+                    }
+                }
+                if let Some(res) = res {
+                    env.stack.push(Variable::val(res));
+                }
+            },
+            Self::At => {
+                if let Some(index_var) = env.stack.pop() {
+                    if let Some(val_var) = env.stack.pop() {
+                        let lt = index_var.lt(&val_var, &graph)?;
+                        if lt.truthy() {
+                            env.stack.push(index_var);
+                        } else {
+                            env.stack.push(val_var);
+                        }
+                        return Ok(None);
+                    }
+                }
+                return Err(Error::NumAtStack);
+            },
         }
         Ok(None)
     }

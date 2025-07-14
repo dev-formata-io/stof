@@ -49,7 +49,7 @@ impl FuncCall {
     /// Uses search or the stack to find the function we are going to call if needed.
     pub(self) fn get_func_context(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<CallContext, Error> {
         if let Some(dref) = &self.func {
-            return Ok(CallContext { lib: None, stack_arg: false, prototype_self: None, func: dref.clone() });
+            return Ok(CallContext { lib: None, stack_arg: None, prototype_self: None, func: dref.clone() });
         }
         if let Some(search) = &self.search {
             return self.search_func(&search, env, graph);
@@ -81,8 +81,7 @@ impl FuncCall {
                         }
                     }
                     let libname = var.lib_name(&graph);
-                    env.stack.push(var); // push it back so that it can become an arg
-                    return Ok(CallContext { lib: Some(libname), stack_arg: true, prototype_self: None, func: SId::from(split_path[0]) });
+                    return Ok(CallContext { lib: Some(libname), stack_arg: Some(var), prototype_self: None, func: SId::from(split_path[0]) });
                 }
             }
             return Err(Error::FuncDne);
@@ -94,10 +93,10 @@ impl FuncCall {
             if let Some(var) = env.table.get(name) {
                 if let Some(func) = var.try_func() {
                     // Calling directly into a variable function
-                    return Ok(CallContext { lib: None, prototype_self: None, func, stack_arg: false });
+                    return Ok(CallContext { lib: None, prototype_self: None, func, stack_arg: None });
                 }
             }
-            return Ok(CallContext { lib: Some(literal!("Std")), stack_arg: false, prototype_self: None, func: SId::from(split_path[0]) });
+            return Ok(CallContext { lib: Some(literal!("Std")), stack_arg: None, prototype_self: None, func: SId::from(split_path[0]) });
         }
         
         // In this case, we are searching for a generic path, using the symbol table, libraries, and graph
@@ -117,7 +116,7 @@ impl FuncCall {
             }
             // Only a valid libcall if the length is 2
             if split_path.len() == 2 {
-                return Ok(CallContext { lib: Some(split_path[0].to_string().into()), stack_arg: false, prototype_self: None, func: SId::from(split_path[1]) });
+                return Ok(CallContext { lib: Some(split_path[0].to_string().into()), stack_arg: None, prototype_self: None, func: SId::from(split_path[1]) });
             }
             return Err(Error::FuncDne);
         }
@@ -133,8 +132,7 @@ impl FuncCall {
         if split_path.len() < 2 {
             // var.split('.'); // string variable for example
             let libname = context.read().lib_name(&graph);
-            env.stack.push( Variable::refval(context)); // push onto the stack so that it can become an arg
-            return Ok(CallContext { lib: Some(libname), stack_arg: true, prototype_self: None, func: SId::from(split_path[0]) });
+            return Ok(CallContext { lib: Some(libname), stack_arg: Some(Variable::refval(context)), prototype_self: None, func: SId::from(split_path[0]) });
         }
 
         Err(Error::FuncDne)
@@ -180,7 +178,7 @@ impl FuncCall {
             // Look for a function on the object at the path first (always highest priority)
             if let Some(func) = Func::func_from_path(graph, &adjusted_path, start.clone()) {
                 // prototype_self gets set below
-                return Ok(CallContext { lib: None, stack_arg: false, prototype_self: None, func });
+                return Ok(CallContext { lib: None, stack_arg: None, prototype_self: None, func });
             }
 
             // Look for a field on the object at the path next that is a function
@@ -188,7 +186,7 @@ impl FuncCall {
                 if let Some(field) = graph.get_stof_data::<Field>(&field) {
                     if let Some(func) = field.value.try_func() {
                         // prototype_self will get set below
-                        return Ok(CallContext { lib: None, stack_arg: false, prototype_self: None, func });
+                        return Ok(CallContext { lib: None, stack_arg: None, prototype_self: None, func });
                     }
                 }
             }
@@ -248,7 +246,7 @@ impl FuncCall {
 
     /// Call library function.
     /// This is from exec after we've concluded this is a lib func.
-    pub(self) fn call_libfunc(&self, func: LibFunc, stack_arg: bool, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions>, Error> {
+    pub(self) fn call_libfunc(&self, func: LibFunc, stack_arg: Option<Variable>, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         // Record symbol scope depth for poping later
         let scope_depth = env.table.scopes.len();
         
@@ -262,10 +260,11 @@ impl FuncCall {
         let unbounded = func.unbounded_args;
         
         // Arguments
-        let mut arg_len_adjust = 0;
-        if stack_arg { arg_len_adjust = 1; }
         let mut named_args = Vec::new();
         let mut args = Vec::new();
+        if let Some(sarg) = stack_arg {
+            args.push(Arc::new(Base::Variable(sarg)) as Arc<dyn Instruction>);
+        }
         for arg in &self.args {
             if let Some(named) = arg.as_dyn_any().downcast_ref::<NamedArg>() {
                 let mut index = 0;
@@ -305,7 +304,7 @@ impl FuncCall {
                 args.insert(index, ins);
             }
         }
-        if args.len() + arg_len_adjust < params.len() {
+        if args.len() < params.len() {
             let mut index = args.len();
             while index < params.len() {
                 let param = &params[index];
@@ -317,16 +316,13 @@ impl FuncCall {
                 index += 1;
             }
         }
-        if !unbounded && (args.len() + arg_len_adjust != params.len()) {
+        if !unbounded && (args.len() != params.len()) {
             return Err(Error::FuncArgs);
         }
-        for index in 0..(args.len() + arg_len_adjust) {
-            if stack_arg && index == 0 {
-                // No arg to push
-            } else {
-                let arg = &args[index];
-                instructions.push(arg.clone());
-            }
+        for index in 0..args.len() {
+            let arg = &args[index];
+            instructions.push(arg.clone());
+
             if params.len() > 0 && index < params.len() {
                 let param = &params[index];
                 if !param.param_type.empty() {
@@ -339,7 +335,7 @@ impl FuncCall {
         }
 
         // Push the function instructions
-        let mut func_instructions = func.func.deref()(args.len() + arg_len_adjust, env, graph)?;
+        let mut func_instructions = func.func.deref()(args.len(), env, graph)?;
         func_instructions.push(Arc::new(Base::Tag(FUNC_RET_TAG.clone())));
         instructions.append(&func_instructions.instructions);
         
@@ -374,7 +370,7 @@ pub(self) struct CallContext {
     pub lib: Option<ArcStr>,
     pub prototype_self: Option<NodeRef>,
     pub func: SId,
-    pub stack_arg: bool,
+    pub stack_arg: Option<Variable>,
 }
 
 

@@ -19,7 +19,7 @@ use arcstr::ArcStr;
 use imbl::Vector;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack, POP_LOOP, TRUTHY}, proc::ProcEnv, Error}};
+use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack, POP_LOOP, PUSH_SYMBOL_SCOPE, TRUTHY}, proc::ProcEnv, Error}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,7 +38,7 @@ pub struct WhileIns {
 }
 #[typetag::serde(name = "WhileIns")]
 impl Instruction for WhileIns {
-    fn exec(&self, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
+    fn exec(&self, env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         // Create a tag for this loop (control statements)
         let mut tag: ArcStr = nanoid!(10).into();
         if let Some(ctag) = &self.tag {
@@ -48,6 +48,9 @@ impl Instruction for WhileIns {
         // Create break and continue tags
         let continue_tag: ArcStr = format!("{}_con", &tag).into();
         let break_tag: ArcStr = format!("{}_brk", &tag).into();
+
+        // Record scopes for poping at end
+        let scope_count = env.table.scopes.len();
 
         let mut instructions = Instructions::default();
         instructions.push(Arc::new(Base::PushLoop(tag)));
@@ -67,10 +70,12 @@ impl Instruction for WhileIns {
             instructions.push(Arc::new(Base::CtrlForwardToIfNotTruthy(end_tag.clone(), ConsumeStack::Consume)));
             
             // Do the thing
+            instructions.push(PUSH_SYMBOL_SCOPE.clone());
             instructions.append(&self.ins);
 
             // Continue statements will go to here
             instructions.push(Arc::new(Base::Tag(continue_tag)));
+            instructions.push(Arc::new(Base::PopSymbolScopeUntilDepth(scope_count + 1))); // take loop count into consideration
 
             // If we have an inc expr, do that now before we start the loop again
             if let Some(inc) = &self.inc {
@@ -85,6 +90,7 @@ impl Instruction for WhileIns {
         instructions.push(Arc::new(Base::Tag(break_tag)));
         instructions.push(Arc::new(Base::Tag(end_tag)));
         instructions.push(POP_LOOP.clone());
+        instructions.push(Arc::new(Base::PopSymbolScopeUntilDepth(scope_count)));
         Ok(Some(instructions))
     }
 }
