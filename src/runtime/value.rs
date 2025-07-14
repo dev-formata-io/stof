@@ -1782,6 +1782,10 @@ impl Val {
                         blob.append(&mut other);
                         Ok(())
                     },
+                    Self::Str(other) => {
+                        *self = Self::Str(format!("{}{other}", self.print(&graph)).into());
+                        Ok(())
+                    },
                     _ => Err(Error::NotImplemented)
                 }
             },
@@ -1832,7 +1836,10 @@ impl Val {
                                 self.add(res, graph)?;
                                 Ok(())
                             },
-                            Err(_) => Err(Error::NotImplemented)
+                            Err(_) => {
+                                *self = Self::Str(format!("{}{other}", self.print(&graph)).into());
+                                Ok(())
+                            }
                         }
                     },
                     Self::Bool(other) => {

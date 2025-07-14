@@ -17,12 +17,13 @@
 use std::sync::Arc;
 use imbl::vector;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, peek}, multi::{separated_list0, separated_list1}, sequence::{delimited, preceded, separated_pair, terminated}, IResult, Parser};
-use crate::{parser::{expr::{func::func_expr, graph::{chained_var_func, graph_expr}, literal::literal_expr, math::math_expr}, statement::{block, switch::switch_statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FUNC_RET_TAG, ifs::IfIns, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, nullcheck::NullcheckIns, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, Base, AWAIT, NOOP, NOT_TRUTHY, SUSPEND, TYPE_NAME, TYPE_OF}, Type}};
+use crate::{parser::{expr::{fmt_str::formatted_string_expr, func::func_expr, graph::{chained_var_func, graph_expr}, literal::literal_expr, math::math_expr}, statement::{block, switch::switch_statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FUNC_RET_TAG, ifs::IfIns, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, nullcheck::NullcheckIns, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, Base, AWAIT, NOOP, NOT_TRUTHY, SUSPEND, TYPE_NAME, TYPE_OF}, Type}};
 
 pub mod literal;
 pub mod math;
 pub mod graph;
 pub mod func;
+pub mod fmt_str;
 
 
 /// Parse an expression.
@@ -42,6 +43,7 @@ pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
         block_expr,
         switch_expr,
         literal_expr,
+        formatted_string_expr,
         graph_expr,
         wrapped_expr,
     ]).parse(input)?;

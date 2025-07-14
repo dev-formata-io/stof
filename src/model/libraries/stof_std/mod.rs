@@ -167,7 +167,7 @@ impl Instruction for StdIns {
             Self::Assert => {
                 if let Some(val) = env.stack.pop() {
                     if !val.val.read().truthy() {
-                        let message = format!("{} is not truthy", val.val.read().print(&graph));
+                        let message = format!("'{}' is not truthy", val.val.read().print(&graph));
                         return Err(Error::AssertFailed(message));
                     }
                 }
@@ -175,7 +175,7 @@ impl Instruction for StdIns {
             Self::AssertNot => {
                 if let Some(val) = env.stack.pop() {
                     if val.val.read().truthy() {
-                        let message = format!("{} is truthy", val.val.read().print(&graph));
+                        let message = format!("'{}' is truthy", val.val.read().print(&graph));
                         return Err(Error::AssertNotFailed(message));
                     }
                 }
@@ -185,7 +185,7 @@ impl Instruction for StdIns {
                     if let Some(other) = env.stack.pop() {
                         if let Ok(res) = val.equal(&other) {
                             if !res.val.read().truthy() {
-                                let message = format!("{} does not equal {}", other.val.read().print(&graph), val.val.read().print(&graph));
+                                let message = format!("'{}' does not equal '{}'", other.val.read().print(&graph), val.val.read().print(&graph));
                                 return Err(Error::AssertEqFailed(message));
                             }
                         }
@@ -197,7 +197,7 @@ impl Instruction for StdIns {
                     if let Some(other) = env.stack.pop() {
                         if let Ok(res) = val.equal(&other) {
                             if res.val.read().truthy() {
-                                let message = format!("{} equals {}", other.val.read().print(&graph), val.val.read().print(&graph));
+                                let message = format!("'{}' equals '{}'", other.val.read().print(&graph), val.val.read().print(&graph));
                                 return Err(Error::AssertNotEqFailed(message));
                             }
                         }

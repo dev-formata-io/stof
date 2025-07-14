@@ -16,11 +16,34 @@
 
 
 /*!
- * This module is where we'll test basic language features, like control flow.
- * Scope: root.Lang
+ * String literal tests.
  */
 
-import './control/mod' as self.Control;
-import './types/mod' as self.Types;
-import './funcs/mod' as self.Funcs;
-import './strings/mod' as self.Strings;
+#[test]
+fn single_quote() {
+    let x = 'Hello, world!';
+    assert_eq(x, "Hello, world!");
+}
+
+#[test]
+fn raw_string() {
+    let x = r#"Hello, world!"#;
+    assert_eq(x, "Hello, world!");
+}
+
+#[test]
+fn formatted() {
+    let name = 'CJ';
+    let x = `Hello, ${name}!`;
+    assert_eq(x, "Hello, CJ!");
+}
+
+#[test]
+fn many_formatted() {
+    const a = 32;
+    const name = 'CJ';
+    const val = true;
+
+    const x = `Name is ${name}. Meaning of life is ${a + 10}. Val is ${!!val}`;
+    assert_eq(x, 'Name is CJ. Meaning of life is 42. Val is true');
+}
