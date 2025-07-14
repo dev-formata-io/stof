@@ -16,8 +16,7 @@
 
 
 /*!
- * This is the Stof test suite.
+ * Library tests.
  */
 
-import './lang/mod' as self.Lang;
-import './libs/mod' as self.Libs;
+import './std' as self.Std;
