@@ -36,6 +36,7 @@ pub mod set;
 pub mod map;
 pub mod ret;
 pub mod func;
+pub mod nullcheck;
 
 
 // static instructions for efficiency
@@ -64,6 +65,7 @@ lazy_static! {
 
     pub static ref DUPLICATE: Arc<dyn Instruction> = Arc::new(Base::Dup);
     pub static ref TRUTHY: Arc<dyn Instruction> = Arc::new(Base::Truthy);
+    pub static ref IS_NULL: Arc<dyn Instruction> = Arc::new(Base::IsNull);
     pub static ref NOT_TRUTHY: Arc<dyn Instruction> = Arc::new(Base::NotTruthy);
     pub static ref TYPE_OF: Arc<dyn Instruction> = Arc::new(Base::TypeOf);
     pub static ref TYPE_NAME: Arc<dyn Instruction> = Arc::new(Base::TypeName);
@@ -181,6 +183,7 @@ pub enum Base {
     
     Truthy,
     NotTruthy,
+    IsNull,
     
     LessThan,
     GreaterThan,
@@ -650,6 +653,13 @@ impl Instruction for Base {
                     env.stack.push(Variable::val((!var.truthy()).into()));
                 } else {
                     return Err(Error::Truthy);
+                }
+            },
+            Self::IsNull => {
+                if let Some(var) = env.stack.pop() {
+                    env.stack.push(Variable::val(var.null().into()));
+                } else {
+                    return Err(Error::IsNull);
                 }
             },
             Self::GreaterThan => {

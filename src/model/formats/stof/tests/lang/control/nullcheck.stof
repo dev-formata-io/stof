@@ -16,12 +16,23 @@
 
 
 /*!
- * Control flow tests.
- * Scope: root.Lang.Control
+ * Nullcheck and ternary operator tests.
  */
 
-import './if' as self.If;
-import './while' as self.While;
-import './for' as self.For;
-import './switch' as self.Switch;
-import './nullcheck' as self.Nullcheck;
+#[test]
+fn double_question_nullcheck() {
+    let x = null ?? 42;
+    assert_eq(x, 42);
+}
+
+#[test]
+fn chained_nullcheck() {
+    let x = null ?? null ?? null ?? 'hi' ?? null ?? 'yo';
+    assert_eq(x, 'hi');
+}
+
+#[test]
+fn falsy_nullcheck() {
+    let x = false ?? 'hi';
+    assert_eq(x, false);
+}

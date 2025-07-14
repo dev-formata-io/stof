@@ -162,6 +162,12 @@ impl Variable {
     }
 
     #[inline]
+    /// Is this variable null?
+    pub fn null(&self) -> bool {
+        self.val.read().null()
+    }
+
+    #[inline]
     /// Is this variable a dangling object reference?
     pub fn dangling_obj(&self, graph: &Graph) -> bool {
         if let Some(obj) = self.try_obj() {

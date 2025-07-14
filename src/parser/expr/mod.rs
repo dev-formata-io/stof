@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, peek}, multi::{separated_list0, separated_list1}, sequence::{delimited, preceded, separated_pair}, IResult, Parser};
-use crate::{parser::{expr::{func::func_expr, graph::{chained_var_func, graph_expr}, literal::literal_expr, math::math_expr}, statement::{block, switch::switch_statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FUNC_RET_TAG, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, Base, AWAIT, NOOP, NOT_TRUTHY, SUSPEND, TYPE_NAME, TYPE_OF}, Type}};
+use crate::{parser::{expr::{func::func_expr, graph::{chained_var_func, graph_expr}, literal::literal_expr, math::math_expr}, statement::{block, switch::switch_statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FUNC_RET_TAG, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, nullcheck::NullcheckIns, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, Base, AWAIT, NOOP, NOT_TRUTHY, SUSPEND, TYPE_NAME, TYPE_OF}, Type}};
 
 pub mod literal;
 pub mod math;
@@ -45,26 +45,33 @@ pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
         wrapped_expr,
     ]).parse(input)?;
 
-    // TODO: nullcheck operator "??"
-
     // TODO: ternary operation "?"
 
     // Peek at the next value, if its async, then don't do the as below...
-    let (input, peek_async) = opt(peek(preceded(multispace0, tag("async")))).parse(input)?;
-    if peek_async.is_some() {
-        return Ok((input, ins));
+    let (mut input, peek_async) = opt(peek(preceded(multispace0, tag("async")))).parse(input)?;
+    if peek_async.is_none() {
+        // Optional "as Type" cast before other operators
+        let (inner_input, cast_type) = opt(preceded(delimited(multispace0, tag("as"), multispace0), parse_type)).parse(input)?;
+        if let Some(cast) = cast_type {
+            let mut block = Block::default();
+            block.ins.push_back(ins);
+            block.ins.push_back(Arc::new(Base::Cast(cast)));
+            
+            input = inner_input;
+            ins = Arc::new(block);
+        }
     }
 
-    // Optional "as Type" cast
-    let (input, cast_type) = opt(preceded(delimited(multispace0, tag("as"), multispace0), parse_type)).parse(input)?;
-    if let Some(cast) = cast_type {
-        let mut block = Block::default();
-        block.ins.push_back(ins);
-        block.ins.push_back(Arc::new(Base::Cast(cast)));
-        Ok((input, Arc::new(block)))
-    } else {
-        Ok((input, ins))
+    // Nullcheck operator "??"
+    let (input, nullcheck) = opt(preceded(delimited(multispace0, tag("??"), multispace0), expr)).parse(input)?;
+    if let Some(nullcheck) = nullcheck {
+        ins = Arc::new(NullcheckIns {
+            ins,
+            ifnull: nullcheck
+        });
     }
+
+    Ok((input, ins))
 }
 
 

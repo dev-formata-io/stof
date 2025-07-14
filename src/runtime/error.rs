@@ -104,6 +104,7 @@ pub enum Error {
 
     // Value errors
     Truthy,
+    IsNull,
     NotTruthy,
     GreaterThan,
     GreaterOrEq,
