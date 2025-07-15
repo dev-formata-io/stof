@@ -24,7 +24,7 @@ use crate::{model::{DataRef, Func, Graph, SId}, runtime::{instruction::Instructi
 #[derive(Default)]
 /// Runtime.
 pub struct Runtime {
-    running: Vec<Process>,
+    running: Vec<Process>, // TODO: split into high-priority and low-priority based on size to minimize mean running time
     waiting: FxHashMap<SId, Process>,
     pub done: FxHashMap<SId, Process>,
     pub errored: FxHashMap<SId, Process>,
@@ -132,16 +132,11 @@ impl Runtime {
                 }
             }
 
-            // any limit < 1 will progress the process as much as possible
-            let mut limit = 0;
-            if self.running.len() > 1 && self.running.len() <= 200 {
-                // everyone makes progress together, with shared CPU time
-                // if more than 200 processes, then finish something first!
-                limit = 1500;
-            }
-            if !self.sleeping.is_empty() {
-                // Set the limit to be much lower for a decent sleep tolarance
-                limit = 100; // TODO: test and optimize
+            // any limit < 1 will progress the process as much as possible per process
+            let mut limit: i32 = 0;
+            if !self.sleeping.is_empty() || self.running.len() > 1 {
+                let len = (self.sleeping.len() + self.running.len()) as i32;
+                limit = i32::max(10, 500 / len);
             }
 
             for proc in self.running.iter_mut() {

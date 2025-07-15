@@ -24,6 +24,7 @@ pub mod stof_std;
 pub mod num;
 pub mod string;
 pub mod ver;
+pub mod time;
 
 
 #[derive(Clone)]

@@ -20,7 +20,7 @@ use bytes::Bytes;
 use colored::Colorize;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{filesys::fs_library, num::insert_number_lib, stof_std::stof_std_lib, string::insert_string_lib, ver::insert_semver_lib, Data, DataRef, Format, JsonFormat, LibFunc, Node, NodeRef, SId, SPath, StofData, StofFormat, INVALID_NODE_NEW}, parser::context::ParseContext, runtime::{table::SymbolTable, Error, Runtime, Val}};
+use crate::{model::{filesys::fs_library, num::insert_number_lib, stof_std::stof_std_lib, string::insert_string_lib, time::insert_time_lib, ver::insert_semver_lib, Data, DataRef, Format, JsonFormat, LibFunc, Node, NodeRef, SId, SPath, StofData, StofFormat, INVALID_NODE_NEW}, parser::context::ParseContext, runtime::{table::SymbolTable, Error, Runtime, Val}};
 
 
 /// Root node name.
@@ -175,6 +175,8 @@ impl Graph {
         insert_number_lib(self);
         insert_string_lib(self);
         insert_semver_lib(self);
+        
+        insert_time_lib(self);
         fs_library(self);
     }
     

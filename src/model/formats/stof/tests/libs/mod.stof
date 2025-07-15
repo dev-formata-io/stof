@@ -19,7 +19,8 @@
  * Library tests.
  */
 
-import './std' as self.Std;
-import './num' as self.Num;
-import './str' as self.Str;
-import './ver' as self.Ver;
+import './std' as self.StdLib;
+import './num' as self.NumLib;
+import './str' as self.StrLib;
+import './ver' as self.VerLib;
+import './time' as self.TimeLib;
