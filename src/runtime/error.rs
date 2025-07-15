@@ -59,8 +59,51 @@ pub enum Error {
     /*****************************************************************************
      * Number Lib Errors.
      *****************************************************************************/
-    NumAbsStack,
-    NumAtStack,
+    NumAbs,
+    NumSqrt,
+    NumCbrt,
+    NumFloor,
+    NumCeil,
+    NumTrunc,
+    NumFract,
+    NumSignum,
+    NumExp,
+    NumExp2,
+    NumLn,
+    NumAt,
+    NumRound,
+    NumRound2,
+    NumPow,
+    NumLog,
+    NumATan2,
+    NumNan,
+    NumInf,
+
+    NumHasUnits,
+    NumIsAngle,
+    NumIsTemp,
+    NumIsLength,
+    NumIsTime,
+    NumIsMass,
+    NumRemoveUnits,
+
+    NumSin,
+    NumCos,
+    NumTan,
+    NumASin,
+    NumACos,
+    NumATan,
+    NumSinH,
+    NumCosH,
+    NumTanH,
+    NumASinH,
+    NumACosH,
+    NumATanH,
+
+    NumHex,
+    NumBin,
+    NumOct,
+    NumStr,
 
     /*****************************************************************************
      * Cast Errors.

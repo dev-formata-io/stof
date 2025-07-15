@@ -271,6 +271,66 @@ impl Num {
         }
     }
 
+    /// Remove units.
+    pub fn remove_units(&mut self) {
+        match &mut *self {
+            Self::Units(v, _) => {
+                *self = Self::Float(*v);
+            },
+            _ => {}
+        }
+    }
+
+    /// Is angle?
+    pub fn is_angle(&self) -> bool {
+        match self {
+            Self::Units(_, units) => {
+                units.is_angle()
+            },
+            _ => false,
+        }
+    }
+
+    /// Is temp?
+    pub fn is_temp(&self) -> bool {
+        match self {
+            Self::Units(_, units) => {
+                units.is_temperature()
+            },
+            _ => false,
+        }
+    }
+
+    /// Is length?
+    pub fn is_length(&self) -> bool {
+        match self {
+            Self::Units(_, units) => {
+                units.is_length()
+            },
+            _ => false,
+        }
+    }
+
+    /// Is time?
+    pub fn is_time(&self) -> bool {
+        match self {
+            Self::Units(_, units) => {
+                units.is_time()
+            },
+            _ => false,
+        }
+    }
+
+    /// Is mass?
+    pub fn is_mass(&self) -> bool {
+        match self {
+            Self::Units(_, units) => {
+                units.is_mass()
+            },
+            _ => false,
+        }
+    }
+
     /// Get units.
     pub fn units(&self) -> Option<Units> {
         match self {
@@ -1151,6 +1211,511 @@ impl Num {
                 *v = v.abs();
             }
         }
+        Ok(())
+    }
+
+    /// Sqrt.
+    pub fn sqrt(&mut self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                *v = v.sqrt();
+            },
+            Self::Int(v) => {
+                // just turn it into a float
+                *self = Self::Float((*v as f64).sqrt());
+            },
+            Self::Units(v, _) => {
+                *v = v.sqrt();
+            }
+        }
+        Ok(())
+    }
+
+    /// Cbrt.
+    pub fn cbrt(&mut self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                *v = v.cbrt();
+            },
+            Self::Int(v) => {
+                // just turn it into a float
+                *self = Self::Float((*v as f64).cbrt());
+            },
+            Self::Units(v, _) => {
+                *v = v.cbrt();
+            }
+        }
+        Ok(())
+    }
+
+    /// Floor.
+    pub fn floor(&mut self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                *v = v.floor();
+            },
+            Self::Int(_v) => {
+                // nothing to do here
+            },
+            Self::Units(v, _) => {
+                *v = v.floor();
+            }
+        }
+        Ok(())
+    }
+
+    /// Ceil.
+    pub fn ceil(&mut self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                *v = v.ceil();
+            },
+            Self::Int(_v) => {
+                // nothing to do here
+            },
+            Self::Units(v, _) => {
+                *v = v.ceil();
+            }
+        }
+        Ok(())
+    }
+
+    /// Trunc.
+    pub fn trunc(&mut self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                *v = v.trunc();
+            },
+            Self::Int(_v) => {
+                // nothing to do here
+            },
+            Self::Units(v, _) => {
+                *v = v.trunc();
+            }
+        }
+        Ok(())
+    }
+
+    /// Fract.
+    pub fn fract(&mut self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                *v = v.fract();
+            },
+            Self::Int(v) => {
+                *v = 0; // no fractional part of an integer
+            },
+            Self::Units(v, _) => {
+                *v = v.fract();
+            }
+        }
+        Ok(())
+    }
+
+    /// Signum.
+    pub fn signum(&mut self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                *v = v.signum();
+            },
+            Self::Int(v) => {
+                *v = v.signum();
+            },
+            Self::Units(v, _) => {
+                *v = v.signum();
+            }
+        }
+        Ok(())
+    }
+
+    /// Exp.
+    pub fn exp(&mut self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                *v = v.exp();
+            },
+            Self::Int(v) => {
+                *self = Self::Float((*v as f64).exp());
+            },
+            Self::Units(v, _) => {
+                *v = v.exp();
+            }
+        }
+        Ok(())
+    }
+
+    /// Exp 2.
+    pub fn exp2(&mut self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                *v = v.exp2();
+            },
+            Self::Int(v) => {
+                *self = Self::Float((*v as f64).exp2());
+            },
+            Self::Units(v, _) => {
+                *v = v.exp2();
+            }
+        }
+        Ok(())
+    }
+
+    /// NaN?
+    pub fn nan(&self) -> bool {
+        match self {
+            Self::Float(v) => {
+                v.is_nan()
+            },
+            Self::Int(_v) => {
+                false
+            },
+            Self::Units(v, _) => {
+                v.is_nan()
+            }
+        }
+    }
+
+    /// Infinite?
+    pub fn inf(&self) -> bool {
+        match self {
+            Self::Float(v) => {
+                v.is_infinite()
+            },
+            Self::Int(_v) => {
+                false
+            },
+            Self::Units(v, _) => {
+                v.is_infinite()
+            }
+        }
+    }
+
+    /// Ln.
+    pub fn ln(&mut self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                *v = v.ln();
+            },
+            Self::Int(v) => {
+                *self = Self::Float((*v as f64).ln());
+            },
+            Self::Units(v, _) => {
+                *v = v.ln();
+            }
+        }
+        Ok(())
+    }
+
+    /// Sin.
+    pub fn sin(&mut self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                *v = v.sin();
+            },
+            Self::Int(v) => {
+                *self = Self::Float((*v as f64).sin());
+            },
+            Self::Units(v, units) => {
+                if units.is_degrees() {
+                    *v = Units::to_radians(*v, Units::Degrees).sin();
+                } else {
+                    *v = v.sin();
+                }
+                *self = Self::Float(*v);
+            }
+        }
+        Ok(())
+    }
+
+    /// Cos.
+    pub fn cos(&mut self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                *v = v.cos();
+            },
+            Self::Int(v) => {
+                *self = Self::Float((*v as f64).cos());
+            },
+            Self::Units(v, units) => {
+                if units.is_degrees() {
+                    *v = Units::to_radians(*v, Units::Degrees).cos();
+                } else {
+                    *v = v.cos();
+                }
+                *self = Self::Float(*v);
+            }
+        }
+        Ok(())
+    }
+
+    /// Tan.
+    pub fn tan(&mut self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                *v = v.tan();
+            },
+            Self::Int(v) => {
+                *self = Self::Float((*v as f64).tan());
+            },
+            Self::Units(v, units) => {
+                if units.is_degrees() {
+                    *v = Units::to_radians(*v, Units::Degrees).tan();
+                } else {
+                    *v = v.tan();
+                }
+                *self = Self::Float(*v);
+            }
+        }
+        Ok(())
+    }
+
+    /// ASin.
+    pub fn asin(&mut self) -> Result<(), Error> {
+        let rad;
+        match &mut *self {
+            Self::Float(v) => {
+                rad = v.asin();
+            },
+            Self::Int(v) => {
+                rad = (*v as f64).asin();
+            },
+            Self::Units(v, _) => {
+                rad = v.asin();
+            }
+        }
+        *self = Self::Units(rad, Units::Radians);
+        Ok(())
+    }
+
+    /// ACos.
+    pub fn acos(&mut self) -> Result<(), Error> {
+        let rad;
+        match &mut *self {
+            Self::Float(v) => {
+                rad = v.acos();
+            },
+            Self::Int(v) => {
+                rad = (*v as f64).acos();
+            },
+            Self::Units(v, _) => {
+                rad = v.acos();
+            }
+        }
+        *self = Self::Units(rad, Units::Radians);
+        Ok(())
+    }
+
+    /// ATan.
+    pub fn atan(&mut self) -> Result<(), Error> {
+        let rad;
+        match &mut *self {
+            Self::Float(v) => {
+                rad = v.atan();
+            },
+            Self::Int(v) => {
+                rad = (*v as f64).atan();
+            },
+            Self::Units(v, _) => {
+                rad = v.atan();
+            }
+        }
+        *self = Self::Units(rad, Units::Radians);
+        Ok(())
+    }
+
+    /// sinh.
+    pub fn sinh(&mut self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                *v = v.sinh();
+            },
+            Self::Int(v) => {
+                *self = Self::Float((*v as f64).sinh());
+            },
+            Self::Units(v, _) => {
+                *v = v.sinh();
+            }
+        }
+        Ok(())
+    }
+
+    /// Cosh.
+    pub fn cosh(&mut self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                *v = v.cosh();
+            },
+            Self::Int(v) => {
+                *self = Self::Float((*v as f64).cosh());
+            },
+            Self::Units(v, _) => {
+                *v = v.cosh();
+            }
+        }
+        Ok(())
+    }
+
+    /// Tanh.
+    pub fn tanh(&mut self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                *v = v.tanh();
+            },
+            Self::Int(v) => {
+                *self = Self::Float((*v as f64).tanh());
+            },
+            Self::Units(v, _) => {
+                *v = v.tanh();
+            }
+        }
+        Ok(())
+    }
+
+    /// ASinH.
+    pub fn asinh(&mut self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                *v = v.asinh();
+            },
+            Self::Int(v) => {
+                *self = Self::Float((*v as f64).asinh());
+            },
+            Self::Units(v, _) => {
+                *v = v.asinh();
+            }
+        }
+        Ok(())
+    }
+
+    /// ACosH.
+    pub fn acosh(&mut self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                *v = v.acosh();
+            },
+            Self::Int(v) => {
+                *self = Self::Float((*v as f64).acosh());
+            },
+            Self::Units(v, _) => {
+                *v = v.acosh();
+            }
+        }
+        Ok(())
+    }
+
+    /// ATanH.
+    pub fn atanh(&mut self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                *v = v.atanh();
+            },
+            Self::Int(v) => {
+                *self = Self::Float((*v as f64).atanh());
+            },
+            Self::Units(v, _) => {
+                *v = v.atanh();
+            }
+        }
+        Ok(())
+    }
+    
+    /// Round.
+    pub fn round(&mut self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                *v = v.round();
+            },
+            Self::Int(_v) => {
+                // rounded
+            },
+            Self::Units(v, _) => {
+                *v = v.round();
+            }
+        }
+        Ok(())
+    }
+
+    /// Round 2.
+    pub fn round2(&mut self, digits: &Self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                let digits = digits.int();
+                if digits > 0 {
+                    let mut scale = 1;
+                    for _ in 0..digits {
+                        scale *= 10;
+                    }
+                    *v = (*v * scale as f64).round()/(scale as f64);
+                } else {
+                    *v = v.round();
+                }
+            },
+            Self::Int(_v) => {
+                // rounded
+            },
+            Self::Units(v, _) => {
+                let digits = digits.int();
+                if digits > 0 {
+                    let mut scale = 1;
+                    for _ in 0..digits {
+                        scale *= 10;
+                    }
+                    *v = (*v * scale as f64).round()/(scale as f64);
+                } else {
+                    *v = v.round();
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Pow.
+    pub fn pow(&mut self, to: &Self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                *v = v.powf(to.float(None));
+            },
+            Self::Int(v) => {
+                *self = Self::Float((*v as f64).powf(to.float(None)));
+            },
+            Self::Units(v, _) => {
+                *v = v.powf(to.float(None));
+            }
+        }
+        Ok(())
+    }
+
+    /// Log.
+    pub fn log(&mut self, base: &Self) -> Result<(), Error> {
+        match &mut *self {
+            Self::Float(v) => {
+                *v = v.log(base.float(None));
+            },
+            Self::Int(v) => {
+                *self = Self::Float((*v as f64).log(base.float(None)));
+            },
+            Self::Units(v, _) => {
+                *v = v.log(base.float(None));
+            }
+        }
+        Ok(())
+    }
+
+    /// ATan2.
+    pub fn atan2(&mut self, base: &Self) -> Result<(), Error> {
+        let rad;
+        match &mut *self {
+            Self::Float(v) => {
+                rad = v.atan2(base.float(None));
+            },
+            Self::Int(v) => {
+                rad = (*v as f64).atan2(base.float(None));
+            },
+            Self::Units(v, _) => {
+                rad = v.atan2(base.float(None));
+            }
+        }
+        *self = Self::Units(rad, Units::Radians);
         Ok(())
     }
 }
