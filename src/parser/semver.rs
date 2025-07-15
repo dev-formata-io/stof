@@ -42,6 +42,7 @@ pub fn parse_semver(input: &str) -> IResult<&str, Val> {
             (
                 parse_semver_full,
                 parse_semver_release,
+                parse_semver_build,
                 parse_semver_basic
             )
         ),
@@ -61,6 +62,15 @@ pub fn parse_semver_release(input: &str) -> IResult<&str, Val> {
             parse_ver_release,
         ),
         |(vers, rel)| Val::Ver(vers.0, vers.1, vers.2, Some(ArcStr::from(rel)), None)
+    ).parse(input)
+}
+pub fn parse_semver_build(input: &str) -> IResult<&str, Val> {
+    map(
+        (
+            parse_vers,
+            parse_ver_build,
+        ),
+        |(vers, build)| Val::Ver(vers.0, vers.1, vers.2, None, Some(ArcStr::from(build)))
     ).parse(input)
 }
 pub fn parse_semver_full(input: &str) -> IResult<&str, Val> {

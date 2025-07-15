@@ -127,4 +127,7 @@ fn substr() {
     assert_eq(y, "Hello, world!");
     assert_eq(z, "world!");
     assert_eq(q, "lo, wo");
+
+    let r = Str.substring(x, 2, 5); // lib ref by name
+    assert_eq(r, "llo");
 }

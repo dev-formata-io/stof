@@ -57,6 +57,22 @@ pub enum Error {
     AssertNotEqFailed(String),
 
     /*****************************************************************************
+     * Semver Lib Errors.
+     *****************************************************************************/
+    VerMajor,
+    VerSetMajor,
+    VerMinor,
+    VerSetMinor,
+    VerPatch,
+    VerSetPatch,
+    VerRelease,
+    VerSetRelease,
+    VerClearRelease,
+    VerBuild,
+    VerSetBuild,
+    VerClearBuild,
+
+    /*****************************************************************************
      * String Lib Errors.
      *****************************************************************************/
     StrLen,
