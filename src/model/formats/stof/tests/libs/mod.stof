@@ -21,3 +21,4 @@
 
 import './std' as self.Std;
 import './num' as self.Num;
+import './str' as self.Str;

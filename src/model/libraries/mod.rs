@@ -22,6 +22,7 @@ use crate::{model::{Graph, Param}, runtime::{instruction::Instructions, proc::Pr
 pub mod filesys;
 pub mod stof_std;
 pub mod num;
+pub mod string;
 
 
 #[derive(Clone)]

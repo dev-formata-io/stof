@@ -57,6 +57,27 @@ pub enum Error {
     AssertNotEqFailed(String),
 
     /*****************************************************************************
+     * String Lib Errors.
+     *****************************************************************************/
+    StrLen,
+    StrAt,
+    StrFirst,
+    StrLast,
+    StrStartsWith,
+    StrEndsWith,
+    StrPush,
+    StrContains,
+    StrIndexOf,
+    StrReplace,
+    StrSplit,
+    StrUpper,
+    StrLower,
+    StrTrim,
+    StrTrimStart,
+    StrTrimEnd,
+    StrSubstring,
+
+    /*****************************************************************************
      * Number Lib Errors.
      *****************************************************************************/
     NumAbs,

@@ -1,0 +1,130 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+#[test]
+fn length() {
+    let x = "Hello, world!";
+    assert_eq(x.len(), 13);
+}
+
+#[test]
+fn at() {
+    let x = "Hello, world!";
+    assert_eq(x.at(5), ',');
+}
+
+#[test]
+fn iter() {
+    let x = 'Hello, world!';
+    let res = '';
+    for (const c in x) res.push(c);
+    assert_eq(x, res);
+}
+
+#[test]
+fn first() {
+    let x = "Hello";
+    assert_eq(x.first(), 'H');
+}
+
+#[test]
+fn last() {
+    let x = "Hello";
+    assert_eq(x.last(), "o");
+}
+
+#[test]
+fn starts_with() {
+    let x = "Hello, world!";
+    assert(x.starts_with("Hello,"));
+    assert(!x.starts_with("world"));
+}
+
+#[test]
+fn ends_with() {
+    let x = "Hello, world!";
+    assert(x.ends_with("world!"));
+    assert(!x.ends_with("Hello"));
+}
+
+#[test]
+fn push() {
+    let x = "Hello";
+    x.push(", world!");
+    assert_eq(x, "Hello, world!");
+}
+
+#[test]
+fn contains() {
+    let x = "Hello, world!";
+    assert(x.contains('world'));
+    assert(!x.contains('yo'));
+}
+
+#[test]
+fn index_of() {
+    let x = "Hello, world!";
+    assert_eq(x.index_of("world"), 7);
+    assert_eq(x.index_of("yo"), -1);
+}
+
+#[test]
+fn replace() {
+    let x = "Hello, world!";
+    let y = x.replace("world", "CJ");
+
+    assert_eq(x, "Hello, world!");
+    assert_eq(y, "Hello, CJ!");
+}
+
+#[test]
+fn split() {
+    let x = "a.b.c.d";
+    let y = x.split(".");
+    assert_eq(x, "a.b.c.d");
+    assert_eq(y, ['a', 'b', 'c', 'd']);
+}
+
+#[test]
+fn upper() {
+    assert_eq("hello".upper(), "HELLO");
+}
+
+#[test]
+fn lower() {
+    assert_eq("HELLO".lower(), "hello");
+}
+
+#[test]
+fn trim() {
+    assert_eq('  \n  hi \t\n  '.trim(), 'hi');
+    assert_eq('  \n  hi \t\n  '.trim_start(), 'hi \t\n  ');
+    assert_eq('  \n  hi \t\n  '.trim_end(), '  \n  hi');
+}
+
+#[test]
+fn substr() {
+    let x = "Hello, world!";
+    let y = x.substring(); // a clone..
+    let z = x.substring(7);
+    let q = x.substring(3, 9);
+
+    assert_eq(x, "Hello, world!");
+    assert_eq(y, "Hello, world!");
+    assert_eq(z, "world!");
+    assert_eq(q, "lo, wo");
+}
