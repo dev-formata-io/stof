@@ -50,10 +50,20 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
     func.return_type = return_type.unwrap_or_default(); // default is void
     func.instructions = instructions;
 
+    // Is this function an init function (has an #[init] attribute)?
+    // These functions will get called automatically when the context is dropped (after parse complete).
+    let mut init_func = false;
+    if func.attributes.contains_key("init") { init_func = true; }
+
     // Instert the new function in the current parse context
     //println!("({name}){{{func:?}}}");
     let self_ptr = context.self_ptr();
     let func_ref = context.graph.insert_stof_data(&self_ptr, name, Box::new(func), None).expect("failed to insert a parsed function into this context");
+
+    // Insert init if necessary
+    if init_func {
+        context.init_funcs.push(func_ref.clone());
+    }
 
     // Insert the function doc comments also if requested
     if context.docs && comments.len() > 0 {
@@ -117,21 +127,23 @@ mod tests {
     #[test]
     fn basic_func() {
         let mut graph = Graph::default();
-        let mut context = ParseContext::new(&mut graph);
-        context.docs = true;
+        {
+            let mut context = ParseContext::new(&mut graph);
+            context.docs = true;
 
-        let (_input, ()) = parse_function(r#"
- 
-        // This is an ignored comment
-        #[test('hello')]
-        /**
-         * # This is a test function.
-         * This function represents the first ever function in Stof v2.
-         */
-        #[another] // heres another ignored comment.
-        fn main(x: float = 5, optional?: str) -> float { x }
+            let (_input, ()) = parse_function(r#"
+    
+            // This is an ignored comment
+            #[test('hello')]
+            /**
+             * # This is a test function.
+             * This function represents the first ever function in Stof v2.
+             */
+            #[another] // heres another ignored comment.
+            fn main(x: float = 5, optional?: str) -> float { x }
 
-        "#, &mut context).unwrap();
+            "#, &mut context).unwrap();
+        }
 
         let res = Runtime::call(&mut graph, "root.main", vec![Val::from(10)]).unwrap();
         assert_eq!(res, 10.into());

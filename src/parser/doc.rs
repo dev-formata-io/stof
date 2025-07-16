@@ -166,45 +166,47 @@ mod tests {
     #[test]
     fn basic_doc() {
         let mut graph = Graph::default();
-        let mut context = ParseContext::new(&mut graph);
-        context.docs = true;
-
-        document(r#"
-
         {
-            "max": 200
+            let mut context = ParseContext::new(&mut graph);
+            context.docs = true;
 
-            "object": {
-                "dude": true,
-                "hello": 450
-            }
+            document(r#"
 
-            list subobj: [
-                {
-                    fn hello() -> str { 'hi' }
-                } as obj,
-                {
-                    field: 'dude'
+            {
+                "max": 200
+
+                "object": {
+                    "dude": true,
+                    "hello": 450
                 }
-            ];
 
-            async fn another_yet(max: int = self.max) -> int {
-                let total = 0;
-                for (let i = 0; i < max; i += 1) total += 1;
-                total
-            }
-    
-            fn main(x: float = 5) -> float {
-                let a = self.another_yet();
-                let b = self.another_yet(4000);
-                let c = self.another_yet(1000);
-                let d = self.another_yet(800);
+                list subobj: [
+                    {
+                        fn hello() -> str { 'hi' }
+                    } as obj,
+                    {
+                        field: 'dude'
+                    }
+                ];
 
-                (await a) + (await b) + (await c) + (await d)
+                async fn another_yet(max: int = self.max) -> int {
+                    let total = 0;
+                    for (let i = 0; i < max; i += 1) total += 1;
+                    total
+                }
+        
+                fn main(x: float = 5) -> float {
+                    let a = self.another_yet();
+                    let b = self.another_yet(4000);
+                    let c = self.another_yet(1000);
+                    let d = self.another_yet(800);
+
+                    (await a) + (await b) + (await c) + (await d)
+                }
             }
+
+            "#, &mut context).unwrap();
         }
-
-        "#, &mut context).unwrap();
 
         graph.dump(true);
 

@@ -224,22 +224,24 @@ mod tests {
     #[test]
     fn basic_field() {
         let mut graph = Graph::default();
-        let mut context = ParseContext::new(&mut graph);
-        context.docs = true;
+        {
+            let mut context = ParseContext::new(&mut graph);
+            context.docs = true;
 
-        let (_input, ()) = parse_field(r#"
- 
-        // This is an ignored comment
-        #[test('hello')]
-        /**
-         * # This is a test field.
-         */
-        #[another] // heres another ignored comment.
-        const field: {
-            subfield: 56;
+            let (_input, ()) = parse_field(r#"
+    
+            // This is an ignored comment
+            #[test('hello')]
+            /**
+             * # This is a test field.
+             */
+            #[another] // heres another ignored comment.
+            const field: {
+                subfield: 56;
+            }
+
+            "#, &mut context).unwrap();
         }
-
-        "#, &mut context).unwrap();
 
         graph.dump(true);
     }

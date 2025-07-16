@@ -15,9 +15,11 @@
 //
 
 use std::{path::PathBuf, sync::Arc};
+use colored::Colorize;
+use imbl::vector;
 use lazy_static::lazy_static;
 use rustc_hash::{FxHashMap, FxHashSet};
-use crate::{model::{Graph, NodeRef, SId, PROTOTYPE_TYPE_ATTR}, runtime::{instruction::Instruction, proc::Process, Error, Runtime, Val, Variable}};
+use crate::{model::{DataRef, Graph, NodeRef, SId, PROTOTYPE_TYPE_ATTR}, runtime::{instruction::Instruction, instructions::call::FuncCall, proc::Process, Error, Runtime, Val, Variable}};
 
 
 lazy_static! {
@@ -30,6 +32,7 @@ pub struct ParseContext<'ctx> {
     pub graph: &'ctx mut Graph,
     pub runtime: Runtime,
     pub docs: bool,
+    pub init_funcs: Vec<DataRef>,
     
     relative_import_stack: Vec<PathBuf>,
     seen_import_paths: FxHashMap<NodeRef, FxHashSet<String>>,
@@ -48,6 +51,7 @@ impl<'ctx> ParseContext<'ctx> {
             graph,
             runtime,
             docs: false,
+            init_funcs: Default::default(),
             relative_import_stack: Default::default(),
             seen_import_paths: Default::default(),
         }
@@ -252,6 +256,40 @@ impl<'ctx> ParseContext<'ctx> {
         } else {
             self.reset_proc();
             Err(Error::NotImplemented)
+        }
+    }
+}
+
+impl<'ctx> Drop for ParseContext<'ctx> {
+    fn drop(&mut self) {
+        if self.init_funcs.len() > 0 {
+            for init in self.init_funcs.clone() {
+                let ins: Arc<dyn Instruction> = Arc::new(FuncCall {
+                    stack: false,
+                    func: Some(init),
+                    search: None,
+                    args: vector![],
+                });
+                self.runtime.push_running_proc(Process::from(ins), &mut self.graph);
+            }
+            self.runtime.err_callback = Some(Box::new(|graph, errored| {
+                if errored.env.call_stack.len() > 0 {
+                    let func_ref = errored.env.call_stack.first().unwrap();
+                    if let Some(name) = func_ref.data_name(graph) {
+                        let mut func_path = String::from("<unknown>");
+                        for node in func_ref.data_nodes(graph) { func_path = node.node_path(graph, true).unwrap().join("."); }
+                        
+                        let mut err_str = String::from("<unknown>");
+                        if let Some(err) = &errored.error {
+                            err_str = err.to_string();
+                        }
+
+                        println!("{} {} {} {} {}\n\t{}\n", "init".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "failed".bold().red(), err_str.bold().bright_cyan());
+                    }
+                }
+                true
+            }));
+            self.runtime.run_to_complete(&mut self.graph);
         }
     }
 }

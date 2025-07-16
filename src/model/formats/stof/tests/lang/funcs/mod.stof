@@ -20,6 +20,9 @@
  * Scope: root.Lang.Funcs
  */
 
+import './init' as self.Init;
+
+
 #[test]
 fn arrow_function() {
     let func = (): int => {
