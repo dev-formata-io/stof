@@ -170,6 +170,33 @@ pub enum Error {
     NumStr,
 
     /*****************************************************************************
+     * Set Lib Errors.
+     *****************************************************************************/
+    SetAppendOther,
+    SetClear,
+    SetContains,
+    SetFirst,
+    SetLast,
+    SetInsert,
+    SetSplit,
+    SetEmpty,
+    SetAny,
+    SetLen,
+    SetAt,
+    SetPopFirst,
+    SetPopLast,
+    SetRemove,
+    SetUnion,
+    SetDifference,
+    SetIntersection,
+    SetSymmetricDifference,
+    SetDisjoint,
+    SetSubset,
+    SetSuperset,
+    SetIsUniform,
+    SetToUniform,
+
+    /*****************************************************************************
      * List Lib Errors.
      *****************************************************************************/
     ListAppendOther,

@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::sync::Arc;
 use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -113,27 +113,29 @@ impl Func {
     }
 
     /// Get all functions on a node, optionally filtered by attributes and optionally recursively.
-    pub fn functions(graph: &Graph, node: &NodeRef, attrs: &Option<FxHashSet<String>>, recursive: bool) -> BTreeMap<String, DataRef> {
-        let mut funcs = BTreeMap::default();
+    pub fn functions(graph: &Graph, node: &NodeRef, attrs: &Option<FxHashSet<String>>, recursive: bool) -> FxHashSet<DataRef> {
+        let mut funcs = FxHashSet::default();
         if let Some(node) = node.node(&graph) {
-            for (name, dref) in &node.data {
+            for (_name, dref) in &node.data {
                 if let Some(func) = graph.get_stof_data::<Self>(dref) {
                     if let Some(attrs) = &attrs {
                         for att in attrs {
                             if func.attributes.contains_key(att) {
-                                funcs.insert(name.clone(), dref.clone());
+                                funcs.insert(dref.clone());
                                 break;
                             }
                         }
                     } else {
-                        funcs.insert(name.clone(), dref.clone());
+                        funcs.insert(dref.clone());
                     }
                 }
             }
 
             if recursive {
                 for child in &node.children {
-                    funcs.append(&mut Self::functions(graph, child, attrs, recursive));
+                    for dref in Self::functions(graph, child, attrs, recursive) {
+                        funcs.insert(dref);
+                    }
                 }
             }
         }
@@ -141,23 +143,25 @@ impl Func {
     }
 
     /// Get all functions in a graph, optionally filtered by attribute.
-    pub fn all_functions(graph: &Graph, attrs: &Option<FxHashSet<String>>) -> BTreeMap<String, DataRef> {
-        let mut funcs = BTreeMap::default();
+    pub fn all_functions(graph: &Graph, attrs: &Option<FxHashSet<String>>) -> FxHashSet<DataRef> {
+        let mut funcs = FxHashSet::default();
         for root in &graph.roots {
-            funcs.append(&mut Self::functions(graph, root, attrs, true));
+            for dref in Self::functions(graph, root, attrs, true) {
+                funcs.insert(dref);
+            }
         }
         funcs
     }
 
     /// Get all main functions in a graph.
-    pub fn main_functions(graph: &Graph) -> BTreeMap<String, DataRef> {
+    pub fn main_functions(graph: &Graph) -> FxHashSet<DataRef> {
         let mut set = FxHashSet::default();
         set.insert(MAIN_FUNC_ATTR.to_string());
         Self::all_functions(graph, &Some(set))
     }
 
     /// Get all test functions in a graph.
-    pub fn test_functions(graph: &Graph) -> BTreeMap<String, DataRef> {
+    pub fn test_functions(graph: &Graph) -> FxHashSet<DataRef> {
         let mut set = FxHashSet::default();
         set.insert(TEST_FUNC_ATTR.to_string());
         Self::all_functions(graph, &Some(set))

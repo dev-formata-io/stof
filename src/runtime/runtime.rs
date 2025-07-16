@@ -255,7 +255,7 @@ impl Runtime {
 
         // Load all processes for all test functions
         let mut count = 0;
-        for (_, func_ref) in Func::test_functions(&graph) {
+        for func_ref in Func::test_functions(&graph) {
             if let Some(context) = &context {
                 for node in func_ref.data_nodes(&graph) {
                     if let Some(node_path) = node.node_path(&graph, true) {
