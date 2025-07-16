@@ -26,7 +26,6 @@ use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{Error, Type, Val, V
 pub struct Variable {
     pub val: ValRef<Val>,
     pub mutable: bool,
-    pub as_ref: bool,
     pub vtype: Option<Type>,
 }
 impl Variable {
@@ -36,7 +35,6 @@ impl Variable {
             mutable,
             val: ValRef::new(val),
             vtype: None,
-            as_ref: false,
         };
         if typed {
             var.vtype = Some(var.spec_type(graph));
@@ -51,7 +49,6 @@ impl Variable {
             mutable: true,
             val: ValRef::new(val),
             vtype: None,
-            as_ref: false,
         }
     }
 
@@ -61,18 +58,20 @@ impl Variable {
             mutable: true,
             val,
             vtype: None,
-            as_ref: false,
         }
+    }
+
+    /// Is this variable value by reference?
+    pub fn by_ref(&self) -> bool {
+        self.val.1
     }
 
     /// Try to set this variable.
     /// Will error if not able to set.
     pub fn set(&mut self, var: &Variable, graph: &mut Graph, context: Option<NodeRef>) -> Result<(), Error> {
         if self.mutable {
-            if var.as_ref {
+            if var.by_ref() {
                 self.val = var.val.clone();
-                self.as_ref = true;
-
                 if let Some(vtype) = &self.vtype {
                     if vtype != &var.spec_type(graph) {
                         if let Err(error) = self.val.write().cast(vtype, graph, context) {
@@ -93,7 +92,7 @@ impl Variable {
                     }
                 }
             }
-            if self.value_type() && !self.as_ref {
+            if self.value_type() && !self.by_ref() {
                 self.val = ValRef::new(val);
             } else {
                 *self.val.write() = val;
@@ -109,12 +108,7 @@ impl Variable {
     /// Not always a direct clone because of value types.
     pub fn stack_var(&self, by_ref: bool) -> Self {
         let mut clone = self.clone();
-        if !by_ref && !self.as_ref && self.value_type() {
-            let val = self.val.read().clone();
-            clone.val = ValRef::new(val);
-        } else if by_ref {
-            clone.as_ref = true;
-        }
+        clone.val = clone.val.duplicate(by_ref);
         clone
     }
 

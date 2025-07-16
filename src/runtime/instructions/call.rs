@@ -143,7 +143,7 @@ impl FuncCall {
     fn object_search(&self, path: &str, start: Option<NodeRef>, env: &mut ProcEnv, graph: &mut Graph, in_proto: bool) -> Result<CallContext, Error> {
         let mut allow_node_contemplation = true;
 
-        // If we are in a prototype, check to see if the path has a specific type associated with it Ex. MyType::special_func().
+        // If we are in a prototype, check to see if the path has a specific type associated with it Ex. special_func<MyType>().
         // If there's a special type and this node has the wrong typename, don't allow a function to resolve on it.
         let mut adjusted_path = path.to_string();
         if in_proto && path.contains("<") {
@@ -187,6 +187,23 @@ impl FuncCall {
                     if let Some(func) = field.value.try_func() {
                         // prototype_self will get set below
                         return Ok(CallContext { lib: None, stack_arg: None, prototype_self: None, func });
+                    }
+                }
+            }
+
+            // Look for a field on the object at the path minus the func name for a library call on that field
+            {
+                let mut field_path = adjusted_path.split('.').collect::<Vec<_>>();
+                let func_name = field_path.pop().unwrap();
+                if let Some(field) = Field::field_from_path(graph, &field_path.join("."), start.clone()) {
+                    if let Some(field) = graph.get_stof_data::<Field>(&field) {
+                        let libname = field.value.val.read().lib_name(&graph);
+                        return Ok(CallContext {
+                            lib: Some(libname),
+                            stack_arg: Some(Variable::refval(field.value.val.duplicate(false))),
+                            prototype_self: None,
+                            func: SId::from(func_name),
+                        });
                     }
                 }
             }

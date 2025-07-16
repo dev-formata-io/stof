@@ -190,3 +190,12 @@ fn edit_inner() {
 
     assert_eq(a, [[5]]);
 }
+
+
+test: []
+
+#[test]
+fn push_back_field() {
+    self.test.push_back(42);
+    assert_eq(self.test, [42]);
+}

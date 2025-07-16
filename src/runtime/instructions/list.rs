@@ -18,7 +18,7 @@ use std::{ops::{Deref, DerefMut}, sync::Arc};
 use imbl::Vector;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, parser::types::parse_type_complete, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Num, Type, Val, ValRef, Variable}};
+use crate::{model::Graph, parser::types::parse_type_complete, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Num, Type, Val, Variable}};
 
 
 lazy_static! {
@@ -263,13 +263,7 @@ impl Instruction for ListIns {
                                 .iter()
                                 .rev()
                                 .map(|v| {
-                                    // creating a new list, so if a val is a val type, then clone inner
-                                    let vt = v.read().val_type();
-                                    if vt {
-                                        ValRef::new(v.read().clone())
-                                    } else {
-                                        v.clone()
-                                    }
+                                    v.duplicate(false)
                                 })
                                 .collect::<Vector<_>>();
                         },
@@ -300,11 +294,7 @@ impl Instruction for ListIns {
                                 match var.val.read().deref() {
                                     Val::List(list) => {
                                         if let Some(val) = list.get(num.int() as usize) {
-                                            if val.read().val_type() {
-                                                env.stack.push(Variable::refval(val.clone_value()));
-                                            } else {
-                                                env.stack.push(Variable::refval(val.clone()));
-                                            }
+                                            env.stack.push(Variable::refval(val.duplicate(false)));
                                         } else {
                                             env.stack.push(Variable::val(Val::Null));
                                         }
@@ -348,11 +338,7 @@ impl Instruction for ListIns {
                     match var.val.read().deref() {
                         Val::List(list) => {
                             if let Some(val) = list.front() {
-                                if val.read().val_type() {
-                                    env.stack.push(Variable::refval(val.clone_value()));
-                                } else {
-                                    env.stack.push(Variable::refval(val.clone()));
-                                }
+                                env.stack.push(Variable::refval(val.duplicate(false)));
                             } else {
                                 env.stack.push(Variable::val(Val::Null));
                             }
@@ -368,11 +354,7 @@ impl Instruction for ListIns {
                     match var.val.read().deref() {
                         Val::List(list) => {
                             if let Some(val) = list.back() {
-                                if val.read().val_type() {
-                                    env.stack.push(Variable::refval(val.clone_value()));
-                                } else {
-                                    env.stack.push(Variable::refval(val.clone()));
-                                }
+                                env.stack.push(Variable::refval(val.duplicate(false)));
                             } else {
                                 env.stack.push(Variable::val(Val::Null));
                             }

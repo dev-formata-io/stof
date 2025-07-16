@@ -25,9 +25,9 @@ use serde::{Deserialize, Serialize};
 use crate::{model::{json_value_from_node, DataRef, Field, Func, Graph, NodeRef, Prototype, SId}, parser::{number::number, semver::parse_semver_alone}, runtime::{Error, Num, NumT, Type, Units, DATA, OBJ}};
 
 
-/// Value reference.
+/// Value reference (value, by reference?).
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ValRef<T: ?Sized>(Arc<RwLock<T>>);
+pub struct ValRef<T: ?Sized>(pub Arc<RwLock<T>>, pub bool);
 impl<T: ?Sized + Hash> Hash for ValRef<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.read().hash(state);
@@ -47,12 +47,20 @@ impl<T: ?Sized> DerefMut for ValRef<T> {
 impl ValRef<Val> {
     /// Create a new ValRef from a value.
     pub fn new(val: Val) -> Self {
-        Self(Arc::new(RwLock::new(val)))
+        Self(Arc::new(RwLock::new(val)), false)
     }
 
-    /// Clone by value instead of by reference.
-    pub fn clone_value(&self) -> Self {
-        Self::new(self.0.read().clone())
+    /// Duplicate this value, taking into account the reference setting & value type.
+    /// If by_ref is set to true, then the value is forced to duplicate by reference.
+    pub fn duplicate(&self, by_ref: bool) -> Self {
+        let value_type = self.0.read().val_type();
+        if value_type && !self.1 && !by_ref { // by value instead of by reference
+            Self(Arc::new(RwLock::new(self.0.read().clone())), self.1)
+        } else {
+            let mut clone = self.clone();
+            if by_ref { clone.1 = true; }
+            clone
+        }
     }
 }
 
@@ -74,7 +82,7 @@ impl Ord for ValRef<Val> {
 }
 impl Clone for ValRef<Val> {
     fn clone(&self) -> Self {
-        Self(self.0.clone())
+        Self(self.0.clone(), self.1)
     }
 }
 
