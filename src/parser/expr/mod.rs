@@ -15,9 +15,10 @@
 //
 
 use std::sync::Arc;
+use arcstr::literal;
 use imbl::vector;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, peek}, multi::{separated_list0, separated_list1}, sequence::{delimited, preceded, separated_pair, terminated}, IResult, Parser};
-use crate::{parser::{expr::{fmt_str::formatted_string_expr, func::func_expr, graph::{chained_var_func, graph_expr}, literal::literal_expr, math::math_expr}, statement::{block, switch::switch_statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FUNC_RET_TAG, ifs::IfIns, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, nullcheck::NullcheckIns, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, Base, AWAIT, NOOP, NOT_TRUTHY, SUSPEND, TYPE_NAME, TYPE_OF}, Type}};
+use crate::{parser::{expr::{fmt_str::formatted_string_expr, func::func_expr, graph::{call_expr, chained_var_func, graph_expr}, literal::literal_expr, math::math_expr}, statement::{block, switch::switch_statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::{FuncCall, FUNC_RET_TAG}, ifs::IfIns, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, nullcheck::NullcheckIns, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, Base, AWAIT, NOOP, NOT_TRUTHY, SUSPEND, TYPE_NAME, TYPE_OF}, Type}};
 
 pub mod literal;
 pub mod math;
@@ -270,19 +271,37 @@ pub fn async_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 /// Wrapped expression.
 pub fn wrapped_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     let (input, _) = whitespace(input)?;
-    let (input, ins) = delimited(char('('), delimited(multispace0, expr, multispace0), char(')')).parse(input)?;
-    let (input, additional) = opt(preceded(char('.'), separated_list1(char('.'), chained_var_func))).parse(input)?;
+    let (input, mut ins) = delimited(char('('), delimited(multispace0, expr, multispace0), char(')')).parse(input)?;
+    let (mut input, additional) = opt(preceded(char('.'), separated_list1(char('.'), chained_var_func))).parse(input)?;
 
-    if additional.is_none() { return Ok((input, ins)); }
+    if additional.is_some() {
+        let mut block = Block::default();
+        block.ins.push_back(ins);
+        if let Some(additional) = additional {
+            for ins in additional {
+                block.ins.push_back(ins);
+            }
+        }
+        ins = Arc::new(block);
+    } else {
+        let (rest, call_args) = opt(call_expr).parse(input)?;
+        if call_args.is_some() {
+            input = rest;
 
-    let mut block = Block::default();
-    block.ins.push_back(ins);
-    if let Some(additional) = additional {
-        for ins in additional {
+            let mut block = Block::default();
             block.ins.push_back(ins);
+            block.ins.push_back(Arc::new(FuncCall {
+                func: None,
+                search: Some(literal!("")),
+                stack: true,
+                args: call_args.unwrap().into_iter().collect(),
+            }));
+
+            ins = Arc::new(block);
         }
     }
-    Ok((input, Arc::new(block)))
+
+    Ok((input, ins))
 }
 
 

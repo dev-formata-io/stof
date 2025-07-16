@@ -18,7 +18,7 @@ use std::sync::Arc;
 use imbl::vector;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, opt}, multi::separated_list0, sequence::{delimited, preceded, terminated}, IResult, Parser};
 use rustc_hash::FxHashMap;
-use crate::{model::{Func, ASYNC_FUNC_ATTR, UNSELF_FUNC_ATTR}, parser::{expr::expr, func::{opt_parameter, parameter}, statement::block, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::func::FuncLit, Type, Val}};
+use crate::{model::{DataRef, Func, ASYNC_FUNC_ATTR, UNSELF_FUNC_ATTR}, parser::{expr::expr, func::{opt_parameter, parameter}, statement::block, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::func::FuncLit, Type, Val}};
 
 
 /// Arrow function "literal" value.
@@ -44,6 +44,7 @@ pub fn func_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
         attrs.insert(ASYNC_FUNC_ATTR.to_string(), Val::Null); // this is an async arrow function
     }
 
+    let dref = DataRef::default();
     let arrow_func = Func::new(params.into_iter().collect(), rtype, Instructions::from(instructions), Some(attrs));
-    Ok((input, Arc::new(FuncLit { func: arrow_func }) as Arc<dyn Instruction>))
+    Ok((input, Arc::new(FuncLit { dref, func: arrow_func }) as Arc<dyn Instruction>))
 }

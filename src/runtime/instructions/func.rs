@@ -14,24 +14,33 @@
 // limitations under the License.
 //
 
-use nanoid::nanoid;
+use std::sync::Arc;
 use serde::{Deserialize, Serialize};
-use crate::{model::{Func, Graph}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Val, Variable}};
+use crate::{model::{DataRef, Func, Graph}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error, Val}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// Arrow function literal value.
+/// Only inserts the function once into the graph, then references it over and over.
+/// Replaces itself with a literal instruction for efficiency.
 pub struct FuncLit {
+    pub dref: DataRef,
     pub func: Func,
 }
 #[typetag::serde(name = "FuncLit")]
 impl Instruction for FuncLit {
     fn exec(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions>, Error> {
-        let self_ptr = env.self_ptr();
-        let name = nanoid!(7);
-        if let Some(dref) = graph.insert_stof_data(&self_ptr, &name, Box::new(self.func.clone()), None) {
-            env.stack.push(Variable::val(Val::Fn(dref)));
+        let mut instructions = Instructions::default();
+
+        if self.dref.data_exists(&graph) {
+            instructions.push(Arc::new(Base::Literal(Val::Fn(self.dref.clone()))));
+        } else {
+            let self_ptr = env.self_ptr();
+            if let Some(dref) = graph.insert_stof_data(&self_ptr, &self.dref, Box::new(self.func.clone()), Some(self.dref.clone())) {
+                instructions.push(Arc::new(Base::Literal(Val::Fn(dref))));
+            }
         }
-        Ok(None)
+
+        Ok(Some(instructions))
     }
 }

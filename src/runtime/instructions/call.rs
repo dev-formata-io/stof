@@ -61,7 +61,6 @@ impl FuncCall {
     /// If "stack" is set, pop the stack and use the result as a context or library name.
     fn search_func(&self, path: &str, env: &mut ProcEnv, graph: &mut Graph) -> Result<CallContext, Error> {
         let mut split_path = path.split('.').collect::<Vec<_>>();
-        if split_path.len() < 1 { return Err(Error::FuncDne); }
 
         // In this case, we have a chained value already on the stack that we are adding a call to
         if self.stack {
@@ -80,6 +79,14 @@ impl FuncCall {
                             return Ok(res);
                         }
                     }
+
+                    // val is a func case {val}()
+                    if split_path[0].len() < 1 {
+                        if let Some(dref) = var.try_func() {
+                            return Ok(CallContext { lib: None, prototype_self: None, func: dref, stack_arg: Some(var) });
+                        }
+                    }
+
                     let libname = var.lib_name(&graph);
                     return Ok(CallContext { lib: Some(libname), stack_arg: Some(var), prototype_self: None, func: SId::from(split_path[0]) });
                 }

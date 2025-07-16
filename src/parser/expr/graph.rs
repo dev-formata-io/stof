@@ -121,7 +121,7 @@ pub(self) fn variable_expr(input: &str) -> IResult<&str, &str> {
 /// Call expression.
 /// This is what comes after the variable expression.
 /// If this exists, the last section of the variable expr was actually a function name.
-pub(self) fn call_expr(input: &str) -> IResult<&str, Vec<Arc<dyn Instruction>>> {
+pub(super) fn call_expr(input: &str) -> IResult<&str, Vec<Arc<dyn Instruction>>> {
     delimited(
         char('('),
         separated_list0(char(','), call_arg),

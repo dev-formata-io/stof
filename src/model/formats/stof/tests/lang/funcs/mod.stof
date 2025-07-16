@@ -87,3 +87,21 @@ fn pass_function_pointer() {
     let res = self.takes_fn(async ():int => 42);
     assert_eq(await res, 42);
 }
+
+#[test]
+fn expr_call() {
+    const res = (
+        (a: int):int => a + 42
+    )(10);
+
+    assert_eq(res, 52);
+}
+
+#[test]
+fn expr_lib_call() {
+    const res = (
+        (a: int):int => a + 42
+    ).call(10);
+    
+    assert_eq(res, 52);
+}
