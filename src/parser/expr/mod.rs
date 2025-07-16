@@ -18,7 +18,7 @@ use std::sync::Arc;
 use arcstr::literal;
 use imbl::vector;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, peek}, multi::{separated_list0, separated_list1}, sequence::{delimited, preceded, separated_pair, terminated}, IResult, Parser};
-use crate::{parser::{expr::{fmt_str::formatted_string_expr, func::func_expr, graph::{call_expr, chained_var_func, graph_expr}, literal::literal_expr, math::math_expr}, statement::{block, switch::switch_statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::{FuncCall, FUNC_RET_TAG}, ifs::IfIns, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, nullcheck::NullcheckIns, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, Base, AWAIT, NOOP, NOT_TRUTHY, SUSPEND, TYPE_NAME, TYPE_OF}, Type}};
+use crate::{model::SId, parser::{expr::{fmt_str::formatted_string_expr, func::func_expr, graph::{call_expr, chained_var_func, graph_expr}, literal::literal_expr, math::math_expr}, statement::{block, switch::switch_statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FuncCall, ifs::IfIns, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, nullcheck::NullcheckIns, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, Base, AWAIT, NOOP, NOT_TRUTHY, POP_RETURN, PUSH_RETURN, SUSPEND, TYPE_NAME, TYPE_OF}, Type, Val}};
 
 pub mod literal;
 pub mod math;
@@ -102,8 +102,13 @@ pub fn block_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     let (input, mut statements) = block(input)?;
     if statements.is_empty() { return Ok((input, NOOP.clone())); }
 
-    // return statements within a block expression return the block, not the function
-    statements.push_back(Arc::new(Base::Tag(FUNC_RET_TAG.clone())));
+    // return statements within a block expression return at the block, not the function, so spoof it
+    let tmp = SId::default();
+    statements.push_front(PUSH_RETURN.clone());
+    statements.push_front(Arc::new(Base::Literal(Val::Fn(tmp.clone()))));
+
+    statements.push_back(Arc::new(Base::Tag(tmp.as_ref().into())));
+    statements.push_back(POP_RETURN.clone());
 
     Ok((input, Arc::new(Block { ins: statements })))
 }
@@ -114,8 +119,13 @@ pub fn switch_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     let (input, mut statements) = switch_statement(input)?;
     if statements.is_empty() { return Ok((input, NOOP.clone())); }
 
-    // return statements within a switch expression return the block, not the function
-    statements.push_back(Arc::new(Base::Tag(FUNC_RET_TAG.clone())));
+    // return statements within a block expression return at the block, not the function, so spoof it
+    let tmp = SId::default();
+    statements.push_front(PUSH_RETURN.clone());
+    statements.push_front(Arc::new(Base::Literal(Val::Fn(tmp.clone()))));
+
+    statements.push_back(Arc::new(Base::Tag(tmp.as_ref().into())));
+    statements.push_back(POP_RETURN.clone());
 
     Ok((input, Arc::new(Block { ins: statements })))
 }

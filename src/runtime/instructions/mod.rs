@@ -57,6 +57,10 @@ lazy_static! {
 
     pub static ref POP_STACK: Arc<dyn Instruction> = Arc::new(Base::PopStack);
 
+    pub static ref FN_RETURN: Arc<dyn Instruction> = Arc::new(Base::CtrlFnReturn);
+    pub static ref POP_RETURN: Arc<dyn Instruction> = Arc::new(Base::PopReturn);
+    pub static ref PUSH_RETURN: Arc<dyn Instruction> = Arc::new(Base::PushReturn);
+
     pub static ref PUSH_SYMBOL_SCOPE: Arc<dyn Instruction> = Arc::new(Base::PushSymbolScope);
     pub static ref POP_SYMBOL_SCOPE: Arc<dyn Instruction> = Arc::new(Base::PopSymbolScope);
     pub static ref POP_LOOP: Arc<dyn Instruction> = Arc::new(Base::PopLoop);
@@ -125,6 +129,11 @@ pub enum Base {
     CtrlForwardToIfTruthy(ArcStr, ConsumeStack), // forward to if a truthy value is on the stack
     CtrlForwardToIfNotTruthy(ArcStr, ConsumeStack), // forward to if a non-truthy value is on the stack
     CtrlJumpTable(FxHashMap<Val, ArcStr>, Option<ArcStr>), // values to jump tags (switch)
+
+    // Return jump
+    CtrlFnReturn,
+    PushReturn,
+    PopReturn,
 
     // Try catch control instructions.
     // Go forward to this tag if an error occurrs.
@@ -239,6 +248,18 @@ impl Instruction for Base {
 
             Self::CtrlTry(_) => {}, // Nothing here... used by instructions...
             Self::CtrlTryEnd => {}, // Nothing here... used by instructions...
+
+            Self::CtrlFnReturn => {}, // Nothing here...
+            Self::PushReturn => {
+                if let Some(var) = env.stack.pop() {
+                    if let Some(func) = var.try_func() {
+                        env.return_stack.push(func.as_ref().into());
+                        return Ok(None);
+                    }
+                }
+                return Err(Error::CallStackError);
+            },
+            Self::PopReturn => { env.return_stack.pop(); },
 
             /*****************************************************************************
              * Special stacks.

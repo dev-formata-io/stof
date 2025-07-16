@@ -19,11 +19,7 @@ use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Field, Func, Graph, LibFunc, NodeRef, Prototype, SId, ASYNC_FUNC_ATTR, PROTOTYPE_TYPE_ATTR, SELF_STR_KEYWORD, SUPER_STR_KEYWORD, UNSELF_FUNC_ATTR}, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, POP_CALL, POP_SELF, PUSH_CALL, PUSH_SELF, PUSH_SYMBOL_SCOPE, SUSPEND}, proc::ProcEnv, Error, Type, Val, ValRef, Variable}};
-
-
-/// Tag name for return statement jumps.
-pub(crate) const FUNC_RET_TAG: ArcStr = literal!("FRET");
+use crate::{model::{DataRef, Field, Func, Graph, LibFunc, NodeRef, Prototype, SId, ASYNC_FUNC_ATTR, PROTOTYPE_TYPE_ATTR, SELF_STR_KEYWORD, SUPER_STR_KEYWORD, UNSELF_FUNC_ATTR}, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, DUPLICATE, POP_CALL, POP_RETURN, POP_SELF, PUSH_CALL, PUSH_RETURN, PUSH_SELF, PUSH_SYMBOL_SCOPE, SUSPEND}, proc::ProcEnv, Error, Type, Val, ValRef, Variable}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -365,8 +361,8 @@ impl FuncCall {
         }
 
         // Push the function instructions
-        let mut func_instructions = func.func.deref()(args.len(), env, graph)?;
-        func_instructions.push(Arc::new(Base::Tag(FUNC_RET_TAG.clone())));
+        let func_instructions = func.func.deref()(args.len(), env, graph)?;
+        //func_instructions.push(Arc::new(Base::Tag(FUNC_RET_TAG.clone())));
         instructions.append(&func_instructions.instructions);
         
         if !is_async {
@@ -439,7 +435,7 @@ impl Instruction for FuncCall {
         }
 
         // Add return tag to the end of the func statements
-        func_instructions.push_back(Arc::new(Base::Tag(FUNC_RET_TAG.clone())));
+        func_instructions.push_back(Arc::new(Base::Tag(func.as_ref().into())));
 
         // Record the current table depth, because we need to pop until we get back here at the end
         let scope_depth = env.table.scopes.len();
@@ -447,7 +443,9 @@ impl Instruction for FuncCall {
         // Push call stack, start a new scope, and add self if needed
         let mut instructions = Instructions::default();
         instructions.push(Arc::new(Base::Literal(Val::Fn(func.clone()))));
+        instructions.push(DUPLICATE.clone());
         instructions.push(PUSH_CALL.clone());
+        instructions.push(PUSH_RETURN.clone());
         instructions.push(PUSH_SYMBOL_SCOPE.clone());
         
         // Add self to self stack if not a prototype function
@@ -553,6 +551,7 @@ impl Instruction for FuncCall {
         // Cleanup stacks
         instructions.push(Arc::new(Base::PopSymbolScopeUntilDepth(scope_depth)));
         instructions.push(POP_CALL.clone());
+        instructions.push(POP_RETURN.clone());
         
         // Pop self stack
         if pushed_self {

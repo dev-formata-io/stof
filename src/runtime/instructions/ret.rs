@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FUNC_RET_TAG, Base, POP_LOOP}, proc::ProcEnv, Error}};
+use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{FN_RETURN, POP_LOOP}, proc::ProcEnv, Error}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,7 +38,7 @@ impl Instruction for RetIns {
             instructions.push(POP_LOOP.clone());
         }
 
-        instructions.push(Arc::new(Base::CtrlForwardTo(FUNC_RET_TAG.clone())));
+        instructions.push(FN_RETURN.clone());
         Ok(Some(instructions))
     }
 }

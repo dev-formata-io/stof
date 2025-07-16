@@ -236,6 +236,13 @@ impl Instructions {
                             self.forward_to(tag);
                             continue 'exec_loop;
                         },
+                        Base::CtrlFnReturn => {
+                            // Go forwards to the current callstack function ID return tag
+                            if let Some(last) = env.return_stack.last() {
+                                self.forward_to(last);
+                                continue 'exec_loop;
+                            }
+                        },
                         Base::CtrlBreak => {
                             if let Some(loop_tag) = env.loop_stack.last() {
                                 let break_tag: ArcStr = format!("{}_brk", &loop_tag).into();
