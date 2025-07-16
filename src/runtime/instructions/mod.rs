@@ -426,6 +426,10 @@ impl Instruction for Base {
                     // Variable case
                     context = var.stack_var(*by_ref);
                     split_path.remove(0);
+                } else if split_path[0] == "this" && env.call_stack.len() > 0 {
+                    // Shortcut for referencing the current function as a context
+                    context = Variable::val(Val::Fn(env.call_stack.last().unwrap().clone()));
+                    split_path.remove(0);
                 } else {
                     // Global case
                     if let Some(field_ref) = Field::field_from_path(graph, &name, None) {

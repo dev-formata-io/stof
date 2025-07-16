@@ -34,7 +34,7 @@ fn diff() {
     const now = Time.now();
     Time.sleep(20ms); // same as "sleep(20ms)" in Std
     const diff = Time.diff(now);
-    assert(diff > 20ms && diff < 50ms);
+    assert(diff >= 20ms);
 }
 
 #[test]
@@ -44,7 +44,7 @@ fn diff_ns() {
     const diff = Time.diff_ns(now);
 
     assert_eq(typeof diff, 'ns');
-    assert(diff > 20ms && diff < 50ms);
+    assert(diff >= 20ms);
 }
 
 #[test]

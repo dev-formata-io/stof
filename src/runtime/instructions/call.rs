@@ -103,6 +103,9 @@ impl FuncCall {
                     return Ok(CallContext { lib: None, prototype_self: None, func, stack_arg: None });
                 }
             }
+            if name == "this" && env.call_stack.len() > 0 {
+                return Ok(CallContext { lib: None, stack_arg: None, prototype_self: None, func: env.call_stack.last().unwrap().clone() });
+            }
             return Ok(CallContext { lib: Some(literal!("Std")), stack_arg: None, prototype_self: None, func: SId::from(split_path[0]) });
         }
         
@@ -115,6 +118,9 @@ impl FuncCall {
             context = ValRef::new(Val::Obj(env.self_ptr()));
         } else if let Some(var) = env.table.get(split_path[0]) {
             context = var.val.clone();
+            split_path.remove(0);
+        } else if split_path[0] == "this" && env.call_stack.len() > 0 {
+            context = ValRef::new(Val::Fn(env.call_stack.last().unwrap().clone()));
             split_path.remove(0);
         } else {
             // Look for a function at the root of the graph before resorting to a library

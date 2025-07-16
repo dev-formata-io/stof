@@ -105,3 +105,17 @@ fn expr_lib_call() {
     
     assert_eq(res, 52);
 }
+
+#[test]
+fn recursive() {
+    const res = self.fibonacci(4);
+    assert_eq(res, 3);
+}
+fn fibonacci(n: int) -> int {
+    if (n <= 1) {
+        n
+    } else {
+        // can also of course use "self.fibonacci(..)", but this is slower
+        this.call(n - 1) + this(n - 2)
+    }
+}

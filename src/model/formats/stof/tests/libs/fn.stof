@@ -101,3 +101,12 @@ fn expand_call() {
     const args = [30, 12];
     assert_eq(func.call_expanded(args), 42);
 }
+
+#[test]
+fn test_this() {
+    const func = this;
+    assert_eq(func.name(), 'test_this');
+
+    const attrs = this.attributes();
+    assert_eq(attrs, {'test': null});
+}
