@@ -26,6 +26,7 @@ pub mod string;
 pub mod ver;
 pub mod time;
 pub mod func;
+pub mod list;
 
 
 #[derive(Clone)]

@@ -170,6 +170,37 @@ pub enum Error {
     NumStr,
 
     /*****************************************************************************
+     * List Lib Errors.
+     *****************************************************************************/
+    ListAppendOther,
+    ListPushBack,
+    ListPushFront,
+    ListPopFront,
+    ListPopBack,
+    ListClear,
+    ListReverse,
+    ListReversed,
+    ListLen,
+    ListAt,
+    ListEmpty,
+    ListAny,
+    ListFirst,
+    ListLast,
+    ListJoin,
+    ListContains,
+    ListIndexOf,
+    ListRemove,
+    ListRemoveFirst,
+    ListRemoveLast,
+    ListRemoveAll,
+    ListInsert,
+    ListReplace,
+    ListSort,
+    ListSortWith,
+    ListIsUniform,
+    ListToUniform,
+
+    /*****************************************************************************
      * Cast Errors.
      *****************************************************************************/
     ObjectCastProtoDne,
