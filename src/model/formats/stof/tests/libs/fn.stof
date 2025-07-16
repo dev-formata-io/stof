@@ -1,0 +1,103 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+#[custom(42)]
+fn test_function(a: int, b: int) -> int {
+    a + b
+}
+
+
+#[test]
+fn id() {
+    const func = self.test_function;
+    assert(func.id().len() > 5);
+}
+
+#[test]
+fn name() {
+    const func = self.test_function;
+    assert_eq(func.name(), 'test_function');
+}
+
+#[test]
+fn data() {
+    const func = self.test_function;
+    assert(func.data());
+}
+
+#[test]
+fn params() {
+    const func = self.test_function;
+    assert_eq(func.params(), [('a', 'int'), ('b', 'int')]);
+}
+
+#[test]
+fn return_type() {
+    const func = self.test_function;
+    assert_eq(func.return_type(), 'int');
+}
+
+#[test]
+fn has_attr() {
+    const func = self.test_function;
+    assert(func.has_attribute('custom'));
+    assert(!func.has_attribute('test'));
+}
+
+#[test]
+fn attributes() {
+    const func = self.test_function;
+    assert_eq(func.attributes(), {'custom': 42});
+}
+
+#[test]
+fn obj() {
+    const func = self.test_function;
+    assert(func.obj());
+}
+
+#[test]
+fn objs() {
+    const func = self.test_function;
+    //assert_eq(func.objs().len(), 1); // TODO
+}
+
+#[test]
+fn is_async() {
+    const func = self.test_function;
+    assert(!func.is_async());
+
+    const other = async ():void => {};
+    assert(other.is_async());
+}
+
+#[test]
+fn call() {
+    const func = self.test_function;
+    assert_eq(func(5, 5), 10);
+    assert_eq(func.call(5, 6), 11);
+    assert_eq(Fn.call(func, 9, 2), 11);
+
+    const other = (name: str):str => "Hello, " + name;
+    assert_eq(other.call('CJ'), 'Hello, CJ');
+}
+
+#[test]
+fn expand_call() {
+    const func = self.test_function;
+    const args = [30, 12];
+    assert_eq(func.call_expanded(args), 42);
+}
