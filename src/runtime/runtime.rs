@@ -115,6 +115,7 @@ impl Runtime {
         let mut to_run = Vec::new();
         let mut to_spawn = Vec::new();
         let mut to_sleep = Vec::new();
+        let mut to_exit = Vec::new();
         while !self.running.is_empty() || !self.sleeping.is_empty() {
             // Check to see if any sleeping processes need to be woken up first
             if !self.sleeping.is_empty() {
@@ -143,6 +144,13 @@ impl Runtime {
                 match proc.progress(graph, limit) {
                     Ok(state) => {
                         match state {
+                            ProcRes::Exit(pid) => {
+                                if let Some(pid) = pid {
+                                    to_exit.push(pid);
+                                } else {
+                                    to_exit.push(proc.env.pid.clone());
+                                }
+                            },
                             ProcRes::Wait(pid) => {
                                 proc.waiting = Some(pid);
                                 to_wait.push(proc.env.pid.clone());
@@ -176,8 +184,10 @@ impl Runtime {
                 }
             }
 
-            for id in to_done.drain(..) {
-                self.move_running_to_done(&graph, &id);
+            if !to_done.is_empty() {
+                for id in to_done.drain(..) {
+                    self.move_running_to_done(&graph, &id);
+                }
             }
 
             if !to_wait.is_empty() {
@@ -222,11 +232,40 @@ impl Runtime {
                     }
                 }
             }
+
             if !to_run.is_empty() {
                 for id in to_run.drain(..) {
                     if let Some(mut proc) = self.waiting.remove(&id) {
                         proc.waiting = None;
                         self.running.push(proc);
+                    }
+                }
+            }
+
+            if !to_exit.is_empty() {
+                for id in to_exit.drain(..) {
+                    if let Some(proc) = self.waiting.remove(&id) {
+                        if let Some(cb) = &mut self.done_callback {
+                            if cb(graph, &proc) {
+                                self.done.insert(id, proc);
+                            } else {
+                                self.errored.insert(id, proc);
+                            }
+                        } else {
+                            self.done.insert(id, proc);
+                        }
+                    } else if let Some(proc) = self.sleeping.remove(&id) {
+                        if let Some(cb) = &mut self.done_callback {
+                            if cb(graph, &proc) {
+                                self.done.insert(id, proc);
+                            } else {
+                                self.errored.insert(id, proc);
+                            }
+                        } else {
+                            self.done.insert(id, proc);
+                        }
+                    } else {
+                        self.move_running_to_done(graph, &id);
                     }
                 }
             }

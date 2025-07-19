@@ -18,11 +18,12 @@ use std::{sync::Arc, time::Duration};
 use arcstr::{literal, ArcStr};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, print::{dbg, err, pln}, sleep::stof_sleep}, Graph}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error, Type, Units}};
+use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, exit::stof_exit, print::{dbg, err, pln}, sleep::stof_sleep}, Graph}, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, EXIT}, proc::ProcEnv, Error, Type, Units}};
 
 mod print;
 mod sleep;
 mod assert;
+mod exit;
 
 
 /// Add the std library to a graph.
@@ -32,6 +33,7 @@ pub fn stof_std_lib(graph: &mut Graph) {
     graph.insert_libfunc(err());
     graph.insert_libfunc(stof_sleep());
     graph.insert_libfunc(throw());
+    graph.insert_libfunc(stof_exit());
 
     graph.insert_libfunc(assert());
     graph.insert_libfunc(assert_not());
@@ -64,6 +66,8 @@ pub enum StdIns {
 
     Throw,
     Sleep,
+
+    Exit(usize),
 
     Assert,
     AssertNot,
@@ -155,6 +159,29 @@ impl Instruction for StdIns {
 
                 let mut instructions = Instructions::default();
                 instructions.push(Arc::new(Base::CtrlSleepFor(Duration::from_millis(duration.abs() as u64))));
+                return Ok(Some(instructions));
+            },
+
+            Self::Exit(arg_count) => {
+                let mut instructions = Instructions::default();
+
+                if *arg_count < 1 {
+                    instructions.push(EXIT.clone());
+                } else {
+                    let mut promises = Vec::new();
+                    for _ in 0..*arg_count {
+                        if let Some(var) = env.stack.pop() {
+                            if var.try_promise().is_some() {
+                                promises.push(var);
+                            }
+                        }
+                    }
+                    for promise in promises.into_iter().rev() {
+                        instructions.push(Arc::new(Base::Variable(promise)));
+                        instructions.push(EXIT.clone());
+                    }
+                }
+
                 return Ok(Some(instructions));
             },
 

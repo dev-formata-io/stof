@@ -45,6 +45,7 @@ lazy_static! {
     pub static ref AWAIT: Arc<dyn Instruction> = Arc::new(Base::CtrlAwait);
     pub static ref NOOP: Arc<dyn Instruction> = Arc::new(Base::CtrlNoOp);
     pub static ref END_TRY: Arc<dyn Instruction> = Arc::new(Base::CtrlTryEnd);
+    pub static ref EXIT: Arc<dyn Instruction> = Arc::new(Base::CtrlExit);
 
     pub static ref PUSH_SELF: Arc<dyn Instruction> = Arc::new(Base::PushSelf);
     pub static ref POP_SELF: Arc<dyn Instruction> = Arc::new(Base::PopSelf);
@@ -143,6 +144,9 @@ pub enum Base {
     // Sleep instructions.
     CtrlSleepFor(Duration),
     CtrlSleepRef(WakeRef),
+    
+    // Exit a process. Looks for a promise on the stack - if not found, terminates the current process.
+    CtrlExit,
 
     // Self stack.
     PushSelf,
@@ -225,6 +229,7 @@ impl Instruction for Base {
              *****************************************************************************/
             Self::CtrlSuspend => {}, // Nothing here...
             Self::CtrlAwait => {}, // Nothing here...
+            Self::CtrlExit => {}, // Nothing here...
             Self::CtrlAwaitCast(_) => {}, // Nothing here...
             Self::CtrlAwaitError(err) => { return Err(err.clone()); },
             Self::CtrlNoOp => {}, // Does nothing

@@ -28,6 +28,7 @@ pub enum ProcRes {
     Wait(SId),
     SleepFor(Duration),
     Sleep(WakeRef),
+    Exit(Option<SId>),
 }
 
 

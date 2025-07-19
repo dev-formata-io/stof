@@ -152,6 +152,16 @@ impl Instructions {
                             }
                             continue 'exec_loop;
                         },
+                        Base::CtrlExit => {
+                            if let Some(promise) = env.stack.pop() {
+                                if let Some((pid, _)) = promise.try_promise() {
+                                    return Ok(ProcRes::Exit(Some(pid)));
+                                } else {
+                                    env.stack.push(promise);
+                                }
+                            }
+                            return Ok(ProcRes::Exit(None));
+                        },
                         Base::CtrlAwait => {
                             if let Some(promise) = env.stack.pop() {
                                 if let Some((pid, cast_type)) = promise.try_promise() {

@@ -67,3 +67,25 @@ Sleep: {
         sleep(1ms); // default units are ms, but use what you'd like (maybe not days tho)
     }
 }
+
+
+/**
+ * Exit a process.
+ */
+Exit: {
+    #[test]
+    fn exiting_process() {
+        // Note: every #[test] is a separate process, so this will work just fine.
+        let another = async {
+            loop {
+                // This is an infinite loop...
+            }
+        };
+        let yet_another = async {
+            sleep(30s);
+        };
+        exit(another, yet_another); // Exit other processes
+        exit(); // Exit this process
+    }
+}
+
