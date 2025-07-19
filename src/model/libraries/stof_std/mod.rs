@@ -14,11 +14,11 @@
 // limitations under the License.
 //
 
-use std::{ops::Deref, sync::Arc, time::Duration};
+use std::{mem::swap, ops::{Deref, DerefMut}, sync::Arc, time::Duration};
 use arcstr::{literal, ArcStr};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, containers::{std_list, std_map, std_set}, exit::stof_exit, print::{dbg, err, pln}, sleep::stof_sleep}, Graph}, runtime::{instruction::{Instruction, Instructions}, instructions::{list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}, Base, EXIT}, proc::ProcEnv, Error, Type, Units, Val, Variable}};
+use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, containers::{std_copy, std_list, std_map, std_set, std_swap}, exit::stof_exit, print::{dbg, err, pln}, sleep::stof_sleep}, Graph}, runtime::{instruction::{Instruction, Instructions}, instructions::{list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}, Base, EXIT}, proc::ProcEnv, Error, Type, Units, Val, Variable}};
 
 mod print;
 mod sleep;
@@ -44,6 +44,9 @@ pub fn stof_std_lib(graph: &mut Graph) {
     graph.insert_libfunc(std_list());
     graph.insert_libfunc(std_set());
     graph.insert_libfunc(std_map());
+
+    graph.insert_libfunc(std_copy());
+    graph.insert_libfunc(std_swap());
 }
 
 
@@ -59,6 +62,9 @@ lazy_static! {
     pub(self) static ref ASSERT_NOT: Arc<dyn Instruction> = Arc::new(StdIns::AssertNot);
     pub(self) static ref ASSERT_EQ: Arc<dyn Instruction> = Arc::new(StdIns::AssertEq);
     pub(self) static ref ASSERT_NEQ: Arc<dyn Instruction> = Arc::new(StdIns::AssertNeq);
+
+    pub(self) static ref COPY: Arc<dyn Instruction> = Arc::new(StdIns::Copy);
+    pub(self) static ref SWAP: Arc<dyn Instruction> = Arc::new(StdIns::Swap);
 }
 
 
@@ -82,6 +88,9 @@ pub enum StdIns {
     List(usize),
     Set(usize),
     Map(usize),
+
+    Copy,
+    Swap,
 }
 #[typetag::serde(name = "StdIns")]
 impl Instruction for StdIns {
@@ -306,6 +315,25 @@ impl Instruction for StdIns {
                 }
 
                 return Ok(Some(instructions));
+            },
+
+            Self::Copy => {
+                if let Some(var) = env.stack.pop() {
+                    env.stack.push(var.deep_copy());
+                }
+            },
+            Self::Swap => {
+                if let Some(first) = env.stack.pop() {
+                    if let Some(second) = env.stack.pop() {
+                        let mut first = first.val.write();
+                        let mut second = second.val.write();
+
+                        let first = first.deref_mut();
+                        let second = second.deref_mut();
+                        
+                        swap(first, second);
+                    }
+                }
             },
         }
         Ok(None)

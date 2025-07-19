@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use imbl::vector;
-use crate::{model::{stof_std::{StdIns, STD_LIB}, LibFunc}, runtime::instruction::Instructions};
+use crate::{model::{stof_std::{StdIns, COPY, STD_LIB, SWAP}, LibFunc, Param}, runtime::{instruction::Instructions, Type}};
 
 
 /// List constructor function.
@@ -71,6 +71,49 @@ pub fn std_map() -> LibFunc {
         func: Arc::new(|arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(Arc::new(StdIns::Map(arg_count)));
+            Ok(instructions)
+        })
+    }
+}
+
+/// Copy.
+pub fn std_copy() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "copy".into(),
+        is_async: false,
+        docs: "# Deep Copy\nCopy a value completely.".into(),
+        params: vector![
+            Param { name: "val".into(), param_type: Type::Void, default: None }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(COPY.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// Swap.
+pub fn std_swap() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "swap".into(),
+        is_async: false,
+        docs: "# Swap\nSwap the memory of two values.".into(),
+        params: vector![
+            Param { name: "first".into(), param_type: Type::Void, default: None },
+            Param { name: "second".into(), param_type: Type::Void, default: None }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(SWAP.clone());
             Ok(instructions)
         })
     }

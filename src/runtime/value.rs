@@ -843,6 +843,43 @@ impl Val {
         }
     }
 
+    /// Deep copy this value.
+    pub fn deep_copy(&self) -> Self {
+        match self {
+            Self::List(vals) => {
+                let mut new_list = Vector::default();
+                for val in vals {
+                    new_list.push_back(ValRef::new(val.read().deep_copy()));
+                }
+                Self::List(new_list)
+            },
+            Self::Map(map) => {
+                let mut new_map = OrdMap::default();
+                for (k, v) in map {
+                    new_map.insert(ValRef::new(k.read().deep_copy()), ValRef::new(v.read().deep_copy()));
+                }
+                Self::Map(new_map)
+            },
+            Self::Tup(tup) => {
+                let mut new_tup = Vector::default();
+                for val in tup {
+                    new_tup.push_back(ValRef::new(val.read().deep_copy()));
+                }
+                Self::Tup(new_tup)
+            },
+            Self::Set(set) => {
+                let mut new_set = OrdSet::default();
+                for val in set {
+                    new_set.insert(ValRef::new(val.read().deep_copy()));
+                }
+                Self::Set(new_set)
+            },
+            _ => {
+                self.clone()
+            }
+        }
+    }
+
 
     /*****************************************************************************
      * Drop.

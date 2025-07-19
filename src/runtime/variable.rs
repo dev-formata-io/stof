@@ -275,6 +275,14 @@ impl Variable {
         }
     }
 
+    /// Copy.
+    pub fn deep_copy(&self) -> Self {
+        let mut clone = self.clone();
+        let copy = clone.val.read().deep_copy();
+        clone.val = ValRef::new(copy);
+        clone
+    }
+
     #[inline]
     /// Add.
     pub fn add(&self, rhs: Self, graph: &mut Graph) -> Result<(), Error> {

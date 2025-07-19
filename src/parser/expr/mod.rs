@@ -136,7 +136,7 @@ pub fn list_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     let (input, _) = whitespace(input)?;
     let (input, exprs) = delimited(
         char('['),
-        separated_list0(char(','), expr),
+        terminated(separated_list0(char(','), expr), whitespace),
         char(']')
     ).parse(input)?;
 
@@ -164,7 +164,7 @@ pub fn tup_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     let (input, _) = whitespace(input)?;
     let (input, exprs) = delimited(
         char('('),
-        separated_list1(char(','), expr),
+        terminated(separated_list1(char(','), expr), whitespace),
         char(')')
     ).parse(input)?;
 
@@ -199,7 +199,7 @@ pub fn set_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     let (input, _) = whitespace(input)?;
     let (input, exprs) = delimited(
         char('{'),
-        separated_list0(char(','), expr),
+        terminated(separated_list0(char(','), expr), whitespace),
         char('}')
     ).parse(input)?;
 
@@ -227,7 +227,7 @@ pub fn map_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     let (input, _) = whitespace(input)?;
     let (input, exprs) = delimited(
         char('{'),
-        separated_list0(char(','), separated_pair(expr, char(':'), expr)),
+        terminated(separated_list0(char(','), separated_pair(expr, char(':'), expr)), whitespace),
         char('}')
     ).parse(input)?;
 

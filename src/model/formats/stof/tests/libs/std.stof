@@ -89,3 +89,100 @@ Exit: {
     }
 }
 
+
+Copy: {
+    #[test]
+    fn copy_basic() {
+        let a = 42;
+        let b = copy(a);
+        assert_eq(a, b);
+    }
+
+    #[test]
+    fn copy_ref() {
+        let a = 42;
+        let b = &a;
+        
+        b = 20;
+        assert_eq(a, 20);
+
+        let c = copy(b);
+        c = 42;
+        assert_eq(a, 20);
+        assert_eq(b, 20);
+    }
+
+    #[test]
+    fn copy_list() {
+        let a = [1, 2, 3];
+        let b = a;
+        b.pop_back();
+        assert_eq(a, b);
+        assert_eq(a, [1, 2]);
+
+        let c = copy(a);
+        c.pop_back();
+        assert_eq(c, [1]);
+        assert_eq(a, [1, 2]);
+        assert_eq(b, [1, 2]);
+    }
+
+    #[test]
+    fn copy_list_list() {
+        let a = [[[42]]];
+        let b = copy(a);
+        
+        assert_eq(a.front().front().replace(0, 89), 42);
+        assert_eq(a.front().front().front(), 89);
+        assert_eq(b.front().front().front(), 42);
+    }
+
+    #[test]
+    fn copy_map() {
+        let a = {
+            'example': {
+                'a': 1,
+                'b': 5
+            }
+        };
+        
+        let b = copy(a);
+        assert_eq(b.get('example').remove('b'), 5);
+        assert_eq(b.get('example').insert('a', 10), 1);
+        assert_eq(b, {'example': {'a': 10}});
+        assert_eq(a, {'example': {'a': 1, 'b': 5}});
+    }
+}
+
+
+Swap: {
+    #[test]
+    fn swap_basic() {
+        let a = 42;
+        let b = 100;
+        swap(&a, &b); // have to load val vars by ref here...
+
+        assert_eq(a, 100);
+        assert_eq(b, 42);
+    }
+
+    #[test]
+    fn swap_containers() {
+        let a = {42};
+        let b = {1, 2, 3};
+        swap(a, b);
+
+        assert_eq(a, {1, 2, 3});
+        assert_eq(b, {42});
+    }
+
+    #[test]
+    fn swap_mixed() {
+        let a = 42;
+        let b = [4, 5, 6];
+        swap(&a, b);
+
+        assert_eq(a, [4, 5, 6]);
+        assert_eq(b, 42);
+    }
+}
