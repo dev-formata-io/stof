@@ -28,6 +28,7 @@ pub mod time;
 pub mod func;
 pub mod list;
 pub mod set;
+pub mod map;
 
 
 #[derive(Clone)]

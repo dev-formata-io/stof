@@ -14,16 +14,17 @@
 // limitations under the License.
 //
 
-use std::{sync::Arc, time::Duration};
+use std::{ops::Deref, sync::Arc, time::Duration};
 use arcstr::{literal, ArcStr};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, exit::stof_exit, print::{dbg, err, pln}, sleep::stof_sleep}, Graph}, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, EXIT}, proc::ProcEnv, Error, Type, Units}};
+use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, containers::{std_list, std_map, std_set}, exit::stof_exit, print::{dbg, err, pln}, sleep::stof_sleep}, Graph}, runtime::{instruction::{Instruction, Instructions}, instructions::{list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}, Base, EXIT}, proc::ProcEnv, Error, Type, Units, Val, Variable}};
 
 mod print;
 mod sleep;
 mod assert;
 mod exit;
+mod containers;
 
 
 /// Add the std library to a graph.
@@ -39,6 +40,10 @@ pub fn stof_std_lib(graph: &mut Graph) {
     graph.insert_libfunc(assert_not());
     graph.insert_libfunc(assert_eq());
     graph.insert_libfunc(assert_neq());
+
+    graph.insert_libfunc(std_list());
+    graph.insert_libfunc(std_set());
+    graph.insert_libfunc(std_map());
 }
 
 
@@ -73,6 +78,10 @@ pub enum StdIns {
     AssertNot,
     AssertEq,
     AssertNeq,
+
+    List(usize),
+    Set(usize),
+    Map(usize),
 }
 #[typetag::serde(name = "StdIns")]
 impl Instruction for StdIns {
@@ -230,6 +239,73 @@ impl Instruction for StdIns {
                         }
                     }
                 }
+            },
+
+            Self::List(arg_count) => {
+                let mut instructions = Instructions::default();
+                instructions.push(NEW_LIST.clone());
+
+                let mut args = Vec::new();
+                for _ in 0..*arg_count {
+                    args.push(env.stack.pop().unwrap());
+                }
+                for arg in args.into_iter().rev() {
+                    instructions.push(Arc::new(Base::Variable(arg)));
+                    instructions.push(PUSH_LIST.clone());
+                }
+
+                return Ok(Some(instructions));
+            },
+            Self::Set(arg_count) => {
+                let mut instructions = Instructions::default();
+                instructions.push(NEW_SET.clone());
+
+                let mut args = Vec::new();
+                for _ in 0..*arg_count {
+                    args.push(env.stack.pop().unwrap());
+                }
+                for arg in args.into_iter().rev() {
+                    instructions.push(Arc::new(Base::Variable(arg)));
+                    instructions.push(PUSH_SET.clone());
+                }
+
+                return Ok(Some(instructions));
+            },
+            Self::Map(arg_count) => {
+                let mut instructions = Instructions::default();
+                instructions.push(NEW_MAP.clone());
+
+                let mut args = Vec::new();
+                for _ in 0..*arg_count {
+                    args.push(env.stack.pop().unwrap());
+                }
+                for arg in args.into_iter().rev() {
+                    match arg.val.read().deref() {
+                        Val::Tup(vals) => {
+                            if vals.len() == 2 {
+                                instructions.push(Arc::new(Base::Variable(Variable::refval(vals[0].duplicate(false)))));
+                                instructions.push(Arc::new(Base::Variable(Variable::refval(vals[1].duplicate(false)))));
+                                instructions.push(PUSH_MAP.clone());
+                            } else {
+                                return Err(Error::MapConstructor("map init must have a key-value pair in the form of a list or tuple".into()));
+                            }
+                        },
+                        Val::List(vals) => {
+                            if vals.len() == 2 {
+                                instructions.push(Arc::new(Base::Variable(Variable::refval(vals[0].duplicate(false)))));
+                                instructions.push(Arc::new(Base::Variable(Variable::refval(vals[1].duplicate(false)))));
+                                instructions.push(PUSH_MAP.clone());
+                            } else {
+                                return Err(Error::MapConstructor("map init must have a key-value pair in the form of a list or tuple".into()));
+                            }
+                        },
+                        _ => {
+                            return Err(Error::MapConstructor("unrecognized map init value (has to be a tuple or list with a key and value)".into()));
+                        }
+                    }
+                }
+
+                return Ok(Some(instructions));
             },
         }
         Ok(None)

@@ -195,3 +195,13 @@ fn to_uniform() {
     assert(a.is_uniform());
     assert_eq(a, {1kg, 10kg, 7.454_367kg});
 }
+
+#[test]
+fn set_constructor() {
+    let a = set();
+    assert(a.empty());
+    assert_eq(typeof a, 'set');
+    
+    a = set(1, 2, 3);
+    assert_eq(a, {1, 2, 3});
+}

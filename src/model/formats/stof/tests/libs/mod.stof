@@ -27,3 +27,4 @@ import './time' as self.TimeLib;
 import './fn' as self.FnLib;
 import './list' as self.ListLib;
 import './set' as self.SetLib;
+import './map' as self.MapLib;

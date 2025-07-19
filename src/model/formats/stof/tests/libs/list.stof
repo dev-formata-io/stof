@@ -199,3 +199,13 @@ fn push_back_field() {
     self.test.push_back(42);
     assert_eq(self.test, [42]);
 }
+
+#[test]
+fn list_constructor() {
+    let a = list();
+    assert(a.empty());
+    assert_eq(typeof a, 'list');
+
+    a = list(1, 2, 3);
+    assert_eq(a, [1, 2, 3]);
+}

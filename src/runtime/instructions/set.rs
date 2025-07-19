@@ -134,7 +134,7 @@ impl Instruction for SetIns {
                                 match var.val.write().deref_mut() {
                                     Val::Set(set) => {
                                         for val in other {
-                                            set.insert(val.clone());
+                                            set.insert(val.duplicate(false));
                                         }
                                         return Ok(None);
                                     },

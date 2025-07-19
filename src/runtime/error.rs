@@ -55,6 +55,7 @@ pub enum Error {
     AssertNotFailed(String),
     AssertEqFailed(String),
     AssertNotEqFailed(String),
+    MapConstructor(String),
 
     /*****************************************************************************
      * Time Lib Errors.
@@ -168,6 +169,26 @@ pub enum Error {
     NumBin,
     NumOct,
     NumStr,
+
+    /*****************************************************************************
+     * Map Lib Errors.
+     *****************************************************************************/
+    MapAppendOther,
+    MapClear,
+    MapContains,
+    MapFirst,
+    MapLast,
+    MapGet,
+    MapInsert,
+    MapEmpty,
+    MapAny,
+    MapKeys,
+    MapValues,
+    MapLen,
+    MapAt,
+    MapPopFirst,
+    MapPopLast,
+    MapRemove,
 
     /*****************************************************************************
      * Set Lib Errors.
