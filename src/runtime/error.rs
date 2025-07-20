@@ -279,6 +279,54 @@ pub enum Error {
     BlobFromUrlSafeBase64Str,
 
     /*****************************************************************************
+     * Object Lib Errors.
+     *****************************************************************************/
+    ObjName,
+    ObjId,
+    ObjPath,
+    ObjParent,
+    ObjIsParent,
+    ObjExists,
+    ObjChildren,
+    ObjRoot,
+    ObjIsRoot,
+
+    ObjProto,
+    ObjSetProto,
+    ObjRemoveProto,
+    ObjInstanceOf,
+    ObjUpcast,
+    ObjCreateType,
+
+    ObjLen,
+    ObjAt,
+    ObjAtRef,
+    ObjGet,
+    ObjGetRef,
+    ObjContains,
+    ObjInsert,
+    ObjRemove,
+    ObjMoveData,
+    ObjFields,
+    ObjFuncs,
+    ObjEmpty,
+    ObjAny,
+    ObjAttributes,
+    ObjMove,
+    ObjDistance,
+    ObjDrop,
+    ObjRun,
+    ObjSchemafy,
+    ObjSearchDown,
+    ObjSearchUp,
+    ObjToMap,
+    ObjFromMap,
+    ObjShallowCopy,
+    ObjDeepCopy,
+    ObjFromId,
+    ObjDump,
+
+    /*****************************************************************************
      * Cast Errors.
      *****************************************************************************/
     ObjectCastProtoDne,

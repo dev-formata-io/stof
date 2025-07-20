@@ -17,7 +17,7 @@
 use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use serde::{Deserialize, Serialize};
-use crate::{model::{Graph, NodeRef, SId, PROTOTYPE_TYPE_ATTR}, parser::types::parse_type_complete, runtime::{Units, Val}};
+use crate::{model::{Graph, NodeRef, SId, PROTOTYPE_TYPE_ATTR, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, parser::types::parse_type_complete, runtime::{Units, Val}};
 
 
 // Literal string types.
@@ -241,10 +241,13 @@ impl Type {
             },
             Self::Obj(name_or_id) => {
                 if !name_or_id.node_exists(graph) { // not a node ref, so must be a name
-                    if context.is_none() { context = graph.main_root(); }
-
                     let mut path = name_or_id.as_ref().to_string();
                     if path.contains('.') {
+                        // This is a pathname (not just a typename), so if it doesn't start with self or super, remove the current context
+                        if !path.starts_with(SELF_STR_KEYWORD.as_str()) && !path.starts_with(SUPER_STR_KEYWORD.as_str()) {
+                            context = None;
+                        }
+
                         let mut split = path.split('.').collect::<Vec<_>>();
                         let typename = split.pop().unwrap();
                         if let Some(node) = graph.find_node_named(&split.join("."), context.clone()) {
@@ -253,6 +256,7 @@ impl Type {
                         }
                     }
 
+                    if context.is_none() { context = graph.main_root(); }
                     if let Some(proto_id) = graph.find_type(&path, context) {
                         *name_or_id = proto_id;
                     }
