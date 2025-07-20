@@ -736,6 +736,16 @@ impl Val {
         }
     }
 
+    #[inline]
+    /// Try getting a data reference value.
+    pub fn try_data_or_func(&self) -> Option<DataRef> {
+        match self {
+            Self::Data(dref) => Some(dref.clone()),
+            Self::Fn(dref) => Some(dref.clone()),
+            _ => None,
+        }
+    }
+
     #[inline(always)]
     /// Is blob value?
     pub fn blob(&self) -> bool {

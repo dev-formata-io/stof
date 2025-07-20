@@ -118,3 +118,22 @@ pub fn std_swap() -> LibFunc {
         })
     }
 }
+
+/// Drop.
+pub fn std_drop() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "drop".into(),
+        is_async: false,
+        docs: "# Drop\nDrop fields, functions, objects, and data from the graph.".into(),
+        params: vector![],
+        return_type: None,
+        unbounded_args: true,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(StdIns::Drop(arg_count)));
+            Ok(instructions)
+        })
+    }
+}

@@ -1,0 +1,64 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+fn test_data_func() {}
+
+#[test]
+fn data_id() {
+    let func = self.test_data_func;
+    let data = Data.from_id(func.id());
+    assert(data.exists());
+    assert_eq(data.id(), func.id());
+}
+
+#[test]
+fn objs() {
+    const func = self.test_data_func;
+    const data = func.data();
+    const objs = data.objs();
+
+    assert_eq(objs.len(), 1);
+    assert_eq(objs, [self]);
+}
+
+field_to_drop: 'hi'
+
+#[test]
+fn field_drop() {
+    assert_eq(self.field_to_drop, 'hi');
+    Data.field('self.field_to_drop').drop();
+    assert_eq(self.field_to_drop, null);
+}
+
+field_to_attach: 'yo'
+obj_for_attach: {}
+
+#[test]
+fn attach_drop() {
+    assert_eq(typeof self.obj_for_attach, 'obj');
+    const data = Data.field('self.field_to_attach');
+    
+    assert(data.attach(self.obj_for_attach));
+    assert_eq(data.objs().len(), 2);
+
+    data.drop_from(self);
+    assert_eq(data.objs().len(), 1);
+    assert_eq(data.objs(), [self.obj_for_attach]);
+
+    data.move(self.obj_for_attach, self);
+    assert_eq(data.objs(), [self]);
+}

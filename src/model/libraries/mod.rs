@@ -31,6 +31,7 @@ pub mod set;
 pub mod map;
 pub mod tup;
 pub mod blob;
+pub mod data;
 
 
 #[derive(Clone)]

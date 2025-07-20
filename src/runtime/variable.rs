@@ -126,6 +126,12 @@ impl Variable {
     }
 
     #[inline]
+    /// Try extracting a data reference from this var.
+    pub fn try_data_or_func(&self) -> Option<DataRef> {
+        self.val.read().try_data_or_func()
+    }
+
+    #[inline]
     /// Try extracting a function reference from this var.
     pub fn try_func(&self) -> Option<DataRef> {
         self.val.read().try_func()

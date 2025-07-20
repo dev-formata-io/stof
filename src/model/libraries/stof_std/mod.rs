@@ -16,9 +16,10 @@
 
 use std::{mem::swap, ops::{Deref, DerefMut}, sync::Arc, time::Duration};
 use arcstr::{literal, ArcStr};
+use imbl::Vector;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, containers::{std_copy, std_list, std_map, std_set, std_swap}, exit::stof_exit, print::{dbg, err, pln}, sleep::stof_sleep}, Graph}, runtime::{instruction::{Instruction, Instructions}, instructions::{list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}, Base, EXIT}, proc::ProcEnv, Error, Type, Units, Val, Variable}};
+use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, containers::{std_copy, std_drop, std_list, std_map, std_set, std_swap}, exit::stof_exit, print::{dbg, err, pln}, sleep::stof_sleep}, Field, Func, Graph, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::{list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}, Base, EXIT}, proc::ProcEnv, Error, Type, Units, Val, ValRef, Variable}};
 
 mod print;
 mod sleep;
@@ -47,6 +48,7 @@ pub fn stof_std_lib(graph: &mut Graph) {
 
     graph.insert_libfunc(std_copy());
     graph.insert_libfunc(std_swap());
+    graph.insert_libfunc(std_drop());
 }
 
 
@@ -91,6 +93,8 @@ pub enum StdIns {
 
     Copy,
     Swap,
+
+    Drop(usize),
 }
 #[typetag::serde(name = "StdIns")]
 impl Instruction for StdIns {
@@ -333,6 +337,56 @@ impl Instruction for StdIns {
                         
                         swap(first, second);
                     }
+                }
+            },
+
+            Self::Drop(arg_count) => {
+                let mut vars = Vec::new();
+                for _ in 0..*arg_count {
+                    vars.push(env.stack.pop().unwrap());
+                }
+                let mut results = Vector::default();
+                for var in vars.into_iter().rev() {
+                    match var.val.read().deref() {
+                        Val::Str(path) => {
+                            let mut context = None;
+                            if path.starts_with(SELF_STR_KEYWORD.as_str()) || path.starts_with(SUPER_STR_KEYWORD.as_str()) {
+                                context = Some(env.self_ptr());
+                            }
+                            let mut dropped = false;
+                            if let Some(field_ref) = Field::field_from_path(graph, path.as_str(), context.clone()) {
+                                let mut val = None;
+                                if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
+                                    val = Some(field.value.val.clone());
+                                }
+                                if let Some(val) = val {
+                                    val.read().drop_data(graph);
+                                }
+                                dropped = graph.remove_data(&field_ref, None);
+                            } else if let Some(node) = SPath::node(&graph, path.as_str(), context.clone()) {
+                                dropped = graph.remove_node(&node, true);
+                            } else if let Some(func_ref) = Func::func_from_path(graph, path.as_str(), context) {
+                                dropped = graph.remove_data(&func_ref, None);
+                            }
+                            results.push_back(ValRef::new(Val::Bool(dropped)));
+                        },
+                        Val::Obj(nref) => {
+                            // cleans up fields that reference this obj as well
+                            results.push_back(ValRef::new(Val::Bool(graph.remove_node(nref, true))));
+                        },
+                        Val::Fn(dref) => {
+                            results.push_back(ValRef::new(Val::Bool(graph.remove_data(dref, None))));
+                        },
+                        Val::Data(dref) => {
+                            results.push_back(ValRef::new(Val::Bool(graph.remove_data(dref, None))));
+                        },
+                        _ => {}
+                    }
+                }
+                if results.len() == 1 {
+                    env.stack.push(Variable::refval(results.pop_front().unwrap()));
+                } else if results.len() > 1 {
+                    env.stack.push(Variable::val(Val::List(results)));
                 }
             },
         }

@@ -16,7 +16,7 @@
 
 use imbl::vector;
 use nanoid::nanoid;
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, opt, peek}, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0, multispace1}, combinator::{map, opt, peek}, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
 use rustc_hash::FxHashMap;
 use crate::{model::{Field, FieldDoc}, parser::{context::ParseContext, doc::document_statement, expr::expr, ident::ident, parse_attributes, string::{double_string, single_string}, types::parse_type, whitespace::{doc_comment, whitespace}}, runtime::{Val, Variable}};
 
@@ -42,7 +42,7 @@ pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
 
     // Type (optional) and name
     let (input, (field_type, name)) = alt((
-        map(pair(terminated(parse_type, multispace0), alt((
+        map(pair(terminated(parse_type, multispace1), alt((
             map(ident, |v| v.to_string()),
             double_string,
             single_string

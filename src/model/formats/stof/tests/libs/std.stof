@@ -186,3 +186,67 @@ Swap: {
         assert_eq(b, 42);
     }
 }
+
+
+Drop: {
+    obj_to_drop: {}
+    another_obj_to_drop: {}
+
+    #[test]
+    fn drop_obj() {
+        assert_eq(typeof self.obj_to_drop, 'obj');
+        drop('self.obj_to_drop');
+        assert_eq(self.obj_to_drop, null);
+
+        assert_eq(typeof self.another_obj_to_drop, 'obj');
+        drop(self.another_obj_to_drop);
+        assert_eq(self.another_obj_to_drop, null);
+    }
+
+    #[test]
+    fn drop_fn() {
+        const func = ():int=>42;
+        assert_eq(func(), 42);
+
+        const data = func.data();
+        drop(func);
+        assert(!data.exists());
+
+        let caught = false;
+        try {
+            func();
+        } catch {
+            caught = true;
+        }
+        assert(caught);
+    }
+
+    #[test]
+    fn drop_data() {
+        const func = ():int=>42;
+        assert_eq(func(), 42);
+
+        const data = func.data();
+        drop(data);
+        assert(!data.exists());
+
+        let caught = false;
+        try func();
+        catch caught = true;
+        assert(caught);
+    }
+
+    field_to_drop: 'hey there';
+    another_field_to_drop: 56kg;
+
+    #[test]
+    fn drop_field() {
+        assert_eq(self.field_to_drop, 'hey there');
+        assert_eq(self.another_field_to_drop, 56kg);
+
+        const res = drop('self.field_to_drop', 'self.another_field_to_drop', 'super.does_not_exist');
+        assert_eq(res, [true, true, false]);
+        assert_eq(self.field_to_drop, null);
+        assert_eq(self.another_field_to_drop, null);
+    }
+}
