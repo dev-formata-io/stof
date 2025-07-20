@@ -15,17 +15,22 @@
 //
 
 
-/*!
- * Library tests.
- */
+#[test]
+fn len() {
+    let a = (32, 43, true, 'hi');
+    assert_eq(a.len(), 4);
+}
 
-import './std' as self.StdLib;
-import './num' as self.NumLib;
-import './str' as self.StrLib;
-import './ver' as self.VerLib;
-import './time' as self.TimeLib;
-import './fn' as self.FnLib;
-import './list' as self.ListLib;
-import './set' as self.SetLib;
-import './map' as self.MapLib;
-import './tup' as self.TupLib;
+#[test]
+fn at() {
+    let a = ('a', ('b', 42));
+    assert_eq(a[1][1], 42);
+}
+
+#[test]
+fn at_ref() {
+    let a = ('a', ('b', 42));
+    let inner = &a[1][1];
+    inner = 53;
+    assert_eq(a, ('a', ('b', 53)));
+}

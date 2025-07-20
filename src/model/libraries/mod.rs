@@ -29,6 +29,7 @@ pub mod function;
 pub mod list;
 pub mod set;
 pub mod map;
+pub mod tup;
 
 
 #[derive(Clone)]

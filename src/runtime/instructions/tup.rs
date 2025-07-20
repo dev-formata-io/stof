@@ -14,15 +14,19 @@
 // limitations under the License.
 //
 
-use std::{ops::DerefMut, sync::Arc};
+use std::{ops::{Deref, DerefMut}, sync::Arc};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Val, Variable}};
+use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Num, Val, Variable}};
 
 
 lazy_static! {
     pub static ref NEW_TUP: Arc<dyn Instruction> = Arc::new(TupIns::NewTup);
     pub static ref PUSH_TUP: Arc<dyn Instruction> = Arc::new(TupIns::PushTup);
+
+    pub static ref LEN_TUP: Arc<dyn Instruction> = Arc::new(TupIns::Len);
+    pub static ref AT_TUP: Arc<dyn Instruction> = Arc::new(TupIns::At);
+    pub static ref AT_REF_TUP: Arc<dyn Instruction> = Arc::new(TupIns::AtRef);
 }
 
 
@@ -35,6 +39,11 @@ pub enum TupIns {
 
     // High-level
     AppendTup(Arc<dyn Instruction>), // evaluate and add to the stack (push)
+
+    // Library
+    Len,
+    At,
+    AtRef,
 }
 #[typetag::serde(name = "TupIns")]
 impl Instruction for TupIns {
@@ -42,6 +51,7 @@ impl Instruction for TupIns {
         match self {
             Self::NewTup => {
                 env.stack.push(Variable::val(Val::Tup(Default::default())));
+                Ok(None)
             },
             Self::PushTup => {
                 if let Some(push_var) = env.stack.pop() {
@@ -59,6 +69,7 @@ impl Instruction for TupIns {
                         env.stack.push(tup_var);
                     }
                 }
+                Ok(None)
             },
 
             /*****************************************************************************
@@ -68,9 +79,70 @@ impl Instruction for TupIns {
                 let mut instructions = Instructions::default();
                 instructions.push(ins.clone());
                 instructions.push(PUSH_TUP.clone());
-                return Ok(Some(instructions));
+                Ok(Some(instructions))
+            },
+
+            /*****************************************************************************
+             * Library.
+             *****************************************************************************/
+            Self::Len => {
+                if let Some(var) = env.stack.pop() {
+                    match var.val.read().deref() {
+                        Val::Tup(tup) => {
+                            env.stack.push(Variable::val(Val::Num(Num::Int(tup.len() as i64))));
+                            return Ok(None);
+                        },
+                        _ => {}
+                    }
+                }
+                Err(Error::TupLen)
+            },
+            Self::At => {
+                if let Some(index_var) = env.stack.pop() {
+                    if let Some(var) = env.stack.pop() {
+                        match index_var.val.read().deref() {
+                            Val::Num(num) => {
+                                match var.val.read().deref() {
+                                    Val::Tup(tup) => {
+                                        if let Some(val) = tup.get(num.int() as usize) {
+                                            env.stack.push(Variable::refval(val.duplicate(false)));
+                                        } else {
+                                            env.stack.push(Variable::val(Val::Null));
+                                        }
+                                        return Ok(None);
+                                    },
+                                    _ => {}
+                                }
+                            },
+                            _ => {},
+                        }
+                    }
+                }
+                Err(Error::TupAt)
+            },
+            Self::AtRef => {
+                if let Some(index_var) = env.stack.pop() {
+                    if let Some(var) = env.stack.pop() {
+                        match index_var.val.read().deref() {
+                            Val::Num(num) => {
+                                match var.val.read().deref() {
+                                    Val::Tup(tup) => {
+                                        if let Some(val) = tup.get(num.int() as usize) {
+                                            env.stack.push(Variable::refval(val.duplicate(true)));
+                                        } else {
+                                            env.stack.push(Variable::val(Val::Null));
+                                        }
+                                        return Ok(None);
+                                    },
+                                    _ => {}
+                                }
+                            },
+                            _ => {},
+                        }
+                    }
+                }
+                Err(Error::TupAt)
             },
         }
-        Ok(None)
     }
 }
