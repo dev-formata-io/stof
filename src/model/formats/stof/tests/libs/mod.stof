@@ -29,3 +29,4 @@ import './list' as self.ListLib;
 import './set' as self.SetLib;
 import './map' as self.MapLib;
 import './tup' as self.TupLib;
+import './blob' as self.BlobLib;

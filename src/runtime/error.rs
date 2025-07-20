@@ -255,6 +255,18 @@ pub enum Error {
     TupAt,
 
     /*****************************************************************************
+     * Blob Lib Errors.
+     *****************************************************************************/
+    BlobLen,
+    BlobAt,
+    BlobUtf8Str,
+    BlobBase64Str,
+    BlobUrlSafeBase64Str,
+    BlobFromUtf8Str,
+    BlobFromBase64Str,
+    BlobFromUrlSafeBase64Str,
+
+    /*****************************************************************************
      * Cast Errors.
      *****************************************************************************/
     ObjectCastProtoDne,
