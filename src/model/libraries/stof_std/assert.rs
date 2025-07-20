@@ -33,7 +33,7 @@ pub fn throw() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(THROW.clone());
             Ok(instructions)
@@ -55,7 +55,7 @@ pub fn assert() -> LibFunc {
         return_type: Some(Type::Bool),
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(ASSERT.clone());
             Ok(instructions)
@@ -77,7 +77,7 @@ pub fn assert_not() -> LibFunc {
         return_type: Some(Type::Bool),
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(ASSERT_NOT.clone());
             Ok(instructions)
@@ -100,7 +100,7 @@ pub fn assert_eq() -> LibFunc {
         return_type: Some(Type::Bool),
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(ASSERT_EQ.clone());
             Ok(instructions)
@@ -123,7 +123,7 @@ pub fn assert_neq() -> LibFunc {
         return_type: Some(Type::Bool),
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(ASSERT_NEQ.clone());
             Ok(instructions)

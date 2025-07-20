@@ -30,7 +30,7 @@ pub fn pln() -> LibFunc {
         return_type: None,
         unbounded_args: true, // allow an unbounded number of arguments
         args_to_symbol_table: false, // keep the arg on the stack instead of putting it into st
-        func: Arc::new(|arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(Arc::new(StdIns::Pln(arg_count)));
             Ok(instructions)
@@ -49,7 +49,7 @@ pub fn dbg() -> LibFunc {
         return_type: None,
         unbounded_args: true, // allow an unbounded number of arguments
         args_to_symbol_table: false, // keep the arg on the stack instead of putting it into st
-        func: Arc::new(|arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(Arc::new(StdIns::Dbg(arg_count)));
             Ok(instructions)
@@ -68,7 +68,7 @@ pub fn err() -> LibFunc {
         return_type: None,
         unbounded_args: true, // allow an unbounded number of arguments
         args_to_symbol_table: false, // keep the arg on the stack instead of putting it into st
-        func: Arc::new(|arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(Arc::new(StdIns::Err(arg_count)));
             Ok(instructions)

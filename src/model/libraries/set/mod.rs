@@ -66,7 +66,7 @@ fn set_append() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(APPEND_SET.clone());
             Ok(instructions)
@@ -87,7 +87,7 @@ fn set_clear() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(CLEAR_SET.clone());
             Ok(instructions)
@@ -109,7 +109,7 @@ fn set_contains() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(CONTAINS_SET.clone());
             Ok(instructions)
@@ -130,7 +130,7 @@ fn set_first() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(FIRST_SET.clone());
             Ok(instructions)
@@ -151,7 +151,7 @@ fn set_last() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(LAST_SET.clone());
             Ok(instructions)
@@ -173,7 +173,7 @@ fn set_insert() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(INSERT_SET.clone());
             Ok(instructions)
@@ -195,7 +195,7 @@ fn set_split() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(SPLIT_SET.clone());
             Ok(instructions)
@@ -216,7 +216,7 @@ fn set_empty() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(EMPTY_SET.clone());
             Ok(instructions)
@@ -237,7 +237,7 @@ fn set_any() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(ANY_SET.clone());
             Ok(instructions)
@@ -258,7 +258,7 @@ fn set_len() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(LEN_SET.clone());
             Ok(instructions)
@@ -280,7 +280,7 @@ fn set_at() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(AT_SET.clone());
             Ok(instructions)
@@ -301,7 +301,7 @@ fn set_pop_first() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(POP_FIRST_SET.clone());
             Ok(instructions)
@@ -322,7 +322,7 @@ fn set_pop_last() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(POP_LAST_SET.clone());
             Ok(instructions)
@@ -344,7 +344,7 @@ fn set_remove() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(REMOVE_SET.clone());
             Ok(instructions)
@@ -366,7 +366,7 @@ fn set_union() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(UNION_SET.clone());
             Ok(instructions)
@@ -388,7 +388,7 @@ fn set_diff() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(DIFF_SET.clone());
             Ok(instructions)
@@ -410,7 +410,7 @@ fn set_intersection() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(INTERSECTION_SET.clone());
             Ok(instructions)
@@ -432,7 +432,7 @@ fn set_symmetric_diff() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(SYMMETRIC_DIFF_SET.clone());
             Ok(instructions)
@@ -454,7 +454,7 @@ fn set_disjoint() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(DISJOINT_SET.clone());
             Ok(instructions)
@@ -476,7 +476,7 @@ fn set_subset() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(SUBSET_SET.clone());
             Ok(instructions)
@@ -498,7 +498,7 @@ fn set_superset() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(SUPERSET_SET.clone());
             Ok(instructions)
@@ -519,7 +519,7 @@ fn set_uniform() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(IS_UNIFORM_SET.clone());
             Ok(instructions)
@@ -541,7 +541,7 @@ fn set_to_uniform() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(TO_UNIFORM_SET.clone());
             Ok(instructions)

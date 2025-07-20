@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use imbl::vector;
-use crate::{model::{libraries::func::{FuncIns, ATTRIBUTES, DATA, FUNC_LIB, HAS_ATTR, ID, IS_ASYNC, NAME, OBJ, OBJS, PARAMS, RETURN_TYPE}, LibFunc, Param}, runtime::{instruction::Instructions, Type}};
+use crate::{model::{libraries::function::{FuncIns, ATTRIBUTES, DATA, FUNC_LIB, HAS_ATTR, ID, IS_ASYNC, NAME, OBJ, OBJS, PARAMS, RETURN_TYPE}, LibFunc, Param}, runtime::{instruction::Instructions, Type}};
 
 
 /// Id.
@@ -32,7 +32,7 @@ pub fn fn_id() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(ID.clone());
             Ok(instructions)
@@ -53,7 +53,7 @@ pub fn fn_data() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(DATA.clone());
             Ok(instructions)
@@ -74,7 +74,7 @@ pub fn fn_name() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(NAME.clone());
             Ok(instructions)
@@ -95,7 +95,7 @@ pub fn fn_params() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(PARAMS.clone());
             Ok(instructions)
@@ -116,7 +116,7 @@ pub fn fn_return_type() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(RETURN_TYPE.clone());
             Ok(instructions)
@@ -138,7 +138,7 @@ pub fn fn_has_attr() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(HAS_ATTR.clone());
             Ok(instructions)
@@ -159,7 +159,7 @@ pub fn fn_attributes() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(ATTRIBUTES.clone());
             Ok(instructions)
@@ -180,7 +180,7 @@ pub fn fn_obj() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(OBJ.clone());
             Ok(instructions)
@@ -201,7 +201,7 @@ pub fn fn_objs() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(OBJS.clone());
             Ok(instructions)
@@ -222,7 +222,7 @@ pub fn fn_is_async() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(IS_ASYNC.clone());
             Ok(instructions)
@@ -244,7 +244,7 @@ pub fn fn_call() -> LibFunc {
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,
-        func: Arc::new(|arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(Arc::new(FuncIns::Call(arg_count)));
             Ok(instructions)
@@ -266,7 +266,7 @@ pub fn fn_exp_call() -> LibFunc {
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,
-        func: Arc::new(|arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(Arc::new(FuncIns::ExpandCall(arg_count)));
             Ok(instructions)

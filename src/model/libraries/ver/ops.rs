@@ -32,7 +32,7 @@ pub fn ver_major() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(MAJOR.clone());
             Ok(instructions)
@@ -53,7 +53,7 @@ pub fn ver_minor() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(MINOR.clone());
             Ok(instructions)
@@ -74,7 +74,7 @@ pub fn ver_patch() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(PATCH.clone());
             Ok(instructions)
@@ -95,7 +95,7 @@ pub fn ver_release() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(RELEASE.clone());
             Ok(instructions)
@@ -116,7 +116,7 @@ pub fn ver_build() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(BUILD.clone());
             Ok(instructions)
@@ -138,7 +138,7 @@ pub fn ver_set_major() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(SET_MAJOR.clone());
             Ok(instructions)
@@ -160,7 +160,7 @@ pub fn ver_set_minor() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(SET_MINOR.clone());
             Ok(instructions)
@@ -182,7 +182,7 @@ pub fn ver_set_patch() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(SET_PATCH.clone());
             Ok(instructions)
@@ -204,7 +204,7 @@ pub fn ver_set_release() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(SET_RELEASE.clone());
             Ok(instructions)
@@ -226,7 +226,7 @@ pub fn ver_set_build() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(SET_BUILD.clone());
             Ok(instructions)
@@ -247,7 +247,7 @@ pub fn ver_clear_release() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(CLEAR_RELEASE.clone());
             Ok(instructions)
@@ -268,7 +268,7 @@ pub fn ver_clear_build() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(CLEAR_BUILD.clone());
             Ok(instructions)

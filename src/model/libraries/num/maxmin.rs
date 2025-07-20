@@ -31,7 +31,7 @@ pub fn num_max() -> LibFunc {
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,
-        func: Arc::new(|arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(Arc::new(NumIns::Max(arg_count)));
             Ok(instructions)
@@ -51,7 +51,7 @@ pub fn num_min() -> LibFunc {
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,
-        func: Arc::new(|arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(Arc::new(NumIns::Min(arg_count)));
             Ok(instructions)

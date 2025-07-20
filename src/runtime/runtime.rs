@@ -301,6 +301,7 @@ impl Runtime {
                         let path = node_path.join(".");
                         if path.contains(context) {
                             let instruction = Arc::new(FuncCall {
+                                as_ref: false,
                                 stack: false,
                                 func: Some(func_ref),
                                 search: None,
@@ -315,6 +316,7 @@ impl Runtime {
                 }
             } else {
                 let instruction = Arc::new(FuncCall {
+                    as_ref: false,
                     stack: false,
                     func: Some(func_ref),
                     search: None,
@@ -465,6 +467,7 @@ impl Runtime {
         let mut arguments: Vector<Arc<dyn Instruction>> = Vector::default();
         for arg in args { arguments.push_back(Arc::new(Base::Literal(arg))); }
         let instruction = Arc::new(FuncCall {
+            as_ref: false,
             stack: false,
             func: None,
             search: Some(search.into()),
@@ -481,6 +484,7 @@ impl Runtime {
         let mut arguments: Vector<Arc<dyn Instruction>> = Vector::default();
         for arg in args { arguments.push_back(Arc::new(Base::Literal(arg))); }
         let instruction = Arc::new(FuncCall {
+            as_ref: false,
             stack: false,
             func: Some(func.clone()),
             search: None,

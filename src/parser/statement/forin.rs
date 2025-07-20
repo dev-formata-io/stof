@@ -47,7 +47,7 @@ pub fn for_in_loop(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
         declare_instructions.push(DUPLICATE.clone()); // duplicate for len call
         declare_instructions.push(Arc::new(Base::DeclareConstVar(literal!("iterable"), Type::Void)));
         
-        declare_instructions.push(Arc::new(FuncCall { func: None, search: Some(literal!("len")), stack: true, args: vector![] }));
+        declare_instructions.push(Arc::new(FuncCall { func: None, search: Some(literal!("len")), stack: true, args: vector![], as_ref: false }));
         declare_instructions.push(Arc::new(Base::DeclareConstVar(length_var.clone(), Type::Void)));
 
         declare_instructions.push(Arc::new(Base::Literal(Val::Num(Num::Int(0)))));
@@ -104,7 +104,8 @@ pub fn for_in_loop(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
         func: None,
         search: Some(literal!("iterable.at")),
         stack: false,
-        args: vector![Arc::new(Base::LoadVariable(index_var, false, false)) as Arc<dyn Instruction>]
+        args: vector![Arc::new(Base::LoadVariable(index_var, false, false)) as Arc<dyn Instruction>],
+        as_ref: inner.as_ref,
     }));
 
     if !vartype.empty() { // cast to the right type
@@ -143,6 +144,7 @@ struct LoopInner {
     pub is_const: bool,
     pub typed: Option<Type>,
     pub expr: Arc<dyn Instruction>,
+    pub as_ref: bool,
 }
 
 /// Const var in.
@@ -151,8 +153,9 @@ fn const_var_in(input: &str) -> IResult<&str, LoopInner> {
     let (input, varname) = preceded(tag("const"), preceded(multispace0, ident)).parse(input)?;
     let (input, typed) = opt(preceded(multispace0, preceded(char(':'), parse_type))).parse(input)?;
     let (input, _) = delimited(multispace0, tag("in"), multispace0).parse(input)?;
+    let (input, as_ref) = opt(terminated(char('&'), multispace0)).parse(input)?;
     let (input, expr) = expr(input)?;
-    Ok((input, LoopInner { varname: varname.into(), is_const: true, typed, expr }))
+    Ok((input, LoopInner { varname: varname.into(), is_const: true, typed, expr, as_ref: as_ref.is_some() }))
 }
 
 /// Var in.
@@ -161,6 +164,7 @@ fn var_in(input: &str) -> IResult<&str, LoopInner> {
     let (input, varname) = preceded(tag("let"), preceded(multispace0, ident)).parse(input)?;
     let (input, typed) = opt(preceded(multispace0, preceded(char(':'), parse_type))).parse(input)?;
     let (input, _) = delimited(multispace0, tag("in"), multispace0).parse(input)?;
+    let (input, as_ref) = opt(terminated(char('&'), multispace0)).parse(input)?;
     let (input, expr) = expr(input)?;
-    Ok((input, LoopInner { varname: varname.into(), is_const: false, typed, expr }))
+    Ok((input, LoopInner { varname: varname.into(), is_const: false, typed, expr, as_ref: as_ref.is_some() }))
 }

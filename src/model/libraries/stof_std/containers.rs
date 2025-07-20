@@ -30,7 +30,7 @@ pub fn std_list() -> LibFunc {
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,
-        func: Arc::new(|arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(Arc::new(StdIns::List(arg_count)));
             Ok(instructions)
@@ -49,7 +49,7 @@ pub fn std_set() -> LibFunc {
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,
-        func: Arc::new(|arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(Arc::new(StdIns::Set(arg_count)));
             Ok(instructions)
@@ -68,7 +68,7 @@ pub fn std_map() -> LibFunc {
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,
-        func: Arc::new(|arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(Arc::new(StdIns::Map(arg_count)));
             Ok(instructions)
@@ -89,7 +89,7 @@ pub fn std_copy() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(COPY.clone());
             Ok(instructions)
@@ -111,7 +111,7 @@ pub fn std_swap() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(SWAP.clone());
             Ok(instructions)

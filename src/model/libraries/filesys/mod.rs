@@ -47,7 +47,7 @@ pub(self) fn read() -> LibFunc {
         return_type: Some(Type::Blob),
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(Arc::new(FsIns::Read));
             Ok(instructions)
@@ -69,7 +69,7 @@ pub(self) fn read_string() -> LibFunc {
         return_type: Some(Type::Blob),
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(Arc::new(FsIns::ReadString));
             Ok(instructions)
@@ -92,7 +92,7 @@ pub(self) fn write() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(Arc::new(FsIns::Write));
             Ok(instructions)

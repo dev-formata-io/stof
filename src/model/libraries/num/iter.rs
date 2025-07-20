@@ -33,7 +33,7 @@ pub fn num_len() -> LibFunc {
         return_type: Some(Type::Num(NumT::Int)),
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             // The argument is the length! Will be cast to an integer though.
             Ok(Instructions::default())
         })
@@ -55,7 +55,7 @@ pub fn num_at() -> LibFunc {
         return_type: Some(Type::Num(NumT::Int)),
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(AT.clone());
             Ok(instructions)

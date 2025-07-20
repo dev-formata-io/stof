@@ -17,7 +17,7 @@
 use std::sync::Arc;
 use arcstr::{literal, ArcStr};
 use imbl::vector;
-use crate::{model::{Graph, LibFunc, Param}, runtime::{instruction::Instructions, instructions::{list::{ListIns, ANY_LIST, APPEND_LIST, AT_LIST, CLEAR_LIST, CONTAINS_LIST, EMPTY_LIST, FIRST_LIST, INDEX_OF_LIST, INSERT_LIST, IS_UNIFORM_LIST, JOIN_LIST, LAST_LIST, LEN_LIST, POP_BACK_LIST, POP_FRONT_LIST, REMOVE_ALL_LIST, REMOVE_FIRST_LIST, REMOVE_LAST_LIST, REMOVE_LIST, REPLACE_LIST, REVERSED_LIST, REVERSE_LIST, SORT_LIST, TO_UNIFORM_LIST}, Base}, NumT, Type, Val}};
+use crate::{model::{Graph, LibFunc, Param}, runtime::{instruction::Instructions, instructions::{list::{ListIns, ANY_LIST, APPEND_LIST, AT_LIST, AT_REF_LIST, CLEAR_LIST, CONTAINS_LIST, EMPTY_LIST, FIRST_LIST, FIRST_REF_LIST, INDEX_OF_LIST, INSERT_LIST, IS_UNIFORM_LIST, JOIN_LIST, LAST_LIST, LAST_REF_LIST, LEN_LIST, POP_BACK_LIST, POP_FRONT_LIST, REMOVE_ALL_LIST, REMOVE_FIRST_LIST, REMOVE_LAST_LIST, REMOVE_LIST, REPLACE_LIST, REVERSED_LIST, REVERSE_LIST, SORT_LIST, TO_UNIFORM_LIST}, Base}, NumT, Type, Val}};
 
 
 /// Library name.
@@ -69,7 +69,7 @@ fn list_append() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(APPEND_LIST.clone());
             Ok(instructions)
@@ -90,7 +90,7 @@ fn list_push_back() -> LibFunc {
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,
-        func: Arc::new(|arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(Arc::new(ListIns::PushBack(arg_count)));
             Ok(instructions)
@@ -111,7 +111,7 @@ fn list_push_front() -> LibFunc {
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,
-        func: Arc::new(|arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(Arc::new(ListIns::PushFront(arg_count)));
             Ok(instructions)
@@ -132,7 +132,7 @@ fn list_pop_front() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(POP_FRONT_LIST.clone());
             Ok(instructions)
@@ -153,7 +153,7 @@ fn list_pop_back() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(POP_BACK_LIST.clone());
             Ok(instructions)
@@ -174,7 +174,7 @@ fn list_clear() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(CLEAR_LIST.clone());
             Ok(instructions)
@@ -195,7 +195,7 @@ fn list_reverse() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(REVERSE_LIST.clone());
             Ok(instructions)
@@ -216,7 +216,7 @@ fn list_reversed() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(REVERSED_LIST.clone());
             Ok(instructions)
@@ -237,7 +237,7 @@ fn list_len() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(LEN_LIST.clone());
             Ok(instructions)
@@ -259,9 +259,13 @@ fn list_at() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
-            instructions.push(AT_LIST.clone());
+            if as_ref {
+                instructions.push(AT_REF_LIST.clone());
+            } else {
+                instructions.push(AT_LIST.clone());
+            }
             Ok(instructions)
         })
     }
@@ -280,7 +284,7 @@ fn list_empty() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(EMPTY_LIST.clone());
             Ok(instructions)
@@ -301,7 +305,7 @@ fn list_any() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(ANY_LIST.clone());
             Ok(instructions)
@@ -322,9 +326,13 @@ fn list_front() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
-            instructions.push(FIRST_LIST.clone());
+            if as_ref {
+                instructions.push(FIRST_REF_LIST.clone());
+            } else {
+                instructions.push(FIRST_LIST.clone());
+            }
             Ok(instructions)
         })
     }
@@ -343,9 +351,13 @@ fn list_back() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
-            instructions.push(LAST_LIST.clone());
+            if as_ref {
+                instructions.push(LAST_REF_LIST.clone());
+            } else {
+                instructions.push(LAST_LIST.clone());
+            }
             Ok(instructions)
         })
     }
@@ -365,7 +377,7 @@ fn list_join() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(JOIN_LIST.clone());
             Ok(instructions)
@@ -387,7 +399,7 @@ fn list_contains() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(CONTAINS_LIST.clone());
             Ok(instructions)
@@ -409,7 +421,7 @@ fn list_index_of() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(INDEX_OF_LIST.clone());
             Ok(instructions)
@@ -431,7 +443,7 @@ fn list_remove() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(REMOVE_LIST.clone());
             Ok(instructions)
@@ -453,7 +465,7 @@ fn list_remove_first() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(REMOVE_FIRST_LIST.clone());
             Ok(instructions)
@@ -475,7 +487,7 @@ fn list_remove_last() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(REMOVE_LAST_LIST.clone());
             Ok(instructions)
@@ -497,7 +509,7 @@ fn list_remove_all() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(REMOVE_ALL_LIST.clone());
             Ok(instructions)
@@ -520,7 +532,7 @@ fn list_insert() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(INSERT_LIST.clone());
             Ok(instructions)
@@ -543,7 +555,7 @@ fn list_replace() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(REPLACE_LIST.clone());
             Ok(instructions)
@@ -564,7 +576,7 @@ fn list_sort() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(SORT_LIST.clone());
             Ok(instructions)
@@ -585,7 +597,7 @@ fn list_is_uniform() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(IS_UNIFORM_LIST.clone());
             Ok(instructions)
@@ -607,7 +619,7 @@ fn list_to_uniform() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(TO_UNIFORM_LIST.clone());
             Ok(instructions)

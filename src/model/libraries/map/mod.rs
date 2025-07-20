@@ -17,7 +17,7 @@
 use std::sync::Arc;
 use arcstr::{literal, ArcStr};
 use imbl::vector;
-use crate::{model::{Graph, LibFunc, Param}, runtime::{instruction::Instructions, instructions::map::{ANY_MAP, APPEND_MAP, AT_MAP, CLEAR_MAP, CONTAINS_MAP, EMPTY_MAP, FIRST_MAP, GET_MAP, INSERT_MAP, KEYS_MAP, LAST_MAP, LEN_MAP, POP_FIRST_MAP, POP_LAST_MAP, REMOVE_MAP, VALUES_MAP}, NumT, Type}};
+use crate::{model::{Graph, LibFunc, Param}, runtime::{instruction::Instructions, instructions::map::{ANY_MAP, APPEND_MAP, AT_MAP, AT_REF_MAP, CLEAR_MAP, CONTAINS_MAP, EMPTY_MAP, FIRST_MAP, FIRST_REF_MAP, GET_MAP, GET_REF_MAP, INSERT_MAP, KEYS_MAP, LAST_MAP, LAST_REF_MAP, LEN_MAP, POP_FIRST_MAP, POP_LAST_MAP, REMOVE_MAP, VALUES_MAP, VALUES_REF_MAP}, NumT, Type}};
 
 
 /// Library name.
@@ -59,7 +59,7 @@ fn map_append() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(APPEND_MAP.clone());
             Ok(instructions)
@@ -80,7 +80,7 @@ fn map_clear() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(CLEAR_MAP.clone());
             Ok(instructions)
@@ -102,7 +102,7 @@ fn map_contains() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(CONTAINS_MAP.clone());
             Ok(instructions)
@@ -123,9 +123,13 @@ fn map_first() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
-            instructions.push(FIRST_MAP.clone());
+            if as_ref {
+                instructions.push(FIRST_REF_MAP.clone());
+            } else {
+                instructions.push(FIRST_MAP.clone());
+            }
             Ok(instructions)
         })
     }
@@ -144,9 +148,13 @@ fn map_last() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
-            instructions.push(LAST_MAP.clone());
+            if as_ref {
+                instructions.push(LAST_REF_MAP.clone());
+            } else {
+                instructions.push(LAST_MAP.clone());
+            }
             Ok(instructions)
         })
     }
@@ -166,9 +174,13 @@ fn map_get() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
-            instructions.push(GET_MAP.clone());
+            if as_ref {
+                instructions.push(GET_REF_MAP.clone());
+            } else {
+                instructions.push(GET_MAP.clone());
+            }
             Ok(instructions)
         })
     }
@@ -189,7 +201,7 @@ fn map_insert() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(INSERT_MAP.clone());
             Ok(instructions)
@@ -210,7 +222,7 @@ fn map_empty() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(EMPTY_MAP.clone());
             Ok(instructions)
@@ -231,7 +243,7 @@ fn map_any() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(ANY_MAP.clone());
             Ok(instructions)
@@ -252,7 +264,7 @@ fn map_keys() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(KEYS_MAP.clone());
             Ok(instructions)
@@ -273,9 +285,13 @@ fn map_values() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
-            instructions.push(VALUES_MAP.clone());
+            if as_ref {
+                instructions.push(VALUES_REF_MAP.clone());
+            } else {
+                instructions.push(VALUES_MAP.clone());
+            }
             Ok(instructions)
         })
     }
@@ -294,7 +310,7 @@ fn map_len() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(LEN_MAP.clone());
             Ok(instructions)
@@ -316,9 +332,13 @@ fn map_at() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
-            instructions.push(AT_MAP.clone());
+            if as_ref {
+                instructions.push(AT_REF_MAP.clone());
+            } else {
+                instructions.push(AT_MAP.clone());
+            }
             Ok(instructions)
         })
     }
@@ -337,7 +357,7 @@ fn map_pop_first() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(POP_FIRST_MAP.clone());
             Ok(instructions)
@@ -358,7 +378,7 @@ fn map_pop_last() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(POP_LAST_MAP.clone());
             Ok(instructions)
@@ -380,7 +400,7 @@ fn map_remove() -> LibFunc {
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
-        func: Arc::new(|_arg_count, _env, _graph| {
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(REMOVE_MAP.clone());
             Ok(instructions)

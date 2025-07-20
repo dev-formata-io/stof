@@ -31,23 +31,23 @@ pub fn graph_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     let (input, as_ref) = opt(char('&')).parse(input)?;
 
     // Get a variable or function call onto the stack, then optionally chain on more!
-    let (input, mut first) = var_func(input, false)?;
-    if as_ref.is_some() {
-        if let Some(base) = first.as_dyn_any().downcast_ref::<Base>() {
-            match base {
-                Base::LoadVariable(path, chained, _) => {
-                    first = Arc::new(Base::LoadVariable(path.clone(), *chained, true));
-                },
-                _ => {}
-            }
-        }
-    }
+    let (mut input, first) = var_func(input, false, as_ref.is_some())?;
 
     // Get the rest if any more!
-    let (input, additional) = many0(alt((
-        preceded(char('.'), chained_var_func),
-        chained_var_func
-    ))).parse(input)?;
+    let rest;
+    let additional;
+    if as_ref.is_some() {
+        (rest, additional) = many0(alt((
+            preceded(char('.'), ref_chained_var_func),
+            ref_chained_var_func
+        ))).parse(input)?;
+    } else {
+        (rest, additional) = many0(alt((
+            preceded(char('.'), chained_var_func),
+            chained_var_func
+        ))).parse(input)?;
+    }
+    input = rest;
 
     // If only one, then don't create a block...
     if additional.is_empty() {
@@ -62,13 +62,18 @@ pub fn graph_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 }
 pub fn chained_var_func(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     // TODO add null check operator instruction "?."... will be an additional [dup, if [nullcheck, jump], ..var_func.., jumptag] sequence
-    var_func(input, true)
+    var_func(input, true, false)
 }
-pub(self) fn var_func(input: &str, chained: bool) -> IResult<&str, Arc<dyn Instruction>> {
+fn ref_chained_var_func(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+    // TODO add null check operator instruction "?."... will be an additional [dup, if [nullcheck, jump], ..var_func.., jumptag] sequence
+    var_func(input, true, true)
+}
+pub(self) fn var_func(input: &str, chained: bool, as_ref: bool) -> IResult<&str, Arc<dyn Instruction>> {
     // Special case of [idx][idx][idx] chaining
     if chained && input.starts_with('[') {
         let (input, idx) = index_expr(input)?;
         return Ok((input, Arc::new(FuncCall {
+            as_ref,
             stack: chained,
             func: None,
             search: Some("at".into()),
@@ -96,13 +101,14 @@ pub(self) fn var_func(input: &str, chained: bool) -> IResult<&str, Arc<dyn Instr
     // Return a call if there is a call, otherwise return a variable lookup.
     if let Some(args) = call {
         Ok((input, Arc::new(FuncCall {
+            as_ref,
             stack: chained,
             func: None,
             search: Some(path.into()),
             args: args.into_iter().collect(),
         })))
     } else {
-        Ok((input, Arc::new(Base::LoadVariable(path.into(), chained, false))))
+        Ok((input, Arc::new(Base::LoadVariable(path.into(), chained, as_ref))))
     }
 }
 

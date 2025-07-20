@@ -58,6 +58,16 @@ fn get() {
 }
 
 #[test]
+fn get_ref() {
+    let a = {'a': 0, 'b': 1};
+    
+    let b = &a.get('b');
+    b = 42;
+
+    assert_eq(a, {'a': 0, 'b': 42});
+}
+
+#[test]
 fn insert() {
     let a = {'a': 0, 'b': 1};
     a.insert('c', 5);

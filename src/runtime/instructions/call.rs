@@ -36,6 +36,9 @@ pub struct FuncCall {
     /// Will pop a value from the stack to use it.
     /// Used when chaining stuff together Ex. hello[15].my_func('hi').dude()
     pub stack: bool,
+
+    /// Is this function call by reference?
+    pub as_ref: bool,
     
     /// Single instruction for each argument (think of it like an expr)!
     pub args: Vector<Arc<dyn Instruction>>,
@@ -361,8 +364,7 @@ impl FuncCall {
         }
 
         // Push the function instructions
-        let func_instructions = func.func.deref()(args.len(), env, graph)?;
-        //func_instructions.push(Arc::new(Base::Tag(FUNC_RET_TAG.clone())));
+        let func_instructions = func.func.deref()(self.as_ref, args.len(), env, graph)?;
         instructions.append(&func_instructions.instructions);
         
         if !is_async {

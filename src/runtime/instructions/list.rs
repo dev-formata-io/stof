@@ -33,10 +33,13 @@ lazy_static! {
     pub static ref REVERSED_LIST: Arc<dyn Instruction> = Arc::new(ListIns::Reversed);
     pub static ref LEN_LIST: Arc<dyn Instruction> = Arc::new(ListIns::Len);
     pub static ref AT_LIST: Arc<dyn Instruction> = Arc::new(ListIns::At);
+    pub static ref AT_REF_LIST: Arc<dyn Instruction> = Arc::new(ListIns::AtRef);
     pub static ref EMPTY_LIST: Arc<dyn Instruction> = Arc::new(ListIns::Empty);
     pub static ref ANY_LIST: Arc<dyn Instruction> = Arc::new(ListIns::Any);
     pub static ref FIRST_LIST: Arc<dyn Instruction> = Arc::new(ListIns::First);
     pub static ref LAST_LIST: Arc<dyn Instruction> = Arc::new(ListIns::Last);
+    pub static ref FIRST_REF_LIST: Arc<dyn Instruction> = Arc::new(ListIns::FirstRef);
+    pub static ref LAST_REF_LIST: Arc<dyn Instruction> = Arc::new(ListIns::LastRef);
     pub static ref JOIN_LIST: Arc<dyn Instruction> = Arc::new(ListIns::Join);
     pub static ref CONTAINS_LIST: Arc<dyn Instruction> = Arc::new(ListIns::Contains);
     pub static ref INDEX_OF_LIST: Arc<dyn Instruction> = Arc::new(ListIns::IndexOf);
@@ -73,10 +76,13 @@ pub enum ListIns {
     Reversed,
     Len,
     At,
+    AtRef,
     Empty,
     Any,
     First,
+    FirstRef,
     Last,
+    LastRef,
     Join,
     Contains,
     IndexOf,
@@ -309,6 +315,29 @@ impl Instruction for ListIns {
                 }
                 Err(Error::ListAt)
             },
+            Self::AtRef => {
+                if let Some(index_var) = env.stack.pop() {
+                    if let Some(var) = env.stack.pop() {
+                        match index_var.val.read().deref() {
+                            Val::Num(num) => {
+                                match var.val.read().deref() {
+                                    Val::List(list) => {
+                                        if let Some(val) = list.get(num.int() as usize) {
+                                            env.stack.push(Variable::refval(val.duplicate(true)));
+                                        } else {
+                                            env.stack.push(Variable::val(Val::Null));
+                                        }
+                                        return Ok(None);
+                                    },
+                                    _ => {}
+                                }
+                            },
+                            _ => {},
+                        }
+                    }
+                }
+                Err(Error::ListAt)
+            },
             Self::Empty => {
                 if let Some(var) = env.stack.pop() {
                     match var.val.read().deref() {
@@ -355,6 +384,38 @@ impl Instruction for ListIns {
                         Val::List(list) => {
                             if let Some(val) = list.back() {
                                 env.stack.push(Variable::refval(val.duplicate(false)));
+                            } else {
+                                env.stack.push(Variable::val(Val::Null));
+                            }
+                            return Ok(None);
+                        },
+                        _ => {}
+                    }
+                }
+                Err(Error::ListLast)
+            },
+            Self::FirstRef => {
+                if let Some(var) = env.stack.pop() {
+                    match var.val.read().deref() {
+                        Val::List(list) => {
+                            if let Some(val) = list.front() {
+                                env.stack.push(Variable::refval(val.duplicate(true)));
+                            } else {
+                                env.stack.push(Variable::val(Val::Null));
+                            }
+                            return Ok(None);
+                        },
+                        _ => {}
+                    }
+                }
+                Err(Error::ListFirst)
+            },
+            Self::LastRef => {
+                if let Some(var) = env.stack.pop() {
+                    match var.val.read().deref() {
+                        Val::List(list) => {
+                            if let Some(val) = list.back() {
+                                env.stack.push(Variable::refval(val.duplicate(true)));
                             } else {
                                 env.stack.push(Variable::val(Val::Null));
                             }

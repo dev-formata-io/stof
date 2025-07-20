@@ -93,6 +93,23 @@ fn at() {
 }
 
 #[test]
+fn at_ref() {
+    let a = ['hi', 54, true, 3.4.5];
+    
+    let first = &a.front();
+    first = 'yo';
+    assert_eq(a, ['yo', 54, true, 3.4.5]);
+
+    let last = &a.back();
+    last = 'changed';
+    assert_eq(a, ['yo', 54, true, 'changed']);
+
+    let mid = &a[1];
+    mid = 42;
+    assert_eq(a, ['yo', 42, true, 'changed']);
+}
+
+#[test]
 fn join() {
     let a = ['hello', 'cj'];
     assert_eq(a.join(', '), 'hello, cj');

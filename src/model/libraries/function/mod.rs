@@ -19,7 +19,7 @@ use arcstr::{literal, ArcStr};
 use imbl::{vector, OrdMap, Vector};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{libraries::func::ops::{fn_attributes, fn_call, fn_data, fn_exp_call, fn_has_attr, fn_id, fn_is_async, fn_name, fn_obj, fn_objs, fn_params, fn_return_type}, Func, Graph, ASYNC_FUNC_ATTR}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, Base}, proc::ProcEnv, Error, Val, ValRef, Variable}};
+use crate::{model::{libraries::function::ops::{fn_attributes, fn_call, fn_data, fn_exp_call, fn_has_attr, fn_id, fn_is_async, fn_name, fn_obj, fn_objs, fn_params, fn_return_type}, Func, Graph, ASYNC_FUNC_ATTR}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, Base}, proc::ProcEnv, Error, Val, ValRef, Variable}};
 
 mod ops;
 
@@ -219,6 +219,7 @@ impl Instruction for FuncIns {
                     if let Some(dref) = var.try_func() {
                         let mut instructions = Instructions::default();
                         instructions.push(Arc::new(FuncCall {
+                            as_ref: false,
                             func: Some(dref),
                             search: None,
                             stack: false,
@@ -260,6 +261,7 @@ impl Instruction for FuncIns {
                     if let Some(dref) = var.try_func() {
                         let mut instructions = Instructions::default();
                         instructions.push(Arc::new(FuncCall {
+                            as_ref: false,
                             func: Some(dref),
                             search: None,
                             stack: false,

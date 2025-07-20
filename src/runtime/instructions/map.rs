@@ -31,13 +31,18 @@ lazy_static! {
     pub static ref FIRST_MAP: Arc<dyn Instruction> = Arc::new(MapIns::First);
     pub static ref LAST_MAP: Arc<dyn Instruction> = Arc::new(MapIns::Last);
     pub static ref GET_MAP: Arc<dyn Instruction> = Arc::new(MapIns::Get);
+    pub static ref FIRST_REF_MAP: Arc<dyn Instruction> = Arc::new(MapIns::FirstRef);
+    pub static ref LAST_REF_MAP: Arc<dyn Instruction> = Arc::new(MapIns::LastRef);
+    pub static ref GET_REF_MAP: Arc<dyn Instruction> = Arc::new(MapIns::GetRef);
     pub static ref INSERT_MAP: Arc<dyn Instruction> = Arc::new(MapIns::Insert);
     pub static ref EMPTY_MAP: Arc<dyn Instruction> = Arc::new(MapIns::Empty);
     pub static ref ANY_MAP: Arc<dyn Instruction> = Arc::new(MapIns::Any);
     pub static ref KEYS_MAP: Arc<dyn Instruction> = Arc::new(MapIns::Keys);
     pub static ref VALUES_MAP: Arc<dyn Instruction> = Arc::new(MapIns::Values);
+    pub static ref VALUES_REF_MAP: Arc<dyn Instruction> = Arc::new(MapIns::ValuesRef);
     pub static ref LEN_MAP: Arc<dyn Instruction> = Arc::new(MapIns::Len);
     pub static ref AT_MAP: Arc<dyn Instruction> = Arc::new(MapIns::At);
+    pub static ref AT_REF_MAP: Arc<dyn Instruction> = Arc::new(MapIns::AtRef);
     pub static ref POP_FIRST_MAP: Arc<dyn Instruction> = Arc::new(MapIns::PopFirst);
     pub static ref POP_LAST_MAP: Arc<dyn Instruction> = Arc::new(MapIns::PopLast);
     pub static ref REMOVE_MAP: Arc<dyn Instruction> = Arc::new(MapIns::Remove);
@@ -61,13 +66,18 @@ pub enum MapIns {
     First,
     Last,
     Get,
+    FirstRef,
+    LastRef,
+    GetRef,
     Insert,
     Empty,
     Any,
     Keys,
     Values,
+    ValuesRef,
     Len,
     At,
+    AtRef,
     PopFirst,
     PopLast,
     Remove,
@@ -195,6 +205,38 @@ impl Instruction for MapIns {
                 }
                 Err(Error::MapLast)
             },
+            Self::FirstRef => {
+                if let Some(var) = env.stack.pop() {
+                    match var.val.read().deref() {
+                        Val::Map(map) => {
+                            if let Some((key, val)) = map.get_min() {
+                                env.stack.push(Variable::val(Val::Tup(vector![key.duplicate(false), val.duplicate(true)])));
+                            } else {
+                                env.stack.push(Variable::val(Val::Null));
+                            }
+                            return Ok(None);
+                        },
+                        _ => {}
+                    }
+                }
+                Err(Error::MapFirst)
+            },
+            Self::LastRef => {
+                if let Some(var) = env.stack.pop() {
+                    match var.val.read().deref() {
+                        Val::Map(map) => {
+                            if let Some((key, val)) = map.get_max() {
+                                env.stack.push(Variable::val(Val::Tup(vector![key.duplicate(false), val.duplicate(true)])));
+                            } else {
+                                env.stack.push(Variable::val(Val::Null));
+                            }
+                            return Ok(None);
+                        },
+                        _ => {}
+                    }
+                }
+                Err(Error::MapLast)
+            },
             Self::Get => {
                 if let Some(search_val) = env.stack.pop() {
                     if let Some(var) = env.stack.pop() {
@@ -202,6 +244,24 @@ impl Instruction for MapIns {
                             Val::Map(map) => {
                                 if let Some(val) = map.get(&search_val.val) {
                                     env.stack.push(Variable::refval(val.duplicate(false)));
+                                } else {
+                                    env.stack.push(Variable::val(Val::Null));
+                                }
+                                return Ok(None);
+                            },
+                            _ => {}
+                        }
+                    }
+                }
+                Err(Error::MapGet)
+            },
+            Self::GetRef => {
+                if let Some(search_val) = env.stack.pop() {
+                    if let Some(var) = env.stack.pop() {
+                        match var.val.read().deref() {
+                            Val::Map(map) => {
+                                if let Some(val) = map.get(&search_val.val) {
+                                    env.stack.push(Variable::refval(val.duplicate(true)));
                                 } else {
                                     env.stack.push(Variable::val(Val::Null));
                                 }
@@ -289,6 +349,22 @@ impl Instruction for MapIns {
                 }
                 Err(Error::MapValues)
             },
+            Self::ValuesRef => {
+                if let Some(var) = env.stack.pop() {
+                    match var.val.read().deref() {
+                        Val::Map(map) => {
+                            let mut values = Vector::default();
+                            for val in map.values() {
+                                values.push_back(val.duplicate(true));
+                            }
+                            env.stack.push(Variable::val(Val::List(values)));
+                            return Ok(None);
+                        },
+                        _ => {}
+                    }
+                }
+                Err(Error::MapValues)
+            },
             Self::Len => {
                 if let Some(var) = env.stack.pop() {
                     match var.val.read().deref() {
@@ -311,6 +387,30 @@ impl Instruction for MapIns {
                                         let index = num.int() as usize;
                                         if let Some((key, val)) = map.iter().nth(index) {
                                             env.stack.push(Variable::val(Val::Tup(vector![key.duplicate(false), val.duplicate(false)])));
+                                        } else {
+                                            env.stack.push(Variable::val(Val::Null));
+                                        }
+                                        return Ok(None);
+                                    },
+                                    _ => {}
+                                }
+                            },
+                            _ => {}
+                        }
+                    }
+                }
+                Err(Error::MapAt)
+            },
+            Self::AtRef => {
+                if let Some(index_var) = env.stack.pop() {
+                    if let Some(var) = env.stack.pop() {
+                        match var.val.read().deref() {
+                            Val::Map(map) => {
+                                match index_var.val.read().deref() {
+                                    Val::Num(num) => {
+                                        let index = num.int() as usize;
+                                        if let Some((key, val)) = map.iter().nth(index) {
+                                            env.stack.push(Variable::val(Val::Tup(vector![key.duplicate(false), val.duplicate(true)])));
                                         } else {
                                             env.stack.push(Variable::val(Val::Null));
                                         }
