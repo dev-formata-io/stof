@@ -16,10 +16,10 @@
 
 use std::{ops::Deref, sync::Arc};
 use arcstr::{literal, ArcStr};
-use imbl::Vector;
+use imbl::{vector, Vector};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{stof_std::StdIns, Field, Func, Graph, Prototype}, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, POP_SELF, PUSH_SELF}, proc::ProcEnv, Error, Num, Type, Val, ValRef, Variable}};
+use crate::{model::{stof_std::StdIns, Field, Func, Graph, Prototype}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, empty::EmptyIns, Base, POP_SELF, PUSH_SELF}, proc::ProcEnv, Error, Num, Type, Val, ValRef, Variable}};
 
 
 /// Obj library name.
@@ -50,6 +50,34 @@ lazy_static! {
     pub(self) static ref INSTANCE_OF: Arc<dyn Instruction> = Arc::new(ObjIns::InstanceOf);
     pub(self) static ref UPCAST: Arc<dyn Instruction> = Arc::new(ObjIns::Upcast);
     pub(self) static ref CREATE_TYPE: Arc<dyn Instruction> = Arc::new(ObjIns::CreateType);
+
+    pub(self) static ref LEN: Arc<dyn Instruction> = Arc::new(ObjIns::Len);
+    pub(self) static ref AT: Arc<dyn Instruction> = Arc::new(ObjIns::At);
+    pub(self) static ref AT_REF: Arc<dyn Instruction> = Arc::new(ObjIns::AtRef);
+    pub(self) static ref GET: Arc<dyn Instruction> = Arc::new(ObjIns::Get);
+    pub(self) static ref GET_REF: Arc<dyn Instruction> = Arc::new(ObjIns::GetRef);
+    pub(self) static ref CONTAINS: Arc<dyn Instruction> = Arc::new(ObjIns::Contains);
+    pub(self) static ref INSERT: Arc<dyn Instruction> = Arc::new(ObjIns::Insert);
+    pub(self) static ref REMOVE: Arc<dyn Instruction> = Arc::new(ObjIns::Remove);
+    pub(self) static ref MOVE_FIELD: Arc<dyn Instruction> = Arc::new(ObjIns::MoveField);
+    pub(self) static ref FIELDS: Arc<dyn Instruction> = Arc::new(ObjIns::Fields);
+    pub(self) static ref FUNCS: Arc<dyn Instruction> = Arc::new(ObjIns::Funcs);
+    pub(self) static ref EMPTY: Arc<dyn Instruction> = Arc::new(ObjIns::Empty);
+    pub(self) static ref ANY: Arc<dyn Instruction> = Arc::new(ObjIns::Any);
+    pub(self) static ref ATTRIBUTES: Arc<dyn Instruction> = Arc::new(ObjIns::Attributes);
+    pub(self) static ref MOVE: Arc<dyn Instruction> = Arc::new(ObjIns::Move);
+    pub(self) static ref DISTANCE: Arc<dyn Instruction> = Arc::new(ObjIns::Distance);
+
+    pub(self) static ref RUN: Arc<dyn Instruction> = Arc::new(ObjIns::Run);
+    pub(self) static ref SCHEMAFY: Arc<dyn Instruction> = Arc::new(ObjIns::Schemafy);
+    pub(self) static ref SEARCH_UP: Arc<dyn Instruction> = Arc::new(ObjIns::SearchUp);
+    pub(self) static ref SEARCH_DOWN: Arc<dyn Instruction> = Arc::new(ObjIns::SearchDown);
+    pub(self) static ref TO_MAP: Arc<dyn Instruction> = Arc::new(ObjIns::ToMap);
+    pub(self) static ref FROM_MAP: Arc<dyn Instruction> = Arc::new(ObjIns::FromMap);
+    pub(self) static ref SHALLOW_COPY: Arc<dyn Instruction> = Arc::new(ObjIns::ShallowCopy);
+    pub(self) static ref DEEP_COPY: Arc<dyn Instruction> = Arc::new(ObjIns::DeepCopy);
+    pub(self) static ref FROM_ID: Arc<dyn Instruction> = Arc::new(ObjIns::FromId);
+    pub(self) static ref DUMP: Arc<dyn Instruction> = Arc::new(ObjIns::Dump);
 }
 
 
@@ -82,7 +110,7 @@ pub enum ObjIns {
     Contains,
     Insert,
     Remove,
-    MoveData,
+    MoveField,
     Fields,
     Funcs,
     Empty,
@@ -90,7 +118,6 @@ pub enum ObjIns {
     Attributes,
     Move,
     Distance,
-    Drop,
 
     Run,
     Schemafy,
@@ -253,7 +280,7 @@ impl Instruction for ObjIns {
             Self::Upcast => {
                 if let Some(var) = env.stack.pop() {
                     if let Some(obj) = var.try_obj() {
-                        let mut prototypes = Prototype::prototype_refs(&graph, &obj);
+                        let prototypes = Prototype::prototype_refs(&graph, &obj);
                         if prototypes.len() > 0 {
                             // Remove all prototypes and look for a proto on the proto to set
                             let mut proto_obj = None;
@@ -358,7 +385,7 @@ impl Instruction for ObjIns {
                                     let index = num.int() as usize;
                                     if let Some((name, field_ref)) = Field::fields(graph, &obj).into_iter().nth(index) {
                                         if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
-                                            env.stack.push(field.value.stack_var(false));
+                                            env.stack.push(Variable::val(Val::Tup(vector![ValRef::new(Val::Str(name.into())), field.value.val.duplicate(false)])));
                                         } else {
                                             env.stack.push(Variable::val(Val::Null));
                                         }
@@ -383,7 +410,7 @@ impl Instruction for ObjIns {
                                     let index = num.int() as usize;
                                     if let Some((name, field_ref)) = Field::fields(graph, &obj).into_iter().nth(index) {
                                         if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
-                                            env.stack.push(field.value.stack_var(true));
+                                            env.stack.push(Variable::val(Val::Tup(vector![ValRef::new(Val::Str(name.into())), field.value.val.duplicate(true)])));
                                         } else {
                                             env.stack.push(Variable::val(Val::Null));
                                         }
@@ -530,12 +557,364 @@ impl Instruction for ObjIns {
                 }
                 Err(Error::ObjRemove)
             },
-            Self::MoveData => {
-                // TODO: split this up into a good API
-                // Rename field from path A to path B
-                // Rename func from path A to path B
-                Err(Error::ObjMoveData)
+            Self::MoveField => {
+                if let Some(dest_var) = env.stack.pop() {
+                    if let Some(source_var) = env.stack.pop() {
+                        if let Some(var) = env.stack.pop() {
+                            if let Some(obj) = var.try_obj() {
+                                match dest_var.val.read().deref() {
+                                    Val::Str(dest_path) => {
+                                        match source_var.val.read().deref() {
+                                            Val::Str(source_path) => {
+                                                let mut moved = false;
+                                                if let Some(source_field_ref) = Field::field_from_path(graph, source_path.as_str(), Some(obj.clone())) {
+                                                    let mut source_field = None;
+                                                    if let Some(field) = graph.get_stof_data::<Field>(&source_field_ref) {
+                                                        source_field = Some(field.clone());
+                                                    }
+                                                    if let Some(field) = source_field {
+                                                        if let Some(existing) = Field::field_from_path(graph, dest_path.as_str(), Some(obj.clone())) {
+                                                            // A field already exists at this destination - set value
+                                                            if let Some(dest_field) = graph.get_mut_stof_data::<Field>(&existing) {
+                                                                dest_field.value = field.value;
+                                                                moved = true;
+                                                                graph.remove_data(&source_field_ref, None);
+                                                            }
+                                                        } else {
+                                                            let mut dest_path = dest_path.split('.').collect::<Vec<_>>();
+                                                            let new_field_name = dest_path.pop().unwrap();
+
+                                                            if dest_path.len() > 0 {
+                                                                // new location
+                                                                let path = dest_path.join(".");
+                                                                if let Some(location) = graph.ensure_named_nodes(&path, Some(obj.clone()), true, None) {
+                                                                    graph.remove_data(&source_field_ref, None);
+                                                                    moved = true;
+                                                                    graph.insert_stof_data(&location, new_field_name, Box::new(field), Some(source_field_ref));
+                                                                }
+                                                            } else {
+                                                                // rename only
+                                                                moved = graph.rename_data(&source_field_ref, new_field_name);
+                                                                if let Some(obj) = field.value.try_obj() {
+                                                                    if let Some(node) = obj.node_mut(graph) {
+                                                                        node.name = new_field_name.into();
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                env.stack.push(Variable::val(Val::Bool(moved)));
+                                                return Ok(None);
+                                            },
+                                            _ => {}
+                                        }
+                                    },
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(Error::ObjMoveField)
             },
+            Self::Fields => {
+                if let Some(var) = env.stack.pop() {
+                    if let Some(obj) = var.try_obj() {
+                        let mut fields = Vector::default();
+                        for (name, field_ref) in Field::fields(graph, &obj) {
+                            if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
+                                let value = field.value.val.duplicate(false);
+                                fields.push_back(ValRef::new(Val::Tup(vector![ValRef::new(Val::Str(name.into())), value])));
+                            }
+                        }
+                        env.stack.push(Variable::val(Val::List(fields)));
+                        return Ok(None);
+                    }
+                }
+                Err(Error::ObjFields)
+            },
+            Self::Funcs => {
+                if let Some(var) = env.stack.pop() {
+                    if let Some(obj) = var.try_obj() {
+                        let funcs = Func::functions(&graph, &obj, &None, false)
+                            .into_iter()
+                            .map(|fref| ValRef::new(Val::Fn(fref)))
+                            .collect::<Vector<_>>();
+                        env.stack.push(Variable::val(Val::List(funcs)));
+                        return Ok(None);
+                    }
+                }
+                Err(Error::ObjFuncs)
+            },
+            Self::Empty => {
+                if let Some(var) = env.stack.pop() {
+                    if let Some(obj) = var.try_obj() {
+                        if let Some(node) = obj.node(&graph) {
+                            env.stack.push(Variable::val(Val::Bool(node.data.is_empty())));
+                            return Ok(None);
+                        }
+                    }
+                }
+                Err(Error::ObjEmpty)
+            },
+            Self::Any => {
+                if let Some(var) = env.stack.pop() {
+                    if let Some(obj) = var.try_obj() {
+                        if let Some(node) = obj.node(&graph) {
+                            env.stack.push(Variable::val(Val::Bool(!node.data.is_empty())));
+                            return Ok(None);
+                        }
+                    }
+                }
+                Err(Error::ObjAny)
+            },
+            Self::Attributes => {
+                if let Some(var) = env.stack.pop() {
+                    if let Some(obj) = var.try_obj() {
+                        if let Some(node) = obj.node(&graph) {
+                            let attributes = node.attributes.clone()
+                                .into_iter()
+                                .map(|(name, val)| ValRef::new(Val::Tup(vector![ValRef::new(Val::Str(name.into())), ValRef::new(val)])))
+                                .collect::<Vector<_>>();
+                            env.stack.push(Variable::val(Val::List(attributes)));
+                            return Ok(None);
+                        }
+                    }
+                }
+                Err(Error::ObjAttributes)
+            },
+            Self::Move => {
+                if let Some(dest_var) = env.stack.pop() {
+                    if let Some(var) = env.stack.pop() {
+                        if let Some(obj) = var.try_obj() {
+                            if let Some(dest) = dest_var.try_obj() {
+                                let moved = graph.move_node(&obj, &dest);
+                                env.stack.push(Variable::val(Val::Bool(moved)));
+                                return Ok(None);
+                            }
+                        }
+                    }
+                }
+                Err(Error::ObjMove)
+            },
+            Self::Distance => {
+                if let Some(first_var) = env.stack.pop() {
+                    if let Some(second_var) = env.stack.pop() {
+                        if let Some(first) = first_var.try_obj() {
+                            if let Some(second) = second_var.try_obj() {
+                                let distance = first.distance_to(&graph, &second);
+                                env.stack.push(Variable::val(Val::Num(Num::Int(distance as i64))));
+                                return Ok(None);
+                            }
+                        }
+                    }
+                }
+                Err(Error::ObjDistance)
+            },
+
+            Self::Run => {
+                if let Some(var) = env.stack.pop() {
+                    if let Some(obj) = var.try_obj() {
+                        let mut run_instructions = Vec::new();
+
+                        for (_, field_ref) in Field::fields(graph, &obj) {
+                            if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
+                                if let Some(attr) = field.attributes.get("run") {
+                                    let mut order = -2;
+                                    let mut args = None;
+                                    match attr {
+                                        Val::Num(num) => {
+                                            order = num.int();
+                                        },
+                                        Val::Map(map) => {
+                                            if let Some(ord) = map.get(&ValRef::new(Val::Str("order".into()))) {
+                                                match ord.read().deref() {
+                                                    Val::Num(num) => {
+                                                        order = num.int();
+                                                    },
+                                                    _ => {}
+                                                }
+                                            }
+                                            if let Some(arguments) = map.get(&ValRef::new(Val::Str("args".into()))) {
+                                                args = Some(arguments.clone());
+                                            }
+                                        },
+                                        _ => {}
+                                    }
+                                    match field.value.val.read().deref() {
+                                        Val::Obj(other) => {
+                                            let instructions = vector![
+                                                Arc::new(Base::Literal(Val::Obj(other.clone()))) as Arc<dyn Instruction>,
+                                                RUN.clone(),
+                                            ];
+                                            run_instructions.push((order, instructions));
+                                        },
+                                        Val::Fn(dref) => {
+                                            let mut arguments: Vector<Arc<dyn Instruction>> = vector![];
+                                            if let Some(args) = args {
+                                                match args.read().deref() {
+                                                    Val::List(args) => {
+                                                        for arg in args {
+                                                            arguments.push_back(Arc::new(Base::Variable(Variable::refval(arg.clone()))));
+                                                        }
+                                                    },
+                                                    _ => {}
+                                                }
+                                            }
+                                            let instructions = vector![
+                                                Arc::new(EmptyIns {
+                                                    ins: Arc::new(FuncCall { func: Some(dref.clone()), search: None, stack: false, as_ref: false, args: arguments })
+                                                }) as Arc<dyn Instruction>
+                                            ];
+                                            run_instructions.push((order, instructions));
+                                        },
+                                        Val::List(list) => {
+                                            let mut instructions = vector![];
+
+                                            let mut arguments: Vector<Arc<dyn Instruction>> = vector![];
+                                            if let Some(args) = args {
+                                                match args.read().deref() {
+                                                    Val::List(args) => {
+                                                        for arg in args {
+                                                            arguments.push_back(Arc::new(Base::Variable(Variable::refval(arg.clone()))));
+                                                        }
+                                                    },
+                                                    _ => {}
+                                                }
+                                            }
+
+                                            for val in list {
+                                                match val.read().deref() {
+                                                    Val::Obj(other) => {
+                                                        instructions.push_back(Arc::new(Base::Literal(Val::Obj(other.clone()))) as Arc<dyn Instruction>);
+                                                        instructions.push_back(RUN.clone());
+                                                    },
+                                                    Val::Fn(dref) => {
+                                                        instructions.push_back(Arc::new(EmptyIns {
+                                                                ins: Arc::new(FuncCall { func: Some(dref.clone()), search: None, stack: false, as_ref: false, args: arguments.clone() })
+                                                            }) as Arc<dyn Instruction>);
+                                                    },
+                                                    _ => {}
+                                                }
+                                            }
+                                            run_instructions.push((order, instructions));
+                                        },
+                                        _ => {}
+                                    }
+                                }
+                            }
+                        }
+
+                        for func_ref in Func::functions(&graph, &obj, &None, false) {
+                            if let Some(func) = graph.get_stof_data::<Func>(&func_ref) {
+                                if let Some(attr) = func.attributes.get("run") {
+                                    let mut order = -1;
+                                    let mut args = None;
+                                    match attr {
+                                        Val::Num(num) => {
+                                            order = num.int();
+                                        },
+                                        Val::Map(map) => {
+                                            if let Some(ord) = map.get(&ValRef::new(Val::Str("order".into()))) {
+                                                match ord.read().deref() {
+                                                    Val::Num(num) => {
+                                                        order = num.int();
+                                                    },
+                                                    _ => {}
+                                                }
+                                            }
+                                            if let Some(arguments) = map.get(&ValRef::new(Val::Str("args".into()))) {
+                                                args = Some(arguments.clone());
+                                            }
+                                        },
+                                        _ => {}
+                                    }
+
+                                    let mut arguments: Vector<Arc<dyn Instruction>> = vector![];
+                                    if let Some(args) = args {
+                                        match args.read().deref() {
+                                            Val::List(args) => {
+                                                for arg in args {
+                                                    arguments.push_back(Arc::new(Base::Variable(Variable::refval(arg.clone()))));
+                                                }
+                                            },
+                                            _ => {}
+                                        }
+                                    }
+
+                                    let instructions = vector![
+                                        Arc::new(EmptyIns {
+                                            ins: Arc::new(FuncCall { func: Some(func_ref), search: None, stack: false, as_ref: false, args: arguments })
+                                        }) as Arc<dyn Instruction>
+                                    ];
+                                    run_instructions.push((order, instructions));
+                                }
+                            }
+                        }
+
+                        let mut highest_order = -2;
+                        for (ord, _) in &run_instructions { if *ord > highest_order { highest_order = *ord; } }
+                        for nref in Prototype::prototype_nodes(&graph, &obj) {
+                            let instructions = vector![
+                                Arc::new(Base::Literal(Val::Obj(nref))) as Arc<dyn Instruction>,
+                                RUN.clone()
+                            ];
+                            highest_order += 1;
+                            run_instructions.push((highest_order, instructions));
+                        }
+
+                        run_instructions.sort_by(|a, b| a.0.cmp(&b.0));
+                        let mut instructions = Instructions::default();
+                        for (_, ins) in run_instructions {
+                            instructions.append(&ins);
+                        }
+
+                        return Ok(Some(instructions));
+                    }
+                }
+                Err(Error::ObjRun)
+            },
+            Self::Schemafy => {
+                
+                Err(Error::ObjSchemafy)
+            },
+
+            Self::SearchUp => {
+
+                Err(Error::ObjSearchUp)
+            },
+            Self::SearchDown => {
+
+                Err(Error::ObjSearchDown)
+            },
+
+            Self::ToMap => {
+
+                Err(Error::ObjToMap)
+            },
+            Self::FromMap => {
+
+                Err(Error::ObjFromMap)
+            },
+
+            Self::ShallowCopy => {
+
+                Err(Error::ObjShallowCopy)
+            },
+            Self::DeepCopy => {
+
+                Err(Error::ObjDeepCopy)
+            }
+
+            Self::FromId => {
+
+                Err(Error::ObjFromId)
+            },
+            Self::Dump => {
+
+                Err(Error::ObjDump)
+            }
         }
     }
 }
