@@ -19,7 +19,7 @@ use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{Graph, Prototype}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Type, Val, ValRef, Variable}};
+use crate::{model::{stof_std::StdIns, Field, Func, Graph, Prototype}, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, POP_SELF, PUSH_SELF}, proc::ProcEnv, Error, Num, Type, Val, ValRef, Variable}};
 
 
 /// Obj library name.
@@ -337,6 +337,204 @@ impl Instruction for ObjIns {
                     }
                 }
                 Err(Error::ObjInstanceOf)
+            },
+
+            Self::Len => {
+                if let Some(var) = env.stack.pop() {
+                    if let Some(obj) = var.try_obj() {
+                        let fields = Field::fields(graph, &obj);
+                        env.stack.push(Variable::val(Val::Num(Num::Int(fields.len() as i64))));
+                        return Ok(None);
+                    }
+                }
+                Err(Error::ObjLen)
+            },
+            Self::At => {
+                if let Some(index_var) = env.stack.pop() {
+                    if let Some(var) = env.stack.pop() {
+                        if let Some(obj) = var.try_obj() {
+                            match index_var.val.read().deref() {
+                                Val::Num(num) => {
+                                    let index = num.int() as usize;
+                                    if let Some((name, field_ref)) = Field::fields(graph, &obj).into_iter().nth(index) {
+                                        if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
+                                            env.stack.push(field.value.stack_var(false));
+                                        } else {
+                                            env.stack.push(Variable::val(Val::Null));
+                                        }
+                                    } else {
+                                        env.stack.push(Variable::val(Val::Null));
+                                    }
+                                    return Ok(None);
+                                },
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+                Err(Error::ObjAt)
+            },
+            Self::AtRef => {
+                if let Some(index_var) = env.stack.pop() {
+                    if let Some(var) = env.stack.pop() {
+                        if let Some(obj) = var.try_obj() {
+                            match index_var.val.read().deref() {
+                                Val::Num(num) => {
+                                    let index = num.int() as usize;
+                                    if let Some((name, field_ref)) = Field::fields(graph, &obj).into_iter().nth(index) {
+                                        if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
+                                            env.stack.push(field.value.stack_var(true));
+                                        } else {
+                                            env.stack.push(Variable::val(Val::Null));
+                                        }
+                                    } else {
+                                        env.stack.push(Variable::val(Val::Null));
+                                    }
+                                    return Ok(None);
+                                },
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+                Err(Error::ObjAtRef)
+            },
+            Self::Get => {
+                if let Some(get_var) = env.stack.pop() {
+                    if let Some(var) = env.stack.pop() {
+                        if let Some(obj) = var.try_obj() {
+                            match get_var.val.read().deref() {
+                                Val::Str(name) => {
+                                    if let Some(node) = obj.node(&graph) {
+                                        if let Some(dref) = node.get_data(name.as_str()) {
+                                            if let Some(field) = graph.get_stof_data::<Field>(dref) {
+                                                env.stack.push(field.value.stack_var(false));
+                                            } else if let Some(_func) = graph.get_stof_data::<Func>(dref) {
+                                                env.stack.push(Variable::val(Val::Fn(dref.clone())));
+                                            } else {
+                                                env.stack.push(Variable::val(Val::Data(dref.clone())));
+                                            }
+                                        } else {
+                                            env.stack.push(Variable::val(Val::Null));
+                                        }
+                                        return Ok(None);
+                                    }
+                                },
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+                Err(Error::ObjGet)
+            },
+            Self::GetRef => {
+                if let Some(get_var) = env.stack.pop() {
+                    if let Some(var) = env.stack.pop() {
+                        if let Some(obj) = var.try_obj() {
+                            match get_var.val.read().deref() {
+                                Val::Str(name) => {
+                                    if let Some(node) = obj.node(&graph) {
+                                        if let Some(dref) = node.get_data(name.as_str()) {
+                                            if let Some(field) = graph.get_stof_data::<Field>(dref) {
+                                                env.stack.push(field.value.stack_var(true));
+                                            } else if let Some(_func) = graph.get_stof_data::<Func>(dref) {
+                                                env.stack.push(Variable::val(Val::Fn(dref.clone())));
+                                            } else {
+                                                env.stack.push(Variable::val(Val::Data(dref.clone())));
+                                            }
+                                        } else {
+                                            env.stack.push(Variable::val(Val::Null));
+                                        }
+                                        return Ok(None);
+                                    }
+                                },
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+                Err(Error::ObjGetRef)
+            },
+            Self::Contains => {
+                if let Some(search_var) = env.stack.pop() {
+                    if let Some(var) = env.stack.pop() {
+                        if let Some(obj) = var.try_obj() {
+                            match search_var.val.read().deref() {
+                                Val::Str(name) => {
+                                    if let Some(node) = obj.node(&graph) {
+                                        let contains = node.data.contains_key(name.as_str());
+                                        env.stack.push(Variable::val(Val::Bool(contains)));
+                                        return Ok(None);
+                                    }
+                                },
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+                Err(Error::ObjContains)
+            },
+            Self::Insert => {
+                if let Some(value_var) = env.stack.pop() {
+                    if let Some(name_var) = env.stack.pop() {
+                        if let Some(var) = env.stack.pop() {
+                            if let Some(obj) = var.try_obj() {
+                                match name_var.val.read().deref() {
+                                    Val::Str(name) => {
+                                        let mut name = name.clone();
+                                        if !name.starts_with("self.") {
+                                            // Make sure the path starts with this object
+                                            name = format!("self.{name}").into();
+                                        }
+
+                                        let mut instructions = Instructions::default();
+                                        instructions.push(Arc::new(Base::Literal(Val::Obj(obj))));
+                                        instructions.push(PUSH_SELF.clone());
+                                        instructions.push(Arc::new(Base::Variable(value_var)));
+                                        instructions.push(Arc::new(Base::SetVariable(name)));
+                                        instructions.push(POP_SELF.clone());
+                                        return Ok(Some(instructions));
+                                    },
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(Error::ObjInsert)
+            },
+            Self::Remove => {
+                if let Some(name_var) = env.stack.pop() {
+                    if let Some(var) = env.stack.pop() {
+                        if let Some(obj) = var.try_obj() {
+                            match name_var.val.read().deref() {
+                                Val::Str(name) => {
+                                    let mut name = name.clone();
+                                    if !name.starts_with("self.") {
+                                        // Make sure the path starts with this object
+                                        name = format!("self.{name}").into();
+                                    }
+
+                                    let mut instructions = Instructions::default();
+                                    instructions.push(Arc::new(Base::Literal(Val::Obj(obj))));
+                                    instructions.push(PUSH_SELF.clone());
+                                    instructions.push(Arc::new(Base::Literal(Val::Str(name))));
+                                    instructions.push(Arc::new(StdIns::Drop(1)));
+                                    instructions.push(POP_SELF.clone());
+                                    return Ok(Some(instructions));
+                                },
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+                Err(Error::ObjRemove)
+            },
+            Self::MoveData => {
+                // TODO: split this up into a good API
+                // Rename field from path A to path B
+                // Rename func from path A to path B
+                Err(Error::ObjMoveData)
             },
         }
     }
