@@ -31,3 +31,4 @@ import './map' as self.MapLib;
 import './tup' as self.TupLib;
 import './blob' as self.BlobLib;
 import './data' as self.DataLib;
+import './obj' as self.ObjLib;

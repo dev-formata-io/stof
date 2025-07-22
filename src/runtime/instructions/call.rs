@@ -111,10 +111,15 @@ impl FuncCall {
         // In this case, we are searching for a generic path, using the symbol table, libraries, and graph
         let context;
         if split_path[0] == SELF_STR_KEYWORD.as_str() {
-            // Note: keep "self" on the path otherwise drops to lib call
             context = ValRef::new(Val::Obj(env.self_ptr()));
+            split_path.remove(0);
         } else if split_path[0] == SUPER_STR_KEYWORD.as_str() {
-            context = ValRef::new(Val::Obj(env.self_ptr()));
+            if let Some(parent) = env.self_ptr().node_parent(&graph) {
+                context = ValRef::new(Val::Obj(parent));
+                split_path.remove(0);
+            } else {
+                context = ValRef::new(Val::Obj(env.self_ptr()));
+            }
         } else if let Some(var) = env.table.get(split_path[0]) {
             context = var.val.clone();
             split_path.remove(0);

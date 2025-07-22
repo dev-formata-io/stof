@@ -38,6 +38,25 @@ pub fn pln() -> LibFunc {
     }
 }
 
+/// Standard printline function (to string variant).
+pub fn string() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "str".into(),
+        is_async: false,
+        docs: "# Create a String\nWill print N arguments into a string and return it.".into(),
+        params: vector![],
+        return_type: None,
+        unbounded_args: true, // allow an unbounded number of arguments
+        args_to_symbol_table: false, // keep the arg on the stack instead of putting it into st
+        func: Arc::new(|_as_ref, arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(StdIns::String(arg_count)));
+            Ok(instructions)
+        })
+    }
+}
+
 /// Standard debug print function.
 pub fn dbg() -> LibFunc {
     LibFunc {

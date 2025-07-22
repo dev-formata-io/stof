@@ -137,3 +137,22 @@ pub fn std_drop() -> LibFunc {
         })
     }
 }
+
+/// Shallow drop.
+pub fn std_shallow_drop() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "shallow_drop".into(),
+        is_async: false,
+        docs: "# Shallow Drop\nDrop fields, functions, objects, and data from the graph. If removing a field and the field points to some data or an object, don't drop that object or additional data (shallow).".into(),
+        params: vector![],
+        return_type: None,
+        unbounded_args: true,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(StdIns::ShallowDrop(arg_count)));
+            Ok(instructions)
+        })
+    }
+}

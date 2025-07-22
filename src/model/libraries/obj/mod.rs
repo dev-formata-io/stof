@@ -21,8 +21,9 @@ use lazy_static::lazy_static;
 use nanoid::nanoid;
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
-use crate::{model::{obj::validate::validation, stof_std::StdIns, Field, Func, Graph, Prototype, SId}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::{FuncCall, NamedArg}, empty::EmptyIns, Base, ConsumeStack, POP_SELF, PUSH_SELF, TRUTHY}, proc::ProcEnv, Error, Num, Type, Val, ValRef, Variable}};
+use crate::{model::{obj::{ops::{obj_any, obj_at, obj_children, obj_contains, obj_create_type, obj_empty, obj_exists, obj_fields, obj_funcs, obj_get, obj_id, obj_insert, obj_instance_of_proto, obj_is_parent, obj_is_root, obj_len, obj_move_field, obj_name, obj_parent, obj_path, obj_proto, obj_remove, obj_remove_proto, obj_root, obj_set_proto, obj_upcast}, validate::validation}, stof_std::StdIns, Field, Func, Graph, Prototype, SId, PROTOTYPE_TYPE_ATTR}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, empty::EmptyIns, Base, ConsumeStack, POP_SELF, PUSH_SELF, TRUTHY}, proc::ProcEnv, Error, Num, Type, Val, ValRef, Variable}};
 mod validate;
+mod ops;
 
 
 /// Obj library name.
@@ -31,7 +32,35 @@ pub(self) const OBJ_LIB: ArcStr = literal!("Obj");
 
 /// Add the obj library to a graph.
 pub fn insert_obj_lib(graph: &mut Graph) {
+    graph.insert_libfunc(obj_name());
+    graph.insert_libfunc(obj_id());
+    graph.insert_libfunc(obj_path());
+    graph.insert_libfunc(obj_parent());
+    graph.insert_libfunc(obj_is_parent());
+    graph.insert_libfunc(obj_exists());
+    graph.insert_libfunc(obj_children());
+    graph.insert_libfunc(obj_root());
+    graph.insert_libfunc(obj_is_root());
 
+    graph.insert_libfunc(obj_proto());
+    graph.insert_libfunc(obj_create_type());
+    graph.insert_libfunc(obj_upcast());
+    graph.insert_libfunc(obj_set_proto());
+    graph.insert_libfunc(obj_remove_proto());
+    graph.insert_libfunc(obj_instance_of_proto());
+
+    graph.insert_libfunc(obj_len());
+    graph.insert_libfunc(obj_at());
+    graph.insert_libfunc(obj_get());
+    graph.insert_libfunc(obj_contains());
+    graph.insert_libfunc(obj_insert());
+    graph.insert_libfunc(obj_remove());
+    graph.insert_libfunc(obj_move_field());
+    graph.insert_libfunc(obj_fields());
+    graph.insert_libfunc(obj_funcs());
+    graph.insert_libfunc(obj_empty());
+    graph.insert_libfunc(obj_any());
+    
 }
 
 
@@ -43,7 +72,6 @@ lazy_static! {
     pub(self) static ref IS_PARENT: Arc<dyn Instruction> = Arc::new(ObjIns::IsParent);
     pub(self) static ref EXISTS: Arc<dyn Instruction> = Arc::new(ObjIns::Exists);
     pub(self) static ref CHILDREN: Arc<dyn Instruction> = Arc::new(ObjIns::Children);
-
     pub(self) static ref ROOT: Arc<dyn Instruction> = Arc::new(ObjIns::Root);
     pub(self) static ref IS_ROOT: Arc<dyn Instruction> = Arc::new(ObjIns::IsRoot);
 
@@ -91,7 +119,6 @@ pub enum ObjIns {
     IsParent,
     Exists,
     Children,
-
     Root,
     IsRoot,
 
@@ -213,7 +240,6 @@ impl Instruction for ObjIns {
                 }
                 Err(Error::ObjChildren)
             },
-
             Self::Root => {
                 if let Some(var) = env.stack.pop() {
                     if let Some(obj) = var.try_obj() {
@@ -263,6 +289,9 @@ impl Instruction for ObjIns {
                                 Val::Str(typename) => {
                                     // If this object is deleted, the type will be too
                                     graph.insert_type(typename.as_str(), &obj);
+                                    if let Some(node) = obj.node_mut(graph) {
+                                        node.insert_attribute(PROTOTYPE_TYPE_ATTR.to_string(), Val::Str(typename.clone()));
+                                    }
                                     return Ok(None);
                                 },
                                 _ => {}
@@ -312,6 +341,17 @@ impl Instruction for ObjIns {
                                 for dref in existing_prototypes { graph.remove_data(&dref, Some(obj.clone())); }
                                 graph.insert_stof_data(&obj, "__proto__", Box::new(Prototype { node: proto_ref }), None);
                                 return Ok(None);
+                            }
+                        } else {
+                            match proto_var.val.read().deref() {
+                                Val::Str(typename) => {
+                                    let prototype = Type::Obj(typename.as_str().into());
+                                    let mut instructions = Instructions::default();
+                                    instructions.push(Arc::new(Base::Variable(var)));
+                                    instructions.push(Arc::new(Base::Cast(prototype)));
+                                    return Ok(Some(instructions));
+                                },
+                                _ => {}
                             }
                         }
                     }
@@ -526,26 +566,34 @@ impl Instruction for ObjIns {
                 Err(Error::ObjInsert)
             },
             Self::Remove => {
-                if let Some(name_var) = env.stack.pop() {
-                    if let Some(var) = env.stack.pop() {
-                        if let Some(obj) = var.try_obj() {
-                            match name_var.val.read().deref() {
-                                Val::Str(name) => {
-                                    let mut name = name.clone();
-                                    if !name.starts_with("self.") {
-                                        // Make sure the path starts with this object
-                                        name = format!("self.{name}").into();
-                                    }
+                if let Some(shallow_var) = env.stack.pop() {
+                    if let Some(name_var) = env.stack.pop() {
+                        if let Some(var) = env.stack.pop() {
+                            if let Some(obj) = var.try_obj() {
+                                match name_var.val.read().deref() {
+                                    Val::Str(name) => {
+                                        let mut name = name.clone();
+                                        if !name.starts_with("self.") {
+                                            // Make sure the path starts with this object
+                                            name = format!("self.{name}").into();
+                                        }
 
-                                    let mut instructions = Instructions::default();
-                                    instructions.push(Arc::new(Base::Literal(Val::Obj(obj))));
-                                    instructions.push(PUSH_SELF.clone());
-                                    instructions.push(Arc::new(Base::Literal(Val::Str(name))));
-                                    instructions.push(Arc::new(StdIns::Drop(1)));
-                                    instructions.push(POP_SELF.clone());
-                                    return Ok(Some(instructions));
-                                },
-                                _ => {}
+                                        let mut instructions = Instructions::default();
+                                        instructions.push(Arc::new(Base::Literal(Val::Obj(obj))));
+                                        instructions.push(PUSH_SELF.clone());
+                                        instructions.push(Arc::new(Base::Literal(Val::Str(name))));
+
+                                        if shallow_var.truthy() {
+                                            instructions.push(Arc::new(StdIns::ShallowDrop(1)));
+                                        } else {
+                                            instructions.push(Arc::new(StdIns::Drop(1)));
+                                        }
+
+                                        instructions.push(POP_SELF.clone());
+                                        return Ok(Some(instructions));
+                                    },
+                                    _ => {}
+                                }
                             }
                         }
                     }
@@ -668,11 +716,11 @@ impl Instruction for ObjIns {
                 if let Some(var) = env.stack.pop() {
                     if let Some(obj) = var.try_obj() {
                         if let Some(node) = obj.node(&graph) {
-                            let attributes = node.attributes.clone()
-                                .into_iter()
-                                .map(|(name, val)| ValRef::new(Val::Tup(vector![ValRef::new(Val::Str(name.into())), ValRef::new(val)])))
-                                .collect::<Vector<_>>();
-                            env.stack.push(Variable::val(Val::List(attributes)));
+                            let mut map = OrdMap::default();
+                            for (k, v) in &node.attributes {
+                                map.insert(ValRef::new(Val::Str(ArcStr::from(k))), ValRef::new(v.clone()));
+                            }
+                            env.stack.push(Variable::val(Val::Map(map)));
                             return Ok(None);
                         }
                     }
