@@ -21,7 +21,7 @@ use lazy_static::lazy_static;
 use nanoid::nanoid;
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
-use crate::{model::{obj::{ops::{obj_any, obj_at, obj_children, obj_contains, obj_create_type, obj_empty, obj_exists, obj_fields, obj_funcs, obj_get, obj_id, obj_insert, obj_instance_of_proto, obj_is_parent, obj_is_root, obj_len, obj_move_field, obj_name, obj_parent, obj_path, obj_proto, obj_remove, obj_remove_proto, obj_root, obj_set_proto, obj_upcast}, validate::validation}, stof_std::StdIns, Field, Func, Graph, Prototype, SId, PROTOTYPE_TYPE_ATTR}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, empty::EmptyIns, Base, ConsumeStack, POP_SELF, PUSH_SELF, TRUTHY}, proc::ProcEnv, Error, Num, Type, Val, ValRef, Variable}};
+use crate::{model::{obj::{ops::{obj_any, obj_at, obj_attributes, obj_children, obj_contains, obj_create_type, obj_dist, obj_empty, obj_exists, obj_fields, obj_funcs, obj_get, obj_id, obj_insert, obj_instance_of_proto, obj_is_parent, obj_is_root, obj_len, obj_move, obj_move_field, obj_name, obj_parent, obj_path, obj_proto, obj_remove, obj_remove_proto, obj_root, obj_set_proto, obj_upcast}, validate::validation}, stof_std::StdIns, Field, Func, Graph, Prototype, SId, PROTOTYPE_TYPE_ATTR}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, empty::EmptyIns, Base, ConsumeStack, POP_SELF, PUSH_SELF, TRUTHY}, proc::ProcEnv, Error, Num, Type, Val, ValRef, Variable}};
 mod validate;
 mod ops;
 
@@ -60,7 +60,9 @@ pub fn insert_obj_lib(graph: &mut Graph) {
     graph.insert_libfunc(obj_funcs());
     graph.insert_libfunc(obj_empty());
     graph.insert_libfunc(obj_any());
-    
+    graph.insert_libfunc(obj_attributes());
+    graph.insert_libfunc(obj_move());
+    graph.insert_libfunc(obj_dist());
 }
 
 
@@ -678,14 +680,63 @@ impl Instruction for ObjIns {
                 Err(Error::ObjFields)
             },
             Self::Funcs => {
-                if let Some(var) = env.stack.pop() {
-                    if let Some(obj) = var.try_obj() {
-                        let funcs = Func::functions(&graph, &obj, &None, false)
-                            .into_iter()
-                            .map(|fref| ValRef::new(Val::Fn(fref)))
-                            .collect::<Vector<_>>();
-                        env.stack.push(Variable::val(Val::List(funcs)));
-                        return Ok(None);
+                if let Some(attr_var) = env.stack.pop() {
+                    if let Some(var) = env.stack.pop() {
+                        if let Some(obj) = var.try_obj() {
+                            match attr_var.val.read().deref() {
+                                Val::Void |
+                                Val::Null => {
+                                    let functions = Func::functions(&graph, &obj, &None, false)
+                                        .into_iter()
+                                        .map(|dref| ValRef::new(Val::Fn(dref)))
+                                        .collect::<Vector<_>>();
+                                    env.stack.push(Variable::val(Val::List(functions)));
+                                    return Ok(None);
+                                },
+                                Val::Str(attr) => {
+                                    let mut attributes = FxHashSet::default();
+                                    attributes.insert(attr.to_string());
+                                    let functions = Func::functions(&graph, &obj, &Some(attributes), false)
+                                        .into_iter()
+                                        .map(|dref| ValRef::new(Val::Fn(dref)))
+                                        .collect::<Vector<_>>();
+                                    env.stack.push(Variable::val(Val::List(functions)));
+                                    return Ok(None);
+                                },
+                                Val::Tup(attrs) |
+                                Val::List(attrs) => {
+                                    let mut attributes = FxHashSet::default();
+                                    for attr in attrs {
+                                        match attr.read().deref() {
+                                            Val::Str(attr) => { attributes.insert(attr.to_string()); },
+                                            _ => {}
+                                        }
+                                    }
+                                    let functions = Func::functions(&graph, &obj, &Some(attributes), false)
+                                        .into_iter()
+                                        .map(|dref| ValRef::new(Val::Fn(dref)))
+                                        .collect::<Vector<_>>();
+                                    env.stack.push(Variable::val(Val::List(functions)));
+                                    return Ok(None);
+                                },
+                                Val::Set(attrs) => {
+                                    let mut attributes = FxHashSet::default();
+                                    for attr in attrs {
+                                        match attr.read().deref() {
+                                            Val::Str(attr) => { attributes.insert(attr.to_string()); },
+                                            _ => {}
+                                        }
+                                    }
+                                    let functions = Func::functions(&graph, &obj, &Some(attributes), false)
+                                        .into_iter()
+                                        .map(|dref| ValRef::new(Val::Fn(dref)))
+                                        .collect::<Vector<_>>();
+                                    env.stack.push(Variable::val(Val::List(functions)));
+                                    return Ok(None);
+                                },
+                                _ => {}
+                            }
+                        }
                     }
                 }
                 Err(Error::ObjFuncs)
@@ -713,15 +764,53 @@ impl Instruction for ObjIns {
                 Err(Error::ObjAny)
             },
             Self::Attributes => {
-                if let Some(var) = env.stack.pop() {
-                    if let Some(obj) = var.try_obj() {
-                        if let Some(node) = obj.node(&graph) {
-                            let mut map = OrdMap::default();
-                            for (k, v) in &node.attributes {
-                                map.insert(ValRef::new(Val::Str(ArcStr::from(k))), ValRef::new(v.clone()));
+                if let Some(search_var) = env.stack.pop() {
+                    if let Some(var) = env.stack.pop() {
+                        if let Some(obj) = var.try_obj() {
+                            match search_var.val.read().deref() {
+                                Val::Str(path) => {
+                                    if let Some(field) = Field::field_from_path(graph, path.as_str(), Some(obj.clone())) {
+                                        if let Some(field) = graph.get_stof_data::<Field>(&field) {
+                                            let mut map = OrdMap::default();
+                                            for (k, v) in &field.attributes {
+                                                map.insert(ValRef::new(Val::Str(ArcStr::from(k))), ValRef::new(v.clone()));
+                                            }
+                                            env.stack.push(Variable::val(Val::Map(map)));
+                                            return Ok(None);
+                                        }
+                                    } else if let Some(func) = Func::func_from_path(graph, path.as_str(), Some(obj.clone())) {
+                                        if let Some(func) = graph.get_stof_data::<Func>(&func) {
+                                            let mut map = OrdMap::default();
+                                            for (k, v) in &func.attributes {
+                                                map.insert(ValRef::new(Val::Str(ArcStr::from(k))), ValRef::new(v.clone()));
+                                            }
+                                            env.stack.push(Variable::val(Val::Map(map)));
+                                            return Ok(None);
+                                        }
+                                    } else if let Some(obj) = graph.find_node_named(path, Some(obj)) {
+                                        if let Some(node) = obj.node(&graph) {
+                                            let mut map = OrdMap::default();
+                                            for (k, v) in &node.attributes {
+                                                map.insert(ValRef::new(Val::Str(ArcStr::from(k))), ValRef::new(v.clone()));
+                                            }
+                                            env.stack.push(Variable::val(Val::Map(map)));
+                                            return Ok(None);
+                                        }
+                                    }
+                                    env.stack.push(Variable::val(Val::Null));
+                                    return Ok(None);
+                                },
+                                _ => {
+                                    if let Some(node) = obj.node(&graph) {
+                                        let mut map = OrdMap::default();
+                                        for (k, v) in &node.attributes {
+                                            map.insert(ValRef::new(Val::Str(ArcStr::from(k))), ValRef::new(v.clone()));
+                                        }
+                                        env.stack.push(Variable::val(Val::Map(map)));
+                                        return Ok(None);
+                                    }
+                                }
                             }
-                            env.stack.push(Variable::val(Val::Map(map)));
-                            return Ok(None);
                         }
                     }
                 }

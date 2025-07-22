@@ -18,8 +18,9 @@ use std::{mem::swap, ops::{Deref, DerefMut}, sync::Arc, time::Duration};
 use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use lazy_static::lazy_static;
+use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
-use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, containers::{std_copy, std_drop, std_list, std_map, std_set, std_shallow_drop, std_swap}, exit::stof_exit, print::{dbg, err, pln, string}, sleep::stof_sleep}, Field, Func, Graph, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::{list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}, Base, EXIT}, proc::ProcEnv, Error, Type, Units, Val, ValRef, Variable}};
+use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, containers::{std_copy, std_drop, std_funcs, std_list, std_map, std_set, std_shallow_drop, std_swap}, exit::stof_exit, print::{dbg, err, pln, string}, sleep::stof_sleep}, Field, Func, Graph, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::{list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}, Base, EXIT}, proc::ProcEnv, Error, Type, Units, Val, ValRef, Variable}};
 
 mod print;
 mod sleep;
@@ -51,6 +52,8 @@ pub fn stof_std_lib(graph: &mut Graph) {
     graph.insert_libfunc(std_swap());
     graph.insert_libfunc(std_drop());
     graph.insert_libfunc(std_shallow_drop());
+
+    graph.insert_libfunc(std_funcs());
 }
 
 
@@ -69,6 +72,8 @@ lazy_static! {
 
     pub(self) static ref COPY: Arc<dyn Instruction> = Arc::new(StdIns::Copy);
     pub(self) static ref SWAP: Arc<dyn Instruction> = Arc::new(StdIns::Swap);
+
+    pub(self) static ref FUNCTIONS: Arc<dyn Instruction> = Arc::new(StdIns::Functions);
 }
 
 
@@ -96,6 +101,8 @@ pub enum StdIns {
 
     Copy,
     Swap,
+
+    Functions,
 
     Drop(usize),
     ShallowDrop(usize),
@@ -366,6 +373,65 @@ impl Instruction for StdIns {
                         swap(first, second);
                     }
                 }
+            },
+
+            Self::Functions => {
+                if let Some(var) = env.stack.pop() {
+                    match var.val.read().deref() {
+                        Val::Void |
+                        Val::Null => {
+                            let functions = Func::all_functions(&graph, &None)
+                                .into_iter()
+                                .map(|dref| ValRef::new(Val::Fn(dref)))
+                                .collect::<Vector<_>>();
+                            env.stack.push(Variable::val(Val::List(functions)));
+                            return Ok(None);
+                        },
+                        Val::Str(attr) => {
+                            let mut attributes = FxHashSet::default();
+                            attributes.insert(attr.to_string());
+                            let functions = Func::all_functions(&graph, &Some(attributes))
+                                .into_iter()
+                                .map(|dref| ValRef::new(Val::Fn(dref)))
+                                .collect::<Vector<_>>();
+                            env.stack.push(Variable::val(Val::List(functions)));
+                            return Ok(None);
+                        },
+                        Val::Tup(attrs) |
+                        Val::List(attrs) => {
+                            let mut attributes = FxHashSet::default();
+                            for attr in attrs {
+                                match attr.read().deref() {
+                                    Val::Str(attr) => { attributes.insert(attr.to_string()); },
+                                    _ => {}
+                                }
+                            }
+                            let functions = Func::all_functions(&graph, &Some(attributes))
+                                .into_iter()
+                                .map(|dref| ValRef::new(Val::Fn(dref)))
+                                .collect::<Vector<_>>();
+                            env.stack.push(Variable::val(Val::List(functions)));
+                            return Ok(None);
+                        },
+                        Val::Set(attrs) => {
+                            let mut attributes = FxHashSet::default();
+                            for attr in attrs {
+                                match attr.read().deref() {
+                                    Val::Str(attr) => { attributes.insert(attr.to_string()); },
+                                    _ => {}
+                                }
+                            }
+                            let functions = Func::all_functions(&graph, &Some(attributes))
+                                .into_iter()
+                                .map(|dref| ValRef::new(Val::Fn(dref)))
+                                .collect::<Vector<_>>();
+                            env.stack.push(Variable::val(Val::List(functions)));
+                            return Ok(None);
+                        },
+                        _ => {}
+                    }
+                }
+                return Err(Error::StdFunctions);
             },
 
             Self::Drop(arg_count) => {

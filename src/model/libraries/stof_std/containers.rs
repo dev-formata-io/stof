@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use imbl::vector;
-use crate::{model::{stof_std::{StdIns, COPY, STD_LIB, SWAP}, LibFunc, Param}, runtime::{instruction::Instructions, Type}};
+use crate::{model::{stof_std::{StdIns, COPY, FUNCTIONS, STD_LIB, SWAP}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Type, Val}};
 
 
 /// List constructor function.
@@ -133,6 +133,27 @@ pub fn std_drop() -> LibFunc {
         func: Arc::new(|_as_ref, arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(Arc::new(StdIns::Drop(arg_count)));
+            Ok(instructions)
+        })
+    }
+}
+
+/// Functions.
+pub fn std_funcs() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "funcs".into(),
+        is_async: false,
+        docs: "# Functions\nGet all functions within this graph, optionally specifying attributes as a filter (single string, or a list/tuple/set of strings).".into(),
+        params: vector![
+            Param { name: "attributes".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) },
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(FUNCTIONS.clone());
             Ok(instructions)
         })
     }

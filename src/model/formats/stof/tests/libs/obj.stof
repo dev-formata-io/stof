@@ -76,9 +76,16 @@ fn obj_fields() {
     assert(self.fields().len() > 0);
 }
 
+#[super_secret_func]
+fn mysecret_func() -> int { 100 }
+
 #[test]
 fn obj_funcs() {
     assert(self.funcs().len() > 0);
+
+    const funcs = self.funcs('super_secret_func');
+    assert_eq(funcs.len(), 1);
+    assert_eq(funcs.front().call(), 100);
 }
 
 Prototypes: {
@@ -215,5 +222,45 @@ MoveField: {
     #[test]
     fn move_dne() {
         assert_not(self.move_field('dne', 'target'));
+    }
+}
+
+#[custom(42)]
+Attributes: {
+    #[my_attr({})]
+    field: 'hello';
+
+    #[test]
+    fn obj_attributes() {
+        assert_eq(self.attributes(), {'custom': 42});
+        assert_eq(self.attributes('obj_attributes'), {'test': null});
+        assert_eq(self.attributes('self.super.Attributes.field'), {'my_attr': {}});
+    }
+}
+
+Distance: {
+    #[test]
+    fn obj_distance() {
+        assert_eq(self.dist(root), 3);
+        assert_eq(self.dist(self), 0);
+        assert_eq(self.dist(self.parent()), 1);
+        assert_eq(self.dist(self.parent().parent()), 2);
+    }
+}
+
+Move: {
+    ma: {}
+    mb: {
+        mc: {}
+    }
+
+    #[test]
+    fn move_obj() {
+        let o = self.mb.mc;
+        o.move(self.ma);
+        dbg(self);
+
+        assert(self.ma.mc);
+        assert_eq(self.ma.mc.parent(), self.ma);
     }
 }

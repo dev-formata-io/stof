@@ -56,6 +56,7 @@ pub enum Error {
     AssertEqFailed(String),
     AssertNotEqFailed(String),
     MapConstructor(String),
+    StdFunctions,
 
     /*****************************************************************************
      * Time Lib Errors.

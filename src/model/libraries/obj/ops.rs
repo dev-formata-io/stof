@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use imbl::vector;
-use crate::{model::{obj::{ANY, AT, AT_REF, CHILDREN, CONTAINS, CREATE_TYPE, EMPTY, EXISTS, FIELDS, FUNCS, GET, GET_REF, ID, INSERT, INSTANCE_OF, IS_PARENT, IS_ROOT, LEN, MOVE_FIELD, NAME, OBJ_LIB, PARENT, PATH, PROTO, REMOVE, REMOVE_PROTO, ROOT, SET_PROTO, UPCAST}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, NumT, Type, Val}};
+use crate::{model::{obj::{ANY, AT, ATTRIBUTES, AT_REF, CHILDREN, CONTAINS, CREATE_TYPE, DISTANCE, EMPTY, EXISTS, FIELDS, FUNCS, GET, GET_REF, ID, INSERT, INSTANCE_OF, IS_PARENT, IS_ROOT, LEN, MOVE, MOVE_FIELD, NAME, OBJ_LIB, PARENT, PATH, PROTO, REMOVE, REMOVE_PROTO, ROOT, SET_PROTO, UPCAST}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, NumT, Type, Val}};
 
 
 /// Name.
@@ -529,9 +529,10 @@ pub fn obj_funcs() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "funcs".into(),
         is_async: false,
-        docs: "# Functions\nReturns a list of functions on this object.".into(),
+        docs: "# Functions\nReturns a list of functions on this object, optionally filtering by attributes (string or list/tuple/set of strings).".into(),
         params: vector![
-            Param { name: "obj".into(), param_type: Type::Void, default: None }
+            Param { name: "obj".into(), param_type: Type::Void, default: None },
+            Param { name: "attributes".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) },
         ],
         return_type: None,
         unbounded_args: false,
@@ -581,6 +582,72 @@ pub fn obj_any() -> LibFunc {
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(ANY.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// Attributes.
+pub fn obj_attributes() -> LibFunc {
+    LibFunc {
+        library: OBJ_LIB.clone(),
+        name: "attributes".into(),
+        is_async: false,
+        docs: "# Attributes.\nReturns a map of attributes, either for this node or a field/func/obj at a given string path.".into(),
+        params: vector![
+            Param { name: "obj".into(), param_type: Type::Void, default: None },
+            Param { name: "path".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))) }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(ATTRIBUTES.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// Move.
+pub fn obj_move() -> LibFunc {
+    LibFunc {
+        library: OBJ_LIB.clone(),
+        name: "move".into(),
+        is_async: false,
+        docs: "# Move Object.\nMove this object to a new parent. Destination/new parent must not be a child of this node (will return false and not be moved). Returns true if successfully moved.".into(),
+        params: vector![
+            Param { name: "obj".into(), param_type: Type::Void, default: None },
+            Param { name: "dest".into(), param_type: Type::Void, default: None }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(MOVE.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// Distance.
+pub fn obj_dist() -> LibFunc {
+    LibFunc {
+        library: OBJ_LIB.clone(),
+        name: "dist".into(),
+        is_async: false,
+        docs: "# Object Distance.\nReturns the distance between two objects in the same graph.".into(),
+        params: vector![
+            Param { name: "obj".into(), param_type: Type::Void, default: None },
+            Param { name: "other".into(), param_type: Type::Void, default: None }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(DISTANCE.clone());
             Ok(instructions)
         })
     }
