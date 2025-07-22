@@ -258,8 +258,6 @@ Move: {
     fn move_obj() {
         let o = self.mb.mc;
         o.move(self.ma);
-        dbg(self);
-
         assert(self.ma.mc);
         assert_eq(self.ma.mc.parent(), self.ma);
     }

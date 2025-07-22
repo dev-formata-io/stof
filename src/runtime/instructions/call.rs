@@ -208,16 +208,28 @@ impl FuncCall {
                 }
             }
 
-            // Look for a field on the object at the path minus the func name for a library call on that field
+            // Look for a field (or obj) on the object at the path minus the func name for a library call on that field
             {
                 let mut field_path = adjusted_path.split('.').collect::<Vec<_>>();
                 let func_name = field_path.pop().unwrap();
-                if let Some(field) = Field::field_from_path(graph, &field_path.join("."), start.clone()) {
+                let pth = field_path.join(".");
+                if let Some(field) = Field::field_from_path(graph, &pth, start.clone()) {
                     if let Some(field) = graph.get_stof_data::<Field>(&field) {
                         let libname = field.value.val.read().lib_name(&graph);
                         return Ok(CallContext {
                             lib: Some(libname),
                             stack_arg: Some(Variable::refval(field.value.val.duplicate(false))),
+                            prototype_self: None,
+                            func: SId::from(func_name),
+                        });
+                    }
+                } else if start.is_some() {
+                    // Only search for a node if there is a designated start, as we don't want to match everything in the graph
+                    // Ex. self.a.b.c.parent(), where c is a node but not a field
+                    if let Some(obj) = graph.find_node_named(&pth, start.clone()) {
+                        return Ok(CallContext {
+                            lib: Some(literal!("Obj")),
+                            stack_arg: Some(Variable::val(Val::Obj(obj))),
                             prototype_self: None,
                             func: SId::from(func_name),
                         });
