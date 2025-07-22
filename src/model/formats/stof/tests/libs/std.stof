@@ -152,6 +152,31 @@ Copy: {
         assert_eq(b, {'example': {'a': 10}});
         assert_eq(a, {'example': {'a': 1, 'b': 5}});
     }
+
+    Object: {
+        obj_to_copy: {
+            test_field: 42
+            test_sub: {
+                test_field: 'hi'
+            }
+        }
+
+        #[test]
+        fn deep_copy_obj() {
+            let existing = self.obj_to_copy;
+            let copied = copy(existing);
+            
+            assert_neq(copied, existing);
+            assert_eq(copied.test_field, existing.test_field);
+            assert_eq(existing.test_field, 42);
+            assert_eq(copied.test_sub.test_field, existing.test_sub.test_field);
+            assert_eq(copied.test_sub.test_field, 'hi');
+
+            copied.test_sub.test_field = 'yo';
+            assert_neq(copied.test_sub.test_field, existing.test_sub.test_field);
+            assert_eq(copied.test_sub.test_field, 'yo');
+        }
+    }
 }
 
 

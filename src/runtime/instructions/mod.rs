@@ -536,6 +536,10 @@ impl Instruction for Base {
                             }
                             if let Some(mut fvar) = fvar {
                                 fvar.set(&var, graph, Some(env.self_ptr()))?;
+
+                                if let Some(field) = graph.get_mut_stof_data::<Field>(&field_ref) {
+                                    field.value = fvar;
+                                }
                             }
                             if let Some(field) = field_ref.data_mut(graph) {
                                 field.invalidate_value();
@@ -553,25 +557,48 @@ impl Instruction for Base {
                                 return Err(Error::AssignSelf);
                             }
                         }
-                    } else if let Some(field_ref) = Field::field_from_path(graph, &name, None) {
-                        let mut fvar = None;
-                        if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
-                            if !field.can_set() { return Err(Error::FieldReadOnlySet); }
-                            fvar = Some(field.value.clone());
-                        }
-                        if let Some(mut fvar) = fvar {
-                            fvar.set(&var, graph, Some(env.self_ptr()))?;
-                        }
-                        if let Some(field) = field_ref.data_mut(graph) {
-                            field.invalidate_value();
-                        }
-                        return Ok(None);
                     } else if name.contains('.') {
                         let mut path = SPath::from(name);
-                        let field_name = path.path.pop().unwrap();
-                        if path.path.len() < 1 { return Err(Error::AssignSelf); }
+                        if path.path.len() < 2 { return Err(Error::AssignSelf); }
 
-                        if let Some(node) = graph.ensure_named_nodes(path, None, true, None) {
+                        // Look for an object variable as context
+                        let mut context = None;
+                        if let Some(var) = env.table.get(path.path[0].as_ref()) {
+                            if let Some(var_obj) = var.try_obj() {
+                                context = Some(var_obj);
+                                path.path.remove(0);
+                            }
+                        }
+
+                        if let Some(field_ref) = Field::field_from_path(graph, &path.join("."), context.clone()) {
+                            let mut fvar = None;
+                            if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
+                                if !field.can_set() { return Err(Error::FieldReadOnlySet); }
+                                fvar = Some(field.value.clone());
+                            }
+                            if let Some(mut fvar) = fvar {
+                                fvar.set(&var, graph, context.clone())?;
+                                
+                                if let Some(field) = graph.get_mut_stof_data::<Field>(&field_ref) {
+                                    field.value = fvar;
+                                }
+                            }
+                            if let Some(field) = field_ref.data_mut(graph) {
+                                field.invalidate_value();
+                            }
+                            return Ok(None);
+                        }
+
+                        let field_name = path.path.pop().unwrap();
+                        if path.path.len() > 0 {
+                            if let Some(node) = graph.ensure_named_nodes(path, context, true, None) {
+                                let field = Field::new(var, None);
+                                graph.insert_stof_data(&node, field_name, Box::new(field), None);
+                                return Ok(None);
+                            } else {
+                                return Err(Error::AssignSelf);
+                            }
+                        } else if let Some(node) = context {
                             let field = Field::new(var, None);
                             graph.insert_stof_data(&node, field_name, Box::new(field), None);
                             return Ok(None);

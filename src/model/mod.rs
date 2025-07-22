@@ -72,6 +72,12 @@ pub trait StofData: AsDynAny + std::fmt::Debug + DataClone + Send + Sync {
     fn hard_node_ref(&self, node: &NodeRef) -> bool {
         false
     }
+
+    /// Deep copy this data.
+    #[allow(unused)]
+    fn deep_copy(&self, graph: &mut Graph, context: Option<NodeRef>) -> Box::<dyn StofData> {
+        self.clone_data()
+    }
 }
 
 

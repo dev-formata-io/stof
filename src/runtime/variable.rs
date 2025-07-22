@@ -282,9 +282,9 @@ impl Variable {
     }
 
     /// Copy.
-    pub fn deep_copy(&self) -> Self {
+    pub fn deep_copy(&self, graph: &mut Graph, context: Option<NodeRef>) -> Self {
         let mut clone = self.clone();
-        let copy = clone.val.read().deep_copy();
+        let copy = clone.val.read().deep_copy(graph, context);
         clone.val = ValRef::new(copy);
         clone
     }

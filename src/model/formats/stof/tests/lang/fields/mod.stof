@@ -15,13 +15,15 @@
 //
 
 
-/*!
- * This module is where we'll test basic language features, like control flow.
- * Scope: root.Lang
- */
+some_obj: {
+    field: 42
+}
 
-import './control/mod' as self.Control;
-import './types/mod' as self.Types;
-import './funcs/mod' as self.Funcs;
-import './strings/mod' as self.Strings;
-import './fields/mod' as self.Fields;
+#[test]
+fn assign_field() {
+    let o = self.some_obj;
+    assert_eq(o.field, 42);
+
+    o.field = 50;
+    assert_eq(o.field, 50);
+}

@@ -22,7 +22,7 @@ use arcstr::{literal, ArcStr};
 use bytes::Bytes;
 use imbl::{vector, OrdMap, OrdSet, Vector};
 use serde::{Deserialize, Serialize};
-use crate::{model::{json_value_from_node, DataRef, Field, Func, Graph, NodeRef, Prototype, SId}, parser::{number::number, semver::parse_semver_alone}, runtime::{Error, Num, NumT, Type, Units, DATA, OBJ}};
+use crate::{model::{json_value_from_node, Data, DataRef, Field, Func, Graph, Node, NodeRef, Prototype, SId}, parser::{number::number, semver::parse_semver_alone}, runtime::{Error, Num, NumT, Type, Units, DATA, OBJ}};
 
 
 /// Value reference (value, by reference?).
@@ -854,35 +854,154 @@ impl Val {
     }
 
     /// Deep copy this value.
-    pub fn deep_copy(&self) -> Self {
+    pub fn deep_copy(&self, graph: &mut Graph, context: Option<NodeRef>) -> Self {
         match self {
             Self::List(vals) => {
                 let mut new_list = Vector::default();
                 for val in vals {
-                    new_list.push_back(ValRef::new(val.read().deep_copy()));
+                    new_list.push_back(ValRef::new(val.read().deep_copy(graph, context.clone())));
                 }
                 Self::List(new_list)
             },
             Self::Map(map) => {
                 let mut new_map = OrdMap::default();
                 for (k, v) in map {
-                    new_map.insert(ValRef::new(k.read().deep_copy()), ValRef::new(v.read().deep_copy()));
+                    new_map.insert(ValRef::new(k.read().deep_copy(graph, context.clone())), ValRef::new(v.read().deep_copy(graph, context.clone())));
                 }
                 Self::Map(new_map)
             },
             Self::Tup(tup) => {
                 let mut new_tup = Vector::default();
                 for val in tup {
-                    new_tup.push_back(ValRef::new(val.read().deep_copy()));
+                    new_tup.push_back(ValRef::new(val.read().deep_copy(graph, context.clone())));
                 }
                 Self::Tup(new_tup)
             },
             Self::Set(set) => {
                 let mut new_set = OrdSet::default();
                 for val in set {
-                    new_set.insert(ValRef::new(val.read().deep_copy()));
+                    new_set.insert(ValRef::new(val.read().deep_copy(graph, context.clone())));
                 }
                 Self::Set(new_set)
+            },
+            Self::Fn(dref) => {
+                if let Some(context) = context {
+                    let mut clone = None;
+                    if let Some(data) = dref.data(&graph) {
+                        clone = Some(Data {
+                            id: Default::default(),
+                            name: data.name.clone(),
+                            nodes: Default::default(),
+                            data: data.data.clone(),
+                            dirty: Default::default(),
+                        });
+                    }
+                    if let Some(mut clone) = clone {
+                        clone.data = clone.data.deep_copy(graph, Some(context.clone()));
+                        if let Some(dref) = graph.insert_data(&context, clone) {
+                            Self::Fn(dref)
+                        } else {
+                            Self::Null
+                        }
+                    } else {
+                        Self::Null
+                    }
+                } else {
+                    Self::Null
+                }
+            },
+            Self::Data(dref) => {
+                if let Some(context) = context {
+                    let mut clone = None;
+                    if let Some(data) = dref.data(&graph) {
+                        clone = Some(Data {
+                            id: Default::default(),
+                            name: data.name.clone(),
+                            nodes: Default::default(),
+                            data: data.data.clone(),
+                            dirty: Default::default(),
+                        });
+                    }
+                    if let Some(mut clone) = clone {
+                        clone.data = clone.data.deep_copy(graph, Some(context.clone()));
+                        if let Some(dref) = graph.insert_data(&context, clone) {
+                            Self::Data(dref)
+                        } else {
+                            Self::Null
+                        }
+                    } else {
+                        Self::Null
+                    }
+                } else {
+                    Self::Null
+                }
+            },
+            Self::Obj(nref) => {
+                // deep copy an object
+                let mut name = SId::default();
+                let mut parent = context;
+                let mut attributes = FxHashMap::default();
+                let mut children = Vec::new();
+                let mut data = Vec::new();
+                
+                if let Some(node) = nref.node(&graph) {
+                    if parent.is_none() && node.parent.is_some() {
+                        parent = node.parent.clone();
+                    }
+                    attributes = node.attributes.clone();
+                    name = node.name.clone();
+                    children = node.children.iter().cloned().collect();
+                    for (_, v) in &node.data {
+                        data.push(v.clone());
+                    }
+                }
+                
+                let node = Node {
+                    id: Default::default(),
+                    name,
+                    parent: None,
+                    children: Default::default(),
+                    data: Default::default(),
+                    attributes,
+                    dirty: Default::default(),
+                };
+                let obj = graph.insert_stof_node(node, parent.clone());
+
+                // Deep copy all children
+                for child in children {
+                    Self::Obj(child).deep_copy(graph, Some(obj.clone()));
+                }
+
+                // Deep copy all data and put back on obj
+                for dref in data {
+                    // Skip fields that are for child nodes
+                    if let Some(parent) = &parent {
+                        if let Some(field) = graph.get_stof_data::<Field>(&dref) {
+                            if let Some(field_obj) = field.value.try_obj() {
+                                if field_obj.child_of(graph, parent) {
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+
+                    let mut clone = None;
+                    if let Some(data) = dref.data(&graph) {
+                        clone = Some(Data {
+                            id: Default::default(),
+                            name: data.name.clone(),
+                            nodes: Default::default(),
+                            data: data.data.clone(),
+                            dirty: Default::default(),
+                        });
+                    }
+                    if let Some(mut clone) = clone {
+                        clone.data = clone.data.deep_copy(graph, Some(obj.clone()));
+                        graph.insert_data(&obj, clone);
+                    }
+                }
+
+                Self::Obj(obj)
             },
             _ => {
                 self.clone()

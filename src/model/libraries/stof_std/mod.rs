@@ -323,7 +323,7 @@ impl Instruction for StdIns {
 
             Self::Copy => {
                 if let Some(var) = env.stack.pop() {
-                    env.stack.push(var.deep_copy());
+                    env.stack.push(var.deep_copy(graph, Some(env.self_ptr())));
                 }
             },
             Self::Swap => {

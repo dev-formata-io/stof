@@ -16,10 +16,13 @@
 
 use std::{ops::Deref, sync::Arc};
 use arcstr::{literal, ArcStr};
-use imbl::{vector, Vector};
+use imbl::{vector, OrdMap, Vector};
 use lazy_static::lazy_static;
+use nanoid::nanoid;
+use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
-use crate::{model::{stof_std::StdIns, Field, Func, Graph, Prototype}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, empty::EmptyIns, Base, POP_SELF, PUSH_SELF}, proc::ProcEnv, Error, Num, Type, Val, ValRef, Variable}};
+use crate::{model::{obj::validate::validation, stof_std::StdIns, Field, Func, Graph, Prototype, SId}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::{FuncCall, NamedArg}, empty::EmptyIns, Base, ConsumeStack, POP_SELF, PUSH_SELF, TRUTHY}, proc::ProcEnv, Error, Num, Type, Val, ValRef, Variable}};
+mod validate;
 
 
 /// Obj library name.
@@ -70,12 +73,9 @@ lazy_static! {
 
     pub(self) static ref RUN: Arc<dyn Instruction> = Arc::new(ObjIns::Run);
     pub(self) static ref SCHEMAFY: Arc<dyn Instruction> = Arc::new(ObjIns::Schemafy);
-    pub(self) static ref SEARCH_UP: Arc<dyn Instruction> = Arc::new(ObjIns::SearchUp);
-    pub(self) static ref SEARCH_DOWN: Arc<dyn Instruction> = Arc::new(ObjIns::SearchDown);
     pub(self) static ref TO_MAP: Arc<dyn Instruction> = Arc::new(ObjIns::ToMap);
+    pub(self) static ref TO_MAP_REF: Arc<dyn Instruction> = Arc::new(ObjIns::ToMapRef);
     pub(self) static ref FROM_MAP: Arc<dyn Instruction> = Arc::new(ObjIns::FromMap);
-    pub(self) static ref SHALLOW_COPY: Arc<dyn Instruction> = Arc::new(ObjIns::ShallowCopy);
-    pub(self) static ref DEEP_COPY: Arc<dyn Instruction> = Arc::new(ObjIns::DeepCopy);
     pub(self) static ref FROM_ID: Arc<dyn Instruction> = Arc::new(ObjIns::FromId);
     pub(self) static ref DUMP: Arc<dyn Instruction> = Arc::new(ObjIns::Dump);
 }
@@ -122,14 +122,9 @@ pub enum ObjIns {
     Run,
     Schemafy,
 
-    SearchDown,
-    SearchUp,
-
     ToMap,
+    ToMapRef,
     FromMap,
-
-    ShallowCopy,
-    DeepCopy,
 
     FromId,
     Dump,
@@ -876,44 +871,148 @@ impl Instruction for ObjIns {
                 Err(Error::ObjRun)
             },
             Self::Schemafy => {
-                
+                // Obj.schemafy(schema: obj, target: obj, remove_invalid: bool, remove_undefined: bool) -> bool;
+                if let Some(remove_undefined_var) = env.stack.pop() {
+                    if let Some(remove_invalid_fields) = env.stack.pop() {
+                        if let Some(target_var) = env.stack.pop() {
+                            if let Some(schema_var) = env.stack.pop() {
+                                if let Some(schema) = schema_var.try_obj() {
+                                    if let Some(target) = target_var.try_obj() {
+                                        let remove_undefined = remove_undefined_var.truthy();
+                                        let remove_invalid = remove_invalid_fields.truthy();
+
+                                        let mut validation_instructions: Vec<Vector<Arc<dyn Instruction>>> = Vec::new();
+                                        let mut defined_field_names = FxHashSet::default();
+                                        for (schema_field_name, schema_field_ref) in Field::fields(graph, &schema) {
+                                            defined_field_names.insert(schema_field_name.clone());
+
+                                            let mut schema_attr_val = None;
+                                            let mut schema_field_val = None;
+                                            if let Some(field) = graph.get_stof_data::<Field>(&schema_field_ref) {
+                                                if let Some(attr) = field.attributes.get("schema") {
+                                                    schema_attr_val = Some(attr.clone());
+                                                    schema_field_val = Some(field.value.val.duplicate(false));
+                                                }
+                                            }
+                                            if let Some(schema_val) = schema_field_val {
+                                                if let Some(validate) = schema_attr_val {
+                                                    if let Some(target_field_ref) = Field::direct_field(&graph, &target, &schema_field_name) {
+                                                        let mut target_val = None;
+                                                        if let Some(field) = graph.get_stof_data::<Field>(&target_field_ref) {
+                                                            target_val = Some(field.value.val.clone()); // reference to the value outright
+                                                        }
+                                                        if let Some(target_val) = target_val {
+                                                            let mut field_instructions = validation(graph, &schema, &target, schema_field_name, validate, schema_val, target_val, remove_invalid, remove_undefined);
+                                                            validation_instructions.append(&mut field_instructions);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        if remove_undefined {
+                                            for (field_name, field_ref) in Field::fields(graph, &target) {
+                                                if !defined_field_names.contains(&field_name) {
+                                                    graph.remove_data(&field_ref, Some(target.clone()));
+                                                }
+                                            }
+                                        }
+                                        
+                                        let mut instructions = Instructions::default();
+                                        if validation_instructions.is_empty() {
+                                            instructions.push(Arc::new(Base::Literal(Val::Bool(true))));
+                                        } else if validation_instructions.len() == 1 {
+                                            instructions.append(&validation_instructions[0]);
+                                            instructions.push(TRUTHY.clone());
+                                        } else {
+                                            let end_tag: ArcStr = nanoid!(12).into();
+                                            instructions.append(&validation_instructions[0]);
+                                            instructions.push(TRUTHY.clone());
+                                            for ins in validation_instructions.iter().skip(1) {
+                                                instructions.push(Arc::new(Base::CtrlForwardToIfNotTruthy(end_tag.clone(), ConsumeStack::IfTrue)));
+                                                instructions.append(ins);
+                                                instructions.push(TRUTHY.clone());
+                                            }
+                                            instructions.push(Arc::new(Base::Tag(end_tag)));
+                                        }
+                                        return Ok(Some(instructions));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 Err(Error::ObjSchemafy)
             },
 
-            Self::SearchUp => {
-
-                Err(Error::ObjSearchUp)
-            },
-            Self::SearchDown => {
-
-                Err(Error::ObjSearchDown)
-            },
-
             Self::ToMap => {
-
+                if let Some(var) = env.stack.pop() {
+                    if let Some(obj) = var.try_obj() {
+                        let mut map = OrdMap::default();
+                        for (name, fref) in Field::fields(graph, &obj) {
+                            if let Some(field) = graph.get_stof_data::<Field>(&fref) {
+                                map.insert(ValRef::new(Val::Str(name.into())), field.value.val.duplicate(false));
+                            }
+                        }
+                        env.stack.push(Variable::val(Val::Map(map)));
+                        return Ok(None);
+                    }
+                }
                 Err(Error::ObjToMap)
             },
+            Self::ToMapRef => {
+                if let Some(var) = env.stack.pop() {
+                    if let Some(obj) = var.try_obj() {
+                        let mut map = OrdMap::default();
+                        for (name, fref) in Field::fields(graph, &obj) {
+                            if let Some(field) = graph.get_stof_data::<Field>(&fref) {
+                                map.insert(ValRef::new(Val::Str(name.into())), field.value.val.duplicate(true));
+                            }
+                        }
+                        env.stack.push(Variable::val(Val::Map(map)));
+                        return Ok(None);
+                    }
+                }
+                Err(Error::ObjToMapRef)
+            },
             Self::FromMap => {
-
+                if let Some(var) = env.stack.pop() {
+                    match var.val.read().deref() {
+                        Val::Map(map) => {
+                            let obj = graph.insert_node(&nanoid!(10), Some(env.self_ptr()), false);
+                            for (k, v) in map {
+                                match k.read().deref() {
+                                    Val::Str(name) => {
+                                        let field = Field::new(Variable::refval(v.duplicate(false)), None);
+                                        graph.insert_stof_data(&obj, name.as_str(), Box::new(field), None);
+                                    },
+                                    _ => {}
+                                }
+                            }
+                            env.stack.push(Variable::val(Val::Obj(obj)));
+                            return Ok(None);
+                        },
+                        _ => {}
+                    }
+                }
                 Err(Error::ObjFromMap)
             },
 
-            Self::ShallowCopy => {
-
-                Err(Error::ObjShallowCopy)
-            },
-            Self::DeepCopy => {
-
-                Err(Error::ObjDeepCopy)
-            }
-
             Self::FromId => {
-
+                if let Some(var) = env.stack.pop() {
+                    match var.val.read().deref() {
+                        Val::Str(id) => {
+                            env.stack.push(Variable::val(Val::Obj(SId::from(id.as_str()))));
+                            return Ok(None);
+                        },
+                        _ => {}
+                    }
+                }
                 Err(Error::ObjFromId)
             },
             Self::Dump => {
-
-                Err(Error::ObjDump)
+                graph.dump(true);
+                Ok(None)
             }
         }
     }

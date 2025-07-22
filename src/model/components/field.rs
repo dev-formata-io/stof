@@ -60,6 +60,16 @@ impl StofData for Field {
             false
         }
     }
+
+    /// Deep copy.
+    fn deep_copy(&self, graph: &mut Graph, context: Option<NodeRef>) -> Box::<dyn StofData> {
+        // For fields that are objects, there could be a lot of extra allocated memory for this op...
+        let copied = self.value.deep_copy(graph, context);
+        Box::new(Field {
+            value: copied,
+            attributes: self.attributes.clone(),
+        })
+    }
 }
 #[typetag::serde(name = "_FieldDoc")]
 impl StofData for FieldDoc {

@@ -316,14 +316,10 @@ pub enum Error {
     ObjDistance,
     ObjRun,
     ObjSchemafy,
-    ObjSearchDown,
-    ObjSearchUp,
     ObjToMap,
+    ObjToMapRef,
     ObjFromMap,
-    ObjShallowCopy,
-    ObjDeepCopy,
     ObjFromId,
-    ObjDump,
 
     /*****************************************************************************
      * Cast Errors.
