@@ -262,3 +262,77 @@ Move: {
         assert_eq(self.ma.mc.parent(), self.ma);
     }
 }
+
+Run: {
+    #[test]
+    fn running() {
+        self.run();
+
+        assert(self.basic);
+        assert_eq(self.runarg, 42);
+        assert_eq(self.subobj.order, [1, 2, 3]);
+        assert(self.listed);
+        assert(self.sub_listed);
+        assert(self.field_functioning);
+    }
+
+    #[run]
+    fn basic_run() {
+        self.basic = true;
+    }
+
+    #[run({"args": [42]})]
+    fn run_arg(arg: int) {
+        self.runarg = arg;
+    }
+
+    #[run]
+    subobj: {
+        order: []
+
+        #[run(1)]
+        fn first() {
+            self.order.push_back(1);
+        }
+
+        #[run(2)]
+        fn second() {
+            self.order.push_back(2);
+        }
+
+        #[run(3)]
+        fn third() {
+            self.order.push_back(3);
+        }
+    }
+
+    #[run]
+    list_run: [
+        () => { self.listed = true; },
+        {
+            #[run]
+            fn sub_list_run() {
+                super.sub_listed = true;
+            }
+        }
+    ]
+
+    #[run]
+    fn field_func: () => { self.field_functioning = true; }
+}
+
+Schemafy: {
+    schema: {
+        #[schema((target_value: str): bool => target_value.len() > 2)]
+        first: 'John'
+    }
+
+    target: {
+        first: 'aj'
+    }
+
+    #[test]
+    fn schemafy_obj() {
+        assert_not(self.schema.schemafy(self.target));
+    }
+}

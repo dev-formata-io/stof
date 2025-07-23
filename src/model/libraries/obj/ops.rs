@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use imbl::vector;
-use crate::{model::{obj::{ANY, AT, ATTRIBUTES, AT_REF, CHILDREN, CONTAINS, CREATE_TYPE, DISTANCE, EMPTY, EXISTS, FIELDS, FUNCS, GET, GET_REF, ID, INSERT, INSTANCE_OF, IS_PARENT, IS_ROOT, LEN, MOVE, MOVE_FIELD, NAME, OBJ_LIB, PARENT, PATH, PROTO, REMOVE, REMOVE_PROTO, ROOT, SET_PROTO, UPCAST}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, NumT, Type, Val}};
+use crate::{model::{obj::{ANY, AT, ATTRIBUTES, AT_REF, CHILDREN, CONTAINS, CREATE_TYPE, DISTANCE, EMPTY, EXISTS, FIELDS, FUNCS, GET, GET_REF, ID, INSERT, INSTANCE_OF, IS_PARENT, IS_ROOT, LEN, MOVE, MOVE_FIELD, NAME, OBJ_LIB, PARENT, PATH, PROTO, REMOVE, REMOVE_PROTO, ROOT, RUN, SCHEMAFY, SET_PROTO, UPCAST}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, NumT, Type, Val}};
 
 
 /// Name.
@@ -648,6 +648,51 @@ pub fn obj_dist() -> LibFunc {
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(DISTANCE.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// Run.
+pub fn obj_run() -> LibFunc {
+    LibFunc {
+        library: OBJ_LIB.clone(),
+        name: "run".into(),
+        is_async: false,
+        docs: "# Run Object\nCalls all #[run] functions with an optional order on this object, also going into fields, running sub-objects, etc.".into(),
+        params: vector![
+            Param { name: "obj".into(), param_type: Type::Void, default: None },
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(RUN.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// Schemafy.
+pub fn obj_schemafy() -> LibFunc {
+    LibFunc {
+        library: OBJ_LIB.clone(),
+        name: "schemafy".into(),
+        is_async: false,
+        docs: "# Schemafy\nApplies all #[schema] fields from a schema object onto a target object, returning true if the target is determined to be valid according to the schema.".into(),
+        params: vector![
+            Param { name: "schema".into(), param_type: Type::Void, default: None },
+            Param { name: "target".into(), param_type: Type::Void, default: None },
+            Param { name: "remove_invalid".into(), param_type: Type::Bool, default: Some(Arc::new(Base::Literal(Val::Bool(false)))) },
+            Param { name: "remove_undefined".into(), param_type: Type::Bool, default: Some(Arc::new(Base::Literal(Val::Bool(false)))) },
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(SCHEMAFY.clone());
             Ok(instructions)
         })
     }
