@@ -322,6 +322,8 @@ pub enum Error {
     ObjFromMap,
     ObjFromId,
 
+    ObjNewStack,
+
     /*****************************************************************************
      * Cast Errors.
      *****************************************************************************/
@@ -357,10 +359,7 @@ pub enum Error {
     NewStackError,
     CallStackError,
     CastStackError,
-    
     CastVal,
-
-    NewObjParentDne,
 
     // Function calling errors
     FuncDne,

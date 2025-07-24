@@ -185,6 +185,9 @@ pub enum Base {
     DropVariable(ArcStr), // removes from the st/graph
     LoadVariable(ArcStr, bool, bool), // loads st/graph to stack
     SetVariable(ArcStr), // requires val on stack
+    
+    NewObjField(ArcStr),
+    ConstNewObjField(ArcStr),
 
     // Values.
     Dup,
@@ -512,6 +515,32 @@ impl Instruction for Base {
                 }
                 env.stack.push(Variable::val(Val::Null));
                 return Ok(None);
+            },
+            Self::NewObjField(field_name) => {
+                if let Some(mut var) = env.stack.pop() {
+                    if env.new_stack.len() < 1 { return Err(Error::ObjNewStack); }
+                    let obj = env.new_stack.last().unwrap();
+
+                    var.mutable = true;
+                    let field = Field::new(var, None);
+                    graph.insert_stof_data(obj, field_name.as_str(), Box::new(field), None);
+                    return Ok(None);
+                } else {
+                    return Err(Error::StackError);
+                }
+            },
+            Self::ConstNewObjField(field_name) => {
+                if let Some(mut var) = env.stack.pop() {
+                    if env.new_stack.len() < 1 { return Err(Error::ObjNewStack); }
+                    let obj = env.new_stack.last().unwrap();
+
+                    var.mutable = false;
+                    let field = Field::new(var, None);
+                    graph.insert_stof_data(obj, field_name.as_str(), Box::new(field), None);
+                    return Ok(None);
+                } else {
+                    return Err(Error::StackError);
+                }
             },
             Self::SetVariable(name) => {
                 if let Some(var) = env.stack.pop() {

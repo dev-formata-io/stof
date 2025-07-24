@@ -207,8 +207,10 @@ impl Instruction for ObjIns {
                     if let Some(obj) = var.try_obj() {
                         if let Some(parent) = obj.node_parent(&graph) {
                             env.stack.push(Variable::val(Val::Obj(parent)));
-                            return Ok(None);
+                        } else {
+                            env.stack.push(Variable::val(Val::Null));
                         }
+                        return Ok(None);
                     }
                 }
                 Err(Error::ObjParent)

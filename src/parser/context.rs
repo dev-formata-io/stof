@@ -18,6 +18,7 @@ use std::{path::PathBuf, sync::Arc};
 use colored::Colorize;
 use imbl::vector;
 use lazy_static::lazy_static;
+use nanoid::nanoid;
 use rustc_hash::{FxHashMap, FxHashSet};
 use crate::{model::{DataRef, Graph, NodeRef, SId, PROTOTYPE_TYPE_ATTR}, runtime::{instruction::Instruction, instructions::call::FuncCall, proc::Process, Error, Runtime, Val, Variable}};
 
@@ -159,6 +160,17 @@ impl<'ctx> ParseContext<'ctx> {
         } else {
             self.graph.ensure_main_root()
         }
+    }
+
+    /// Push a new root node to the self stack.
+    pub fn push_root(&mut self, name: Option<&str>) {
+        let mut obj_name = nanoid!(12);
+        if let Some(name) = name {
+            obj_name = name.to_string();
+        }
+        let nref = self.graph.insert_root(&obj_name);
+        let proc = self.parse_proc();
+        proc.env.self_stack.push(nref);
     }
 
     /// Push self stack as a variable.

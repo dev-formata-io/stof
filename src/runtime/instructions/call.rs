@@ -234,6 +234,15 @@ impl FuncCall {
                             func: SId::from(func_name),
                         });
                     }
+                } else if start.is_none() && graph.roots.len() > 0 {
+                    if let Some(obj) = graph.find_node_named(&pth, graph.main_root()) {
+                        return Ok(CallContext {
+                            lib: Some(literal!("Obj")),
+                            stack_arg: Some(Variable::val(Val::Obj(obj))),
+                            prototype_self: None,
+                            func: SId::from(func_name),
+                        });
+                    }
                 }
             }
         }

@@ -25,3 +25,4 @@ import './types/mod' as self.Types;
 import './funcs/mod' as self.Funcs;
 import './strings/mod' as self.Strings;
 import './fields/mod' as self.Fields;
+import './obj/mod' as self.Objects;

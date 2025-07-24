@@ -14,55 +14,53 @@
 // limitations under the License.
 //
 
-use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
-use crate::{model::{Graph, Node, NodeRef, SId}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Type, Val, Variable}};
+use crate::{model::{Graph, SId}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Type, Val, Variable}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 /// New object instruction.
 /// Creates an object and adds a ref on the stack.
 pub struct NewObjIns {
-    /// Optional parent for this node (root if None)
-    pub parent: Option<NodeRef>,
-    /// Name of this object (random if None (set to ID))
-    pub name: Option<SId>,
-    /// ID of this object (random if None)
-    pub id: Option<SId>,
-    /// Is this object a field?
-    pub field: bool,
-    /// Attributes on this object
-    pub attributes: Option<FxHashMap<String, Val>>,
+    /// Set to true if a parent is on the stack.
+    pub parent: bool,
     /// Cast the object to a type?
     pub cast_type: Option<Type>,
 }
 #[typetag::serde(name = "NewObjIns")]
 impl Instruction for NewObjIns {
     fn exec(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions>, Error> {
-        let mut id = SId::default();
-        if let Some(cid) = &self.id { id = cid.clone(); }
-
-        let mut name = id.clone();
-        if let Some(cn) = &self.name { name = cn.clone(); }
-
-        let mut node = Node::new(name, id, self.field);
-        if let Some(attr) = &self.attributes {
-            for (k, v) in attr {
-                node.attributes.insert(k.clone(), v.clone());
+        if !self.parent { // cannot have an "on" when creating a new root object
+            if let Some(cast_type) = &self.cast_type {
+                match cast_type {
+                    Type::Obj(typename) => {
+                        if typename.as_ref() == "root" {
+                            // Special syntax for creating a root object instead of a sub-object
+                            // Name will be re-assigned when using SetVariable Ex. MyRoot = new root {};
+                            let name = SId::default();
+                            let nref = graph.insert_root(name);
+                            env.stack.push(Variable::val(Val::Obj(nref)));
+                            return Ok(None);
+                        }
+                    },
+                    _ => {}
+                }
             }
         }
 
-        // check for parent
-        if let Some(parent) = &self.parent {
-            if !parent.node_exists(&graph) {
-                return Err(Error::NewObjParentDne);
+        let mut parent = Some(env.self_ptr());
+        if self.parent {
+            if let Some(prnt) = env.stack.pop() {
+                if let Some(prnt) = prnt.try_obj() {
+                    parent = Some(prnt);
+                }
             }
-
-            // TODO: check for name collisions
         }
-        let nref = graph.insert_stof_node(node, self.parent.clone());
 
-        // cast value if needed
+        let id = SId::default();
+        let name = id.clone();
+        let nref = graph.insert_node_id(name, id, parent, false);
+
         let mut val = Val::Obj(nref);
         if let Some(cast_type) = &self.cast_type {
             val.cast(cast_type, graph, Some(env.self_ptr()))?;

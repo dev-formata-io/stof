@@ -18,18 +18,20 @@ use std::sync::Arc;
 use arcstr::literal;
 use imbl::vector;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, peek}, multi::{separated_list0, separated_list1}, sequence::{delimited, preceded, separated_pair, terminated}, IResult, Parser};
-use crate::{model::SId, parser::{expr::{fmt_str::formatted_string_expr, func::func_expr, graph::{call_expr, chained_var_func, graph_expr}, literal::literal_expr, math::math_expr}, statement::{block, switch::switch_statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FuncCall, ifs::IfIns, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, nullcheck::NullcheckIns, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, Base, AWAIT, NOOP, NOT_TRUTHY, POP_RETURN, PUSH_RETURN, SUSPEND, TYPE_NAME, TYPE_OF}, Type, Val}};
+use crate::{model::SId, parser::{expr::{fmt_str::formatted_string_expr, func::func_expr, graph::{call_expr, chained_var_func, graph_expr}, literal::literal_expr, math::math_expr, new_obj::new_obj_expr}, statement::{block, switch::switch_statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FuncCall, ifs::IfIns, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, nullcheck::NullcheckIns, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, Base, AWAIT, NOOP, NOT_TRUTHY, POP_RETURN, PUSH_RETURN, SUSPEND, TYPE_NAME, TYPE_OF}, Type, Val}};
 
 pub mod literal;
 pub mod math;
 pub mod graph;
 pub mod func;
 pub mod fmt_str;
+pub mod new_obj;
 
 
 /// Parse an expression.
 pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     let (input, mut ins) = alt([
+        new_obj_expr,
         func_expr,
         await_expr,
         async_expr,

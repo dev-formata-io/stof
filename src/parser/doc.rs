@@ -14,9 +14,9 @@
 // limitations under the License.
 //
 
-use crate::{model::InnerDoc, parser::{context::ParseContext, field::parse_field, func::parse_function, import::import, whitespace::{parse_inner_doc_comment, whitespace_fail}}, runtime::Error};
+use crate::{model::InnerDoc, parser::{context::ParseContext, field::parse_field, func::parse_function, ident::ident, import::import, whitespace::{parse_inner_doc_comment, whitespace_fail}}, runtime::Error};
 use nanoid::nanoid;
-use nom::{character::complete::char, combinator::eof, Err, IResult};
+use nom::{bytes::complete::tag, character::complete::{char, multispace0}, combinator::{eof, opt}, sequence::{delimited, preceded}, Err, IResult, Parser};
 
 
 /// Parse a Stof document into a context (graph).
@@ -39,7 +39,6 @@ pub fn document(mut input: &str, context: &mut ParseContext) -> Result<(), Error
 
 
 /// Parse a singular document statement.
-/// TODO types
 pub fn document_statement<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, ()> {
     // Function
     {
@@ -98,6 +97,25 @@ pub fn document_statement<'a>(input: &'a str, context: &mut ParseContext) -> IRe
         }
     }
 
+    // New root object + statements
+    {
+        let root_res = root_statements(input, context);
+        match root_res {
+            Ok((input, _)) => {
+                return Ok((input, ()));
+            },
+            Err(error) => {
+                match error {
+                    Err::Incomplete(_) |
+                    Err::Error(_) => {},
+                    Err::Failure(_) => {
+                        return Err(error);
+                    }
+                }
+            }
+        }
+    }
+
     // JSON-like brackets
     {
         let json_res = json_statements(input, context);
@@ -133,6 +151,31 @@ pub fn document_statement<'a>(input: &'a str, context: &mut ParseContext) -> IRe
 
     // End of the document?
     let (input, _) = eof(input)?;
+    Ok((input, ()))
+}
+
+
+/// New root document node statements.
+fn root_statements<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, ()> {
+    let (input, name) = preceded(tag("root"), delimited(multispace0, opt(ident), multispace0)).parse(input)?;
+    let (mut input, _) = char('{')(input)?;
+    context.push_root(name);
+    loop {
+        let res = document_statement(input, context);
+        match res {
+            Ok((rest, _)) => {
+                input = rest;
+                if input.starts_with('}') {
+                    break;
+                }
+            },
+            Err(error) => {
+                return Err(error);
+            }
+        }
+    }
+    context.pop_self();
+    let (input, _) = char('}')(input)?;
     Ok((input, ()))
 }
 

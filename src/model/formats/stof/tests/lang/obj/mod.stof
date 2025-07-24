@@ -1,0 +1,139 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+#[test]
+fn empty_object() {
+    const object = new {};
+    assert_eq(typeof object, 'obj');
+    assert_eq(object.parent(), self);
+}
+
+#[test]
+fn simple_fields() {
+    const object = new {
+        field: 42,
+        another: 'hello';
+        optional: true
+    };
+    assert_eq(object.field, 42);
+    assert_eq(object.another, 'hello');
+    assert_eq(object.optional, true);
+    assert_eq(object.fields().len(), 3);
+}
+
+#[test]
+fn var_field() {
+    const var = 42;
+    const object = new { var, };
+    assert_eq(object.var, 42);
+}
+
+#[test]
+fn cast_field() {
+    const non_str = 435;
+    const object = new {
+        // This is a cast
+        str non_str,
+    };
+    assert_eq(typeof object.non_str, 'str');
+    assert_eq(object.non_str, '435');
+}
+
+
+greeting: 'hello, world'
+
+#[test]
+fn new_stack_not_self() {
+    const object = new {
+        msg: self.greeting;
+    };
+    assert_eq(object.msg, self.greeting);
+    assert_eq(object.msg, 'hello, world');
+}
+
+#[test]
+fn obj_in_obj() {
+    const var = 42;
+    const object = new {
+        sub: new {
+            sub: new {
+                sub: new {
+                    var,
+                    msg: self.greeting,
+                }
+            }
+        }
+    };
+    assert_eq(object.sub.sub.sub.var, 42);
+    assert_eq(object.sub.sub.sub.msg, 'hello, world');
+}
+
+#[test]
+fn obj_on_syntax() {
+    const other = new {};
+    const object = new {} on other;
+    assert_eq(object.parent(), other);
+
+    other.field = object;
+    assert_eq(other.field, object);
+}
+
+#[test]
+fn obj_on_new_root() {
+    if (!AnotherExampleRoot) AnotherExampleRoot = new root {
+        root_obj: true
+    };
+    const object = new {} on AnotherExampleRoot;
+    assert(AnotherExampleRoot.is_root());
+    assert_eq(AnotherExampleRoot.parent(), null);
+}
+
+#[test]
+fn const_field() {
+    const object = new {
+        const str hello: 'hi';
+    };
+    assert_eq(object.hello, 'hi');
+    
+    try object.hello = 'yo';
+    catch (error: str) {
+        assert_eq(error, 'AssignConst');
+    }
+}
+
+#[test]
+fn string_field() {
+    const object = new {
+        'single': 'single',
+        "double": "double",
+        none: 'none',
+    };
+    assert_eq(object.single, 'single');
+    assert_eq(object.double, 'double');
+    assert_eq(object.none, 'none');
+}
+
+
+// Create root syntax (NOT A FIELD)
+root MyRoot {
+    fn hello() -> str { 'hello' }
+}
+
+#[test]
+fn created_root() {
+    assert_eq(MyRoot.hello(), 'hello');
+}
