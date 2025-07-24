@@ -21,7 +21,7 @@ use lazy_static::lazy_static;
 use nanoid::nanoid;
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
-use crate::{model::{obj::{ops::{obj_any, obj_at, obj_attributes, obj_children, obj_contains, obj_create_type, obj_dist, obj_empty, obj_exists, obj_fields, obj_funcs, obj_get, obj_id, obj_insert, obj_instance_of_proto, obj_is_parent, obj_is_root, obj_len, obj_move, obj_move_field, obj_name, obj_parent, obj_path, obj_proto, obj_remove, obj_remove_proto, obj_root, obj_run, obj_schemafy, obj_set_proto, obj_upcast}, validate::validation}, stof_std::StdIns, Field, Func, Graph, Prototype, SId, PROTOTYPE_TYPE_ATTR}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, empty::EmptyIns, Base, ConsumeStack, POP_SELF, PUSH_SELF, TRUTHY}, proc::ProcEnv, Error, Num, Type, Val, ValRef, Variable}};
+use crate::{model::{obj::{ops::{obj_any, obj_at, obj_attributes, obj_children, obj_contains, obj_create_type, obj_dist, obj_empty, obj_exists, obj_fields, obj_funcs, obj_get, obj_id, obj_insert, obj_instance_of_proto, obj_is_parent, obj_is_root, obj_len, obj_move, obj_move_field, obj_name, obj_parent, obj_path, obj_proto, obj_remove, obj_remove_proto, obj_root, obj_run, obj_schemafy, obj_set_proto, obj_upcast}, validate::validation}, stof_std::StdIns, Field, Func, Graph, Prototype, SId, PROTOTYPE_TYPE_ATTR}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, empty::EmptyIns, ifs::IfIns, Base, ConsumeStack, POP_SELF, POP_STACK, PUSH_SELF, TRUTHY}, proc::ProcEnv, Error, Num, Type, Val, ValRef, Variable}};
 mod validate;
 mod ops;
 
@@ -1036,16 +1036,37 @@ impl Instruction for ObjIns {
                                             }
                                             if let Some(schema_val) = schema_field_val {
                                                 if let Some(validate) = schema_attr_val {
+                                                    let mut target_val = None;
                                                     if let Some(target_field_ref) = Field::direct_field(&graph, &target, &schema_field_name) {
-                                                        let mut target_val = None;
                                                         if let Some(field) = graph.get_stof_data::<Field>(&target_field_ref) {
                                                             target_val = Some(field.value.val.clone()); // reference to the value outright
                                                         }
-                                                        if let Some(target_val) = target_val {
-                                                            let mut field_instructions = validation(graph, &schema, &target, schema_field_name, validate, schema_val, target_val, remove_invalid, remove_undefined);
-                                                            validation_instructions.append(&mut field_instructions);
+                                                    }
+                                                    let mut field_instructions = validation(graph, &schema, &target, schema_field_name.clone(), validate, schema_val, target_val, remove_invalid, remove_undefined);
+                                                    
+                                                    if remove_invalid {
+                                                        let if_instructions = vector![
+                                                            Arc::new(Base::Literal(Val::Bool(true))) as Arc<dyn Instruction>
+                                                        ];
+                                                        let else_instructions: Vector<Arc<dyn Instruction>> = vector![
+                                                            Arc::new(Base::Literal(Val::Obj(target.clone()))) as Arc<dyn Instruction>,
+                                                            PUSH_SELF.clone(),
+                                                            Arc::new(Base::Literal(Val::Str(format!("self.{schema_field_name}").into()))),
+                                                            Arc::new(StdIns::Drop(1)),
+                                                            POP_STACK.clone(), // get rid of drop stack val
+                                                            POP_SELF.clone(),
+                                                            Arc::new(Base::Literal(Val::Bool(true))), // put truthy back onto the stack to keep things going
+                                                        ];
+                                                        for ins in &mut field_instructions {
+                                                            ins.push_back(Arc::new(IfIns {
+                                                                if_test: Some(TRUTHY.clone()),
+                                                                if_ins: if_instructions.clone(), // put true back onto stack
+                                                                el_ins: else_instructions.clone() // take care of removing the field and put true onto stack
+                                                            }));
                                                         }
                                                     }
+                                                    
+                                                    validation_instructions.append(&mut field_instructions);
                                                 }
                                             }
                                         }

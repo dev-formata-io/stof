@@ -16,38 +16,49 @@
 
 use std::sync::Arc;
 use imbl::{vector, Vector};
-use crate::{model::{obj::SCHEMAFY, Func, Graph, NodeRef, SId}, runtime::{instruction::Instruction, instructions::{call::{FuncCall, NamedArg}, Base}, Type, Val, ValRef, Variable}};
+use crate::{model::{obj::SCHEMAFY, Field, Func, Graph, NodeRef, SId}, runtime::{instruction::Instruction, instructions::{call::{FuncCall, NamedArg}, Base}, Type, Val, ValRef, Variable}};
 
 
 /// Validation instructions.
-pub fn validation(graph: &mut Graph, schema: &NodeRef, target: &NodeRef, field: String, validate: Val, schema_val: ValRef<Val>, target_val: ValRef<Val>, remove_invalid: bool, remove_undefined: bool) -> Vec<Vector<Arc<dyn Instruction>>> {
+pub fn validation(graph: &mut Graph, schema: &NodeRef, target: &NodeRef, field: String, validate: Val, schema_val: ValRef<Val>, target_val: Option<ValRef<Val>>, remove_invalid: bool, remove_undefined: bool) -> Vec<Vector<Arc<dyn Instruction>>> {
     let mut validation_instructions = Vec::new();
     match validate {
         Val::Void |
         Val::Null => {
             // If schema_val and target_val are objects, do a schemafy on them
             if let Some(schema) = schema_val.read().try_obj() {
-                if let Some(target) = target_val.read().try_obj() {
-                    let instructions = vector![
-                        Arc::new(Base::Literal(Val::Obj(schema))) as Arc<dyn Instruction>,
-                        Arc::new(Base::Literal(Val::Obj(target))) as Arc<dyn Instruction>,
-                        Arc::new(Base::Literal(Val::Bool(remove_invalid))) as Arc<dyn Instruction>,
-                        Arc::new(Base::Literal(Val::Bool(remove_undefined))) as Arc<dyn Instruction>,
-                        SCHEMAFY.clone(),
-                    ];
-                    validation_instructions.push(instructions);
+                if let Some(target_val) = &target_val {
+                    if let Some(target) = target_val.read().try_obj() {
+                        let instructions = vector![
+                            Arc::new(Base::Literal(Val::Obj(schema))) as Arc<dyn Instruction>,
+                            Arc::new(Base::Literal(Val::Obj(target))) as Arc<dyn Instruction>,
+                            Arc::new(Base::Literal(Val::Bool(remove_invalid))) as Arc<dyn Instruction>,
+                            Arc::new(Base::Literal(Val::Bool(remove_undefined))) as Arc<dyn Instruction>,
+                            SCHEMAFY.clone(),
+                        ];
+                        validation_instructions.push(instructions);
+                    }
                 }
             }
         },
         Val::Obj(additional_schema) => {
-            // Do a schemafy with an additional schema object
-            validation_instructions.push(vector![
-                Arc::new(Base::Literal(Val::Obj(additional_schema))) as Arc<dyn Instruction>,
-                Arc::new(Base::Literal(Val::Obj(target.clone()))) as Arc<dyn Instruction>,
-                Arc::new(Base::Literal(Val::Bool(remove_invalid))) as Arc<dyn Instruction>,
-                Arc::new(Base::Literal(Val::Bool(remove_undefined))) as Arc<dyn Instruction>,
-                SCHEMAFY.clone(),
-            ]);
+            // Do a schemafy with an additional schema object for this field alone
+            if let Some(schema_field_ref) = Field::direct_field(&graph, &additional_schema, &field) {
+                let mut schema_attr_val = None;
+                let mut schema_field_val = None;
+                if let Some(field) = graph.get_stof_data::<Field>(&schema_field_ref) {
+                    if let Some(attr) = field.attributes.get("schema") {
+                        schema_attr_val = Some(attr.clone());
+                        schema_field_val = Some(field.value.val.duplicate(false));
+                    }
+                }
+                if let Some(schema_val) = schema_field_val {
+                    if let Some(validate) = schema_attr_val {
+                        let mut field_instructions = validation(graph, &additional_schema, &target, field, validate, schema_val, target_val, remove_invalid, remove_undefined);
+                        validation_instructions.append(&mut field_instructions);
+                    }
+                }
+            }
         },
         Val::Fn(func_ref) => {
             // Use a validation function
@@ -137,10 +148,17 @@ pub fn validation(graph: &mut Graph, schema: &NodeRef, target: &NodeRef, field: 
                     }));
                 }
                 if seen_target_val {
-                    args.push_back(Arc::new(NamedArg {
-                        name: SId::from(&target_val_name),
-                        ins: Arc::new(Base::Variable(Variable::refval(target_val)))
-                    }));
+                    if let Some(target_val) = target_val {
+                        args.push_back(Arc::new(NamedArg {
+                            name: SId::from(&target_val_name),
+                            ins: Arc::new(Base::Variable(Variable::refval(target_val)))
+                        }));
+                    } else {
+                        args.push_back(Arc::new(NamedArg {
+                            name: SId::from(&target_val_name),
+                            ins: Arc::new(Base::Variable(Variable::val(Val::Null)))
+                        }));
+                    }
                 }
 
                 let mut instructions = vector![

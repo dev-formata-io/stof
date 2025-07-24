@@ -233,7 +233,7 @@ Drop: {
     #[test]
     fn drop_obj() {
         assert_eq(typeof self.obj_to_drop, 'obj');
-        drop('self.obj_to_drop');
+        assert(drop('self.obj_to_drop'));
         assert_eq(self.obj_to_drop, null);
 
         assert_eq(typeof self.another_obj_to_drop, 'obj');

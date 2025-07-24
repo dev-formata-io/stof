@@ -170,7 +170,7 @@ InsertRemove: {
         self.insert('direct', 42);
         assert_eq(self.direct, 42);
 
-        self.remove('direct');
+        assert(self.remove('direct'));
         assert_eq(self.direct, null);
     }
 
@@ -325,14 +325,23 @@ Schemafy: {
     schema: {
         #[schema((target_value: str): bool => target_value.len() > 2)]
         first: 'John'
+
+        #[schema(( // pipelines are big AND filters, applied in order and short circuited like &&
+            (target_value: unknown): bool => (typeof target_value) == 'str',
+            (target_value: str): bool => target_value.contains('Dude'),
+        ))]
+        last: 'Doe'
     }
 
     target: {
         first: 'aj'
+        last: 'Dude'
+        undefined: 'blah'
     }
 
     #[test]
     fn schemafy_obj() {
-        assert_not(self.schema.schemafy(self.target));
+        assert(self.schema.schemafy(self.target, remove_invalid = true, remove_undefined = true));
+        assert_eq(str(self.target), '{"last":"Dude"}');
     }
 }
