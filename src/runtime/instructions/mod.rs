@@ -16,10 +16,11 @@
 
 use std::{sync::Arc, time::Duration};
 use arcstr::ArcStr;
+use imbl::vector;
 use lazy_static::lazy_static;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{Field, Func, Graph, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, proc::{ProcEnv, Process}, Error, Type, Val, Variable, WakeRef}};
+use crate::{model::{Field, Func, Graph, Prototype, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::call::FuncCall, proc::{ProcEnv, Process}, Error, Type, Val, Variable, WakeRef}};
 
 pub mod call;
 pub mod block;
@@ -75,6 +76,8 @@ lazy_static! {
     pub static ref TYPE_OF: Arc<dyn Instruction> = Arc::new(Base::TypeOf);
     pub static ref TYPE_NAME: Arc<dyn Instruction> = Arc::new(Base::TypeName);
     pub static ref INSTANCE_OF: Arc<dyn Instruction> = Arc::new(Base::InstanceOf);
+
+    pub static ref NEW_CONSTRUCTORS: Arc<dyn Instruction> = Arc::new(Base::NewObjConstructors);
 
     pub static ref ADD: Arc<dyn Instruction> = Arc::new(Base::Add);
     pub static ref SUBTRACT: Arc<dyn Instruction> = Arc::new(Base::Sub);
@@ -188,6 +191,7 @@ pub enum Base {
     
     NewObjField(ArcStr),
     ConstNewObjField(ArcStr),
+    NewObjConstructors,
 
     // Values.
     Dup,
@@ -540,6 +544,29 @@ impl Instruction for Base {
                     return Ok(None);
                 } else {
                     return Err(Error::StackError);
+                }
+            },
+            Self::NewObjConstructors => {
+                if let Some(var) = env.stack.pop() {
+                    let mut instructions = Instructions::default();
+                    if let Some(obj) = var.try_obj() {
+                        for obj in Prototype::prototype_nodes(&graph, &obj) {
+                            let mut attrs = FxHashSet::default();
+                            attrs.insert("constructor".to_string());
+                            let funcs = Func::functions(&graph, &obj, &Some(attrs), false);
+                            for func in funcs {
+                                instructions.push(Arc::new(FuncCall {
+                                    func: Some(func),
+                                    search: None,
+                                    stack: false,
+                                    as_ref: false,
+                                    args: vector![], // no args for a constructor
+                                }));
+                            }
+                        }
+                    }
+                    env.stack.push(var); // put it back
+                    return Ok(Some(instructions));
                 }
             },
             Self::SetVariable(name) => {

@@ -372,6 +372,16 @@ ToFromMap: {
         assert_eq(map.get('test'), 'hello, world');
         assert_eq(map.get('value'), 42);
         assert_eq(map.len(), 2);
+
+        const tmp = new {
+            a: 1,
+            b: 2,
+            c: 3
+        };
+        const mp = tmp.to_map();
+        assert_eq(mp, {'a': 1, 'b': 2, 'c': 3});
+        assert(drop(tmp));
+        assert_not(tmp.exists());
     }
 }
 

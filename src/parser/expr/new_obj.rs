@@ -17,7 +17,7 @@
 use std::sync::Arc;
 use arcstr::ArcStr;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0, multispace1}, combinator::{map, opt}, multi::many0, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
-use crate::{parser::{expr::expr, ident::ident, string::{double_string, single_string}, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, new_obj::NewObjIns, Base, DUPLICATE, POP_NEW, PUSH_NEW}, Type}};
+use crate::{parser::{expr::expr, ident::ident, string::{double_string, single_string}, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, new_obj::NewObjIns, Base, DUPLICATE, NEW_CONSTRUCTORS, POP_NEW, PUSH_NEW}, Type}};
 
 
 /// Create a new object expression.
@@ -57,6 +57,9 @@ pub fn new_obj_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
         }
         block.ins.push_back(POP_NEW.clone());
     }
+
+    // Call any constructors on this objects prototypes
+    block.ins.push_back(NEW_CONSTRUCTORS.clone());
 
     Ok((input, Arc::new(block) as Arc<dyn Instruction>))
 }
