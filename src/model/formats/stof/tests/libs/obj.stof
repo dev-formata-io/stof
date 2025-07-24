@@ -345,3 +345,43 @@ Schemafy: {
         assert_eq(str(self.target), '{"last":"Dude"}');
     }
 }
+
+ToFromMap: {
+    test: 'hello, world'
+    value: 42
+
+    #[test]
+    fn obj_from_map() {
+        const map = {
+            'a': 'aa',
+            'b': 'bb',
+            'c': 'cc',
+            45: 34, // not a string key, so ignored...
+        };
+        const obj = Obj.from_map(map);
+        assert_eq(obj.parent(), self);
+        assert_eq(obj.a, 'aa');
+        assert_eq(obj.b, 'bb');
+        assert_eq(obj.c, 'cc');
+        assert_eq(obj.fields().len(), 3);
+    }
+
+    #[test]
+    fn obj_to_map() {
+        const map = self.to_map();
+        assert_eq(map.get('test'), 'hello, world');
+        assert_eq(map.get('value'), 42);
+        assert_eq(map.len(), 2);
+    }
+}
+
+FromID: {
+    #[test]
+    fn obj_from_id() {
+        const id = self.id();
+        const obj = Obj.from_id(id);
+        assert_eq(obj, self);
+
+        //Obj.dbg_graph();
+    }
+}

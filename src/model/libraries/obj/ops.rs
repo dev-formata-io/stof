@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use imbl::vector;
-use crate::{model::{obj::{ANY, AT, ATTRIBUTES, AT_REF, CHILDREN, CONTAINS, CREATE_TYPE, DISTANCE, EMPTY, EXISTS, FIELDS, FUNCS, GET, GET_REF, ID, INSERT, INSTANCE_OF, IS_PARENT, IS_ROOT, LEN, MOVE, MOVE_FIELD, NAME, OBJ_LIB, PARENT, PATH, PROTO, REMOVE, REMOVE_PROTO, ROOT, RUN, SCHEMAFY, SET_PROTO, UPCAST}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, NumT, Type, Val}};
+use crate::{model::{obj::{ANY, AT, ATTRIBUTES, AT_REF, CHILDREN, CONTAINS, CREATE_TYPE, DISTANCE, DUMP, EMPTY, EXISTS, FIELDS, FROM_ID, FROM_MAP, FUNCS, GET, GET_REF, ID, INSERT, INSTANCE_OF, IS_PARENT, IS_ROOT, LEN, MOVE, MOVE_FIELD, NAME, OBJ_LIB, PARENT, PATH, PROTO, REMOVE, REMOVE_PROTO, ROOT, RUN, SCHEMAFY, SET_PROTO, TO_MAP, TO_MAP_REF, UPCAST}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, NumT, Type, Val}};
 
 
 /// Name.
@@ -693,6 +693,92 @@ pub fn obj_schemafy() -> LibFunc {
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(SCHEMAFY.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// To Map.
+pub fn obj_to_map() -> LibFunc {
+    LibFunc {
+        library: OBJ_LIB.clone(),
+        name: "to_map".into(),
+        is_async: false,
+        docs: "# Map from Object Fields\nCreate a new map out of object fields.".into(),
+        params: vector![
+            Param { name: "obj".into(), param_type: Type::Void, default: None },
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            if as_ref {
+                instructions.push(TO_MAP_REF.clone());
+            } else {
+                instructions.push(TO_MAP.clone());
+            }
+            Ok(instructions)
+        })
+    }
+}
+
+/// From Map.
+pub fn obj_from_map() -> LibFunc {
+    LibFunc {
+        library: OBJ_LIB.clone(),
+        name: "from_map".into(),
+        is_async: false,
+        docs: "# Object from Map\nCreate a new object from a Map, using string keys to create fields on the new object.".into(),
+        params: vector![
+            Param { name: "map".into(), param_type: Type::Map, default: None },
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(FROM_MAP.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// From ID.
+pub fn obj_from_id() -> LibFunc {
+    LibFunc {
+        library: OBJ_LIB.clone(),
+        name: "from_id".into(),
+        is_async: false,
+        docs: "# Object from ID\nCreate an object reference from a string ID.".into(),
+        params: vector![
+            Param { name: "id".into(), param_type: Type::Str, default: None },
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(FROM_ID.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// Dump graph info.
+pub fn obj_dump_graph() -> LibFunc {
+    LibFunc {
+        library: OBJ_LIB.clone(),
+        name: "dbg_graph".into(),
+        is_async: false,
+        docs: "# Dump Graph\nDebugging utility for dumping a complete graph. For a specific node, use dbg() on that object.".into(),
+        params: vector![],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(DUMP.clone());
             Ok(instructions)
         })
     }

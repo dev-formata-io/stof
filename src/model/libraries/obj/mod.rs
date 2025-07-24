@@ -21,7 +21,7 @@ use lazy_static::lazy_static;
 use nanoid::nanoid;
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
-use crate::{model::{obj::{ops::{obj_any, obj_at, obj_attributes, obj_children, obj_contains, obj_create_type, obj_dist, obj_empty, obj_exists, obj_fields, obj_funcs, obj_get, obj_id, obj_insert, obj_instance_of_proto, obj_is_parent, obj_is_root, obj_len, obj_move, obj_move_field, obj_name, obj_parent, obj_path, obj_proto, obj_remove, obj_remove_proto, obj_root, obj_run, obj_schemafy, obj_set_proto, obj_upcast}, validate::validation}, stof_std::StdIns, Field, Func, Graph, Prototype, SId, PROTOTYPE_TYPE_ATTR}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, empty::EmptyIns, ifs::IfIns, Base, ConsumeStack, POP_SELF, POP_STACK, PUSH_SELF, TRUTHY}, proc::ProcEnv, Error, Num, Type, Val, ValRef, Variable}};
+use crate::{model::{obj::{ops::{obj_any, obj_at, obj_attributes, obj_children, obj_contains, obj_create_type, obj_dist, obj_dump_graph, obj_empty, obj_exists, obj_fields, obj_from_id, obj_from_map, obj_funcs, obj_get, obj_id, obj_insert, obj_instance_of_proto, obj_is_parent, obj_is_root, obj_len, obj_move, obj_move_field, obj_name, obj_parent, obj_path, obj_proto, obj_remove, obj_remove_proto, obj_root, obj_run, obj_schemafy, obj_set_proto, obj_to_map, obj_upcast}, validate::validation}, stof_std::StdIns, Field, Func, Graph, Prototype, SId, PROTOTYPE_TYPE_ATTR}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, empty::EmptyIns, ifs::IfIns, Base, ConsumeStack, POP_SELF, POP_STACK, PUSH_SELF, TRUTHY}, proc::ProcEnv, Error, Num, Type, Val, ValRef, Variable}};
 mod validate;
 mod ops;
 
@@ -66,6 +66,12 @@ pub fn insert_obj_lib(graph: &mut Graph) {
 
     graph.insert_libfunc(obj_run());
     graph.insert_libfunc(obj_schemafy());
+
+    graph.insert_libfunc(obj_to_map());
+    graph.insert_libfunc(obj_from_map());
+    graph.insert_libfunc(obj_from_id());
+
+    graph.insert_libfunc(obj_dump_graph());
 }
 
 
