@@ -193,6 +193,7 @@ fn object_value<'a>(input: &'a str, name: &str, context: &mut ParseContext, attr
         }
     }
     context.pop_self();
+    context.post_init_obj(&value, attributes).expect("error initializing new object field value");
     let (input, _) = char('}')(input)?;
 
     // Peek at the next value, if its async, then don't do the as below...

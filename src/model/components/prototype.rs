@@ -22,6 +22,9 @@ use crate::model::{DataRef, Graph, NodeRef, SPath, StofData};
 /// Const prototype "type" literal.
 pub const PROTOTYPE_TYPE_ATTR: ArcStr = literal!("type");
 
+/// Const prototype "extends" literal.
+pub const PROTOTYPE_EXTENDS_ATTR: ArcStr = literal!("extends");
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// Prototype.

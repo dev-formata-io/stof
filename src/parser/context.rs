@@ -20,7 +20,7 @@ use imbl::vector;
 use lazy_static::lazy_static;
 use nanoid::nanoid;
 use rustc_hash::{FxHashMap, FxHashSet};
-use crate::{model::{DataRef, Graph, NodeRef, SId, PROTOTYPE_TYPE_ATTR}, runtime::{instruction::Instruction, instructions::call::FuncCall, proc::Process, Error, Runtime, Val, Variable}};
+use crate::{model::{DataRef, Graph, NodeRef, SId, PROTOTYPE_EXTENDS_ATTR, PROTOTYPE_TYPE_ATTR}, runtime::{instruction::Instruction, instructions::call::FuncCall, proc::Process, Error, Runtime, Type, Val, Variable}};
 
 
 lazy_static! {
@@ -171,6 +171,27 @@ impl<'ctx> ParseContext<'ctx> {
         let nref = self.graph.insert_root(&obj_name);
         let proc = self.parse_proc();
         proc.env.self_stack.push(nref);
+    }
+
+    /// Post push object (cast to an extends type here).
+    pub fn post_init_obj(&mut self, value: &Variable, attributes: &mut FxHashMap<String, Val>) -> Result<(), Error> {
+        if let Some(extends_attr) = attributes.get(PROTOTYPE_EXTENDS_ATTR.as_str()) {
+            if let Some(obj) = value.try_obj() {
+                let context = self.self_ptr();
+                match extends_attr {
+                    Val::Str(typename) => {
+                        let cast_type = Type::Obj(typename.as_str().into());
+                        Val::Obj(obj).cast(&cast_type, &mut self.graph, Some(context))?;
+                    },
+                    Val::Obj(proto) => {
+                        let cast_type = Type::Obj(proto.clone());
+                        Val::Obj(obj).cast(&cast_type, &mut self.graph, Some(context))?;
+                    },
+                    _ => {}
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Push self stack as a variable.

@@ -276,23 +276,21 @@ impl FuncCall {
 
         // Look for a static function on a prototype (only works with "type" objects, not regular objects as a prototype)
         // Ex. <MyType>.static_function();
-        if !in_proto && path.starts_with('<') && path.contains('.') {
-            let mut proto_path = path.split('.').collect::<Vec<_>>();
-            let mut proto_name = proto_path.remove(0).trim_start_matches('<');
-            if proto_name.ends_with('>') {
-                proto_name = proto_name.trim_end_matches('>');
+        if !in_proto && path.starts_with('<') && path.contains('.') && path.contains('>') {
+            let end_index = path.find('>').unwrap();
+            let (mut first, mut last) = path.split_at(end_index);
+            first = first.trim_start_matches('<');
+            last = last.trim_start_matches('>').trim_start_matches('.');
 
-                let mut obj_type = Type::Obj(proto_name.into());
-                obj_type.obj_to_proto(graph, start);
-                match obj_type {
-                    Type::Obj(proto_id) => {
-                        if proto_id.node_exists(graph) {
-                            let path = proto_path.join(".");
-                            return self.object_search(&path, Some(proto_id), env, graph, false);
-                        }
-                    },
-                    _ => {}
-                }
+            let mut obj_type = Type::Obj(first.into());
+            obj_type.obj_to_proto(graph, Some(env.self_ptr()));
+            match obj_type {
+                Type::Obj(proto_id) => {
+                    if proto_id.node_exists(graph) {
+                        return self.object_search(last, Some(proto_id), env, graph, false);
+                    }
+                },
+                _ => {}
             }
         }
 

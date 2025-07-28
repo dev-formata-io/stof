@@ -21,7 +21,6 @@
  */
 
 import './control/mod' as self.Control;
-import './types/mod' as self.Types;
 import './funcs/mod' as self.Funcs;
 import './strings/mod' as self.Strings;
 import './fields/mod' as self.Fields;

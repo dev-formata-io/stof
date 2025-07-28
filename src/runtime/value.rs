@@ -16,7 +16,7 @@
 
 use core::str;
 use parking_lot::RwLock;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 use std::{cmp::Ordering, hash::{Hash, Hasher}, ops::{Deref, DerefMut}, sync::Arc};
 use arcstr::{literal, ArcStr};
 use bytes::Bytes;
@@ -1373,12 +1373,30 @@ impl Val {
 
         // Get the target type in terms of prototypes
         let mut target = target.clone();
-        target.obj_to_proto(graph, context);
+        target.obj_to_proto(graph, context.clone());
 
         match target {
             Type::Union(types) => {
-                // TODO check if we are an instance of any of these types first
-                Err(Error::NotImplemented)
+                let mut objects = Vec::new();
+                for cast_type in types {
+                    match cast_type {
+                        Type::Obj(proto_id) => {
+                            if self.instance_of(&proto_id, graph)? {
+                                return Ok(());
+                            } else {
+                                objects.push(Type::Obj(proto_id));
+                            }
+                        },
+                        _ => {}
+                    }
+                }
+                for object in objects {
+                    let res = self.cast_object(&object, graph, context.clone());
+                    if res.is_ok() {
+                        return Ok(());
+                    }
+                }
+                Err(Error::CastVal)
             },
             Type::Obj(proto_id) => {
                 if proto_id == SId::from(&OBJ) {
@@ -1394,122 +1412,50 @@ impl Val {
                     graph.insert_stof_data(&obj, "__proto__", Box::new(Prototype { node: proto_id.clone() }), None);
                 
                     // Perform field initializations and checks for the type
-                    for (fname, fref) in Field::fields(graph, &proto_id) {
+                    let obj_fields = Field::fields(graph, &obj);
+                    'proto_loop: for (fname, fref) in Field::fields(graph, &proto_id) {
+                        let mut field_value = None;
+                        let mut field_attributes = None;
                         if let Some(field) = graph.get_stof_data::<Field>(&fref) {
-                            //println!("{fname}, {field:?}");
+                            if field.attributes.contains_key("type_ignore") {
+                                continue 'proto_loop;
+                            }
+                            field_value = Some(field.value.clone()); // shallow
+                            field_attributes = Some(field.attributes.clone());
+                        }
+                        if let Some(field_value) = field_value {
+                            if let Some(existing) = obj_fields.get(&fname) {
+                                let mut existing_value = None;
+                                if let Some(field) = graph.get_stof_data::<Field>(existing) {
+                                    existing_value = Some(field.value.clone());
+                                }
+                                if let Some(existing_value) = existing_value {
+                                    let field_type = field_value.spec_type(graph);
+                                    if existing_value.spec_type(graph) != field_type {
+                                        existing_value.cast(&field_type, graph, context.clone())?;
+                                    }
+                                    if let Some(field) = graph.get_mut_stof_data::<Field>(existing) {
+                                        field.value = existing_value;
+                                        if let Some(attrs) = field_attributes {
+                                            for (k, v) in attrs {
+                                                if !field.attributes.contains_key(&k) {
+                                                    field.attributes.insert(k, v);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                let copied = field_value.deep_copy(graph, context.clone());
+                                let field = Field::new(copied, field_attributes);
+                                graph.insert_stof_data(&obj, &fname, Box::new(field), None);
+                            }
                         }
                     }
-
-                    // TODO: schemafy the obj with the type (this will be very nice)
                 }
                 Ok(())
             },
             _ => Err(Error::CastVal)
-        }
-    }
-
-    /// Schemafy an object.
-    /// Use the fields on a source object to control/set fields on a target object.
-    pub fn schemafy(graph: &mut Graph, source: &NodeRef, target: &NodeRef, remove_invalid: bool, remove_undefined: bool) -> bool {
-        // Get all of the fields on this schema to apply on the target object
-        // Field name -> #[field] attribute value
-        let mut source_fields: FxHashMap<String, (DataRef, Val)> = FxHashMap::default();
-        for (fname, fref) in Field::fields(graph, source) {
-            if let Some(field) = graph.get_stof_data::<Field>(&fref) {
-                if let Some(schema_val) = field.attributes.get("field") {
-                    source_fields.insert(fname, (fref, schema_val.clone()));
-                }
-            }
-        }
-        let source_fieldnames = source_fields.keys().cloned().collect::<FxHashSet<String>>();
-
-        // Get all invalid fields on the target and remove them, while applying any transforms in the field attribute
-        let mut valid = true;
-        for (fname, (fref, value)) in source_fields {
-            if !Self::schemafy_field(graph, source, target, &fname, value, remove_invalid, remove_undefined) {
-                valid = false;
-                if remove_invalid {
-                    graph.remove_data(&fref, Some(target.clone()));
-                }
-            }
-        }
-
-        // Remove all undefined fields on the target (not matching the source)
-        if remove_undefined {
-            for (fname, fref) in Field::fields(graph, target) {
-                if !source_fieldnames.contains(&fname) {
-                    graph.remove_data(&fref, Some(target.clone()));
-                }
-            }
-        }
-
-        valid
-    }
-    fn schemafy_field(graph: &mut Graph, source: &NodeRef, target: &NodeRef, fname: &str, value: Val, remove_invalid: bool, remove_undefined: bool) -> bool {
-        match value {
-            Val::Void |
-            Val::Null => {
-                let mut source_field_obj = None;
-                let mut target_field_obj = None;
-                if let Some(field) = Field::direct_field(graph, source, fname) {
-                    if let Some(field) = graph.get_stof_data::<Field>(&field) {
-                        if let Some(obj) = field.value.try_obj() {
-                            source_field_obj = Some(obj);
-                        }
-                    }
-                }
-                if let Some(field) = Field::direct_field(graph, target, fname) {
-                    if let Some(field) = graph.get_stof_data::<Field>(&field) {
-                        if let Some(obj) = field.value.try_obj() {
-                            target_field_obj = Some(obj);
-                        }
-                    }
-                }
-                if let Some(source) = source_field_obj {
-                    if let Some(target) = target_field_obj {
-                        return Self::schemafy(graph, &source, &target, remove_invalid, remove_undefined);
-                    }
-                }
-                true // valid otherwise
-            },
-            Val::Obj(another_source) => {
-                let mut another_val = None;
-                if let Some(field) = Field::direct_field(graph, &another_source, fname) {
-                    if let Some(field) = graph.get_stof_data::<Field>(&field) {
-                        if let Some(val) = field.attributes.get("field") {
-                            another_val = Some(val.clone());
-                        }
-                    }
-                }
-                if let Some(another_val) = another_val {
-                    return Self::schemafy_field(graph, &another_source, target, fname, another_val, remove_invalid, remove_undefined);
-                }
-                false
-            },
-            Val::Tup(vals) |
-            Val::List(vals) => {
-                for val in vals {
-                    let val = val.read().clone();
-                    if !Self::schemafy_field(graph, source, target, fname, val, remove_invalid, remove_undefined) {
-                        return false;
-                    }
-                }
-                true
-            },
-            Val::Set(vals) => {
-                for val in vals {
-                    let val = val.read().clone();
-                    if !Self::schemafy_field(graph, source, target, fname, val, remove_invalid, remove_undefined) {
-                        return false;
-                    }
-                }
-                true
-            },
-            Val::Fn(_dref) => {
-                // TODO
-                true
-            },
-            _ => false,
         }
     }
 

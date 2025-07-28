@@ -15,6 +15,9 @@
 //
 
 
+import './types' as self.Types;
+
+
 #[test]
 fn empty_object() {
     const object = new {};
