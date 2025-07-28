@@ -550,15 +550,16 @@ impl Instruction for Base {
                 if let Some(var) = env.stack.pop() {
                     let mut instructions = Instructions::default();
                     if let Some(obj) = var.try_obj() {
-                        for obj in Prototype::prototype_nodes(&graph, &obj) {
+                        for obj in Prototype::prototype_nodes(&graph, &obj, true) {
                             let mut attrs = FxHashSet::default();
                             attrs.insert("constructor".to_string());
                             let funcs = Func::functions(&graph, &obj, &Some(attrs), false);
                             for func in funcs {
+                                instructions.push(DUPLICATE.clone());
                                 instructions.push(Arc::new(FuncCall {
-                                    func: Some(func),
-                                    search: None,
-                                    stack: false,
+                                    func: None,
+                                    search: Some(func.data_name(graph).unwrap().as_ref().into()),
+                                    stack: true,
                                     as_ref: false,
                                     args: vector![], // no args for a constructor
                                 }));

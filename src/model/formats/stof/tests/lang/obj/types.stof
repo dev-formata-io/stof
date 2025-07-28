@@ -21,6 +21,11 @@ Geometry: {
         float x: 0;
         float y: 0;
 
+        #[constructor]
+        fn is_a_point() {
+            self.isapoint = true;
+        }
+
         fn length() -> float {
             Num.sqrt(self.x.pow(2) + self.y.pow(2))
         }
@@ -36,6 +41,11 @@ Geometry: {
     Point: {
         float z: 0;
 
+        #[constructor] // optional
+        fn init() {
+            self.initialized = true;
+        }
+
         fn length() -> float {
             Num.sqrt(self.x.pow(2) + self.y.pow(2) + self.z.pow(2))
         }
@@ -48,6 +58,7 @@ Geometry: {
         assert_eq(point.y, 0);
         assert_eq(point.z, null);
         assert_eq(point.length(), 0);
+        assert(point.isapoint);
     }
 
     #[test]
@@ -57,12 +68,16 @@ Geometry: {
         assert_eq(point.y, 0);
         assert_eq(point.z, 0);
         assert_eq(point.length(), 0);
+        assert(point.initialized);
+        assert(point.isapoint);
     }
 
     #[test]
     fn point_2d() {
         const point = new Point2D { x: 2, y: 2 };
         assert_eq(point.length().round(2), 2.83);
+        assert_not(point.initialized);
+        assert(point.isapoint);
     }
 
     #[test]
@@ -70,6 +85,8 @@ Geometry: {
         const point = new Point { x: 2, y: 2, z: 2 };
         assert_eq(point.length().round(2), 3.46);
         assert_eq(point.length<Point2D>().round(2), 2.83);
+        assert(point.initialized);
+        assert(point.isapoint);
     }
 
     #[test]

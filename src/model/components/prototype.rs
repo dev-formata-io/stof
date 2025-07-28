@@ -64,12 +64,16 @@ impl Prototype {
     }
 
     /// Prototype nodes referenced by a node.
-    pub fn prototype_nodes(graph: &Graph, node: &NodeRef) -> Vec<NodeRef> {
+    pub fn prototype_nodes(graph: &Graph, node: &NodeRef, recursive: bool) -> Vec<NodeRef> {
         let mut protos = Vec::new();
         if let Some(node) = node.node(graph) {
             for (_, dref) in &node.data {
                 if let Some(proto) = graph.get_stof_data::<Self>(dref) {
                     protos.push(proto.node.clone());
+
+                    if recursive {
+                        protos.append(&mut Self::prototype_nodes(graph, &proto.node, true));
+                    }
                 }
             }
         }

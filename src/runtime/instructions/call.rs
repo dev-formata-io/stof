@@ -261,7 +261,7 @@ impl FuncCall {
                 }
             }
             if let Some(node) = proto_context {
-                for prototype in Prototype::prototype_nodes(graph, &node) {
+                for prototype in Prototype::prototype_nodes(graph, &node, false) {
                     // by making this recursive, we fulfill the sub-typing lookups ("extends" types)
                     if let Ok(mut res) = self.object_search(func_name, Some(prototype), env, graph, true) {
                         if !in_proto {

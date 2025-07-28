@@ -278,7 +278,7 @@ impl Instruction for ObjIns {
             Self::Proto => {
                 if let Some(var) = env.stack.pop() {
                     if let Some(obj) = var.try_obj() {
-                        let mut proto_nrefs = Prototype::prototype_nodes(graph, &obj);
+                        let mut proto_nrefs = Prototype::prototype_nodes(graph, &obj, false);
                         if proto_nrefs.len() == 1 {
                             env.stack.push(Variable::val(Val::Obj(proto_nrefs.pop().unwrap())));
                         } else if proto_nrefs.len() > 1 {
@@ -998,7 +998,7 @@ impl Instruction for ObjIns {
 
                         let mut highest_order = -2;
                         for (ord, _) in &run_instructions { if *ord > highest_order { highest_order = *ord; } }
-                        for nref in Prototype::prototype_nodes(&graph, &obj) {
+                        for nref in Prototype::prototype_nodes(&graph, &obj, false) {
                             let instructions = vector![
                                 Arc::new(Base::Literal(Val::Obj(nref))) as Arc<dyn Instruction>,
                                 RUN.clone()

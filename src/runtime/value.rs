@@ -1074,7 +1074,7 @@ impl Val {
                 Type::Data(DATA)
             },
             Self::Obj(nref) => {
-                let mut prototypes = Prototype::prototype_nodes(graph, nref);
+                let mut prototypes = Prototype::prototype_nodes(graph, nref, false);
                 if prototypes.len() == 1 {
                     return Type::Obj(prototypes.pop().unwrap());
                 } else if prototypes.len() > 1 {
@@ -1097,7 +1097,7 @@ impl Val {
     /// Is this value an instance of a prototype?
     pub fn instance_of(&self, other: &NodeRef, graph: &Graph) -> Result<bool, Error> {
         if let Some(obj) = self.try_obj() {
-            let proto_nrefs = Prototype::prototype_nodes(graph, &obj);
+            let proto_nrefs = Prototype::prototype_nodes(graph, &obj, false);
             for nref in &proto_nrefs { if nref == other { return Ok(true); } }
             for nref in proto_nrefs {
                 if let Ok(contains) = Self::Obj(nref).instance_of(other, graph) {
