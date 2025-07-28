@@ -550,20 +550,26 @@ impl Instruction for Base {
                 if let Some(var) = env.stack.pop() {
                     let mut instructions = Instructions::default();
                     if let Some(obj) = var.try_obj() {
+                        let mut attrs = FxHashSet::default();
+                        attrs.insert("constructor".to_string());
+                        let attrs = Some(attrs);
+
+                        let mut names = FxHashSet::default();
                         for obj in Prototype::prototype_nodes(&graph, &obj, true) {
-                            let mut attrs = FxHashSet::default();
-                            attrs.insert("constructor".to_string());
-                            let funcs = Func::functions(&graph, &obj, &Some(attrs), false);
+                            let funcs = Func::functions(&graph, &obj, &attrs, false);
                             for func in funcs {
-                                instructions.push(DUPLICATE.clone());
-                                instructions.push(Arc::new(FuncCall {
-                                    func: None,
-                                    search: Some(func.data_name(graph).unwrap().as_ref().into()),
-                                    stack: true,
-                                    as_ref: false,
-                                    args: vector![], // no args for a constructor
-                                }));
+                                names.insert(func.data_name(graph).unwrap());
                             }
+                        }
+                        for name in names {
+                            instructions.push(DUPLICATE.clone());
+                            instructions.push(Arc::new(FuncCall {
+                                func: None,
+                                search: Some(name.as_ref().into()),
+                                stack: true,
+                                as_ref: false,
+                                args: vector![], // no args for a constructor
+                            }));
                         }
                     }
                     env.stack.push(var); // put it back

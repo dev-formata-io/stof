@@ -49,6 +49,11 @@ Geometry: {
         fn length() -> float {
             Num.sqrt(self.x.pow(2) + self.y.pow(2) + self.z.pow(2))
         }
+
+        #[dropped]
+        fn dropped() {
+            super.point_dropped = true;
+        }
     }
 
     #[test]
@@ -94,5 +99,29 @@ Geometry: {
         assert_eq(<Point2D>.add(12.5, 11.1), 23.6);
         assert_eq(<Point>.add(14.4, 10), 24.4);
         assert_eq(<self.super.Geometry.Point2D>.add(25, 42), 67);
+    }
+
+    #[test]
+    fn dropped() {
+        const parent = new {};
+        const point = new Point { x: -3.14, y: -44.4, z: 21.5 } on parent;
+        assert_eq(point.length().round(3), 49.431);
+        drop(point); // calls all #[dropped] functions on the point
+        assert_not(point.exists());
+        assert(parent.point_dropped);
+    }
+
+    Point pointed_field: {
+        x: 42,
+        y: 42,
+        z: 42,
+    }
+
+    #[test]
+    fn dropped_field() {
+        assert_eq(self.pointed_field.length().round(), 73);
+        drop(self.pointed_field);
+        assert(self.point_dropped);
+        assert_not(self.pointed_field);
     }
 }

@@ -132,6 +132,7 @@ pub fn std_drop() -> LibFunc {
         args_to_symbol_table: false,
         func: Arc::new(|_as_ref, arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
+            instructions.push(Arc::new(StdIns::ObjDropped(arg_count)));
             instructions.push(Arc::new(StdIns::Drop(arg_count)));
             Ok(instructions)
         })

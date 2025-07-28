@@ -16,11 +16,11 @@
 
 use std::{mem::swap, ops::{Deref, DerefMut}, sync::Arc, time::Duration};
 use arcstr::{literal, ArcStr};
-use imbl::Vector;
+use imbl::{vector, Vector};
 use lazy_static::lazy_static;
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
-use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, containers::{std_copy, std_drop, std_funcs, std_list, std_map, std_set, std_shallow_drop, std_swap}, exit::stof_exit, print::{dbg, err, pln, string}, sleep::stof_sleep}, Field, Func, Graph, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::{list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}, Base, EXIT}, proc::ProcEnv, Error, Type, Units, Val, ValRef, Variable}};
+use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, containers::{std_copy, std_drop, std_funcs, std_list, std_map, std_set, std_shallow_drop, std_swap}, exit::stof_exit, print::{dbg, err, pln, string}, sleep::stof_sleep}, Field, Func, Graph, Prototype, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}, Base, DUPLICATE, EXIT}, proc::ProcEnv, Error, Type, Units, Val, ValRef, Variable}};
 
 mod print;
 mod sleep;
@@ -104,6 +104,7 @@ pub enum StdIns {
 
     Functions,
 
+    ObjDropped(usize),
     Drop(usize),
     ShallowDrop(usize),
 }
@@ -433,7 +434,48 @@ impl Instruction for StdIns {
                 }
                 return Err(Error::StdFunctions);
             },
+            Self::ObjDropped(arg_count) => {
+                let mut vars = Vec::new();
+                for _ in 0..*arg_count {
+                    vars.push(env.stack.pop().unwrap());
+                }
 
+                // If the variable is an object, call all #[dropped] on that object
+                let mut instructions = Instructions::default();
+                for var in vars.iter() {
+                    if let Some(obj) = var.try_obj() {
+                        let mut objects = vec![obj.clone()];
+                        objects.append(&mut Prototype::prototype_nodes(&graph, &obj, true));
+                        
+                        let mut attrs = FxHashSet::default();
+                        attrs.insert("dropped".to_string());
+                        let attrs = Some(attrs);
+
+                        let mut names = FxHashSet::default();
+                        for obj in objects {
+                            let funcs = Func::functions(&graph, &obj, &attrs, false);
+                            for func in funcs {
+                                names.insert(func.data_name(graph).unwrap());
+                            }
+                        }
+                        for name in names {
+                            instructions.push(DUPLICATE.clone());
+                            instructions.push(Arc::new(FuncCall {
+                                func: None,
+                                search: Some(name.as_ref().into()),
+                                stack: true,
+                                as_ref: false,
+                                args: vector![], // no args for a constructor
+                            }));
+                        }
+                    }
+                }
+
+                for var in vars.into_iter().rev() {
+                    env.stack.push(var);
+                }
+                return Ok(Some(instructions));
+            },
             Self::Drop(arg_count) => {
                 let mut vars = Vec::new();
                 for _ in 0..*arg_count {
