@@ -288,3 +288,45 @@ Drop: {
         assert_eq(self.another_field_to_drop, null);
     }
 }
+
+Parse: {
+    #[test]
+    fn parse_source() {
+        const stof = r#"
+            fn greetings() {
+                self.greeting = 'Hello, Stof Parse!';
+            }
+        "#;
+        parse(stof); // parse the stof into this context
+
+        self.greetings();
+        assert_eq(self.greeting, 'Hello, Stof Parse!');
+    }
+
+    #[test]
+    fn parse_another_context() {
+        const context = new {} on self;
+        const stof = r#"
+            fn doin_it() -> int {
+                self.x = 42;
+                self.y = 56;
+                self.x + self.y
+            }
+        "#;
+        assert(parse(stof, context, format = 'stof'));
+        assert_eq(context.doin_it(), 98);
+        assert_eq(context.x, 42);
+        assert_eq(context.y, 56);
+        drop(context);
+    }
+}
+
+Stringify_Blobify: {
+    //#[test] // TODO
+    fn stringify_obj() {
+        const object = new { a: 42, b: 'hi' };
+        assert_eq(stringify(object, format = "json"), "");
+    }
+}
+
+

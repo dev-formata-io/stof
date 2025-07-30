@@ -31,7 +31,7 @@ pub trait Format: std::fmt::Debug + Send + Sync {
     /// String import.
     #[allow(unused)]
     fn string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
-        Err(Error::FormatStringImportNotImplemented)
+        Err(Error::FormatStringImportNotImplemented(format.into()))
     }
 
     /// File import.
@@ -68,7 +68,7 @@ pub trait Format: std::fmt::Debug + Send + Sync {
     /// String export.
     #[allow(unused)]
     fn string_export(&self, graph: &Graph, format: &str, node: Option<NodeRef>) -> Result<String, Error> {
-        Err(Error::FormatStringExportNotImplemented)
+        Err(Error::FormatStringExportNotImplemented(format.into()))
     }
 
     /// Binary export.

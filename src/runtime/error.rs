@@ -27,11 +27,11 @@ pub enum Error {
     /*****************************************************************************
      * Format Errors.
      *****************************************************************************/
-    FormatStringImportNotImplemented,
+    FormatStringImportNotImplemented(String),
     FormatFileImportFsError(String),
     FormatFileImportNotAllowed,
     FormatBinaryImportUtf8Error,
-    FormatStringExportNotImplemented,
+    FormatStringExportNotImplemented(String),
     GraphFormatNotFound,
     RelativeImportWithoutContext,
     ParseContextParseFailure(String),
@@ -57,6 +57,9 @@ pub enum Error {
     AssertNotEqFailed(String),
     MapConstructor(String),
     StdFunctions,
+    StdParse(String),
+    StdBlobify(String),
+    StdStringify(String),
 
     /*****************************************************************************
      * Time Lib Errors.

@@ -16,17 +16,19 @@
 
 use std::{mem::swap, ops::{Deref, DerefMut}, sync::Arc, time::Duration};
 use arcstr::{literal, ArcStr};
+use bytes::Bytes;
 use imbl::{vector, Vector};
 use lazy_static::lazy_static;
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
-use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, containers::{std_copy, std_drop, std_funcs, std_list, std_map, std_set, std_shallow_drop, std_swap}, exit::stof_exit, print::{dbg, err, pln, string}, sleep::stof_sleep}, Field, Func, Graph, Prototype, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}, Base, DUPLICATE, EXIT}, proc::ProcEnv, Error, Type, Units, Val, ValRef, Variable}};
+use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, containers::{std_copy, std_drop, std_funcs, std_list, std_map, std_set, std_shallow_drop, std_swap}, exit::stof_exit, ops::{std_blobify, std_parse, std_stringify}, print::{dbg, err, pln, string}, sleep::stof_sleep}, Field, Func, Graph, Prototype, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}, Base, DUPLICATE, EXIT}, proc::ProcEnv, Error, Type, Units, Val, ValRef, Variable}};
 
 mod print;
 mod sleep;
 mod assert;
 mod exit;
 mod containers;
+mod ops;
 
 
 /// Add the std library to a graph.
@@ -54,6 +56,10 @@ pub fn stof_std_lib(graph: &mut Graph) {
     graph.insert_libfunc(std_shallow_drop());
 
     graph.insert_libfunc(std_funcs());
+
+    graph.insert_libfunc(std_parse());
+    graph.insert_libfunc(std_stringify());
+    graph.insert_libfunc(std_blobify());
 }
 
 
@@ -74,6 +80,10 @@ lazy_static! {
     pub(self) static ref SWAP: Arc<dyn Instruction> = Arc::new(StdIns::Swap);
 
     pub(self) static ref FUNCTIONS: Arc<dyn Instruction> = Arc::new(StdIns::Functions);
+
+    pub(self) static ref PARSE: Arc<dyn Instruction> = Arc::new(StdIns::Parse);
+    pub(self) static ref BLOBIFY: Arc<dyn Instruction> = Arc::new(StdIns::Blobify);
+    pub(self) static ref STRINGIFY: Arc<dyn Instruction> = Arc::new(StdIns::Stringify);
 }
 
 
@@ -107,6 +117,10 @@ pub enum StdIns {
     ObjDropped(usize),
     Drop(usize),
     ShallowDrop(usize),
+
+    Parse,
+    Blobify,
+    Stringify,
 }
 #[typetag::serde(name = "StdIns")]
 impl Instruction for StdIns {
@@ -566,6 +580,143 @@ impl Instruction for StdIns {
                 } else if results.len() > 1 {
                     env.stack.push(Variable::val(Val::List(results)));
                 }
+            },
+
+            Self::Parse => {
+                // Std.parse("source", context = self, format = 'stof') -> bool
+                if let Some(format_var) = env.stack.pop() {
+                    if let Some(context_var) = env.stack.pop() {
+                        if let Some(source_var) = env.stack.pop() {
+                            let mut context = env.self_ptr();
+                            match context_var.val.read().deref() {
+                                Val::Str(path) => {
+                                    let mut ctx = None;
+                                    if path.starts_with(SELF_STR_KEYWORD.as_str()) || path.starts_with(SUPER_STR_KEYWORD.as_str()) {
+                                        ctx = Some(env.self_ptr());
+                                    }
+                                    if let Some(field_ref) = Field::field_from_path(graph, path.as_str(), ctx.clone()) {
+                                        if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
+                                            if let Some(obj) = field.value.try_obj() {
+                                                context = obj;
+                                            } else {
+                                                // Context was not an object
+                                                env.stack.push(Variable::val(Val::Bool(false)));
+                                                return Ok(None);
+                                            }
+                                        }
+                                    } else if let Some(node) = SPath::node(&graph, path.as_str(), ctx) {
+                                        context = node;
+                                    } else {
+                                        // context given, but not found (return false)
+                                        env.stack.push(Variable::val(Val::Bool(false)));
+                                        return Ok(None);
+                                    }
+                                },
+                                Val::Obj(nref) => {
+                                    context = nref.clone();
+                                },
+                                _ => {}
+                            }
+                            
+                            let mut format = "stof".to_string();
+                            match format_var.val.read().deref() {
+                                Val::Str(fmt) => {
+                                    format = fmt.to_string();
+                                },
+                                Val::Void |
+                                Val::Null => {}, // keep as stof
+                                _ => {
+                                    return Err(Error::StdParse("format must be a string content type or stof format identifier".to_string()));
+                                }
+                            }
+
+                            match source_var.val.read().deref() {
+                                Val::Str(src) => {
+                                    graph.string_import(&format, src.as_str(), Some(context))?;
+                                    env.stack.push(Variable::val(Val::Bool(true)));
+                                    return Ok(None);
+                                },
+                                Val::Blob(bytes) => {
+                                    graph.binary_import(&format, Bytes::from(bytes.clone()), Some(context))?;
+                                    env.stack.push(Variable::val(Val::Bool(true)));
+                                    return Ok(None);
+                                },
+                                _ => {
+                                    return Err(Error::StdParse("parse source data must be a string or blob".to_string()));
+                                }
+                            }
+                        }
+                    }
+                }
+                return Err(Error::StdParse("stack variables not found".to_string()));
+            },
+            Self::Blobify => {
+                if let Some(context_var) = env.stack.pop() {
+                    if let Some(format_var) = env.stack.pop() {
+                        let mut format = "json".to_string();
+                        match format_var.val.read().deref() {
+                            Val::Str(fmt) => {
+                                format = fmt.to_string();
+                            },
+                            Val::Void |
+                            Val::Null => {},
+                            _ => {
+                                return Err(Error::StdBlobify("format must be a string content type or format identifier and must be made available to the graph explicitely by each runtime".to_string()))
+                            }
+                        }
+
+                        let mut ctx = None;
+                        match context_var.val.read().deref() {
+                            Val::Obj(nref) => {
+                                ctx = Some(nref.clone());
+                            },
+                            Val::Void |
+                            Val::Null => {},
+                            _ => {
+                                return Err(Error::StdBlobify("context must be an object".to_string()));
+                            },
+                        }
+
+                        let bytes = graph.binary_export(&format, ctx)?;
+                        env.stack.push(Variable::val(Val::Blob(bytes.to_vec())));
+                        return Ok(None);
+                    }
+                }
+                return Err(Error::StdBlobify("blobify stack variables do not exist".to_string()));
+            },
+            Self::Stringify => {
+                if let Some(context_var) = env.stack.pop() {
+                    if let Some(format_var) = env.stack.pop() {
+                        let mut format = "json".to_string();
+                        match format_var.val.read().deref() {
+                            Val::Str(fmt) => {
+                                format = fmt.to_string();
+                            },
+                            Val::Void |
+                            Val::Null => {},
+                            _ => {
+                                return Err(Error::StdStringify("format must be a string content type or format identifier and must be made available to the graph explicitely by each runtime".to_string()))
+                            }
+                        }
+
+                        let mut ctx = None;
+                        match context_var.val.read().deref() {
+                            Val::Obj(nref) => {
+                                ctx = Some(nref.clone());
+                            },
+                            Val::Void |
+                            Val::Null => {},
+                            _ => {
+                                return Err(Error::StdStringify("context must be an object".to_string()));
+                            },
+                        }
+
+                        let src = graph.string_export(&format, ctx)?;
+                        env.stack.push(Variable::val(Val::Str(src.into())));
+                        return Ok(None);
+                    }
+                }
+                return Err(Error::StdStringify("stringify stack variables do not exist".to_string()));
             },
         }
         Ok(None)
