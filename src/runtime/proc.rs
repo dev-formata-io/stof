@@ -16,8 +16,9 @@
 
 use std::{sync::Arc, time::Duration};
 use arcstr::ArcStr;
+use colored::Colorize;
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{instruction::{Instruction, Instructions}, table::SymbolTable, Error, Variable, WakeRef, Waker}};
+use crate::{model::{DataRef, Func, Graph, NodeRef, SId}, runtime::{instruction::{Instruction, Instructions}, table::SymbolTable, Error, Variable, WakeRef, Waker}};
 
 
 #[derive(Debug)]
@@ -25,6 +26,7 @@ use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{instruction::{Instr
 pub enum ProcRes {
     Done,
     More,
+    Trace(usize),
     Wait(SId),
     SleepFor(Duration),
     Sleep(WakeRef),
@@ -51,6 +53,50 @@ impl ProcEnv {
     // Get the current self ptr.
     pub fn self_ptr(&self) -> NodeRef {
         self.self_stack.last().unwrap().clone()
+    }
+
+    // Trace.
+    pub fn trace(&self, graph: &Graph) -> String {
+        let mut output = format!("\t{} {}", "PID:".dimmed().italic(), self.pid.to_string().bright_green());
+
+        if let Some(path) = self.self_ptr().node_path(graph, true) {
+            output.push_str(&format!("\n\t{} {}", "Self:".dimmed().italic(), path.join(".").bright_cyan()));
+        }
+
+        let mut callstack = String::default();
+        for index in 0..self.call_stack.len() {
+            let func = &self.call_stack[index];
+            
+            let mut func_path = String::default();
+            let nodes = func.data_nodes(graph);
+            if nodes.len() > 0 {
+                for node in nodes {
+                    if let Some(path) = node.node_path(graph, true) {
+                        func_path = path.join(".");
+                        break;
+                    }
+                }
+            }
+
+            if let Some(this) = graph.get_stof_data::<Func>(func) {
+                let mut params = String::default();
+                let mut first = true;
+                for param in &this.params {
+                    if first {
+                        first = false;
+                        params.push_str(&format!("{}: {}", param.name.as_ref(), param.param_type.rt_type_of(graph)));
+                    } else {
+                        params.push_str(&format!(", {}: {}", param.name.as_ref(), param.param_type.rt_type_of(graph)));
+                    }
+                }
+                let prefix = format!("{index}.");
+                let signature = format!("{} {}.{}({params}) -> {};", prefix.dimmed(), func_path.cyan().dimmed(), func.data_name(graph).unwrap().as_ref().bright_purple(), this.return_type.rt_type_of(graph).as_str().blue());
+                callstack.push_str(&format!("\n\t\t{}", signature));
+            }
+        }
+        output.push_str(&format!("\n\t{} {callstack}", "Call-stack:".dimmed().italic()));
+        
+        output
     }
 }
 
@@ -92,6 +138,27 @@ impl Process {
                 Err(error)
             }
         }
+    }
+
+    /// Trace.
+    pub fn trace(&self, graph: &Graph, n: usize) -> String {
+        let mut output = self.env.trace(graph);
+        
+        if let Some(waiting) = &self.waiting {
+            output.push_str(&format!("\n\t{} {}", "Waiting:".dimmed().italic(), waiting.to_string().bright_green()));
+        }
+
+        if let Some(error) = &self.error {
+            output.push_str(&format!("\n\t{} {}", "Error:".dimmed().italic(), error.to_string().red()));
+        }
+
+        if let Some(result) = &self.result {
+            output.push_str(&format!("\n\t{} {}", "Result:".dimmed().italic(), result.val.read().print(graph).dimmed()));
+        }
+
+        output.push_str(&format!("\n\t{}{}", "Instructions:\n".dimmed().italic(), self.instructions.trace_n(n)));
+
+        output
     }
 
     #[inline]

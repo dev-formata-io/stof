@@ -162,6 +162,10 @@ impl Runtime {
                                 let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
                                 to_sleep.push((proc.env.pid.clone(), proc.waker_time(now + dur)));
                             },
+                            ProcRes::Trace(n) => {
+                                let trace = proc.trace(&graph, n);
+                                println!("{trace}");
+                            },
                             ProcRes::More => {
                                 if let Some(spawn) = proc.env.spawn.take() {
                                     // this is only set via the Spawn instruction, which creates a new PID each time
@@ -410,8 +414,8 @@ impl Runtime {
                 let mut err_str = String::default();
                 if failure.env.call_stack.len() > 0 {
                     func_ref = failure.env.call_stack.first().unwrap().clone();
-                    if let Some(err) = &failure.error {
-                        err_str = err.to_string();
+                    if let Some(_err) = &failure.error {
+                        err_str = failure.trace(graph, 10); // contains the error
                     }
                 } else if failure.env.call_stack.len() < 1 && failure.instructions.executed.len() > 0 {
                     let func = failure.instructions.executed[0].clone();
@@ -420,7 +424,7 @@ impl Runtime {
                             Base::Literal(val) => {
                                 if let Some(fref) = val.try_func() {
                                     func_ref = fref;
-                                    err_str = format!("expected to error, but received a result of '{:?}'", failure.result);
+                                    err_str = format!("\texpected to error, but received a result of '{:?}'", failure.result);
                                 } else {
                                     continue;
                                 }
@@ -441,7 +445,7 @@ impl Runtime {
                     for node in func_ref.data_nodes(graph) {
                         func_path = node.node_path(graph, true).unwrap().join(".");
                     }
-                    output.push_str(&format!("\n{}: {}{}{} ...\n\t{}\n", "failed".bold().red(), func_path.italic().purple(), " @ ".dimmed(), name.as_ref().italic().blue(), err_str.bold().bright_cyan()));
+                    output.push_str(&format!("\n{}: {}{}{} ...\n{}\n", "failed".bold().red(), func_path.italic().purple(), " @ ".dimmed(), name.as_ref().italic().blue(), err_str.bold().bright_cyan()));
                 }
             }
             output.push('\n');

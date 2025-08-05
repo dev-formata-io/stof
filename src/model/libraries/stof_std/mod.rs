@@ -17,11 +17,12 @@
 use std::{mem::swap, ops::{Deref, DerefMut}, sync::Arc, time::Duration};
 use arcstr::{literal, ArcStr};
 use bytes::Bytes;
-use imbl::{vector, Vector};
+use imbl::{vector, OrdSet, Vector};
 use lazy_static::lazy_static;
+use nanoid::nanoid;
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
-use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, containers::{std_copy, std_drop, std_funcs, std_list, std_map, std_set, std_shallow_drop, std_swap}, exit::stof_exit, ops::{std_blobify, std_parse, std_stringify}, print::{dbg, err, pln, string}, sleep::stof_sleep}, Field, Func, Graph, Prototype, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}, Base, DUPLICATE, EXIT}, proc::ProcEnv, Error, Type, Units, Val, ValRef, Variable}};
+use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, containers::{std_copy, std_drop, std_funcs, std_list, std_map, std_set, std_shallow_drop, std_swap}, exit::stof_exit, ops::{std_blobify, std_callstack, std_format_content_type, std_formats, std_graph_id, std_has_format, std_has_lib, std_libs, std_max, std_min, std_nanoid, std_parse, std_stringify, std_trace}, print::{dbg, err, pln, string}, sleep::stof_sleep}, Field, Func, Graph, Prototype, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}, Base, DUPLICATE, EXIT}, proc::ProcEnv, Error, Type, Units, Val, ValRef, Variable}};
 
 mod print;
 mod sleep;
@@ -60,6 +61,22 @@ pub fn stof_std_lib(graph: &mut Graph) {
     graph.insert_libfunc(std_parse());
     graph.insert_libfunc(std_stringify());
     graph.insert_libfunc(std_blobify());
+
+    graph.insert_libfunc(std_has_format());
+    graph.insert_libfunc(std_formats());
+    graph.insert_libfunc(std_format_content_type());
+
+    graph.insert_libfunc(std_has_lib());
+    graph.insert_libfunc(std_libs());
+
+    graph.insert_libfunc(std_nanoid());
+    graph.insert_libfunc(std_graph_id());
+
+    graph.insert_libfunc(std_max());
+    graph.insert_libfunc(std_min());
+
+    graph.insert_libfunc(std_callstack());
+    graph.insert_libfunc(std_trace());
 }
 
 
@@ -84,6 +101,15 @@ lazy_static! {
     pub(self) static ref PARSE: Arc<dyn Instruction> = Arc::new(StdIns::Parse);
     pub(self) static ref BLOBIFY: Arc<dyn Instruction> = Arc::new(StdIns::Blobify);
     pub(self) static ref STRINGIFY: Arc<dyn Instruction> = Arc::new(StdIns::Stringify);
+
+    pub(self) static ref HAS_FORMAT: Arc<dyn Instruction> = Arc::new(StdIns::HasFormat);
+    pub(self) static ref FORMATS: Arc<dyn Instruction> = Arc::new(StdIns::Formats);
+    pub(self) static ref FORMAT_CONTENT_TYPE: Arc<dyn Instruction> = Arc::new(StdIns::FormatContentType);
+    pub(self) static ref HAS_LIB: Arc<dyn Instruction> = Arc::new(StdIns::HasLib);
+    pub(self) static ref LIBS: Arc<dyn Instruction> = Arc::new(StdIns::Libs);
+    pub(self) static ref NANO_ID: Arc<dyn Instruction> = Arc::new(StdIns::NanoId);
+    pub(self) static ref GRAPH_ID: Arc<dyn Instruction> = Arc::new(StdIns::GraphId);
+    pub(self) static ref CALLSTACK: Arc<dyn Instruction> = Arc::new(StdIns::Callstack);
 }
 
 
@@ -121,6 +147,22 @@ pub enum StdIns {
     Parse,
     Blobify,
     Stringify,
+
+    HasFormat,
+    Formats,
+    FormatContentType,
+
+    HasLib,
+    Libs,
+
+    NanoId,
+    GraphId,
+
+    Min(usize),
+    Max(usize),
+
+    Callstack,
+    Trace(usize),
 }
 #[typetag::serde(name = "StdIns")]
 impl Instruction for StdIns {
@@ -717,6 +759,168 @@ impl Instruction for StdIns {
                     }
                 }
                 return Err(Error::StdStringify("stringify stack variables do not exist".to_string()));
+            },
+
+            Self::HasFormat => {
+                if let Some(format_var) = env.stack.pop() {
+                    match format_var.val.read().deref() {
+                        Val::Str(format) => {
+                            let mut has = graph.get_format(format.as_str()).is_some();
+                            if !has {
+                                has = graph.get_format_by_content_type(format.as_str()).is_some();
+                            }
+                            env.stack.push(Variable::val(Val::Bool(has)));
+                            return Ok(None);
+                        },
+                        _ => {}
+                    }
+                }
+                return Err(Error::StdHasFormat("format must be a string".into()));
+            },
+            Self::Formats => {
+                let formats = graph.available_formats()
+                    .into_iter()
+                    .map(|fmt| ValRef::new(Val::Str(fmt.into())))
+                    .collect::<OrdSet<ValRef<Val>>>();
+                env.stack.push(Variable::val(Val::Set(formats)));
+            },
+            Self::FormatContentType => {
+                if let Some(format_var) = env.stack.pop() {
+                    match format_var.val.read().deref() {
+                        Val::Str(format) => {
+                            let mut has = graph.get_format(format.as_str());
+                            if has.is_none() {
+                                has = graph.get_format_by_content_type(format.as_str());
+                            }
+                            if let Some(fmt) = has {
+                                env.stack.push(Variable::val(Val::Str(fmt.content_type().into())));
+                            } else {
+                                env.stack.push(Variable::val(Val::Null));
+                            }
+                            return Ok(None);
+                        },
+                        _ => {}
+                    }
+                }
+                return Err(Error::StdFormatContentType("format must be a string".into()));
+            },
+
+            Self::HasLib => {
+                if let Some(lib_var) = env.stack.pop() {
+                    match lib_var.val.read().deref() {
+                        Val::Str(lib) => {
+                            let has = graph.libfuncs.contains_key(lib.as_str());
+                            env.stack.push(Variable::val(Val::Bool(has)));
+                            return Ok(None);
+                        },
+                        _ => {}
+                    }
+                }
+                return Err(Error::StdHasLib("lib must be a string".into()));
+            },
+            Self::Libs => {
+                let libs = graph.libfuncs.keys()
+                    .into_iter()
+                    .map(|fmt| ValRef::new(Val::Str(fmt.into())))
+                    .collect::<OrdSet<ValRef<Val>>>();
+                env.stack.push(Variable::val(Val::Set(libs)));
+            },
+
+            Self::NanoId => {
+                if let Some(length_var) = env.stack.pop() {
+                    match length_var.val.read().deref() {
+                        Val::Num(num) => {
+                            let size = num.int() as usize;
+                            env.stack.push(Variable::val(Val::Str(nanoid!(size).into())));
+                        },
+                        _ => {}
+                    }
+                }
+            },
+            Self::GraphId => {
+                env.stack.push(Variable::val(Val::Str(graph.id.to_string().into())));
+            },
+
+            Self::Min(arg_count) => {
+                let mut res = None;
+                for _ in 0..*arg_count {
+                    if let Some(var) = env.stack.pop() {
+                        let min_var = var.val.read().minimum(graph)?;
+                        if let Some(current) = res {
+                            let lt = min_var.lt(&current, &graph)?;
+                            if lt.truthy() {
+                                res = Some(min_var);
+                            } else {
+                                res = Some(current);
+                            }
+                        } else {
+                            res = Some(min_var);
+                        }
+                    }
+                }
+                if let Some(res) = res {
+                    env.stack.push(Variable::val(res));
+                } else {
+                    env.stack.push(Variable::val(Val::Null));
+                }
+            },
+            Self::Max(arg_count) => {
+                let mut res = None;
+                for _ in 0..*arg_count {
+                    if let Some(var) = env.stack.pop() {
+                        let max_var = var.val.read().maximum(graph)?;
+                        if let Some(current) = res {
+                            let gt = max_var.gt(&current, &graph)?;
+                            if gt.truthy() {
+                                res = Some(max_var);
+                            } else {
+                                res = Some(current);
+                            }
+                        } else {
+                            res = Some(max_var);
+                        }
+                    }
+                }
+                if let Some(res) = res {
+                    env.stack.push(Variable::val(res));
+                } else {
+                    env.stack.push(Variable::val(Val::Null));
+                }
+            },
+
+            Self::Callstack => {
+                let callstack = env.call_stack.iter()
+                    .cloned()
+                    .map(|id| ValRef::new(Val::Fn(id)))
+                    .collect::<Vector<_>>();
+                env.stack.push(Variable::val(Val::List(callstack)));
+            },
+            Self::Trace(arg_count) => {
+                let mut n = 10;
+                let mut arg_count = *arg_count;
+                if arg_count > 0 {
+                    let last = env.stack.pop().unwrap();
+                    let mut found = false;
+                    {
+                        let val = last.val.read();
+                        match val.deref() {
+                            Val::Num(num) => {
+                                n = num.int() as usize;
+                                found = true;
+                                arg_count -= 1;
+                            },
+                            _ => {}
+                        }
+                    }
+                    if !found {
+                        env.stack.push(last);
+                    }
+                }
+
+                let mut instructions = Instructions::default();
+                instructions.push(Arc::new(StdIns::Pln(arg_count)));
+                instructions.push(Arc::new(Base::CtrlTrace(n)));
+                return Ok(Some(instructions));
             },
         }
         Ok(None)

@@ -60,6 +60,9 @@ pub enum Error {
     StdParse(String),
     StdBlobify(String),
     StdStringify(String),
+    StdHasFormat(String),
+    StdHasLib(String),
+    StdFormatContentType(String),
 
     /*****************************************************************************
      * Time Lib Errors.

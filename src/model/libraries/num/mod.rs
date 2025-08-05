@@ -576,6 +576,8 @@ impl Instruction for NumIns {
                 }
                 if let Some(res) = res {
                     env.stack.push(Variable::val(res));
+                } else {
+                    env.stack.push(Variable::val(Val::Null));
                 }
             },
             Self::Min(stack_count) => {
@@ -597,6 +599,8 @@ impl Instruction for NumIns {
                 }
                 if let Some(res) = res {
                     env.stack.push(Variable::val(res));
+                } else {
+                    env.stack.push(Variable::val(Val::Null));
                 }
             },
             Self::At => {

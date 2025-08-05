@@ -329,4 +329,99 @@ Stringify_Blobify: {
     }
 }
 
+Formats: {
+    #[test]
+    fn has_format() {
+        assert(has_format('stof'));
+    }
 
+    #[test]
+    fn formats() {
+        const formats = Std.formats();
+        assert_eq(typeof formats, 'set');
+        assert(formats.len());
+    }
+
+    #[test]
+    fn format_content_type() {
+        const ct = format_content_type('stof');
+        assert_eq(ct, 'application/stof');
+    }
+}
+
+Libs: {
+    #[test]
+    fn has_library() {
+        assert(has_lib('Std'));
+        assert(has_lib('Num'));
+        assert(has_lib('Fn'));
+        assert_not(has_lib('Dne'));
+    }
+
+    #[test]
+    fn libraries() {
+        const libs = libs();
+        assert(libs.len() > 3);
+        assert('set' == typeof libs);
+    }
+}
+
+Ids: {
+    #[test]
+    fn nanoids() {
+        let id = nanoid();
+        assert_eq(id.len(), 21);
+
+        id = Std.nanoid(32);
+        assert_eq(id.len(), 32);
+    }
+
+    #[test]
+    fn graph_ids() {
+        const gid = Std.graph_id();
+        assert(gid.len() > 10);
+    }
+}
+
+MinMax: {
+    #[test]
+    fn minimum() {
+        const min = min(12, 23, -4);
+        assert_eq(min, -4);
+    }
+
+    #[test]
+    fn maximum() {
+        let max = max();
+        assert_eq(max, null);
+
+        max = max(12, 1000, 345, -5);
+        assert_eq(max, 1000);
+    }
+}
+
+Callstack: {
+    #[test]
+    fn callstack() {
+        const stack = Std.callstack();
+        assert_eq(stack.len(), 1);
+        assert_eq(stack.front(), this);
+    }
+}
+
+Trace: {
+    #[test]
+    fn tracing() {
+        const res = await self.another();
+        assert(res > 10ms);
+    }
+
+    async fn another() -> ms {
+        const ts = Time.now();
+        sleep(10ms);
+        
+        //trace(`Total sleep: ${Time.diff(ts)}`);
+        
+        Time.diff(ts)
+    }
+}

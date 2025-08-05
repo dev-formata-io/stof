@@ -125,6 +125,9 @@ pub enum Base {
     // Does nothing...
     CtrlNoOp,
 
+    // Trace the last N instructions + process info
+    CtrlTrace(usize),
+
     // Tag a place in the instructions.
     // This is a form of GOTO, used for looping & control flow
     Tag(ArcStr),
@@ -260,6 +263,8 @@ impl Instruction for Base {
 
             Self::CtrlTry(_) => {}, // Nothing here... used by instructions...
             Self::CtrlTryEnd => {}, // Nothing here... used by instructions...
+
+            Self::CtrlTrace(_) => {}, // Nothing here... used by instructions...
 
             Self::CtrlFnReturn => {}, // Nothing here...
             Self::PushReturn => {

@@ -16,6 +16,7 @@
 
 use std::{any::Any, ops::Deref, sync::Arc};
 use arcstr::ArcStr;
+use colored::Colorize;
 use imbl::{vector, Vector};
 use serde::{Deserialize, Serialize};
 use crate::{model::Graph, runtime::{instructions::{list::{NEW_LIST, PUSH_LIST}, Base, ConsumeStack, AWAIT}, proc::{ProcEnv, ProcRes}, Error, Val, Variable}};
@@ -65,6 +66,29 @@ impl Instructions {
     /// Are there more instructions to process?
     pub fn more(&self) -> bool {
         !self.instructions.is_empty()
+    }
+
+    /// Trace out the last N instructions that were executed.
+    pub fn trace_n(&self, n: usize) -> String {
+        let mut count = 0;
+        let mut ins = Vector::default();
+        for exec in self.executed.iter().rev() {
+            ins.push_front(exec.clone());
+            count += 1;
+            if count >= n { break; }
+        }
+
+        let mut output = String::default();
+        for i in 0..ins.len() {
+            let ins = &ins[i];
+            let inner = format!("{i}: {:?}", ins);
+            if i == 0 {
+                output.push_str(&format!("\t\t{}", inner.dimmed()));
+            } else {
+                output.push_str(&format!("\n\t\t{}", inner.dimmed()));
+            }
+        }
+        output
     }
 
     /// Backup to a specific tag in these instructions.
@@ -142,6 +166,9 @@ impl Instructions {
 
                 if let Some(base) = ins.as_dyn_any().downcast_ref::<Base>() {
                     match base {
+                        Base::CtrlTrace(n) => {
+                            return Ok(ProcRes::Trace(*n));
+                        },
                         Base::CtrlTry(_) => {
                             self.try_catch_count += 1;
                             continue 'exec_loop;
