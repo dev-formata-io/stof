@@ -22,7 +22,7 @@ use arcstr::{literal, ArcStr};
 use bytes::Bytes;
 use imbl::{vector, OrdMap, OrdSet, Vector};
 use serde::{Deserialize, Serialize};
-use crate::{model::{json_value_from_node, Data, DataRef, Field, Func, Graph, Node, NodeRef, Prototype, SId}, parser::{number::number, semver::parse_semver_alone}, runtime::{Error, Num, NumT, Type, Units, DATA, OBJ}};
+use crate::{model::{export::json_value_from_node, Data, DataRef, Field, Func, Graph, Node, NodeRef, Prototype, SId}, parser::{number::number, semver::parse_semver_alone}, runtime::{Error, Num, NumT, Type, Units, DATA, OBJ}};
 
 
 /// Value reference (value, by reference?).

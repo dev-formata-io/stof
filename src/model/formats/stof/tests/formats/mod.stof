@@ -15,10 +15,4 @@
 //
 
 
-/*!
- * This is the Stof test suite.
- */
-
-import './lang/mod' as self.Lang;
-import './libs/mod' as self.Libs;
-import './formats/mod' as self.Formats;
+import './json' as self.JsonFormat;

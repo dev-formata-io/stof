@@ -37,6 +37,9 @@ pub enum Error {
     ParseContextParseFailure(String),
     ImportOsStringError,
 
+    JSONStringImport(String),
+    JSONStringExport(String),
+
     /*****************************************************************************
      * Filesystem Library.
      *****************************************************************************/

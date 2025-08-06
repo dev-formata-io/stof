@@ -32,8 +32,8 @@ pub fn import<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str
         Ok(_) => {
             Ok((input, ()))
         },
-        Err(_error) => { // TODO
-            //println!("{error:?}");
+        Err(error) => { // TODO
+            println!("{error:?}");
             return Err(nom::Err::Failure(nom::error::Error {
                 input: "failed to import data",
                 code: nom::error::ErrorKind::Fail
@@ -49,7 +49,7 @@ pub(self) fn parse_import(input: &str) -> IResult<&str, (String, String, String)
     let (input, _) = tag("import").parse(input)?;
     let (input, format) = opt(preceded(multispace0, ident)).parse(input)?;
     let (input, mut path) = preceded(multispace0, alt((single_string, double_string))).parse(input)?;
-    let (input, scope) = opt(preceded(delimited(multispace0, tag("as"), multispace0), recognize(separated_list1(char('.'), ident)))).parse(input)?;
+    let (input, scope) = opt(preceded(delimited(multispace0, alt((tag("as"), tag("on"))), multispace0), recognize(separated_list1(char('.'), ident)))).parse(input)?;
     let (input, _) = opt(preceded(multispace0, alt((char(';'), char(','))))).parse(input)?;
 
     path = path.trim().to_string();
@@ -64,7 +64,7 @@ pub(self) fn parse_import(input: &str) -> IResult<&str, (String, String, String)
         }
     }
 
-    let mut res_scope = "root".to_string();
+    let mut res_scope = "self".to_string();
     if let Some(scp) = scope {
         res_scope = scp.to_string();
     }
