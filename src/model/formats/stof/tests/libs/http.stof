@@ -15,21 +15,8 @@
 //
 
 
-/*!
- * Library tests.
- */
-
-import './std' as self.StdLib;
-import './num' as self.NumLib;
-import './str' as self.StrLib;
-import './ver' as self.VerLib;
-import './time' as self.TimeLib;
-import './http' as self.HttpLib;
-import './fn' as self.FnLib;
-import './list' as self.ListLib;
-import './set' as self.SetLib;
-import './map' as self.MapLib;
-import './tup' as self.TupLib;
-import './blob' as self.BlobLib;
-import './data' as self.DataLib;
-import './obj' as self.ObjLib;
+#[test]
+fn get_request() {
+    const resp = await Http.fetch('https://restcountries.com/v3.1/region/europe');
+    assert(resp.get('text').len() > 100);
+}

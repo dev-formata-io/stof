@@ -14,7 +14,7 @@ categories = ["data-structures", "development-tools"]
 crate-type = ["cdylib", "lib"]
 
 [features]
-default = ["json", "toml", "yaml", "xml", "urlencoded", "markdown", "pkg"]
+default = ["json", "toml", "yaml", "xml", "urlencoded", "markdown", "pkg", "http"]
 
 # Default formats
 json = ["dep:serde_json"]
@@ -30,7 +30,7 @@ thread = []
 image = ["dep:image"]
 docx = ["dep:docx-rs", "json"]
 pdf = ["dep:lopdf", "image"]
-http = ["dep:reqwest"]
+http = ["dep:reqwest", "dep:tokio"]
 markdown-lib = ["dep:markdown", "json"]
 async = ["dep:tokio"]
 
@@ -67,7 +67,7 @@ walkdir = { version = "2.5.0", optional = true }
 wasm-bindgen = { version = "0.2.100", optional = true }
 zip = { version = "3.0.0", optional = true }
 chrono = "0.4.41"
-tokio = { version = "1.45.0", features = ["rt", "macros", "sync", "time"], optional = true }
+tokio = { version = "1.45.0", features = ["full"], optional = true }
 reqwest = { version = "0.12.15", features = ["blocking"], optional = true }
 rustc-hash = "2.1.1"
 imbl = { version = "5.0.0", features = ["serde", "triomphe"] }

@@ -42,6 +42,17 @@ pub fn wake(wref: &WakeRef) -> bool {
 }
 
 
+/// Helper function for resetting a wake value.
+/// Returns true if the reset took place.
+pub fn reset(wref: &WakeRef) -> bool {
+    let mut val = wref.write();
+    let val = val.deref_mut();
+    let res = *val;
+    *val = false;
+    res
+}
+
+
 #[derive(Debug, Default)]
 /// Waker.
 pub struct Waker {
