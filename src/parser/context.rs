@@ -95,7 +95,7 @@ impl<'ctx> ParseContext<'ctx> {
             }
         }
 
-        let mut path = path.replace("@", "__stof__").replace(" ", "");
+        let mut path = path.replace("@", "stof").replace(" ", "");
         if path.starts_with(".") {
             if self.relative_import_stack.is_empty() {
                 return Err(Error::RelativeImportWithoutContext);

@@ -39,9 +39,12 @@ pub enum Error {
 
     JSONStringImport(String),
     JSONStringExport(String),
-    
+
     TOMLStringImport(String),
     TOMLStringExport(String),
+
+    YAMLStringImport(String),
+    YAMLStringExport(String),
 
     /*****************************************************************************
      * Filesystem Library.

@@ -25,3 +25,6 @@ pub use toml::*;
 
 pub mod stof;
 pub use stof::*;
+
+pub mod yaml;
+pub use yaml::*;

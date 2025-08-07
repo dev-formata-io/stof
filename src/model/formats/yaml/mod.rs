@@ -14,24 +14,21 @@
 // limitations under the License.
 //
 
-
-pub mod import;
-pub mod export;
 use serde_json::Value;
-use crate::{model::{json::{export::json_value_from_node, import::parse_json_object_value}, Format, Graph, NodeRef}, runtime::Error};
+use crate::{model::{export::json_value_from_node, import::parse_json_object_value, Format, Graph, NodeRef}, runtime::Error};
 
 
 #[derive(Debug)]
-pub struct JsonFormat;
-impl Format for JsonFormat {
+pub struct YamlFormat;
+impl Format for YamlFormat {
     fn identifiers(&self) -> Vec<String> {
-        vec!["json".into()]
+        vec!["yaml".into()]
     }
     fn content_type(&self) -> String {
-        "application/json".into()
+        "application/yaml".into()
     }
     fn string_import(&self, graph: &mut Graph, _format: &str, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
-        match serde_json::from_str::<Value>(src) {
+        match serde_yaml::from_str::<Value>(src) {
             Ok(value) => {
                 let mut parse_node = graph.ensure_main_root();
                 if let Some(nd) = node {
@@ -41,7 +38,7 @@ impl Format for JsonFormat {
                 Ok(())
             },
             Err(error) => {
-                Err(Error::JSONStringImport(error.to_string()))
+                Err(Error::YAMLStringImport(error.to_string()))
             }
         }
     }
@@ -53,12 +50,12 @@ impl Format for JsonFormat {
             exp_node = graph.main_root().expect("graph does not have a main 'root' node for default JSON export");
         }
         let value = json_value_from_node(graph, &exp_node);
-        match serde_json::to_string(&value) {
-            Ok(res) => {
-                Ok(res)
+        match serde_yaml::to_string(&value) {
+            Ok(yaml) => {
+                Ok(yaml)
             },
             Err(error) => {
-                Err(Error::JSONStringExport(error.to_string()))
+                Err(Error::YAMLStringExport(error.to_string()))
             }
         }
     }

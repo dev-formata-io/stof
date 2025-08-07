@@ -17,3 +17,4 @@
 
 import './json' as self.JsonFormat;
 import './toml' as self.TomlFormat;
+import './yaml' as self.YamlFormat;
