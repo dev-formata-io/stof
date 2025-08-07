@@ -1045,7 +1045,7 @@ impl Instruction for ObjIns {
                                             if let Some(schema_val) = schema_field_val {
                                                 if let Some(validate) = schema_attr_val {
                                                     let mut target_val = None;
-                                                    if let Some(target_field_ref) = Field::direct_field(&graph, &target, &schema_field_name) {
+                                                    if let Some(target_field_ref) = Field::field(graph, &target, &schema_field_name) {
                                                         if let Some(field) = graph.get_stof_data::<Field>(&target_field_ref) {
                                                             target_val = Some(field.value.val.clone()); // reference to the value outright
                                                         }

@@ -43,7 +43,7 @@ pub fn validation(graph: &mut Graph, schema: &NodeRef, target: &NodeRef, field: 
         },
         Val::Obj(additional_schema) => {
             // Do a schemafy with an additional schema object for this field alone
-            if let Some(schema_field_ref) = Field::direct_field(&graph, &additional_schema, &field) {
+            if let Some(schema_field_ref) = Field::field(graph, &additional_schema, &field) {
                 let mut schema_attr_val = None;
                 let mut schema_field_val = None;
                 if let Some(field) = graph.get_stof_data::<Field>(&schema_field_ref) {

@@ -95,7 +95,7 @@ impl<'ctx> ParseContext<'ctx> {
             }
         }
 
-        let mut path = path.replace("@", "stof").replace(" ", "");
+        let mut path = path.replace("@", "stof/").replace(" ", "");
         if path.starts_with(".") {
             if self.relative_import_stack.is_empty() {
                 return Err(Error::RelativeImportWithoutContext);
@@ -126,8 +126,15 @@ impl<'ctx> ParseContext<'ctx> {
         Ok(path)
     }
 
+    /// Push relative import stack.
+    pub fn push_relative_import_stack_file(&mut self, file_path: &str) {
+        let mut relative_buffer = PathBuf::from(file_path);
+        relative_buffer.pop();
+        self.relative_import_stack.push(relative_buffer);
+    }
+
     /// Pop relative import stack.
-    fn pop_relative_import_stack(&mut self) {
+    pub fn pop_relative_import_stack(&mut self) {
         self.relative_import_stack.pop();
     }
 

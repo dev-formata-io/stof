@@ -321,14 +321,6 @@ Parse: {
     }
 }
 
-Stringify_Blobify: {
-    //#[test] // TODO
-    fn stringify_obj() {
-        const object = new { a: 42, b: 'hi' };
-        assert_eq(stringify(object, format = "json"), "");
-    }
-}
-
 Formats: {
     #[test]
     fn has_format() {

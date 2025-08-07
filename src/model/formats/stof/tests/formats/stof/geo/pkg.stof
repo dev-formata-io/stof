@@ -14,29 +14,4 @@
 // limitations under the License.
 //
 
-pub mod format;
-pub use format::*;
-
-pub mod json;
-pub use json::*;
-
-pub mod toml;
-pub use toml::*;
-
-pub mod stof;
-pub use stof::*;
-
-pub mod yaml;
-pub use yaml::*;
-
-pub mod text;
-pub use text::*;
-
-pub mod bytes;
-pub use bytes::*;
-
-pub mod urlencoded;
-pub use urlencoded::*;
-
-pub mod pkg;
-pub use pkg::*;
+import: 'point' // all paths are relative in a package

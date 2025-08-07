@@ -22,3 +22,4 @@ import './text' as self.TextFormat;
 import './md' as self.MdFormat;
 import './bytes' as self.BytesFormat;
 import './urlencoded' as self.UrlEncodedFormat;
+import './package' as self.StofPackageFormat;

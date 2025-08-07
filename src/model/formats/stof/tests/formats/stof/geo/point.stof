@@ -14,29 +14,12 @@
 // limitations under the License.
 //
 
-pub mod format;
-pub use format::*;
+#[type]
+GeoPoint: {
+    float x: 0;
+    float y: 0;
 
-pub mod json;
-pub use json::*;
-
-pub mod toml;
-pub use toml::*;
-
-pub mod stof;
-pub use stof::*;
-
-pub mod yaml;
-pub use yaml::*;
-
-pub mod text;
-pub use text::*;
-
-pub mod bytes;
-pub use bytes::*;
-
-pub mod urlencoded;
-pub use urlencoded::*;
-
-pub mod pkg;
-pub use pkg::*;
+    fn length() -> float {
+        Num.sqrt(self.x.pow(2) + self.y.pow(2))
+    }
+}
