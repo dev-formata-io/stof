@@ -82,7 +82,7 @@ mod tests {
         let (_input, (format, path, scope)) = parse_import("\n\nimport './hello'\n\n").unwrap();
         assert_eq!(format, "stof");
         assert_eq!(path, "./hello");
-        assert_eq!(scope, "root");
+        assert_eq!(scope, "self");
     }
 
     #[test]
@@ -90,7 +90,7 @@ mod tests {
         let (_input, (format, path, scope)) = parse_import("\n\nimport './hello.json'\n\n").unwrap();
         assert_eq!(format, "json");
         assert_eq!(path, "./hello.json");
-        assert_eq!(scope, "root");
+        assert_eq!(scope, "self");
     }
 
     #[test]
@@ -98,7 +98,7 @@ mod tests {
         let (_input, (format, path, scope)) = parse_import("\n\nimport pkg './hello.json'\n\n").unwrap();
         assert_eq!(format, "pkg");
         assert_eq!(path, "./hello.json");
-        assert_eq!(scope, "root");
+        assert_eq!(scope, "self");
     }
 
     #[test]
@@ -111,7 +111,7 @@ mod tests {
 
     #[test]
     fn together_import() {
-        let (_input, (format, path, scope)) = parse_import("\n\nimport yaml \"src/dude/hello\" as Another.Sub.myobj;\n\n").unwrap();
+        let (_input, (format, path, scope)) = parse_import("\n\nimport yaml \"src/dude/hello\" on Another.Sub.myobj;\n\n").unwrap();
         assert_eq!(format, "yaml");
         assert_eq!(path, "src/dude/hello");
         assert_eq!(scope, "Another.Sub.myobj");
