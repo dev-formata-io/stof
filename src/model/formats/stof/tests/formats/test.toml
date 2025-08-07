@@ -1,0 +1,5 @@
+message = "hello, world"
+
+[person]
+name = "Bob Smith"
+age = 42

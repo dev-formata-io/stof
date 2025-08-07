@@ -20,5 +20,8 @@ pub use format::*;
 pub mod json;
 pub use json::*;
 
+pub mod toml;
+pub use toml::*;
+
 pub mod stof;
 pub use stof::*;
