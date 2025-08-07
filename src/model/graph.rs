@@ -20,7 +20,7 @@ use bytes::Bytes;
 use colored::Colorize;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{blob::insert_blob_lib, filesys::fs_library, http::insert_http_lib, libraries::{data::insert_data_lib, function::insert_fn_lib}, list::insert_list_lib, map::insert_map_lib, num::insert_number_lib, obj::insert_obj_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, time::insert_time_lib, tup::insert_tup_lib, ver::insert_semver_lib, Data, DataRef, Format, JsonFormat, LibFunc, Node, NodeRef, SId, SPath, StofData, StofFormat, TomlFormat, YamlFormat, INVALID_NODE_NEW}, parser::context::ParseContext, runtime::{table::SymbolTable, Error, Runtime, Val}};
+use crate::{model::{blob::insert_blob_lib, filesys::fs_library, http::insert_http_lib, libraries::{data::insert_data_lib, function::insert_fn_lib}, list::insert_list_lib, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, time::insert_time_lib, tup::insert_tup_lib, ver::insert_semver_lib, Data, DataRef, Format, JsonFormat, LibFunc, MdFormat, Node, NodeRef, SId, SPath, StofData, StofFormat, TextFormat, TomlFormat, YamlFormat, INVALID_NODE_NEW}, parser::context::ParseContext, runtime::{table::SymbolTable, Error, Runtime, Val}};
 
 
 /// Root node name.
@@ -171,6 +171,7 @@ impl Graph {
     
     /// Insert standard library functions.
     pub fn insert_std_lib(&mut self) {
+        // Std libs
         stof_std_lib(self);
         insert_number_lib(self);
         insert_string_lib(self);
@@ -183,7 +184,11 @@ impl Graph {
         insert_set_lib(self);
         insert_map_lib(self);
         insert_tup_lib(self);
+
+        // Markdown lib
+        insert_md_lib(self);
         
+        // System libs
         insert_time_lib(self);
         fs_library(self);
         insert_http_lib(self);
@@ -1004,6 +1009,8 @@ impl Graph {
         self.load_format(Arc::new(JsonFormat{}));
         self.load_format(Arc::new(TomlFormat{}));
         self.load_format(Arc::new(YamlFormat{}));
+        self.load_format(Arc::new(TextFormat{}));
+        self.load_format(Arc::new(MdFormat{}));
     }
     
     /// Load a format.

@@ -49,7 +49,7 @@ impl Format for TomlFormat {
         if let Some(nd) = node {
             exp_node = nd;
         } else {
-            exp_node = graph.main_root().expect("graph does not have a main 'root' node for default JSON export");
+            exp_node = graph.main_root().expect("graph does not have a main 'root' node for default TOML export");
         }
         let value = toml_value_from_node(graph, &exp_node);
         match toml::to_string(&Value::Table(value)) {

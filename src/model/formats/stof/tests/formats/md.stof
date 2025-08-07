@@ -1,0 +1,68 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+#[test]
+fn stringify_md() {
+    const object = new {
+        md: '# Title'
+    };
+    const text = stringify('md', object);
+    drop(object);
+
+    assert_eq(typeof text, 'str');
+    assert_eq(text, '# Title');
+}
+
+#[test]
+fn parse_md() {
+    const text = '# Title';
+    const object = new {};
+    parse(text, object, format = 'md');
+    
+    assert_eq(object.md, '# Title');
+    assert_eq(stringify('md', object), text);
+    drop(object);
+}
+
+Imports: {
+    import './test.md' as self.Imported;
+
+    #[test]
+    fn import_text() {
+        assert_eq(self.Imported.md, r#"
+# Title
+This is an example.
+"#);
+    }
+}
+
+Html: {
+    #[test]
+    fn markdown_to_html() {
+        const md = "# Title\nList.\n- one\n- two";
+        const html = Md.html(md);
+        assert_eq(html, '<h1>Title</h1>\n<p>List.</p>\n<ul>\n<li>one</li>\n<li>two</li>\n</ul>');
+    }
+}
+
+Json: {
+    #[test]
+    fn markdown_to_json() {
+        const md = "# Title\nList.\n- one\n- two";
+        const json = Md.json(md);
+        assert_eq(json, "{\"children\":[{\"children\":[{\"type\":\"text\",\"value\":\"Title\"}],\"depth\":1,\"type\":\"heading\"},{\"children\":[{\"type\":\"text\",\"value\":\"List.\"}],\"type\":\"paragraph\"},{\"children\":[{\"children\":[{\"children\":[{\"type\":\"text\",\"value\":\"one\"}],\"type\":\"paragraph\"}],\"spread\":false,\"type\":\"listItem\"},{\"children\":[{\"children\":[{\"type\":\"text\",\"value\":\"two\"}],\"type\":\"paragraph\"}],\"spread\":false,\"type\":\"listItem\"}],\"ordered\":false,\"spread\":false,\"type\":\"list\"}],\"type\":\"root\"}");
+    }
+}
