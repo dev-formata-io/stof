@@ -21,3 +21,4 @@ import './yaml' as self.YamlFormat;
 import './text' as self.TextFormat;
 import './md' as self.MdFormat;
 import './bytes' as self.BytesFormat;
+import './urlencoded' as self.UrlEncodedFormat;

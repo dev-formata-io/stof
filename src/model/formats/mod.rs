@@ -34,3 +34,6 @@ pub use text::*;
 
 pub mod bytes;
 pub use bytes::*;
+
+pub mod urlencoded;
+pub use urlencoded::*;
