@@ -31,3 +31,6 @@ pub use yaml::*;
 
 pub mod text;
 pub use text::*;
+
+pub mod bytes;
+pub use bytes::*;

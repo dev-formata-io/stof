@@ -46,6 +46,8 @@ pub enum Error {
     YAMLStringImport(String),
     YAMLStringExport(String),
 
+    BYTESExport(String),
+
     /*****************************************************************************
      * Filesystem Library.
      *****************************************************************************/
