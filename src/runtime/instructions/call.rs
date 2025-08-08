@@ -476,28 +476,6 @@ impl Instruction for FuncCall {
         instructions.push(PUSH_RETURN.clone());
         instructions.push(PUSH_SYMBOL_SCOPE.clone());
         
-        // Add self to self stack if not a prototype function
-        let mut pushed_self = false;
-        if let Some(proto_self) = func_context.prototype_self {
-            instructions.push(Arc::new(Base::Literal(Val::Obj(proto_self))));
-            instructions.push(PUSH_SELF.clone());
-            pushed_self = true;
-        } else if !unself {
-            pushed_self = true;
-            let mut set = false;
-            for nref in func.data_nodes(graph) {
-                if nref.node_exists(graph) {
-                    instructions.push(Arc::new(Base::Literal(Val::Obj(nref))));
-                    instructions.push(PUSH_SELF.clone());
-                    set = true; break;
-                }
-            }
-            if !set {
-                instructions.push(Arc::new(Base::Literal(Val::Obj(graph.ensure_main_root()))));
-                instructions.push(PUSH_SELF.clone());
-            }
-        }
-        
         // Arguments
         let mut named_args = Vec::new();
         let mut args = Vec::new();
@@ -557,6 +535,28 @@ impl Instruction for FuncCall {
             instructions.push(arg.clone());
             instructions.push(Arc::new(Base::Cast(param.param_type.clone())));
             instructions.push(Arc::new(Base::DeclareVar(param.name.to_string().into(), param.param_type.clone()))); // these must keep their type
+        }
+
+        // Add self to self stack if not a prototype function
+        let mut pushed_self = false;
+        if let Some(proto_self) = func_context.prototype_self {
+            instructions.push(Arc::new(Base::Literal(Val::Obj(proto_self))));
+            instructions.push(PUSH_SELF.clone());
+            pushed_self = true;
+        } else if !unself {
+            pushed_self = true;
+            let mut set = false;
+            for nref in func.data_nodes(graph) {
+                if nref.node_exists(graph) {
+                    instructions.push(Arc::new(Base::Literal(Val::Obj(nref))));
+                    instructions.push(PUSH_SELF.clone());
+                    set = true; break;
+                }
+            }
+            if !set {
+                instructions.push(Arc::new(Base::Literal(Val::Obj(graph.ensure_main_root()))));
+                instructions.push(PUSH_SELF.clone());
+            }
         }
 
         // Push the function instructions
