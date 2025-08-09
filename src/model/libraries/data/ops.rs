@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use imbl::vector;
-use crate::{model::{libraries::data::{ATTACH, DATA_LIB, DROP, DROP_FROM, EXISTS, FIELD, FROM_ID, ID, MOVE, OBJS}, LibFunc, Param}, runtime::{instruction::Instructions, Type}};
+use crate::{model::{libraries::data::{ATTACH, DATA_LIB, DROP, DROP_FROM, EXISTS, FIELD, FROM_ID, ID, MOVE, OBJS, TAGNAME}, LibFunc, Param}, runtime::{instruction::Instructions, Type}};
 
 
 /// Id.
@@ -35,6 +35,27 @@ pub fn data_id() -> LibFunc {
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(ID.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// Libname.
+pub fn data_libname() -> LibFunc {
+    LibFunc {
+        library: DATA_LIB.clone(),
+        name: "libname".into(),
+        is_async: false,
+        docs: "# Data Library Name\nThe 'tagname' for this data reference. If the data points to a function, this will return 'Fn' for example. For custom data, like a PDF, this would return 'Pdf'.".into(),
+        params: vector![
+            Param { name: "data".into(), param_type: Type::Void, default: None }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(TAGNAME.clone());
             Ok(instructions)
         })
     }

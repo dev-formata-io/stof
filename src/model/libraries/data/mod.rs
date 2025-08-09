@@ -19,7 +19,7 @@ use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{libraries::data::ops::{data_attach, data_drop, data_drop_from, data_exists, data_from_field, data_from_id, data_id, data_move, data_objs}, Field, Graph, SId, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Val, ValRef, Variable}};
+use crate::{model::{libraries::data::ops::{data_attach, data_drop, data_drop_from, data_exists, data_from_field, data_from_id, data_id, data_libname, data_move, data_objs}, Field, Graph, SId, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Val, ValRef, Variable}};
 mod ops;
 
 
@@ -30,6 +30,7 @@ pub(self) const DATA_LIB: ArcStr = literal!("Data");
 /// Add the data lib to a graph.
 pub fn insert_data_lib(graph: &mut Graph) {
     graph.insert_libfunc(data_id());
+    graph.insert_libfunc(data_libname());
     graph.insert_libfunc(data_exists());
     graph.insert_libfunc(data_objs());
     graph.insert_libfunc(data_drop());
@@ -44,6 +45,7 @@ pub fn insert_data_lib(graph: &mut Graph) {
 
 lazy_static! {
     pub(self) static ref ID: Arc<dyn Instruction> = Arc::new(DataIns::Id);
+    pub(self) static ref TAGNAME: Arc<dyn Instruction> = Arc::new(DataIns::Tagname);
     pub(self) static ref EXISTS: Arc<dyn Instruction> = Arc::new(DataIns::Exists);
     pub(self) static ref OBJS: Arc<dyn Instruction> = Arc::new(DataIns::Objs);
     pub(self) static ref DROP: Arc<dyn Instruction> = Arc::new(DataIns::Drop);
@@ -65,6 +67,7 @@ pub enum DataIns {
     DropFrom,
     Attach,
     Move,
+    Tagname,
 
     Field,
     FromId,
@@ -81,6 +84,19 @@ impl Instruction for DataIns {
                     }
                 }
                 Err(Error::DataId)
+            },
+            Self::Tagname => {
+                if let Some(var) = env.stack.pop() {
+                    if let Some(dref) = var.try_data_or_func() {
+                        if let Some(tagname) = dref.tagname(&graph) {
+                            env.stack.push(Variable::val(Val::Str(tagname.into())));
+                        } else {
+                            env.stack.push(Variable::val(Val::Null));
+                        }
+                        return Ok(None);
+                    }
+                }
+                Err(Error::DataTagname)
             },
             Self::Exists => {
                 if let Some(var) = env.stack.pop() {

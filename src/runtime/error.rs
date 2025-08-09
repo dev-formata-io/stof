@@ -53,6 +53,9 @@ pub enum Error {
     BSTFImport(String),
     BSTFExport(String),
 
+    PDFImport(String),
+    PDFExport(String),
+
     /*****************************************************************************
      * Filesystem Library.
      *****************************************************************************/
@@ -281,6 +284,7 @@ pub enum Error {
      * Data Lib Errors.
      *****************************************************************************/
     DataId,
+    DataTagname,
     DataExists,
     DataObjs,
     DataDrop,
@@ -288,6 +292,9 @@ pub enum Error {
     DataMove,
     DataField,
     DataFromId,
+
+    PdfExtractImages,
+    PdfExtractText,
 
     /*****************************************************************************
      * Tuple Lib Errors.

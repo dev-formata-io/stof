@@ -40,3 +40,6 @@ pub use urlencoded::*;
 
 pub mod pkg;
 pub use pkg::*;
+
+pub mod pdf;
+pub use pdf::*;
