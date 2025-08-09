@@ -324,7 +324,7 @@ Parse: {
 Formats: {
     #[test]
     fn has_format() {
-        assert(has_format('stof'));
+        assert(format('stof'));
     }
 
     #[test]
@@ -344,10 +344,10 @@ Formats: {
 Libs: {
     #[test]
     fn has_library() {
-        assert(has_lib('Std'));
-        assert(has_lib('Num'));
-        assert(has_lib('Fn'));
-        assert_not(has_lib('Dne'));
+        assert(lib('Std'));
+        assert(lib('Num'));
+        assert(lib('Fn'));
+        assert_not(lib('Dne'));
     }
 
     #[test]

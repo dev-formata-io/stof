@@ -15,6 +15,7 @@
 //
 
 use core::str;
+use nanoid::nanoid;
 use parking_lot::RwLock;
 use rustc_hash::FxHashMap;
 use std::{cmp::Ordering, hash::{Hash, Hasher}, ops::{Deref, DerefMut}, sync::Arc};
@@ -888,9 +889,15 @@ impl Val {
                 if let Some(context) = context {
                     let mut clone = None;
                     if let Some(data) = dref.data(&graph) {
+                        let mut name = data.name.clone();
+                        if data.nodes.contains(&context) {
+                            // If inserting on the same node, make sure the names don't collide
+                            name = SId::from(&format!("{}_{}", name.as_ref(), nanoid!(4)));
+                        }
+
                         clone = Some(Data {
                             id: Default::default(),
-                            name: data.name.clone(),
+                            name,
                             nodes: Default::default(),
                             data: data.data.clone(),
                             dirty: Default::default(),
@@ -914,9 +921,15 @@ impl Val {
                 if let Some(context) = context {
                     let mut clone = None;
                     if let Some(data) = dref.data(&graph) {
+                        let mut name = data.name.clone();
+                        if data.nodes.contains(&context) {
+                            // If inserting on the same node, make sure the names don't collide
+                            name = SId::from(&format!("{}_{}", name.as_ref(), nanoid!(4)));
+                        }
+
                         clone = Some(Data {
                             id: Default::default(),
-                            name: data.name.clone(),
+                            name,
                             nodes: Default::default(),
                             data: data.data.clone(),
                             dirty: Default::default(),

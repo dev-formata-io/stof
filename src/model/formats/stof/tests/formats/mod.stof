@@ -25,3 +25,4 @@ import './bytes' as self.BytesFormat;
 import './urlencoded' as self.UrlEncodedFormat;
 import './package' as self.StofPackageFormat;
 import './pdf' as self.PdfFormat;
+import './image' as self.ImageFormat;

@@ -56,6 +56,9 @@ pub enum Error {
     PDFImport(String),
     PDFExport(String),
 
+    ImageImport(String),
+    ImageExport(String),
+
     /*****************************************************************************
      * Filesystem Library.
      *****************************************************************************/
@@ -295,6 +298,33 @@ pub enum Error {
 
     PdfExtractImages,
     PdfExtractText,
+
+    ImageWidth,
+    ImageHeight,
+    ImageGrayscale,
+    ImageInvert,
+    ImageFlipVertical,
+    ImageFlipHorizontal,
+    ImageRotate90,
+    ImageRotate180,
+    ImageRotate270,
+    ImageResize,
+    ImageResizeExact,
+    ImageThumbnail,
+    ImageThumbnailExact,
+    ImageBlur,
+    ImageBlurFast,
+    ImageAdjustContrast,
+    ImageBrighten,
+    ImageBlob,
+    ImagePng,
+    ImageJpeg,
+    ImageGif,
+    ImageWebp,
+    ImageTiff,
+    ImageBmp,
+    ImageIco,
+    ImageFromBlob,
 
     /*****************************************************************************
      * Tuple Lib Errors.

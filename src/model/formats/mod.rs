@@ -43,3 +43,6 @@ pub use pkg::*;
 
 pub mod pdf;
 pub use pdf::*;
+
+pub mod image;
+pub use image::*;

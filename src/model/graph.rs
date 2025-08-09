@@ -20,7 +20,7 @@ use bytes::Bytes;
 use colored::Colorize;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{blob::insert_blob_lib, filesys::fs_library, http::insert_http_lib, insert_pdf_library, libraries::{data::insert_data_lib, function::insert_fn_lib}, list::insert_list_lib, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, time::insert_time_lib, tup::insert_tup_lib, ver::insert_semver_lib, BstfFormat, BytesFormat, Data, DataRef, Format, JsonFormat, LibFunc, MdFormat, Node, NodeRef, PdfFormat, SId, SPath, StofData, StofFormat, StofPackageFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, INVALID_NODE_NEW}, parser::context::ParseContext, runtime::{table::SymbolTable, Error, Runtime, Val}};
+use crate::{model::{blob::insert_blob_lib, filesys::fs_library, http::insert_http_lib, insert_image_library, insert_pdf_library, libraries::{data::insert_data_lib, function::insert_fn_lib}, list::insert_list_lib, load_image_formats, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, time::insert_time_lib, tup::insert_tup_lib, ver::insert_semver_lib, BstfFormat, BytesFormat, Data, DataRef, Format, JsonFormat, LibFunc, MdFormat, Node, NodeRef, PdfFormat, SId, SPath, StofData, StofFormat, StofPackageFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, INVALID_NODE_NEW}, parser::context::ParseContext, runtime::{table::SymbolTable, Error, Runtime, Val}};
 
 
 /// Root node name.
@@ -195,6 +195,7 @@ impl Graph {
 
         // Data libs
         insert_pdf_library(self);
+        insert_image_library(self);
     }
     
     /// Insert a library function to this graph.
@@ -1031,8 +1032,10 @@ impl Graph {
         self.load_format(Arc::new(BytesFormat{}));
         self.load_format(Arc::new(UrlEncodedFormat{}));
         self.load_format(Arc::new(StofPackageFormat::default()));
-        
+
         self.load_format(Arc::new(PdfFormat{}));
+
+        load_image_formats(self);
     }
     
     /// Load a format.

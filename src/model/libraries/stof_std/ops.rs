@@ -90,7 +90,7 @@ pub fn std_blobify() -> LibFunc {
 pub fn std_has_format() -> LibFunc {
     LibFunc {
         library: STD_LIB.clone(),
-        name: "has_format".into(),
+        name: "format".into(),
         is_async: false,
         docs: "# Has Format?\nReturn true if a given format is available in this graph.".into(),
         params: vector![
@@ -151,7 +151,7 @@ pub fn std_format_content_type() -> LibFunc {
 pub fn std_has_lib() -> LibFunc {
     LibFunc {
         library: STD_LIB.clone(),
-        name: "has_lib".into(),
+        name: "lib".into(),
         is_async: false,
         docs: "# Has Library?\nReturn true if a given library is available in this graph.".into(),
         params: vector![
