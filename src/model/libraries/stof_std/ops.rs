@@ -303,3 +303,22 @@ pub fn std_trace() -> LibFunc {
         })
     }
 }
+
+/// Trace stack.
+pub fn std_tracestack() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "dbg_tracestack".into(),
+        is_async: false,
+        docs: "# Trace Stack\nPrints the current stack (debug mode).".into(),
+        params: vector![],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(StdIns::TraceStack));
+            Ok(instructions)
+        })
+    }
+}

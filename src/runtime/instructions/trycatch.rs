@@ -30,9 +30,10 @@ pub struct TryCatchIns {
 }
 #[typetag::serde(name = "TryCatchIns")]
 impl Instruction for TryCatchIns {
-    fn exec(&self, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
+    fn exec(&self, env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         let catch_tag: ArcStr = nanoid!(10).into();
         let end_tag: ArcStr = nanoid!(10).into();
+        let size = env.stack.len();
 
         let mut instructions = Instructions::default();
         instructions.push(Arc::new(Base::CtrlTry(catch_tag.clone()))); // Go here when theres an error & inc try count
@@ -41,6 +42,7 @@ impl Instruction for TryCatchIns {
         instructions.push(Arc::new(Base::CtrlForwardTo(end_tag.clone())));
         instructions.push(Arc::new(Base::Tag(catch_tag))); // now theres an error on the stack!
         instructions.append(&self.catch_ins);
+        instructions.push(Arc::new(Base::PopUntilStackCount(size))); // after catch ins to get proper errors...
 
         instructions.push(Arc::new(Base::Tag(end_tag)));
         instructions.push(END_TRY.clone()); // de-increment the try count.

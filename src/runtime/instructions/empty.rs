@@ -15,9 +15,8 @@
 //
 
 use std::sync::Arc;
-use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error, Val}};
+use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,15 +28,11 @@ pub struct EmptyIns {
 }
 #[typetag::serde(name = "EmptyIns")]
 impl Instruction for EmptyIns {
-    fn exec(&self, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
+    fn exec(&self, env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         let mut instructions = Instructions::default();
-        let val = Val::Str(nanoid!(10).into());
-
-        instructions.push(Arc::new(Base::Literal(val.clone())));
+        let size = env.stack.len();
         instructions.push(self.ins.clone());
-        instructions.push(Arc::new(Base::PopUntilAndIncluding(val)));
-
-        // now the stack is the same as when we started!
+        instructions.push(Arc::new(Base::PopUntilStackCount(size)));
         Ok(Some(instructions))
     }
 }

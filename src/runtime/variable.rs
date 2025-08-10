@@ -108,7 +108,7 @@ impl Variable {
     /// Not always a direct clone because of value types.
     pub fn stack_var(&self, by_ref: bool) -> Self {
         let mut clone = self.clone();
-        clone.val = clone.val.duplicate(by_ref);
+        clone.val = self.val.duplicate(by_ref);
         clone
     }
 
@@ -284,7 +284,7 @@ impl Variable {
     /// Copy.
     pub fn deep_copy(&self, graph: &mut Graph, context: Option<NodeRef>) -> Self {
         let mut clone = self.clone();
-        let copy = clone.val.read().deep_copy(graph, context);
+        let copy = self.val.read().deep_copy(graph, context);
         clone.val = ValRef::new(copy);
         clone
     }

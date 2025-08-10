@@ -15,14 +15,40 @@
 //
 
 
-/*!
- * Control flow tests.
- * Scope: root.Lang.Control
- */
+#[test]
+fn return_from_try() {
+    const func = ():int => {
+        try {
+            return 42;
+        } catch {
+            return 100;
+        }
+    };
+    assert_eq(func(), 42);
+}
 
-import './if' as self.If;
-import './while' as self.While;
-import './for' as self.For;
-import './switch' as self.Switch;
-import './nullcheck' as self.Nullcheck;
-import './try' as self.Try;
+#[test]
+fn try_error_val() {
+    let caught;
+
+    try throw({42, 78, 'hi'});
+    catch (error: unknown) {
+        caught = true;
+        assert_eq(error, {42, 78, 'hi'});
+    }
+
+    assert(caught);
+}
+
+#[test]
+fn std_error() {
+    let caught;
+
+    try Std.DNE('this function does not exist');
+    catch (error: str) {
+        caught = true;
+        assert(error.contains('FuncDne'));
+    }
+
+    assert(caught);
+}

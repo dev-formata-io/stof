@@ -14,7 +14,7 @@ categories = ["data-structures", "development-tools"]
 crate-type = ["cdylib", "lib"]
 
 [features]
-default = ["json", "toml", "yaml", "xml", "urlencoded", "markdown", "pkg", "http", "markdown-lib", "pdf"]
+default = ["json", "toml", "yaml", "xml", "urlencoded", "markdown", "pkg", "http", "markdown-lib", "pdf", "docx"]
 
 # Default formats
 json = ["dep:serde_json"]

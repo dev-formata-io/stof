@@ -26,3 +26,4 @@ import './urlencoded' as self.UrlEncodedFormat;
 import './package' as self.StofPackageFormat;
 import './pdf' as self.PdfFormat;
 import './image' as self.ImageFormat;
+import './docx' as self.DocxFormat;

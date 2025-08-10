@@ -18,7 +18,7 @@ use std::sync::Arc;
 use arcstr::{literal, ArcStr};
 use imbl::{vector, Vector};
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{parser::{expr::expr, ident::ident, statement::{noscope_block, statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FuncCall, ops::{Op, OpIns}, whiles::WhileIns, Base, DUPLICATE}, Num, NumT, Type, Val}};
+use crate::{model::stof_std::COPY, parser::{expr::expr, ident::ident, statement::{noscope_block, statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FuncCall, ops::{Op, OpIns}, whiles::WhileIns, Base}, Num, NumT, Type, Val}};
 
 
 /// For in loop.
@@ -44,10 +44,10 @@ pub fn for_in_loop(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
     let last_var = literal!("last");
     {
         declare_instructions.push(inner.expr);
-        declare_instructions.push(DUPLICATE.clone()); // duplicate for len call
         declare_instructions.push(Arc::new(Base::DeclareConstVar(literal!("iterable"), Type::Void)));
         
-        declare_instructions.push(Arc::new(FuncCall { func: None, search: Some(literal!("len")), stack: true, args: vector![], as_ref: false }));
+        declare_instructions.push(Arc::new(FuncCall { func: None, search: Some(literal!("iterable.len")), stack: false, args: vector![], as_ref: false }));
+        declare_instructions.push(COPY.clone()); // make sure the length is not a reference
         declare_instructions.push(Arc::new(Base::DeclareConstVar(length_var.clone(), Type::Void)));
 
         declare_instructions.push(Arc::new(Base::Literal(Val::Num(Num::Int(0)))));
@@ -62,9 +62,9 @@ pub fn for_in_loop(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
     // Test instruction
     // index < length
     let test: Arc<dyn Instruction> = Arc::new(OpIns {
-        lhs: Arc::new(Base::LoadVariable(index_var.clone(), false, true)),
+        lhs: Arc::new(Base::LoadVariable(index_var.clone(), false, false)),
         op: Op::Less,
-        rhs: Arc::new(Base::LoadVariable(length_var.clone(), false, true))
+        rhs: Arc::new(Base::LoadVariable(length_var.clone(), false, false))
     });
 
     // Increment instructions

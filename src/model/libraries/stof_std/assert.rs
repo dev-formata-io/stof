@@ -52,7 +52,7 @@ pub fn assert() -> LibFunc {
         params: vector![
             Param { name: "value".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Bool(false)))) }
         ],
-        return_type: Some(Type::Bool),
+        return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
@@ -74,7 +74,7 @@ pub fn assert_not() -> LibFunc {
         params: vector![
             Param { name: "value".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Bool(true)))) }
         ],
-        return_type: Some(Type::Bool),
+        return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
@@ -97,7 +97,7 @@ pub fn assert_eq() -> LibFunc {
             Param { name: "first".into(), param_type: Type::Void, default: None },
             Param { name: "second".into(), param_type: Type::Void, default: None }
         ],
-        return_type: Some(Type::Bool),
+        return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
@@ -120,7 +120,7 @@ pub fn assert_neq() -> LibFunc {
             Param { name: "first".into(), param_type: Type::Void, default: None },
             Param { name: "second".into(), param_type: Type::Void, default: None }
         ],
-        return_type: Some(Type::Bool),
+        return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {

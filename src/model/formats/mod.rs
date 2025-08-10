@@ -46,3 +46,6 @@ pub use pdf::*;
 
 pub mod image;
 pub use image::*;
+
+pub mod docx;
+pub use docx::*;

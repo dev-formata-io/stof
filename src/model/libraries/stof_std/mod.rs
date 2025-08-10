@@ -22,7 +22,7 @@ use lazy_static::lazy_static;
 use nanoid::nanoid;
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
-use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, containers::{std_copy, std_drop, std_funcs, std_list, std_map, std_set, std_shallow_drop, std_swap}, exit::stof_exit, ops::{std_blobify, std_callstack, std_format_content_type, std_formats, std_graph_id, std_has_format, std_has_lib, std_libs, std_max, std_min, std_nanoid, std_parse, std_stringify, std_trace}, print::{dbg, err, pln, string}, sleep::stof_sleep}, Field, Func, Graph, Prototype, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}, Base, DUPLICATE, EXIT}, proc::ProcEnv, Error, Type, Units, Val, ValRef, Variable}};
+use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, containers::{std_copy, std_drop, std_funcs, std_list, std_map, std_set, std_shallow_drop, std_swap}, exit::stof_exit, ops::{std_blobify, std_callstack, std_format_content_type, std_formats, std_graph_id, std_has_format, std_has_lib, std_libs, std_max, std_min, std_nanoid, std_parse, std_stringify, std_trace, std_tracestack}, print::{dbg, err, pln, string}, sleep::stof_sleep}, Field, Func, Graph, Prototype, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}, Base, DUPLICATE, EXIT}, proc::ProcEnv, Error, Type, Units, Val, ValRef, Variable}};
 
 mod print;
 mod sleep;
@@ -77,6 +77,7 @@ pub fn stof_std_lib(graph: &mut Graph) {
 
     graph.insert_libfunc(std_callstack());
     graph.insert_libfunc(std_trace());
+    graph.insert_libfunc(std_tracestack());
 }
 
 
@@ -93,7 +94,7 @@ lazy_static! {
     pub(self) static ref ASSERT_EQ: Arc<dyn Instruction> = Arc::new(StdIns::AssertEq);
     pub(self) static ref ASSERT_NEQ: Arc<dyn Instruction> = Arc::new(StdIns::AssertNeq);
 
-    pub(self) static ref COPY: Arc<dyn Instruction> = Arc::new(StdIns::Copy);
+    pub(crate) static ref COPY: Arc<dyn Instruction> = Arc::new(StdIns::Copy);
     pub(self) static ref SWAP: Arc<dyn Instruction> = Arc::new(StdIns::Swap);
 
     pub(self) static ref FUNCTIONS: Arc<dyn Instruction> = Arc::new(StdIns::Functions);
@@ -163,6 +164,7 @@ pub enum StdIns {
 
     Callstack,
     Trace(usize),
+    TraceStack,
 }
 #[typetag::serde(name = "StdIns")]
 impl Instruction for StdIns {
@@ -921,6 +923,9 @@ impl Instruction for StdIns {
                 instructions.push(Arc::new(StdIns::Pln(arg_count)));
                 instructions.push(Arc::new(Base::CtrlTrace(n)));
                 return Ok(Some(instructions));
+            },
+            Self::TraceStack => {
+                println!("{:?}", &env.stack);
             },
         }
         Ok(None)

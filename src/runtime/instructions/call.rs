@@ -82,12 +82,12 @@ impl FuncCall {
                     // val is a func case {val}()
                     if split_path[0].len() < 1 {
                         if let Some(dref) = var.try_func() {
-                            return Ok(CallContext { lib: None, prototype_self: None, func: dref, stack_arg: Some(var) });
+                            return Ok(CallContext { lib: None, prototype_self: None, func: dref, stack_arg: Some(Arc::new(Base::Variable(var))) });
                         }
                     }
 
                     let libname = var.lib_name(&graph);
-                    return Ok(CallContext { lib: Some(libname), stack_arg: Some(var), prototype_self: None, func: SId::from(split_path[0]) });
+                    return Ok(CallContext { lib: Some(libname), stack_arg: Some(Arc::new(Base::Variable(var))), prototype_self: None, func: SId::from(split_path[0]) });
                 }
             }
             return Err(Error::FuncDne);
@@ -110,6 +110,7 @@ impl FuncCall {
         
         // In this case, we are searching for a generic path, using the symbol table, libraries, and graph
         let context;
+        let mut var_first = None;
         if split_path[0] == SELF_STR_KEYWORD.as_str() {
             context = ValRef::new(Val::Obj(env.self_ptr()));
             split_path.remove(0);
@@ -122,7 +123,7 @@ impl FuncCall {
             }
         } else if let Some(var) = env.table.get(split_path[0]) {
             context = var.val.clone();
-            split_path.remove(0);
+            var_first = Some(split_path.remove(0));
         } else if split_path[0] == "this" && env.call_stack.len() > 0 {
             context = ValRef::new(Val::Fn(env.call_stack.last().unwrap().clone()));
             split_path.remove(0);
@@ -149,7 +150,11 @@ impl FuncCall {
         if split_path.len() < 2 {
             // var.split('.'); // string variable for example
             let libname = context.read().lib_name(&graph);
-            return Ok(CallContext { lib: Some(libname), stack_arg: Some(Variable::refval(context)), prototype_self: None, func: SId::from(split_path[0]) });
+            if let Some(first) = var_first {
+                // If the variable came from the symbol table, make sure to go grab the updated version each time
+                return Ok(CallContext { lib: Some(libname), stack_arg: Some(Arc::new(Base::LoadVariable(first.into(), false, true))), prototype_self: None, func: SId::from(split_path[0]) });
+            }
+            return Ok(CallContext { lib: Some(libname), stack_arg: Some(Arc::new(Base::Variable(Variable::refval(context)))), prototype_self: None, func: SId::from(split_path[0]) });
         }
 
         Err(Error::FuncDne)
@@ -267,7 +272,7 @@ impl FuncCall {
                         let libname = field.value.val.read().lib_name(&graph);
                         return Ok(CallContext {
                             lib: Some(libname),
-                            stack_arg: Some(Variable::refval(field.value.val.duplicate(false))),
+                            stack_arg: Some(Arc::new(Base::Variable(Variable::refval(field.value.val.duplicate(false))))),
                             prototype_self: None,
                             func: SId::from(func_name),
                         });
@@ -279,7 +284,7 @@ impl FuncCall {
                 if let Some(obj) = graph.find_node_named(&pth, start.clone()) {
                     return Ok(CallContext {
                         lib: Some(literal!("Obj")),
-                        stack_arg: Some(Variable::val(Val::Obj(obj))),
+                        stack_arg: Some(Arc::new(Base::Literal(Val::Obj(obj)))),
                         prototype_self: None,
                         func: SId::from(func_name),
                     });
@@ -288,7 +293,7 @@ impl FuncCall {
                 if let Some(obj) = graph.find_node_named(&pth, graph.main_root()) {
                     return Ok(CallContext {
                         lib: Some(literal!("Obj")),
-                        stack_arg: Some(Variable::val(Val::Obj(obj))),
+                        stack_arg: Some(Arc::new(Base::Literal(Val::Obj(obj)))),
                         prototype_self: None,
                         func: SId::from(func_name),
                     });
@@ -301,7 +306,7 @@ impl FuncCall {
 
     /// Call library function.
     /// This is from exec after we've concluded this is a lib func.
-    pub(self) fn call_libfunc(&self, func: LibFunc, stack_arg: Option<Variable>, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions>, Error> {
+    pub(self) fn call_libfunc(&self, func: LibFunc, stack_arg: Option<Arc<dyn Instruction>>, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         // Record symbol scope depth for poping later
         let scope_depth = env.table.scopes.len();
         
@@ -318,7 +323,7 @@ impl FuncCall {
         let mut named_args = Vec::new();
         let mut args = Vec::new();
         if let Some(sarg) = stack_arg {
-            args.push(Arc::new(Base::Variable(sarg)) as Arc<dyn Instruction>);
+            args.push(sarg);
         }
         for arg in &self.args {
             if let Some(named) = arg.as_dyn_any().downcast_ref::<NamedArg>() {
@@ -424,7 +429,7 @@ pub(self) struct CallContext {
     pub lib: Option<ArcStr>,
     pub prototype_self: Option<NodeRef>,
     pub func: SId,
-    pub stack_arg: Option<Variable>,
+    pub stack_arg: Option<Arc<dyn Instruction>>,
 }
 
 
