@@ -18,11 +18,11 @@ use std::sync::Arc;
 use arcstr::ArcStr;
 use imbl::{vector, Vector};
 use nom::{bytes::complete::tag, branch::alt, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{parser::{expr::expr, ident::ident, statement::{assign::assign, noscope_block, declare::declare_statement, statement}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, whiles::WhileIns, Base}, Val}};
+use crate::{parser::{doc::StofParseError, expr::expr, ident::ident, statement::{assign::assign, declare::declare_statement, noscope_block, statement}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, whiles::WhileIns, Base}, Val}};
 
 
 /// For loop statement.
-pub fn for_loop(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub fn for_loop(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, _) = whitespace(input)?;
 
     let (input, loop_tag) = opt(terminated(preceded(char('^'), ident), multispace0)).parse(input)?;
@@ -62,7 +62,7 @@ pub fn for_loop(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
 
 
 /// Standard for loop inner declare, test, increment expressions.
-fn declare_test_inc(input: &str) -> IResult<&str, (Option<Vector<Arc<dyn Instruction>>>, Option<Arc<dyn Instruction>>, Option<Vector<Arc<dyn Instruction>>>)> {
+fn declare_test_inc(input: &str) -> IResult<&str, (Option<Vector<Arc<dyn Instruction>>>, Option<Arc<dyn Instruction>>, Option<Vector<Arc<dyn Instruction>>>), StofParseError> {
     let (input, _) = multispace0(input)?;
     let (input, declaration) = opt(declare_statement).parse(input)?;
     let (input, _) = delimited(multispace0, char(';'), multispace0).parse(input)?;

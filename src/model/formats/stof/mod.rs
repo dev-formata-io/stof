@@ -135,12 +135,18 @@ impl Format for BstfFormat {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::Graph;
+    use colored::Colorize;
+    use crate::{model::Graph};
 
     #[test]
     fn stof_suite() {
         let mut graph = Graph::default();
-        graph.parse_stof_file("stof", "src/model/formats/stof/tests/tests.stof", None, false).unwrap();
+        match graph.parse_stof_file("stof", "src/model/formats/stof/tests/tests.stof", None, false) {
+            Ok(_) => {},
+            Err(error) => {
+                panic!("{} @ {}", "Stof Suite Parse Error".red(), error);
+            }
+        }
         let res = graph.test(None, true);
         match res {
             Ok(res) => println!("{res}"),

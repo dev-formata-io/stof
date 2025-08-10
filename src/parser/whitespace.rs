@@ -15,11 +15,12 @@
 //
 
 use nom::{branch::alt, bytes::complete::{tag, take_until}, character::complete::{multispace0, multispace1, not_line_ending}, multi::separated_list0, IResult, Parser};
+use crate::parser::doc::StofParseError;
 
 
 /// Doc comment.
 /// Also eats up whitespace before and after.
-pub fn doc_comment(input: &str) -> IResult<&str, String> {
+pub fn doc_comment(input: &str) -> IResult<&str, String, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, inner) = separated_list0(multispace0, alt((parse_block_doc_comment, parse_single_line_doc_comment))).parse(input)?;
 
@@ -42,7 +43,7 @@ pub fn doc_comment(input: &str) -> IResult<&str, String> {
 }
 
 /// Whitespace.
-pub fn whitespace(input: &str) -> IResult<&str, &str> {
+pub fn whitespace(input: &str) -> IResult<&str, &str, StofParseError> {
     let mut rest = input;
     while let Ok(res) = alt((
         parse_block_comment,
@@ -55,7 +56,7 @@ pub fn whitespace(input: &str) -> IResult<&str, &str> {
 }
 
 /// Whitespace, but can fail.
-pub fn whitespace_fail(input: &str) -> IResult<&str, &str> {
+pub fn whitespace_fail(input: &str) -> IResult<&str, &str, StofParseError> {
     let mut rest = input;
     let mut success = false;
     while let Ok(res) = alt((
@@ -67,18 +68,18 @@ pub fn whitespace_fail(input: &str) -> IResult<&str, &str> {
         success = true;
     }
     if !success {
-        return Err(nom::Err::Error(nom::error::Error { input: "", code: nom::error::ErrorKind::IsNot }));
+        return Err(nom::Err::Error(StofParseError::from("no whitespace present")));
     }
     Ok((rest, ""))
 }
 
 /// Parse a single line comment "// comment here \n"
-pub(self) fn parse_single_line_comment(input: &str) -> IResult<&str, &str> {
+pub(self) fn parse_single_line_comment(input: &str) -> IResult<&str, &str, StofParseError> {
     let (input, _) = tag("//").parse(input)?;
 
     if input.starts_with('/') {
         // this is actually a doc comment, so error
-        return Err(nom::Err::Error(nom::error::Error { input: "", code: nom::error::ErrorKind::IsNot }));
+        return Err(nom::Err::Error(StofParseError::from("single line comment cannot be a doc comment")));
     }
 
     let (input, out) = not_line_ending(input)?;
@@ -86,12 +87,12 @@ pub(self) fn parse_single_line_comment(input: &str) -> IResult<&str, &str> {
 }
 
 /// Parse a block style comment.
-pub(self) fn parse_block_comment(input: &str) -> IResult<&str, &str> {
+pub(self) fn parse_block_comment(input: &str) -> IResult<&str, &str, StofParseError> {
     let (input, _) = tag("/*").parse(input)?;
     
     if input.starts_with('*') || input.starts_with('!') {
         // this is actually a doc comment, so error
-        return Err(nom::Err::Error(nom::error::Error { input: "", code: nom::error::ErrorKind::IsNot }));
+        return Err(nom::Err::Error(StofParseError::from("block comment cannot be a doc comment")));
     }
 
     let (input, _) = take_until("*/").parse(input)?;
@@ -100,14 +101,14 @@ pub(self) fn parse_block_comment(input: &str) -> IResult<&str, &str> {
 }
 
 /// Parse a single line doc comment "/// comment here \n"
-pub(self) fn parse_single_line_doc_comment(input: &str) -> IResult<&str, &str> {
+pub(self) fn parse_single_line_doc_comment(input: &str) -> IResult<&str, &str, StofParseError> {
     let (input, _) = tag("///").parse(input)?;
     let (input, out) = not_line_ending(input)?;
     Ok((input, out))
 }
 
 /// Parse a block style doc comment.
-pub(self) fn parse_block_doc_comment(input: &str) -> IResult<&str, &str> {
+pub(self) fn parse_block_doc_comment(input: &str) -> IResult<&str, &str, StofParseError> {
     let (input, _) = tag("/**").parse(input)?;
     let (input, out) = take_until("*/").parse(input)?;
     let (input, _) = tag("*/").parse(input)?;
@@ -115,7 +116,7 @@ pub(self) fn parse_block_doc_comment(input: &str) -> IResult<&str, &str> {
 }
 
 /// Parse a block style inner doc comment.
-pub fn parse_inner_doc_comment(input: &str) -> IResult<&str, String> {
+pub fn parse_inner_doc_comment(input: &str) -> IResult<&str, String, StofParseError> {
     let (input, _) = tag("/*!").parse(input)?;
     let (input, out) = take_until("*/").parse(input)?;
     let (input, _) = tag("*/").parse(input)?;

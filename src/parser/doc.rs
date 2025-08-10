@@ -16,7 +16,69 @@
 
 use crate::{model::InnerDoc, parser::{context::ParseContext, field::parse_field, func::parse_function, ident::ident, import::import, whitespace::{parse_inner_doc_comment, whitespace_fail}}, runtime::Error};
 use nanoid::nanoid;
-use nom::{bytes::complete::tag, character::complete::{char, multispace0}, combinator::{eof, opt}, sequence::{delimited, preceded}, Err, IResult, Parser};
+use nom::{bytes::complete::tag, character::complete::{char, multispace0}, combinator::{eof, opt}, error::{ErrorKind, FromExternalError, ParseError}, sequence::{delimited, preceded}, Err, IResult, Parser};
+use serde::{Deserialize, Serialize};
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StofParseError {
+    pub file_path: Option<String>,
+    pub message: String,
+}
+impl From<&str> for StofParseError {
+    fn from(value: &str) -> Self {
+        Self {
+            file_path: None,
+            message: value.to_string(),
+        }
+    }
+}
+impl From<String> for StofParseError {
+    fn from(value: String) -> Self {
+        Self {
+            file_path: None,
+            message: value,
+        }
+    }
+}
+/// Map a Stof error from an error to a failure.
+/// Used in making sure things fail at the document level.
+pub fn err_fail(e: nom::Err<StofParseError>) -> nom::Err<StofParseError> {
+    match e {
+        nom::Err::Error(e) => nom::Err::Failure(e),
+        _ => e
+    }
+}
+impl ParseError<&str> for StofParseError {
+    // on one line, we show the error code and the input that caused it
+    fn from_error_kind(input: &str, kind: ErrorKind) -> Self {
+        let message = format!("{:?}: {input}\n", kind, );
+        StofParseError { message, file_path: None }
+    }
+
+    // if combining multiple errors, we show them one after the other
+    fn append(_input: &str, _kind: ErrorKind, other: Self) -> Self {
+        //let message = format!("{}{:?}:\t{:?}\n", other.message, kind, input);
+        //StofParseError { message, file_path: None }
+        other
+    }
+
+    fn from_char(input: &str, c: char) -> Self {
+        let message = format!("expected char '{c}':\n{input}");
+        StofParseError { message, file_path: None }
+    }
+
+    fn or(self, other: Self) -> Self {
+        //let message = format!("{}\tOR\n{}\n", self.message, other.message);
+        //StofParseError { message, file_path: None }
+        other
+    }
+}
+impl FromExternalError<&str, std::num::ParseIntError> for StofParseError {
+    fn from_external_error(_input: &str, _kind: ErrorKind, e: std::num::ParseIntError) -> Self {
+        Self::from(e.to_string())
+    }
+}
 
 
 /// Parse a Stof document into a context (graph).
@@ -30,7 +92,17 @@ pub fn document(mut input: &str, context: &mut ParseContext) -> Result<(), Error
             },
             Err(error) => {
                 // didn't match a singular statement (including whitespace)
-                return Err(Error::ParseFailure(error.to_string()));
+                match error {
+                    nom::Err::Error(e) => {
+                        return Err(Error::ParseError(e));
+                    },
+                    nom::Err::Failure(e) => {
+                        return Err(Error::ParseError(e));
+                    },
+                    nom::Err::Incomplete(_) => {
+                        return Err(Error::ParseError(StofParseError::from(error.to_string())));
+                    }
+                }
             }
         }
     }
@@ -39,11 +111,11 @@ pub fn document(mut input: &str, context: &mut ParseContext) -> Result<(), Error
 
 
 /// Parse a singular document statement.
-pub fn document_statement<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, ()> {
-    // Function
+pub fn document_statement<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, (), StofParseError> {
+    // Field
     {
-        let func_res = parse_function(input, context);
-        match func_res {
+        let field_res = parse_field(input, context);
+        match field_res {
             Ok((input, _)) => {
                 return Ok((input, ()));
             },
@@ -59,10 +131,10 @@ pub fn document_statement<'a>(input: &'a str, context: &mut ParseContext) -> IRe
         }
     }
 
-    // Field
+    // Function
     {
-        let field_res = parse_field(input, context);
-        match field_res {
+        let func_res = parse_function(input, context);
+        match func_res {
             Ok((input, _)) => {
                 return Ok((input, ()));
             },
@@ -156,7 +228,7 @@ pub fn document_statement<'a>(input: &'a str, context: &mut ParseContext) -> IRe
 
 
 /// New root document node statements.
-fn root_statements<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, ()> {
+fn root_statements<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, (), StofParseError> {
     let (input, name) = preceded(tag("root"), delimited(multispace0, opt(ident), multispace0)).parse(input)?;
     let (mut input, _) = char('{')(input)?;
     context.push_root(name);
@@ -181,7 +253,7 @@ fn root_statements<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
 
 
 /// Empty brackets around some statements (accepts JSON).
-fn json_statements<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, ()> {
+fn json_statements<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, (), StofParseError> {
     let (mut input, _) = char('{')(input)?;
     loop {
         let res = document_statement(input, context);

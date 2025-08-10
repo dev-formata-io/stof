@@ -18,11 +18,11 @@ use std::sync::Arc;
 use arcstr::ArcStr;
 use imbl::Vector;
 use nom::{bytes::complete::tag, branch::alt, character::complete::{char, multispace0}, combinator::recognize, multi::separated_list1, sequence::{delimited, terminated}, IResult, Parser};
-use crate::{parser::{expr::expr, ident::ident, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{Base, ADD, BIT_AND, BIT_OR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_XOR, DIVIDE, MODULUS, MULTIPLY, SUBTRACT}}};
+use crate::{parser::{doc::StofParseError, expr::expr, ident::ident, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{Base, ADD, BIT_AND, BIT_OR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_XOR, DIVIDE, MODULUS, MULTIPLY, SUBTRACT}}};
 
 
 /// Assign statement.
-pub fn assign(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub fn assign(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, _) = whitespace(input)?;
     alt((
         assign_variable,
@@ -41,7 +41,7 @@ pub fn assign(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
 
 
 /// Assign a variable statement.
-pub(self) fn assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub(self) fn assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, varname) = delimited(multispace0, recognize(separated_list1(char('.'), ident)), multispace0).parse(input)?;
     let (input, _) = terminated(char('='), multispace0).parse(input)?;
     let (input, expr) = expr(input)?;
@@ -54,7 +54,7 @@ pub(self) fn assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instru
 
 
 /// Add assign a variable statement. "+="
-pub(self) fn add_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub(self) fn add_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, varname) = delimited(multispace0, recognize(separated_list1(char('.'), ident)), multispace0).parse(input)?;
     let (input, _) = terminated(tag("+="), multispace0).parse(input)?;
     let (input, expr) = expr(input)?;
@@ -72,7 +72,7 @@ pub(self) fn add_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn In
 
 
 /// Sub assign a variable statement. "-="
-pub(self) fn sub_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub(self) fn sub_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, varname) = delimited(multispace0, recognize(separated_list1(char('.'), ident)), multispace0).parse(input)?;
     let (input, _) = terminated(tag("-="), multispace0).parse(input)?;
     let (input, expr) = expr(input)?;
@@ -90,7 +90,7 @@ pub(self) fn sub_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn In
 
 
 /// Multiply assign a variable statement. "*="
-pub(self) fn mul_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub(self) fn mul_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, varname) = delimited(multispace0, recognize(separated_list1(char('.'), ident)), multispace0).parse(input)?;
     let (input, _) = terminated(tag("*="), multispace0).parse(input)?;
     let (input, expr) = expr(input)?;
@@ -108,7 +108,7 @@ pub(self) fn mul_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn In
 
 
 /// Divide assign a variable statement. "/="
-pub(self) fn div_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub(self) fn div_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, varname) = delimited(multispace0, recognize(separated_list1(char('.'), ident)), multispace0).parse(input)?;
     let (input, _) = terminated(tag("/="), multispace0).parse(input)?;
     let (input, expr) = expr(input)?;
@@ -126,7 +126,7 @@ pub(self) fn div_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn In
 
 
 /// Mod assign a variable statement. "%="
-pub(self) fn mod_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub(self) fn mod_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, varname) = delimited(multispace0, recognize(separated_list1(char('.'), ident)), multispace0).parse(input)?;
     let (input, _) = terminated(tag("%="), multispace0).parse(input)?;
     let (input, expr) = expr(input)?;
@@ -144,7 +144,7 @@ pub(self) fn mod_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn In
 
 
 /// Bit and assign a variable statement. "&="
-pub(self) fn band_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub(self) fn band_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, varname) = delimited(multispace0, recognize(separated_list1(char('.'), ident)), multispace0).parse(input)?;
     let (input, _) = terminated(tag("&="), multispace0).parse(input)?;
     let (input, expr) = expr(input)?;
@@ -162,7 +162,7 @@ pub(self) fn band_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn I
 
 
 /// Bit or assign a variable statement. "|="
-pub(self) fn bor_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub(self) fn bor_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, varname) = delimited(multispace0, recognize(separated_list1(char('.'), ident)), multispace0).parse(input)?;
     let (input, _) = terminated(tag("|="), multispace0).parse(input)?;
     let (input, expr) = expr(input)?;
@@ -180,7 +180,7 @@ pub(self) fn bor_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn In
 
 
 /// Bit xor assign a variable statement. "^="
-pub(self) fn bxor_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub(self) fn bxor_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, varname) = delimited(multispace0, recognize(separated_list1(char('.'), ident)), multispace0).parse(input)?;
     let (input, _) = terminated(tag("^="), multispace0).parse(input)?;
     let (input, expr) = expr(input)?;
@@ -198,7 +198,7 @@ pub(self) fn bxor_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn I
 
 
 /// Bit shift left assign a variable statement. "<<="
-pub(self) fn bshl_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub(self) fn bshl_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, varname) = delimited(multispace0, recognize(separated_list1(char('.'), ident)), multispace0).parse(input)?;
     let (input, _) = terminated(tag("<<="), multispace0).parse(input)?;
     let (input, expr) = expr(input)?;
@@ -216,7 +216,7 @@ pub(self) fn bshl_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn I
 
 
 /// Bit shift right assign a variable statement. ">>="
-pub(self) fn bshr_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub(self) fn bshr_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, varname) = delimited(multispace0, recognize(separated_list1(char('.'), ident)), multispace0).parse(input)?;
     let (input, _) = terminated(tag(">>="), multispace0).parse(input)?;
     let (input, expr) = expr(input)?;

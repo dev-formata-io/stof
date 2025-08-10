@@ -16,12 +16,12 @@
 
 use std::sync::Arc;
 use nom::{branch::alt, bytes::complete::{escaped_transform, tag, take_until}, character::complete::{char, none_of}, combinator::{map, opt, value}, multi::fold_many0, sequence::delimited, IResult, Parser};
-use crate::{parser::{expr::expr, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, Base, ADD, NOOP}, Val}};
+use crate::{parser::{doc::StofParseError, expr::expr, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, Base, ADD, NOOP}, Val}};
 
 
 /// Formatted string expression.
 /// Ex: `This is a cool ${value + other}!`
-pub fn formatted_string_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub fn formatted_string_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, inner) = inner_formatted(input)?;
 
@@ -30,18 +30,14 @@ pub fn formatted_string_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>>
             Ok((input, expr))
         },
         Err(error) => {
-            println!("{error:?}");
-            Err(nom::Err::Error(nom::error::Error {
-                input: "error parsing formatted string",
-                code: nom::error::ErrorKind::Satisfy
-            }))
+            Err(error)
         }
     }
 }
 
 
 /// Inner formatted string (to run additional parser on after)
-fn inner_formatted(input: &str) -> IResult<&str, String> {
+fn inner_formatted(input: &str) -> IResult<&str, String, StofParseError> {
     let normal = none_of("`\\"); // everything but backslash or double quote
     let inner = escaped_transform(normal, '\\', alt((
         value("\\", tag("\\")),
@@ -55,7 +51,7 @@ fn inner_formatted(input: &str) -> IResult<&str, String> {
 
 
 /// Parse inner string into chars and expressions that will be added together.
-fn parse_inner(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+fn parse_inner(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, mut res) = fold_many0(alt((
             parse_inner_expr,
             map(take_until("${"), |lit: &str| Arc::new(Base::Literal(Val::Str(lit.into()))) as Arc<dyn Instruction>)
@@ -87,7 +83,7 @@ fn parse_inner(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 
 
 /// Parse inner expr.
-fn parse_inner_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+fn parse_inner_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, inner) = delimited(tag("${"), expr, tag("}")).parse(input)?;
     Ok((input, inner))
 }

@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use nom::{branch::alt, character::complete::{char, multispace0}, combinator::{opt, recognize}, multi::{many0, separated_list0, separated_list1}, sequence::{delimited, preceded}, IResult, Parser};
-use crate::{model::SId, parser::{expr::expr, ident::ident, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, call::{FuncCall, NamedArg}, Base}}};
+use crate::{model::SId, parser::{doc::StofParseError, expr::expr, ident::ident, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, call::{FuncCall, NamedArg}, Base}}};
 
 
 /// Graph interaction expression.
@@ -24,7 +24,7 @@ use crate::{model::SId, parser::{expr::expr, ident::ident, whitespace::whitespac
 /// Or a function call.
 /// Or an index operator (also a function call).
 /// And is a chain of them all!
-pub fn graph_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub fn graph_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = whitespace(input)?;
 
     // Is this a reference?
@@ -60,15 +60,15 @@ pub fn graph_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     for ins in additional { block.ins.push_back(ins); }
     Ok((input, Arc::new(block)))
 }
-pub fn chained_var_func(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub fn chained_var_func(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     // TODO add null check operator instruction "?."... will be an additional [dup, if [nullcheck, jump], ..var_func.., jumptag] sequence
     var_func(input, true, false)
 }
-fn ref_chained_var_func(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+fn ref_chained_var_func(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     // TODO add null check operator instruction "?."... will be an additional [dup, if [nullcheck, jump], ..var_func.., jumptag] sequence
     var_func(input, true, true)
 }
-pub(self) fn var_func(input: &str, chained: bool, as_ref: bool) -> IResult<&str, Arc<dyn Instruction>> {
+pub(self) fn var_func(input: &str, chained: bool, as_ref: bool) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     // Special case of [idx][idx][idx] chaining
     if chained && input.starts_with('[') {
         let (input, idx) = index_expr(input)?;
@@ -119,7 +119,7 @@ pub(self) fn var_func(input: &str, chained: bool, as_ref: bool) -> IResult<&str,
 /// Ex. "a.my_func()" -> "a.my_func" would be the variable expr.
 /// Ex. "myFunc()" -> "myFunc" would be the variable expr.
 /// Ex. "self.child.func()" -> "self.child.func" would be the variable expr.
-pub(self) fn variable_expr(input: &str) -> IResult<&str, &str> {
+pub(self) fn variable_expr(input: &str) -> IResult<&str, &str, StofParseError> {
     recognize(separated_list1(char('.'), ident)).parse(input)
 }
 
@@ -127,14 +127,14 @@ pub(self) fn variable_expr(input: &str) -> IResult<&str, &str> {
 /// Call expression.
 /// This is what comes after the variable expression.
 /// If this exists, the last section of the variable expr was actually a function name.
-pub(super) fn call_expr(input: &str) -> IResult<&str, Vec<Arc<dyn Instruction>>> {
+pub(super) fn call_expr(input: &str) -> IResult<&str, Vec<Arc<dyn Instruction>>, StofParseError> {
     delimited(
         char('('),
         separated_list0(char(','), call_arg),
         char(')')
     ).parse(input)
 }
-pub(self) fn call_arg(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub(self) fn call_arg(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = multispace0(input)?;
 
     let (input, ins) = alt((
@@ -145,7 +145,7 @@ pub(self) fn call_arg(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     let (input, _) = multispace0(input)?;
     Ok((input, ins))
 }
-pub(self) fn named_arg(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub(self) fn named_arg(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, name) = ident(input)?;
     
     let (input, _) = multispace0(input)?;
@@ -159,7 +159,7 @@ pub(self) fn named_arg(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 
 /// Index expression.
 /// Gets transformed into an "at(args)" call.
-pub(self) fn index_expr(input: &str) -> IResult<&str, Vec<Arc<dyn Instruction>>> {
+pub(self) fn index_expr(input: &str) -> IResult<&str, Vec<Arc<dyn Instruction>>, StofParseError> {
     delimited(
         char('['),
         separated_list1(char(','), call_arg),

@@ -16,17 +16,17 @@
 
 use arcstr::literal;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, recognize, value}, multi::separated_list1, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{model::SId, parser::{ident::ident_type}, runtime::{NumT, Type, Units}};
+use crate::{model::SId, parser::{doc::StofParseError, ident::ident_type}, runtime::{NumT, Type, Units}};
 
 
 /// Parse type standalone parser.
-pub fn parse_type_complete(input: &str) -> Result<Type, nom::Err<nom::error::Error<&str>>> {
+pub fn parse_type_complete(input: &str) -> Result<Type, nom::Err<StofParseError>> {
     let res = parse_type(input)?;
     Ok(res.1)
 }
 
 /// Parse a string into a Type.
-pub fn parse_type(input: &str) -> IResult<&str, Type> {
+pub fn parse_type(input: &str) -> IResult<&str, Type, StofParseError> {
     map((
         multispace0,
         alt((
@@ -56,7 +56,7 @@ pub fn parse_type(input: &str) -> IResult<&str, Type> {
 
 /// Inner types do not contain the Union as a possibility
 /// Unions cannot contain unions, nor can tuples
-fn parse_inner_union(input: &str) -> IResult<&str, Type> {
+fn parse_inner_union(input: &str) -> IResult<&str, Type, StofParseError> {
     map((
         multispace0,
         alt((
@@ -85,7 +85,7 @@ fn parse_inner_union(input: &str) -> IResult<&str, Type> {
 }
 
 /// Parse object or units type.
-fn parse_obj_or_units(input: &str) -> IResult<&str, Type> {
+fn parse_obj_or_units(input: &str) -> IResult<&str, Type, StofParseError> {
     let (input, parsed) = recognize(separated_list1(char('.'), ident_type)).parse(input)?;
 
     let units = Units::from(parsed);
@@ -97,7 +97,7 @@ fn parse_obj_or_units(input: &str) -> IResult<&str, Type> {
 }
 
 /// Parse tuple type.
-fn parse_tuple(input: &str) -> IResult<&str, Type> {
+fn parse_tuple(input: &str) -> IResult<&str, Type, StofParseError> {
     map(
         delimited(
             preceded(char('('), multispace0),
@@ -112,24 +112,24 @@ fn parse_tuple(input: &str) -> IResult<&str, Type> {
 }
 
 /// Parse union type.
-fn parse_union(input: &str) -> IResult<&str, Type> {
+fn parse_union(input: &str) -> IResult<&str, Type, StofParseError> {
     map(
         parse_union_list,
         |list| Type::Union(list.into_iter().collect())
     ).parse(input)
 }
-fn parse_union_list(input: &str) -> IResult<&str, Vec<Type>> {
+fn parse_union_list(input: &str) -> IResult<&str, Vec<Type>, StofParseError> {
     let mut parser = separated_list1(tag("|"), parse_inner_union);
     let (input, vals) = parser.parse(input)?;
     if vals.len() < 2 {
-        Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::NoneOf)))
+        Err(nom::Err::Error(StofParseError::from(format!("union type must have at least 2 values: {vals:?}"))))
     } else {
         Ok((input, vals))
     }
 }
 
 /// Parse custom data type.
-fn parse_custom_data(input: &str) -> IResult<&str, Type> {
+fn parse_custom_data(input: &str) -> IResult<&str, Type, StofParseError> {
     map(
         delimited(tag("Data<"), ident_type, char('>')),
         |ct| Type::Data(ct.into())
@@ -137,13 +137,13 @@ fn parse_custom_data(input: &str) -> IResult<&str, Type> {
 }
 
 /// Parse promise type.
-fn parse_promise(input: &str) -> IResult<&str, Type> {
+fn parse_promise(input: &str) -> IResult<&str, Type, StofParseError> {
     map(
         delimited(tag("Promise<"), parse_inner_promise, char('>')),
         |ct| Type::Promise(ct.into())
     ).parse(input)
 }
-fn parse_inner_promise(input: &str) -> IResult<&str, Type> {
+fn parse_inner_promise(input: &str) -> IResult<&str, Type, StofParseError> {
     alt((
         parse_union,
         value(Type::Null, tag("null")),

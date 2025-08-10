@@ -18,12 +18,12 @@ use std::sync::Arc;
 use imbl::{vector, Vector};
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, peek}, multi::fold_many0, sequence::{delimited, preceded, terminated}, IResult, Parser};
 use rustc_hash::FxHashMap;
-use crate::{model::Graph, parser::{context::ParseContext, expr::expr, statement::{block, statement}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, switch::SwitchIns}}};
+use crate::{model::Graph, parser::{context::ParseContext, doc::StofParseError, expr::expr, statement::{block, statement}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, switch::SwitchIns}}};
 
 
 /// Switch statement.
 /// Case values must be literal exprs or evaluatable without the graph.
-pub fn switch_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub fn switch_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, value_expr) = preceded(terminated(tag("switch"), multispace0), delimited(char('('), expr, char(')'))).parse(input)?;
     let (input, cases) = preceded(preceded(multispace0, char('{')), case_statements).parse(input)?;
@@ -59,7 +59,7 @@ pub fn switch_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction
 
 
 /// Fold many case statements into a singular instruction vector.
-fn case_statements(input: &str) -> IResult<&str, Vector<Case>> {
+fn case_statements(input: &str) -> IResult<&str, Vector<Case>, StofParseError> {
     fold_many0(
         case,
         Vector::default,
@@ -81,7 +81,7 @@ struct Case {
 /// Parse an individual case.
 /// case expr: block | statement // do the thing
 /// case expr: // fallthrough
-fn case(input: &str) -> IResult<&str, Case> {
+fn case(input: &str) -> IResult<&str, Case, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, expr) = preceded(tag("case"), preceded(multispace0, expr)).parse(input)?;
     let (input, _) = delimited(multispace0, char(':'), multispace0).parse(input)?;
@@ -103,7 +103,7 @@ fn case(input: &str) -> IResult<&str, Case> {
 
 /// Parse default case.
 /// default: block | statement
-fn default_case(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+fn default_case(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, _) = preceded(tag("default"), delimited(multispace0, char(':'), multispace0)).parse(input)?;
     let (input, ins) = alt((

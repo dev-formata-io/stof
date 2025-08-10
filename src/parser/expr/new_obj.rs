@@ -17,11 +17,11 @@
 use std::sync::Arc;
 use arcstr::ArcStr;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0, multispace1}, combinator::{map, opt}, multi::many0, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
-use crate::{parser::{expr::expr, ident::ident, string::{double_string, single_string}, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, new_obj::NewObjIns, Base, DUPLICATE, NEW_CONSTRUCTORS, POP_NEW, PUSH_NEW}, Type}};
+use crate::{parser::{doc::StofParseError, expr::expr, ident::ident, string::{double_string, single_string}, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, new_obj::NewObjIns, Base, DUPLICATE, NEW_CONSTRUCTORS, POP_NEW, PUSH_NEW}, Type}};
 
 
 /// Create a new object expression.
-pub fn new_obj_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub fn new_obj_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, _) = tag("new").parse(input)?;
     let (input, cast_type) = opt(delimited(multispace0, parse_type, multispace0)).parse(input)?;
@@ -73,14 +73,14 @@ struct ObjField {
 }
 
 /// Object fields.
-fn obj_fields(input: &str) -> IResult<&str, Vec<ObjField>> {
+fn obj_fields(input: &str) -> IResult<&str, Vec<ObjField>, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, fields) = many0(obj_field).parse(input)?;
     Ok((input, fields))
 }
 
 /// New object field.
-fn obj_field(input: &str) -> IResult<&str, ObjField> {
+fn obj_field(input: &str) -> IResult<&str, ObjField, StofParseError> {
     let (input, _) = whitespace(input)?;
 
     // Optionally a const field

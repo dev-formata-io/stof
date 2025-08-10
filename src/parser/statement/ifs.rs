@@ -17,11 +17,11 @@
 use std::sync::Arc;
 use imbl::{vector, Vector};
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, multi::many0, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{parser::{expr::expr, statement::{block, statement}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::ifs::IfIns}};
+use crate::{parser::{doc::StofParseError, expr::expr, statement::{block, statement}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::ifs::IfIns}};
 
 
 /// If statement.
-pub fn if_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub fn if_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, if_expr_test) = preceded(terminated(tag("if"), multispace0), delimited(char('('), expr, char(')'))).parse(input)?;
 
@@ -61,7 +61,7 @@ pub fn if_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> 
 
 
 /// Else if statement.
-pub(self) fn else_if_statement(input: &str) -> IResult<&str, IfIns> {
+pub(self) fn else_if_statement(input: &str) -> IResult<&str, IfIns, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, if_expr_test) = preceded(terminated(tag("else if"), multispace0), delimited(char('('), expr, char(')'))).parse(input)?;
 
@@ -81,7 +81,7 @@ pub(self) fn else_if_statement(input: &str) -> IResult<&str, IfIns> {
 
 
 /// Else statement.
-pub(self) fn else_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub(self) fn else_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, else_statements) = preceded(
         terminated(

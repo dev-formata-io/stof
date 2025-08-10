@@ -15,11 +15,11 @@
 //
 
 use nom::{branch::alt, bytes::complete::tag, combinator::value, IResult, Parser};
-use crate::{parser::{number::number, semver::parse_semver, string::string, whitespace::whitespace}, runtime::Val};
+use crate::{parser::{doc::StofParseError, number::number, semver::parse_semver, string::string, whitespace::whitespace}, runtime::Val};
 
 
 /// Parse a literal value (bool, null, number, string, or version).
-pub fn literal(input: &str) -> IResult<&str, Val> {
+pub fn literal(input: &str) -> IResult<&str, Val, StofParseError> {
     let (input, _) = whitespace(input)?;
     alt((
         value(Val::Null, tag("null")),

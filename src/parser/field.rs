@@ -14,15 +14,17 @@
 // limitations under the License.
 //
 
+use std::ops::Deref;
+use colored::Colorize;
 use imbl::vector;
 use nanoid::nanoid;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0, multispace1}, combinator::{map, opt, peek}, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
 use rustc_hash::FxHashMap;
-use crate::{model::{Field, FieldDoc}, parser::{context::ParseContext, doc::document_statement, expr::expr, ident::ident, parse_attributes, string::{double_string, single_string}, types::parse_type, whitespace::{doc_comment, whitespace}}, runtime::{Val, Variable}};
+use crate::{model::{Field, FieldDoc}, parser::{context::ParseContext, doc::{document_statement, err_fail, StofParseError}, expr::expr, ident::ident, parse_attributes, string::{double_string, single_string}, types::parse_type, whitespace::{doc_comment, whitespace}}, runtime::{Val, Variable}};
 
 
 /// Parse a field into a parse context.
-pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, ()> {
+pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, (), StofParseError> {
     // Doc comments & whitespace before a field definition
     let (input, mut comments) = doc_comment(input)?;
 
@@ -58,23 +60,21 @@ pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
     let (input, _) = delimited(multispace0, char(':'), multispace0).parse(input)?;
 
     // Value (variable)
-    let (input, mut value) = value(input, &name, context, &mut attributes)?;
+    let (input, mut value) = value(input, &name, context, &mut attributes).map_err(err_fail)?;
     if is_const.is_some() {
         value.mutable = false; // this field is const
     }
     if let Some(cast_type) = field_type {
         let context_node = Some(context.self_ptr());
-        if let Err(_error) = value.cast(&cast_type, &mut context.graph, context_node) {
-            return Err(nom::Err::Failure(nom::error::Error {
-                input: "cast error",
-                code: nom::error::ErrorKind::Fail
-            }));
+        if let Err(error) = value.cast(&cast_type, &mut context.graph, context_node) {
+            let message = format!("'{name}' ({:?}) cannot be cast to type '{}': {}", value.val.read().deref(), cast_type.rt_type_of(&context.graph), error.to_string());
+            return Err(nom::Err::Failure(StofParseError::from(format!("{} {message}", "field cast error:".dimmed()))));
         }
         value.vtype = Some(cast_type); // keep the field this type when assigning in the future
     }
 
     // Optionally end the field declaration with a semicolon or a comma
-    let (input, _) = opt(preceded(multispace0, alt((char(';'), char(','))))).parse(input)?;
+    let (input, _) = opt(preceded(multispace0, alt((char(';'), char(','))))).parse(input).map_err(err_fail)?;
 
     // Instert the new field in the current parse context
     let field = Field::new(value, Some(attributes));
@@ -94,7 +94,7 @@ pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
 
 
 /// Parse a field value.
-fn value<'a>(input: &'a str, name: &str, context: &mut ParseContext, attributes: &mut FxHashMap<String, Val>) -> IResult<&'a str, Variable> {
+fn value<'a>(input: &'a str, name: &str, context: &mut ParseContext, attributes: &mut FxHashMap<String, Val>) -> IResult<&'a str, Variable, StofParseError> {
     // Try an object value first
     let obj_res = object_value(input, name, context, attributes);
     match obj_res {
@@ -133,18 +133,15 @@ fn value<'a>(input: &'a str, name: &str, context: &mut ParseContext, attributes:
         Ok(val) => {
             Ok((input, Variable::val(val)))
         },
-        Err(_) => {
-            Err(nom::Err::Error(nom::error::Error {
-                input: "failure",
-                code: nom::error::ErrorKind::Fail
-            }))
+        Err(err) => {
+            Err(nom::Err::Error(StofParseError::from(err.to_string())))
         }
     }
 }
 
 
 /// Array value.
-fn array_value<'a>(input: &'a str, _name: &str, context: &mut ParseContext) -> IResult<&'a str, Variable> {
+fn array_value<'a>(input: &'a str, _name: &str, context: &mut ParseContext) -> IResult<&'a str, Variable, StofParseError> {
     let (input, _) = char('[')(input)?;
     let (mut input, _) = whitespace(input)?;
     let mut values = vector![];
@@ -173,7 +170,7 @@ fn array_value<'a>(input: &'a str, _name: &str, context: &mut ParseContext) -> I
 
 
 /// Create a new object and parse it for this field's value.
-fn object_value<'a>(input: &'a str, name: &str, context: &mut ParseContext, attributes: &mut FxHashMap<String, Val>) -> IResult<&'a str, Variable> {
+fn object_value<'a>(input: &'a str, name: &str, context: &mut ParseContext, attributes: &mut FxHashMap<String, Val>) -> IResult<&'a str, Variable, StofParseError> {
     let (mut input, _) = char('{')(input)?;
     let value = context.push_self(name, true, attributes);
     if !input.starts_with('}') { // account for an empty object case "{}"
@@ -206,11 +203,9 @@ fn object_value<'a>(input: &'a str, name: &str, context: &mut ParseContext, attr
     let (input, cast_type) = opt(preceded(preceded(multispace0, tag("as")), preceded(multispace0, parse_type))).parse(input)?;
     if let Some(cast_type) = cast_type {
         let context_node = Some(context.self_ptr());
-        if let Err(_error) = value.cast(&cast_type, &mut context.graph, context_node) {
-            return Err(nom::Err::Failure(nom::error::Error {
-                input: "cast error",
-                code: nom::error::ErrorKind::Fail
-            }));
+        if let Err(error) = value.cast(&cast_type, &mut context.graph, context_node) {
+            let message = format!("'{}' cannot be cast to type '{}': {}", name, cast_type.rt_type_of(&context.graph), error.to_string());
+            return Err(nom::Err::Failure(StofParseError::from(format!("{} {message}", "field obj cast 'as':".dimmed()))));
         }
     }
 

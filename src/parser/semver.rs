@@ -16,7 +16,7 @@
 
 use arcstr::ArcStr;
 use nom::{branch::alt, bytes::complete::take_while, character::complete::{char, digit1, multispace0}, combinator::{all_consuming, map_res, map}, sequence::{delimited, preceded}, AsChar, IResult, Parser};
-use crate::runtime::Val;
+use crate::{parser::doc::StofParseError, runtime::Val};
 
 
 /// Parse a Semantic Version alone.
@@ -30,12 +30,12 @@ pub fn parse_semver_alone(input: &str) -> Option<Val> {
         }
     }
 }
-fn semver_complete(input: &str) -> IResult<&str, Val> {
+fn semver_complete(input: &str) -> IResult<&str, Val, StofParseError> {
     all_consuming(parse_semver).parse(input)
 }
 
 /// Parse a Semantic Version value.
-pub fn parse_semver(input: &str) -> IResult<&str, Val> {
+pub fn parse_semver(input: &str) -> IResult<&str, Val, StofParseError> {
     delimited(
         multispace0,
     alt(
@@ -49,13 +49,13 @@ pub fn parse_semver(input: &str) -> IResult<&str, Val> {
         multispace0
     ).parse(input)
 }
-pub fn parse_semver_basic(input: &str) -> IResult<&str, Val> {
+pub fn parse_semver_basic(input: &str) -> IResult<&str, Val, StofParseError> {
     map(
         parse_vers,
         |vers| Val::Ver(vers.0, vers.1, vers.2, None, None)
     ).parse(input)
 }
-pub fn parse_semver_release(input: &str) -> IResult<&str, Val> {
+pub fn parse_semver_release(input: &str) -> IResult<&str, Val, StofParseError> {
     map(
         (
             parse_vers,
@@ -64,7 +64,7 @@ pub fn parse_semver_release(input: &str) -> IResult<&str, Val> {
         |(vers, rel)| Val::Ver(vers.0, vers.1, vers.2, Some(ArcStr::from(rel)), None)
     ).parse(input)
 }
-pub fn parse_semver_build(input: &str) -> IResult<&str, Val> {
+pub fn parse_semver_build(input: &str) -> IResult<&str, Val, StofParseError> {
     map(
         (
             parse_vers,
@@ -73,7 +73,7 @@ pub fn parse_semver_build(input: &str) -> IResult<&str, Val> {
         |(vers, build)| Val::Ver(vers.0, vers.1, vers.2, None, Some(ArcStr::from(build)))
     ).parse(input)
 }
-pub fn parse_semver_full(input: &str) -> IResult<&str, Val> {
+pub fn parse_semver_full(input: &str) -> IResult<&str, Val, StofParseError> {
     map(
         (
             parse_vers,
@@ -83,23 +83,23 @@ pub fn parse_semver_full(input: &str) -> IResult<&str, Val> {
         |(vers, rel, build)| Val::Ver(vers.0, vers.1, vers.2, Some(ArcStr::from(rel)), Some(ArcStr::from(build)))
     ).parse(input)
 }
-fn parse_vers(input: &str) -> IResult<&str, (i32, i32, i32)> {
+fn parse_vers(input: &str) -> IResult<&str, (i32, i32, i32), StofParseError> {
     (
         parse_ver,
         preceded(char('.'), parse_ver),
         preceded(char('.'), parse_ver),
     ).parse(input)
 }
-fn parse_ver(input: &str) -> IResult<&str, i32> {
+fn parse_ver(input: &str) -> IResult<&str, i32, StofParseError> {
     map_res(digit1, str::parse).parse(input)
 }
-fn parse_ver_release(input: &str) -> IResult<&str, &str> {
+fn parse_ver_release(input: &str) -> IResult<&str, &str, StofParseError> {
     preceded(
         char('-'),
         take_while(|c| AsChar::is_alphanum(c) || c == '-' || c == '.')
     ).parse(input)
 }
-fn parse_ver_build(input: &str) -> IResult<&str, &str> {
+fn parse_ver_build(input: &str) -> IResult<&str, &str, StofParseError> {
     preceded(
         char('+'),
         take_while(|c| AsChar::is_alphanum(c) || c == '-')

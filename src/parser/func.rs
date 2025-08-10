@@ -16,11 +16,11 @@
 
 use std::sync::Arc;
 use nom::{bytes::complete::tag, branch::alt, character::complete::{char, multispace0}, combinator::opt, multi::separated_list0, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{model::{Func, FuncDoc, Param, SId, ASYNC_FUNC_ATTR}, parser::{context::ParseContext, expr::expr, ident::ident, parse_attributes, statement::block, types::parse_type, whitespace::{doc_comment, whitespace}}, runtime::{instruction::Instruction, instructions::Base, Val}};
+use crate::{model::{Func, FuncDoc, Param, SId, ASYNC_FUNC_ATTR}, parser::{context::ParseContext, doc::{err_fail, StofParseError}, expr::expr, ident::ident, parse_attributes, statement::block, types::parse_type, whitespace::{doc_comment, whitespace}}, runtime::{instruction::Instruction, instructions::Base, Val}};
 
 
 /// Parse a function into a parse context.
-pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, ()> {
+pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, (), StofParseError> {
     let mut func = Func::default();
 
     // Doc comments & whitespace before a function definition
@@ -41,10 +41,11 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
         func.attributes.insert(ASYNC_FUNC_ATTR.to_string(), Val::Null);
     }
 
-    let (input, name) = preceded(tag("fn"), preceded(multispace0, ident)).parse(input)?;
-    let (input, params) = delimited(char('('), separated_list0(char(','), alt((parameter, opt_parameter))), char(')')).parse(input)?;
-    let (input, return_type) = opt(preceded(delimited(multispace0, tag("->"), multispace0), parse_type)).parse(input)?;
-    let (input, instructions) = block(input)?;
+    let (input, _) = tag("fn").parse(input)?;
+    let (input, name) = preceded(multispace0, ident).parse(input).map_err(err_fail)?;
+    let (input, params) = delimited(char('('), separated_list0(char(','), alt((parameter, opt_parameter))), char(')')).parse(input).map_err(err_fail)?;
+    let (input, return_type) = opt(preceded(delimited(multispace0, tag("->"), multispace0), parse_type)).parse(input).map_err(err_fail)?;
+    let (input, instructions) = block(input).map_err(err_fail)?;
 
     for param in params { func.params.push_back(param); }
     func.return_type = return_type.unwrap_or_default(); // default is void
@@ -78,7 +79,7 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
 
 
 /// Parse a function parameter.
-pub fn parameter(input: &str) -> IResult<&str, Param> {
+pub fn parameter(input: &str) -> IResult<&str, Param, StofParseError> {
     let (input, _) = multispace0(input)?;
     let (input, name) = ident(input)?;
     let (input, param_type) = preceded(preceded(multispace0, char(':')), preceded(multispace0, parse_type)).parse(input)?;
@@ -98,7 +99,7 @@ pub fn parameter(input: &str) -> IResult<&str, Param> {
 
 
 /// Parse an optional function parameter.
-pub fn opt_parameter(input: &str) -> IResult<&str, Param> {
+pub fn opt_parameter(input: &str) -> IResult<&str, Param, StofParseError> {
     let (input, _) = multispace0(input)?;
     let (input, name) = ident(input)?;
     let (input, param_type) = preceded(preceded(multispace0, tag("?:")), preceded(multispace0, parse_type)).parse(input)?;

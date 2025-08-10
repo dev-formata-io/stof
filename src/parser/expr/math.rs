@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::map, multi::many0, sequence::preceded, IResult, Parser};
-use crate::{parser::{expr::{await_expr, block_expr, fmt_str::formatted_string_expr, graph::graph_expr, list_expr, literal::literal_expr, map_expr, not_expr, set_expr, switch_expr, tup_expr, typename_expr, typeof_expr, wrapped_expr}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{ops::{Op, OpIns}, Base, NOOP}, Num, Val}};
+use crate::{parser::{doc::StofParseError, expr::{await_expr, block_expr, fmt_str::formatted_string_expr, graph::graph_expr, list_expr, literal::literal_expr, map_expr, not_expr, set_expr, switch_expr, tup_expr, typename_expr, typeof_expr, wrapped_expr}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{ops::{Op, OpIns}, Base, NOOP}, Num, Val}};
 
 
 /// Parse a math expr.
@@ -26,13 +26,13 @@ use crate::{parser::{expr::{await_expr, block_expr, fmt_str::formatted_string_ex
 /// Then multiplication, etc. (*, /, %) left to right.
 /// Then bitwise operations (|, &, ^, <<, >>) left to right.
 /// Then the prefixes on a primary expr (-, !).
-pub fn math_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub fn math_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = whitespace(input)?;
     logical(input)
 }
 
 /// Logical and and or (the highest level).
-pub(self) fn logical(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub(self) fn logical(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, mut lhs) = compare(input)?;
     let (input, ops) = many0(
         alt((
@@ -52,7 +52,7 @@ pub(self) fn logical(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 }
 
 /// Comparison operations.
-pub(self) fn compare(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub(self) fn compare(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, mut lhs) = add_sub(input)?;
     let (input, ops) = many0(
         alt((
@@ -84,7 +84,7 @@ pub(self) fn compare(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 }
 
 /// Add subtract.
-pub(self) fn add_sub(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub(self) fn add_sub(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, mut lhs) = mul_div(input)?;
     let (input, ops) = many0(
         alt((
@@ -104,7 +104,7 @@ pub(self) fn add_sub(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 }
 
 /// Multiply, divide, or mod.
-pub(self) fn mul_div(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub(self) fn mul_div(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, mut lhs) = bitwise(input)?;
     let (input, ops) = many0(
         alt((
@@ -127,7 +127,7 @@ pub(self) fn mul_div(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 }
 
 /// Bit and, or, xor, bshl, or bshr.
-pub(self) fn bitwise(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub(self) fn bitwise(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, mut lhs) = primary(input)?;
     let (input, ops) = many0(
         alt((
@@ -156,7 +156,7 @@ pub(self) fn bitwise(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 }
 
 /// Primary element in a math expr.
-fn primary(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+fn primary(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = multispace0(input)?;
     let (input, ins) = alt((
         atom,
@@ -169,7 +169,7 @@ fn primary(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 }
 
 /// Smallest instruction in a math expr.
-fn atom(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+fn atom(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     alt([
         await_expr,
         typename_expr,

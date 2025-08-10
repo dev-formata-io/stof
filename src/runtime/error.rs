@@ -17,7 +17,7 @@
 use std::fmt::Display;
 use arcstr::ArcStr;
 use serde::{Deserialize, Serialize};
-use crate::runtime::Val;
+use crate::{parser::doc::StofParseError, runtime::Val};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -34,7 +34,6 @@ pub enum Error {
     FormatStringExportNotImplemented(String),
     GraphFormatNotFound,
     RelativeImportWithoutContext,
-    ParseContextParseFailure(String),
     ImportOsStringError,
 
     JSONStringImport(String),
@@ -402,10 +401,13 @@ pub enum Error {
     AwaitError(Box<Self>),
 
     /*****************************************************************************
+     * Parse Errors.
+     *****************************************************************************/
+    ParseError(StofParseError),
+
+    /*****************************************************************************
      * Old.
      *****************************************************************************/
-    ParseFailure(String),
-
     Custom(ArcStr),
     NotImplemented,
 
@@ -456,6 +458,19 @@ pub enum Error {
 }
 impl Display for Error { // maps ToString and print to Debug
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        match self {
+            Self::ParseError(error) => {
+                let message;
+                if let Some(path) = &error.file_path {
+                    message = format!("{path}\n\t{}", &error.message);
+                } else {
+                    message = error.message.clone();
+                }
+                write!(f, "{message}")
+            },
+            _ => {
+                write!(f, "{:?}", self)
+            }
+        }
     }
 }

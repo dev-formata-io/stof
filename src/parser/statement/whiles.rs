@@ -18,11 +18,11 @@ use std::sync::Arc;
 use arcstr::ArcStr;
 use imbl::{vector, Vector};
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{parser::{expr::expr, ident::ident, statement::{noscope_block, statement}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{whiles::WhileIns, Base, BREAK_LOOP, CONTINUE_LOOP}, Val}};
+use crate::{parser::{doc::StofParseError, expr::expr, ident::ident, statement::{noscope_block, statement}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{whiles::WhileIns, Base, BREAK_LOOP, CONTINUE_LOOP}, Val}};
 
 
 /// While statement.
-pub fn while_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub fn while_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, _) = whitespace(input)?;
 
     let (input, loop_tag) = opt(terminated(preceded(char('^'), ident), multispace0)).parse(input)?;
@@ -49,7 +49,7 @@ pub fn while_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>
 
 
 /// Loop statement.
-pub fn loop_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub fn loop_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, _) = whitespace(input)?;
 
     let (input, loop_tag) = opt(terminated(preceded(char('^'), ident), multispace0)).parse(input)?;
@@ -76,7 +76,7 @@ pub fn loop_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>
 
 
 /// Continue statement.
-pub fn continue_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub fn continue_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, loop_tag) = preceded(terminated(tag("continue"), multispace0), opt(preceded(char('^'), ident))).parse(input)?;
 
@@ -92,7 +92,7 @@ pub fn continue_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instructi
 
 
 /// Break statement.
-pub fn break_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub fn break_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, loop_tag) = preceded(terminated(tag("break"), multispace0), opt(preceded(char('^'), ident))).parse(input)?;
 

@@ -18,7 +18,7 @@ use std::sync::Arc;
 use arcstr::literal;
 use imbl::vector;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, peek}, multi::{separated_list0, separated_list1}, sequence::{delimited, preceded, separated_pair, terminated}, IResult, Parser};
-use crate::{model::SId, parser::{expr::{fmt_str::formatted_string_expr, func::func_expr, graph::{call_expr, chained_var_func, graph_expr}, literal::literal_expr, math::math_expr, new_obj::new_obj_expr}, statement::{block, switch::switch_statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FuncCall, ifs::IfIns, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, nullcheck::NullcheckIns, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, Base, AWAIT, NOOP, NOT_TRUTHY, POP_RETURN, PUSH_RETURN, SUSPEND, TYPE_NAME, TYPE_OF}, Type, Val}};
+use crate::{model::SId, parser::{doc::StofParseError, expr::{fmt_str::formatted_string_expr, func::func_expr, graph::{call_expr, chained_var_func, graph_expr}, literal::literal_expr, math::math_expr, new_obj::new_obj_expr}, statement::{block, switch::switch_statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FuncCall, ifs::IfIns, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, nullcheck::NullcheckIns, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, Base, AWAIT, NOOP, NOT_TRUTHY, POP_RETURN, PUSH_RETURN, SUSPEND, TYPE_NAME, TYPE_OF}, Type, Val}};
 
 pub mod literal;
 pub mod math;
@@ -29,7 +29,7 @@ pub mod new_obj;
 
 
 /// Parse an expression.
-pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, mut ins) = alt([
         new_obj_expr,
         func_expr,
@@ -91,7 +91,7 @@ pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 
 /// Ternary operator.
 /// test_expr ? if_expr : else_expr
-fn ternary_operator(input: &str) -> IResult<&str, (Arc<dyn Instruction>, Arc<dyn Instruction>)> {
+fn ternary_operator(input: &str) -> IResult<&str, (Arc<dyn Instruction>, Arc<dyn Instruction>), StofParseError> {
     let (input, _) = delimited(multispace0, char('?'), multispace0).parse(input)?;
     let (input, if_expr) = terminated(expr, delimited(multispace0, char(':'), multispace0)).parse(input)?;
     let (input, else_expr) = expr(input)?;
@@ -100,7 +100,7 @@ fn ternary_operator(input: &str) -> IResult<&str, (Arc<dyn Instruction>, Arc<dyn
 
 
 /// Block expression.
-pub fn block_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub fn block_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, mut statements) = block(input)?;
     if statements.is_empty() { return Ok((input, NOOP.clone())); }
 
@@ -117,7 +117,7 @@ pub fn block_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 
 
 /// Switch expression.
-pub fn switch_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub fn switch_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, mut statements) = switch_statement(input)?;
     if statements.is_empty() { return Ok((input, NOOP.clone())); }
 
@@ -134,7 +134,7 @@ pub fn switch_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 
 
 /// List contructor expression.
-pub fn list_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub fn list_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, exprs) = delimited(
         char('['),
@@ -165,7 +165,7 @@ pub fn list_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 
 
 /// Tuple contructor expression.
-pub fn tup_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub fn tup_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, exprs) = delimited(
         char('('),
@@ -177,10 +177,7 @@ pub fn tup_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
     ).parse(input)?;
 
     if exprs.len() < 2 {
-        return Err(nom::Err::Error(nom::error::Error {
-            input: "a tuple requires at least 2 values",
-            code: nom::error::ErrorKind::Count
-        }));
+        return Err(nom::Err::Error(StofParseError::from(format!("tuple constructor requires at least 2 values"))));
     }
 
     // Optional chained calls here
@@ -203,7 +200,7 @@ pub fn tup_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 
 
 /// Set contructor expression.
-pub fn set_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub fn set_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, exprs) = delimited(
         char('{'),
@@ -234,7 +231,7 @@ pub fn set_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 
 
 /// Map contructor expression.
-pub fn map_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub fn map_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, exprs) = delimited(
         char('{'),
@@ -265,7 +262,7 @@ pub fn map_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 
 
 /// Await expression.
-pub fn await_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub fn await_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, ins) = preceded(tag("await"), expr).parse(input)?;
     
@@ -279,7 +276,7 @@ pub fn await_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 
 /// Async expression.
 /// Spawns a new process with an expr.
-pub fn async_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub fn async_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, ins) = preceded(tag("async"), expr).parse(input)?;
 
@@ -293,7 +290,7 @@ pub fn async_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 
 
 /// Wrapped expression.
-pub fn wrapped_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub fn wrapped_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, mut ins) = delimited(char('('), delimited(multispace0, expr, multispace0), char(')')).parse(input)?;
     let (mut input, additional) = opt(preceded(char('.'), separated_list1(char('.'), chained_var_func))).parse(input)?;
@@ -331,7 +328,7 @@ pub fn wrapped_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 
 
 /// Not expression.
-pub fn not_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub fn not_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, ins) = preceded(char('!'), expr).parse(input)?;
     
@@ -344,7 +341,7 @@ pub fn not_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 
 
 /// TypeOf expression.
-pub fn typeof_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub fn typeof_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, ins) = preceded(tag("typeof"), expr).parse(input)?;
 
@@ -358,7 +355,7 @@ pub fn typeof_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
 
 /// TypeName expression.
 /// A specific type instead of a general one Ex. "MyObj" instead of "obj"
-pub fn typename_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>> {
+pub fn typename_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, ins) = preceded(tag("typename"), expr).parse(input)?;
 

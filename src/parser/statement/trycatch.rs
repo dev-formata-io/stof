@@ -18,11 +18,11 @@ use std::sync::Arc;
 use arcstr::ArcStr;
 use imbl::{vector, Vector};
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded}, IResult, Parser};
-use crate::{model::{Param, SId}, parser::{ident::ident, statement::{block, statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{trycatch::TryCatchIns, Base, POP_STACK}, Type}};
+use crate::{model::{Param, SId}, parser::{doc::StofParseError, ident::ident, statement::{block, statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{trycatch::TryCatchIns, Base, POP_STACK}, Type}};
 
 
 /// Try catch statement.
-pub fn try_catch_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub fn try_catch_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, _) = whitespace(input)?;
 
     // Try instructions
@@ -53,7 +53,7 @@ pub fn try_catch_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruct
 
 
 /// Parse catch parameter.
-fn error_parameter(input: &str) -> IResult<&str, Param> {
+fn error_parameter(input: &str) -> IResult<&str, Param, StofParseError> {
     let (input, _) = multispace0(input)?;
     let (input, name) = ident(input)?;
     let (input, param_type) = opt(preceded(preceded(multispace0, char(':')), preceded(multispace0, parse_type))).parse(input)?;

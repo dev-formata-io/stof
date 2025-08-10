@@ -14,12 +14,12 @@
 // limitations under the License.
 //
 
-use nom::{branch::alt, bytes::complete::{escaped_transform, tag, take_until}, character::complete::{char, none_of}, combinator::{into, map, opt, value}, sequence::delimited, IResult, Parser};
-use crate::{parser::whitespace::whitespace, runtime::Val};
+use nom::{branch::alt, bytes::complete::{escaped_transform, tag, take_until}, character::complete::{char, none_of}, combinator::{map, opt, value}, sequence::delimited, IResult, Parser};
+use crate::{parser::{doc::StofParseError, whitespace::whitespace}, runtime::Val};
 
 
 /// Parse a string literal value.
-pub fn string(input: &str) -> IResult<&str, Val> {
+pub fn string(input: &str) -> IResult<&str, Val, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, out) = alt((
         raw_double_string,
@@ -31,12 +31,13 @@ pub fn string(input: &str) -> IResult<&str, Val> {
 
 /// Parse a raw double quoted string with escape chars.
 /// Returns everything inside a r#"..."#
-pub(self) fn raw_double_string(input: &str) -> IResult<&str, String> {
-    into(delimited(tag("r#\""), take_until("\"#"), tag("\"#"))).parse(input)
+pub(self) fn raw_double_string(input: &str) -> IResult<&str, String, StofParseError> {
+    let (input, res) = delimited(tag("r#\""), take_until("\"#"), tag("\"#")).parse(input)?;
+    Ok((input, res.into()))
 }
 
 /// Parse a double quoted string.
-pub fn double_string(input: &str) -> IResult<&str, String> {
+pub fn double_string(input: &str) -> IResult<&str, String, StofParseError> {
     let normal = none_of("\"\\"); // everything but backslash or double quote
     let inner = escaped_transform(normal, '\\', alt((
         value("\\", tag("\\")),
@@ -49,7 +50,7 @@ pub fn double_string(input: &str) -> IResult<&str, String> {
 }
 
 /// Parse a single quoted string.
-pub fn single_string(input: &str) -> IResult<&str, String> {
+pub fn single_string(input: &str) -> IResult<&str, String, StofParseError> {
     let normal = none_of("'\\"); // everything but backslash or double quote
     let inner = escaped_transform(normal, '\\', alt((
         value("\\", tag("\\")),

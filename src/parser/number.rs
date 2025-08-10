@@ -15,11 +15,11 @@
 //
 
 use nom::{branch::alt, bytes::complete::{tag, take_while1}, character::complete::one_of, combinator::{opt, recognize, value}, multi::{many0, many1}, IResult, Parser};
-use crate::{parser::whitespace::whitespace, runtime::{Num, Units, Val}};
+use crate::{parser::{doc::StofParseError, whitespace::whitespace}, runtime::{Num, Units, Val}};
 
 
 /// Parse a number value (consumes whitespace up front).
-pub fn number(input: &str) -> IResult<&str, Val> {
+pub fn number(input: &str) -> IResult<&str, Val, StofParseError> {
     let (input , _) = whitespace(input)?;
     let input = input.trim_start_matches("+");
 
@@ -96,7 +96,7 @@ pub fn number(input: &str) -> IResult<&str, Val> {
 }
 
 // Parse optional units.
-fn units(input: &str) -> IResult<&str, Option<Units>> {
+fn units(input: &str) -> IResult<&str, Option<Units>, StofParseError> {
     opt(
         alt([
             value(Units::Radians, alt((tag("radians"), tag("rad")))),

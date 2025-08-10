@@ -14,9 +14,10 @@
 // limitations under the License.
 //
 
+use colored::Colorize;
 use nom::{bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded}, IResult, Parser};
 use rustc_hash::FxHashMap;
-use crate::{parser::{context::ParseContext, expr::expr, ident::ident, whitespace::whitespace}, runtime::Val};
+use crate::{parser::{context::ParseContext, doc::{err_fail, StofParseError}, expr::expr, ident::ident, whitespace::whitespace}, runtime::Val};
 
 
 pub mod semver;
@@ -37,7 +38,7 @@ pub mod import;
 
 
 /// Parse attributes.
-pub(self) fn parse_attributes<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, FxHashMap<String, Val>> {
+pub(self) fn parse_attributes<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, FxHashMap<String, Val>, StofParseError> {
     let mut map = FxHashMap::default();
     let mut input = input;
     loop {
@@ -67,21 +68,22 @@ pub(self) fn parse_attributes<'a>(input: &'a str, context: &mut ParseContext) ->
 
 
 /// Parse attribute.
-pub(self) fn parse_attribute<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, (String, Val)> {
+pub(self) fn parse_attribute<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, (String, Val), StofParseError> {
     let (input, _) = whitespace(input)?;
-    let (input, name) = preceded(tag("#["), preceded(multispace0, ident)).parse(input)?;
-    let (input, value_expr) = opt(delimited(char('('), expr, char(')'))).parse(input)?;
-    let (input, _) = preceded(multispace0, char(']')).parse(input)?;
+    let (input, _) = tag("#[").parse(input)?;
+    let (input, name) = preceded(multispace0, ident).parse(input).map_err(err_fail)?;
+    let (input, value_expr) = opt(delimited(char('('), expr, char(')'))).parse(input).map_err(err_fail)?;
+    let (input, _) = preceded(multispace0, char(']')).parse(input).map_err(err_fail)?;
 
     let mut val = Val::Null;
     if let Some(expr) = value_expr {
-        if let Ok(res) = context.eval(expr) {
-            val = res;
-        } else {
-            return Err(nom::Err::Failure(nom::error::Error{
-                input: "failed to evaluate expression within attribute",
-                code: nom::error::ErrorKind::Fail
-            }));
+        match context.eval(expr) {
+            Ok(res) => {
+                val = res;
+            },
+            Err(error) => {
+                return Err(nom::Err::Failure(StofParseError::from(format!("{} '{name}' errored with {}", "attribute eval error:".dimmed(), error.to_string()))));
+            }
         }
     }
     Ok((input, (String::from(name), val)))

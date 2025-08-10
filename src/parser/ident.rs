@@ -15,11 +15,12 @@
 //
 
 use nom::{bytes::complete::take_while1, combinator::{opt, recognize}, AsChar, IResult, Parser};
+use crate::parser::doc::StofParseError;
 
 
 /// Parse an identifier.
 /// Identifiers are used as function names, field names, variable names, etc.
-pub fn ident(input: &str) -> IResult<&str, &str> {
+pub fn ident(input: &str) -> IResult<&str, &str, StofParseError> {
     recognize(
 (
             take_while1(|c| AsChar::is_alpha(c) || c == '_' || c == '@' || c == '<'),
@@ -31,7 +32,7 @@ pub fn ident(input: &str) -> IResult<&str, &str> {
 
 /// Parse an identifier.
 /// Identifiers are used as function names, field names, variable names, etc.
-pub fn ident_type(input: &str) -> IResult<&str, &str> {
+pub fn ident_type(input: &str) -> IResult<&str, &str, StofParseError> {
     recognize(
 (
             take_while1(|c| AsChar::is_alpha(c) || c == '_' || c == '@'),

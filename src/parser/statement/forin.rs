@@ -18,12 +18,12 @@ use std::sync::Arc;
 use arcstr::{literal, ArcStr};
 use imbl::{vector, Vector};
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{model::stof_std::COPY, parser::{expr::expr, ident::ident, statement::{noscope_block, statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FuncCall, ops::{Op, OpIns}, whiles::WhileIns, Base}, Num, NumT, Type, Val}};
+use crate::{model::stof_std::COPY, parser::{doc::StofParseError, expr::expr, ident::ident, statement::{noscope_block, statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FuncCall, ops::{Op, OpIns}, whiles::WhileIns, Base}, Num, NumT, Type, Val}};
 
 
 /// For in loop.
 /// for (const x: int in thing) {}
-pub fn for_in_loop(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub fn for_in_loop(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, _) = whitespace(input)?;
 
     let (input, loop_tag) = opt(terminated(preceded(char('^'), ident), multispace0)).parse(input)?;
@@ -135,7 +135,7 @@ pub fn for_in_loop(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
 }
 
 /// Inner info.
-fn inner_loop(input: &str) -> IResult<&str, LoopInner> {
+fn inner_loop(input: &str) -> IResult<&str, LoopInner, StofParseError> {
     alt((const_var_in, var_in)).parse(input)
 }
 
@@ -148,7 +148,7 @@ struct LoopInner {
 }
 
 /// Const var in.
-fn const_var_in(input: &str) -> IResult<&str, LoopInner> {
+fn const_var_in(input: &str) -> IResult<&str, LoopInner, StofParseError> {
     let (input, _) = multispace0(input)?;
     let (input, varname) = preceded(tag("const"), preceded(multispace0, ident)).parse(input)?;
     let (input, typed) = opt(preceded(multispace0, preceded(char(':'), parse_type))).parse(input)?;
@@ -159,7 +159,7 @@ fn const_var_in(input: &str) -> IResult<&str, LoopInner> {
 }
 
 /// Var in.
-fn var_in(input: &str) -> IResult<&str, LoopInner> {
+fn var_in(input: &str) -> IResult<&str, LoopInner, StofParseError> {
     let (input, _) = multispace0(input)?;
     let (input, varname) = preceded(tag("let"), preceded(multispace0, ident)).parse(input)?;
     let (input, typed) = opt(preceded(multispace0, preceded(char(':'), parse_type))).parse(input)?;

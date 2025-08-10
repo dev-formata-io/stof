@@ -14,12 +14,13 @@
 // limitations under the License.
 //
 
+use colored::Colorize;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, recognize}, multi::separated_list1, sequence::{delimited, preceded}, IResult, Parser};
-use crate::{model::{SELF_KEYWORD, SUPER_KEYWORD}, parser::{context::ParseContext, ident::ident, string::{double_string, single_string}, whitespace::whitespace}};
+use crate::{model::{SELF_KEYWORD, SUPER_KEYWORD}, parser::{context::ParseContext, doc::StofParseError, ident::ident, string::{double_string, single_string}, whitespace::whitespace}};
 
 
 /// Parse an import statement into a graph.
-pub fn import<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, ()> {
+pub fn import<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, (), StofParseError> {
     let (input, (format, path, scope)) = parse_import(input)?;
 
     let mut start = None;
@@ -32,19 +33,15 @@ pub fn import<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str
         Ok(_) => {
             Ok((input, ()))
         },
-        Err(error) => { // TODO
-            println!("{error:?}");
-            return Err(nom::Err::Failure(nom::error::Error {
-                input: "failed to import data",
-                code: nom::error::ErrorKind::Fail
-            }));
+        Err(error) => {
+            return Err(nom::Err::Failure(StofParseError::from(format!("{} {}", "import:".dimmed(), error.to_string()))))
         }
     }
 }
 
 
 /// Parse an import statement (format, path, scope).
-pub(self) fn parse_import(input: &str) -> IResult<&str, (String, String, String)> {
+pub(self) fn parse_import(input: &str) -> IResult<&str, (String, String, String), StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, _) = tag("import").parse(input)?;
     let (input, format) = opt(preceded(multispace0, ident)).parse(input)?;

@@ -17,11 +17,11 @@
 use std::sync::Arc;
 use imbl::Vector;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded}, IResult, Parser};
-use crate::{parser::{expr::expr, ident::ident, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::Base, Type, Val}};
+use crate::{parser::{doc::StofParseError, expr::expr, ident::ident, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::Base, Type, Val}};
 
 
 /// Declare a variable.
-pub fn declare_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub fn declare_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, _) = whitespace(input)?;
     alt((declare_const_var, declare_mut_var, declare_null_var)).parse(input)
 }
@@ -29,7 +29,7 @@ pub fn declare_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instructio
 
 /// Mutable variable declaration.
 /// let var: int = 45
-pub(self) fn declare_mut_var(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub(self) fn declare_mut_var(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, varname) = delimited(tag("let"), preceded(multispace0, ident), multispace0).parse(input)?;
     let (input, cast_type) = opt(preceded(char(':'), parse_type)).parse(input)?; 
     let (input, _) = delimited(multispace0, char('='), multispace0).parse(input)?;
@@ -49,7 +49,7 @@ pub(self) fn declare_mut_var(input: &str) -> IResult<&str, Vector<Arc<dyn Instru
 
 /// Const variable declaration.
 /// const var: int = 45
-pub(self) fn declare_const_var(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub(self) fn declare_const_var(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, varname) = delimited(tag("const"), preceded(multispace0, ident), multispace0).parse(input)?;
     let (input, cast_type) = opt(preceded(char(':'), parse_type)).parse(input)?; 
     let (input, _) = delimited(multispace0, char('='), multispace0).parse(input)?;
@@ -69,7 +69,7 @@ pub(self) fn declare_const_var(input: &str) -> IResult<&str, Vector<Arc<dyn Inst
 
 /// Mutable empty var declaration (initialized to null).
 /// let var;
-pub(self) fn declare_null_var(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>> {
+pub(self) fn declare_null_var(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, varname) = delimited(tag("let"), preceded(multispace0, ident), multispace0).parse(input)?;
     let (input, cast_type) = opt(preceded(char(':'), parse_type)).parse(input)?; 
 

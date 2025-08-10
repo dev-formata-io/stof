@@ -73,10 +73,17 @@ impl<'ctx> ParseContext<'ctx> {
         if let Some(format_impl) = self.graph.get_format(format) {
             match format_impl.parser_import(format, &path, self) {
                 Ok(_) => {},
-                Err(error) => {
+                Err(mut error) => {
                     self.pop_relative_import_stack();
                     self.pop_self();
-                    return Err(Error::ParseContextParseFailure(error.to_string()));
+
+                    match &mut error {
+                        Error::ParseError(error) => {
+                            error.file_path = Some(path);
+                        },
+                        _ => {}
+                    }
+                    return Err(error);
                 }
             }
         }
