@@ -26,6 +26,7 @@ use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, in
 /// Try Catch instructions.
 pub struct TryCatchIns {
     pub try_ins: Vector<Arc<dyn Instruction>>,
+    pub err_ins: Vector<Arc<dyn Instruction>>,
     pub catch_ins: Vector<Arc<dyn Instruction>>,
 }
 #[typetag::serde(name = "TryCatchIns")]
@@ -41,8 +42,9 @@ impl Instruction for TryCatchIns {
 
         instructions.push(Arc::new(Base::CtrlForwardTo(end_tag.clone())));
         instructions.push(Arc::new(Base::Tag(catch_tag))); // now theres an error on the stack!
+        instructions.append(&self.err_ins);
+        instructions.push(Arc::new(Base::PopUntilStackCount(size)));
         instructions.append(&self.catch_ins);
-        instructions.push(Arc::new(Base::PopUntilStackCount(size))); // after catch ins to get proper errors...
 
         instructions.push(Arc::new(Base::Tag(end_tag)));
         instructions.push(END_TRY.clone()); // de-increment the try count.

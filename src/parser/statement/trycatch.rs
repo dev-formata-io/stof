@@ -35,20 +35,22 @@ pub fn try_catch_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruct
     // Catch instructions
     let (input, _) = delimited(multispace0, tag("catch"), multispace0).parse(input)?;
     let (input, error_param) = opt(delimited(char('('), error_parameter, char(')'))).parse(input)?;
-    let (input, mut catch_ins) = alt((
+    let (input, catch_ins) = alt((
         block,
         statement
     )).parse(input)?;
+
+    let mut err_ins = vector![];
     if let Some(error_param) = error_param {
         // declare const variable that is the error (type irrelivant)
-        catch_ins.push_front(Arc::new(Base::DeclareConstVar(ArcStr::from(error_param.name.as_ref()), error_param.param_type.clone())));
-        catch_ins.push_front(Arc::new(Base::Cast(error_param.param_type)));
+        err_ins.push_back(Arc::new(Base::Cast(error_param.param_type.clone())) as Arc<dyn Instruction>);
+        err_ins.push_back(Arc::new(Base::DeclareConstVar(ArcStr::from(error_param.name.as_ref()), error_param.param_type)));
     } else {
         // pop error from stack
-        catch_ins.push_front(POP_STACK.clone());
+        err_ins.push_back(POP_STACK.clone() as Arc<dyn Instruction>);
     }
 
-    Ok((input, vector![Arc::new(TryCatchIns { try_ins, catch_ins }) as Arc<dyn Instruction>]))
+    Ok((input, vector![Arc::new(TryCatchIns { try_ins, err_ins, catch_ins }) as Arc<dyn Instruction>]))
 }
 
 
