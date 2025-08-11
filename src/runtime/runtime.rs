@@ -286,6 +286,98 @@ impl Runtime {
 
 
     /*****************************************************************************
+     * Run.
+     *****************************************************************************/
+    
+    /// Run every #[main] function within this graph.
+    /// If throw is false, this will only return Ok.
+    pub fn run(graph: &mut Graph, context: Option<String>, throw: bool) -> Result<String, String> {
+        let mut rt = Self::default();
+        for func_ref in Func::main_functions(&graph) {
+            if let Some(context) = &context {
+                for node in func_ref.data_nodes(&graph) {
+                    if let Some(node_path) = node.node_path(&graph, true) {
+                        let path = node_path.join(".");
+                        if path.contains(context) {
+                            let instruction = Arc::new(FuncCall {
+                                as_ref: false,
+                                stack: false,
+                                func: Some(func_ref),
+                                search: None,
+                                args: Default::default(),
+                            }) as Arc<dyn Instruction>;
+                            let proc = Process::from(instruction);
+                            rt.push_running_proc(proc, graph);
+                            break;
+                        }
+                    }
+                }
+            } else {
+                let instruction = Arc::new(FuncCall {
+                    as_ref: false,
+                    stack: false,
+                    func: Some(func_ref),
+                    search: None,
+                    args: Default::default(),
+                }) as Arc<dyn Instruction>;
+                let proc = Process::from(instruction);
+                rt.push_running_proc(proc, graph);
+            }
+        }
+
+        rt.run_to_complete(graph);
+        let mut output = String::from("");
+        for (_, success) in &rt.done {
+            if success.env.call_stack.len() < 1 && success.instructions.executed.len() > 0 {
+                let func = success.instructions.executed[0].clone();
+                if let Some(func) = func.as_dyn_any().downcast_ref::<Base>() {
+                    match func {
+                        Base::Literal(val) => {
+                            if let Some(func_ref) = val.try_func() {
+                                if let Some(name) = func_ref.data_name(graph) {
+                                    let mut func_path = String::from("<unknown>");
+                                    for node in func_ref.data_nodes(graph) {
+                                        func_path = node.node_path(graph, true).unwrap().join(".");
+                                    }
+                                    // Only print something if there's a result
+                                    if let Some(res) = &success.result {
+                                        let suc_str = res.val.read().print(&graph);
+                                        let msg = format!("{} {} {} {} {}\n", "main".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), suc_str.bold().bright_cyan());
+                                        if output.len() < 1 { output.push('\n'); }
+                                        output.push_str(&msg);
+                                    }
+                                }
+                            }
+                        },
+                        _ => {}
+                    }
+                }
+            }
+        }
+        for (_, errored) in &rt.errored {
+            if errored.env.call_stack.len() > 0 {
+                let func_ref = errored.env.call_stack.first().unwrap();
+                if let Some(name) = func_ref.data_name(graph) {
+                    let mut func_path = String::from("<unknown>");
+                    for node in func_ref.data_nodes(graph) {
+                        func_path = node.node_path(graph, true).unwrap().join(".");
+                    }
+                    let err_str = errored.trace(graph, 10);
+                    let msg = format!("{} {} {} {} {} {}\n{}\n", "main".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "failed".bold().red(), "@".dimmed(), err_str.bold().bright_cyan());
+                    output.push_str(&msg);
+                }
+            }
+        }
+
+        if throw && rt.errored.len() > 0 {
+            Err(output)
+        } else {
+            Ok(output)
+        }
+    }
+
+
+    /*****************************************************************************
      * Test.
      *****************************************************************************/
     

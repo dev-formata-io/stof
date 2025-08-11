@@ -1203,6 +1203,12 @@ impl Graph {
     pub fn test(&mut self, context: Option<String>, throw: bool) -> Result<String, String> {
         Runtime::test(self, context, throw)
     }
+
+    #[inline]
+    /// Run this graph, calling all #[main] functions, optionally resulting in an Err or always Ok.
+    pub fn run(&mut self, context: Option<String>, throw: bool) -> Result<String, String> {
+        Runtime::run(self, context, throw)
+    }
 }
 
 
