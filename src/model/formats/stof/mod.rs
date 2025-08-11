@@ -153,4 +153,15 @@ mod tests {
             Err(err) => panic!("{err}")
         }
     }
+
+    #[test]
+    fn stof_docs() {
+        let mut graph = Graph::default();
+        graph.insert_lib_docs();
+
+        // For testing purposes, document the test suite...
+        //graph.parse_stof_file("stof", "src/model/formats/stof/tests/tests.stof", None, true).unwrap();
+
+        graph.docs("src/model/formats/stof/docs", None).unwrap();
+    }
 }

@@ -20,7 +20,7 @@ use bytes::Bytes;
 use colored::Colorize;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{blob::insert_blob_lib, filesys::fs_library, http::insert_http_lib, insert_image_library, insert_pdf_library, libraries::{data::insert_data_lib, function::insert_fn_lib}, list::insert_list_lib, load_image_formats, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, time::insert_time_lib, tup::insert_tup_lib, ver::insert_semver_lib, BstfFormat, BytesFormat, Data, DataRef, DocxFormat, Format, JsonFormat, LibFunc, MdFormat, Node, NodeRef, PdfFormat, SId, SPath, StofData, StofFormat, StofPackageFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, INVALID_NODE_NEW}, parser::context::ParseContext, runtime::{table::SymbolTable, Error, Runtime, Val}};
+use crate::{model::{blob::insert_blob_lib, filesys::fs_library, http::insert_http_lib, insert_image_library, insert_pdf_library, libraries::{data::insert_data_lib, function::insert_fn_lib}, libs::insert_lib_documentation, list::insert_list_lib, load_image_formats, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, time::insert_time_lib, tup::insert_tup_lib, ver::insert_semver_lib, BstfFormat, BytesFormat, Data, DataRef, DocxFormat, Format, JsonFormat, LibFunc, MdDocsFormat, MdFormat, Node, NodeRef, PdfFormat, SId, SPath, StofData, StofFormat, StofPackageFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, INVALID_NODE_NEW}, parser::context::ParseContext, runtime::{table::SymbolTable, Error, Runtime, Val}};
 
 
 /// Root node name.
@@ -46,6 +46,8 @@ pub struct Graph {
     pub formats: FxHashMap<String, Arc<dyn Format>>,
 
     #[serde(skip)]
+    pub libdocs: FxHashMap<ArcStr, String>,
+    #[serde(skip)]
     pub libfuncs: FxHashMap<ArcStr, FxHashMap<String, LibFunc>>,
 }
 impl Default for Graph {
@@ -59,6 +61,7 @@ impl Default for Graph {
             node_deadpool: Default::default(),
             data_deadpool: Default::default(),
             formats: Default::default(),
+            libdocs: Default::default(),
             libfuncs: Default::default(),
         };
         graph.load_std_formats();
@@ -196,6 +199,17 @@ impl Graph {
         // Data libs
         insert_pdf_library(self);
         insert_image_library(self);
+    }
+
+    /// Insert library documentation.
+    pub fn insert_lib_docs(&mut self) {
+        insert_lib_documentation(self);
+    }
+
+    #[inline]
+    /// Insert library docs.
+    pub fn insert_libdoc(&mut self, lib: ArcStr, docs: String) {
+        self.libdocs.insert(lib, docs);
     }
     
     /// Insert a library function to this graph.
@@ -1024,6 +1038,7 @@ impl Graph {
     pub fn load_std_formats(&mut self) {
         self.load_format(Arc::new(StofFormat{}));
         self.load_format(Arc::new(BstfFormat{}));
+        self.load_format(Arc::new(MdDocsFormat{}));
         self.load_format(Arc::new(JsonFormat{}));
         self.load_format(Arc::new(TomlFormat{}));
         self.load_format(Arc::new(YamlFormat{}));
@@ -1159,6 +1174,16 @@ impl Graph {
         }
     }
 
+    /// File export from this graph, using a loaded format.
+    pub fn file_export(&self, format: &str, path: &str, node: Option<NodeRef>) -> Result<(), Error> {
+        let id = format;
+        if let Some(format) = self.get_format(id) {
+            format.file_export(self, id, path, node)
+        } else {
+            Err(Error::GraphFormatNotFound)
+        }
+    }
+
 
     /*****************************************************************************
      * Stof Language.
@@ -1208,6 +1233,12 @@ impl Graph {
     /// Run this graph, calling all #[main] functions, optionally resulting in an Err or always Ok.
     pub fn run(&mut self, context: Option<String>, throw: bool) -> Result<String, String> {
         Runtime::run(self, context, throw)
+    }
+
+    #[inline]
+    /// Use the "docs" format to export this graphs documentation to the requested directory.
+    pub fn docs(&self, path: &str, node: Option<NodeRef>) -> Result<(), Error> {
+        self.file_export("docs", path, node)
     }
 }
 

@@ -29,7 +29,9 @@ pub enum Error {
      *****************************************************************************/
     FormatStringImportNotImplemented(String),
     FormatFileImportFsError(String),
+    FormatFileExportFsError(String),
     FormatFileImportNotAllowed,
+    FormatFileExportNotAllowed,
     FormatBinaryImportUtf8Error,
     FormatStringExportNotImplemented(String),
     GraphFormatNotFound,

@@ -77,6 +77,20 @@ impl StofData for FieldDoc {
         return true;
     }
 }
+impl FieldDoc {
+    /// Field docs on a node.
+    pub fn docs(graph: &Graph, node: &NodeRef) -> FxHashMap<DataRef, String> {
+        let mut docs = FxHashMap::default();
+        if let Some(node) = node.node(graph) {
+            for (_, dref) in &node.data {
+                if let Some(doc) = graph.get_stof_data::<Self>(dref) {
+                    docs.insert(doc.field.clone(), doc.docs.clone());
+                }
+            }
+        }
+        docs
+    }
+}
 
 impl Field {
     /// Create a new field.

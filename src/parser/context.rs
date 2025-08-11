@@ -309,6 +309,12 @@ impl<'ctx> ParseContext<'ctx> {
 
 impl<'ctx> Drop for ParseContext<'ctx> {
     fn drop(&mut self) {
+        // If we parsed docs, instruct the graph to insert library documentation
+        if self.docs {
+            self.graph.insert_lib_docs();
+        }
+
+        // Call all init functions that were parsed
         if self.init_funcs.len() > 0 {
             for init in self.init_funcs.clone() {
                 let ins: Arc<dyn Instruction> = Arc::new(FuncCall {

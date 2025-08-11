@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::fs;
+use std::{fs, path::PathBuf};
 use bytes::Bytes;
 use crate::{model::{filesys::FS_LIB, Graph, NodeRef}, parser::context::ParseContext, runtime::Error};
 
@@ -49,6 +49,48 @@ pub trait Format: std::fmt::Debug + Send + Sync {
             }
         }
         Err(Error::FormatFileImportNotAllowed)
+    }
+
+    #[allow(unused)]
+    /// File export.
+    /// Try exporting a string (binary if failed) and write the output to a file located at 'path'.
+    fn file_export(&self, graph: &Graph, format: &str, path: &str, node: Option<NodeRef>) -> Result<(), Error> {
+        if let Some(_lib) = graph.libfunc(&FS_LIB, "write") {
+            // make sure a directory exists at the requested path before writing to it
+            let buf = PathBuf::from(path);
+            if let Some(path) = buf.parent() {
+                let _ = fs::create_dir_all(path);
+            }
+
+            match self.string_export(graph, format, node.clone()) {
+                Ok(exp_str) => {
+                    match fs::write(path, exp_str) {
+                        Ok(_) => {
+                            return Ok(());
+                        },
+                        Err(err) => {
+                            return Err(Error::FormatFileExportFsError(err.to_string()));
+                        }
+                    }
+                },
+                Err(_) => {
+                    match self.binary_export(graph, format, node) {
+                        Ok(exp_bytes) => {
+                            match fs::write(path, exp_bytes) {
+                                Ok(_) => {
+                                    return Ok(());
+                                },
+                                Err(err) => {
+                                    return Err(Error::FormatFileExportFsError(err.to_string()));        
+                                }
+                            }
+                        },
+                        Err(_) => {}
+                    }
+                }
+            }
+        }
+        Err(Error::FormatFileExportNotAllowed)
     }
 
     /// Binary import.

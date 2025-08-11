@@ -17,6 +17,9 @@
 pub mod format;
 pub use format::*;
 
+pub mod docs;
+pub use docs::*;
+
 pub mod json;
 pub use json::*;
 

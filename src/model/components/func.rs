@@ -49,6 +49,20 @@ pub struct FuncDoc {
     pub func: DataRef,
     pub docs: String,
 }
+impl FuncDoc {
+    /// Func docs on a node.
+    pub fn docs(graph: &Graph, node: &NodeRef) -> FxHashMap<DataRef, String> {
+        let mut docs = FxHashMap::default();
+        if let Some(node) = node.node(graph) {
+            for (_, dref) in &node.data {
+                if let Some(doc) = graph.get_stof_data::<Self>(dref) {
+                    docs.insert(doc.func.clone(), doc.docs.clone());
+                }
+            }
+        }
+        docs
+    }
+}
 
 #[typetag::serde(name = "_Func")]
 impl StofData for Func {

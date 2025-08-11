@@ -25,7 +25,7 @@ pub mod prototype;
 pub use prototype::*;
 
 use serde::{Deserialize, Serialize};
-use crate::model::StofData;
+use crate::model::{Graph, NodeRef, StofData};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,5 +36,19 @@ pub struct InnerDoc {
 impl StofData for InnerDoc {
     fn core_data(&self) -> bool {
         return true;
+    }
+}
+impl InnerDoc {
+    /// Inner docs on a node.
+    pub fn docs(graph: &Graph, node: &NodeRef) -> String {
+        let mut docs = Vec::new();
+        if let Some(node) = node.node(graph) {
+            for (_, dref) in &node.data {
+                if let Some(doc) = graph.get_stof_data::<Self>(dref) {
+                    docs.push(doc.docs.clone());
+                }
+            }
+        }
+        docs.join("\n\n")
     }
 }

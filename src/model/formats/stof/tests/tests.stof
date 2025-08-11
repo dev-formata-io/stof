@@ -16,7 +16,8 @@
 
 
 /*!
- * This is the Stof test suite.
+ * # Stof Test Suite
+ * This object contains all of the stof tests for the Stof libraries, language, and formats.
  */
 
 import './lang/mod' as self.Lang;
