@@ -25,7 +25,12 @@ pub fn num_abs() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "abs".into(),
         is_async: false,
-        docs: "# Absolute Value\nReturn the absolute value of a number.".into(),
+        docs: r#"# Num.abs(val: int | float) -> int | float
+Return the absolute value of the given number.
+```rust
+const v = -2;
+assert_eq(v.abs(), 2);
+```"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -46,7 +51,12 @@ pub fn num_sqrt() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "sqrt".into(),
         is_async: false,
-        docs: "# Square Root\nReturn the square root of a number.".into(),
+        docs: r#"# Num.sqrt(val: int | float) -> float
+Return the square root of a number.
+```rust
+const v = 4;
+assert_eq(v.sqrt(), 2);
+```"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -67,7 +77,12 @@ pub fn num_cbrt() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "cbrt".into(),
         is_async: false,
-        docs: "# Cube Root\nReturn the cube root of a number.".into(),
+        docs: r#"# Num.cbrt(val: int | float) -> float
+Return the cube root of a number.
+```rust
+const v = 8;
+assert_eq(v.cbrt(), 2);
+```"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -88,7 +103,12 @@ pub fn num_floor() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "floor".into(),
         is_async: false,
-        docs: "# Floor\nReturn the largest integer less than or equal to self.".into(),
+        docs: r#"# Num.floor(val: int | float) -> int | float
+Return the largest integer less than or equal to the given value.
+```rust
+const v = 2.4;
+assert_eq(v.floor(), 2);
+```"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -109,7 +129,12 @@ pub fn num_ceil() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "ceil".into(),
         is_async: false,
-        docs: "# Ceil\nReturn the smallest integer greater than or equal to self.".into(),
+        docs: r#"# Num.ceil(val: int | float) -> int | float
+Return the smallest integer greater than or equal to the given value.
+```rust
+const v = 2.4;
+assert_eq(v.ceil(), 3);
+```"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -130,7 +155,12 @@ pub fn num_trunc() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "trunc".into(),
         is_async: false,
-        docs: "# Trunc\nReturn the integer part of self.".into(),
+        docs: r#"# Num.trunc(val: int | float) -> int | float
+Return the integer part of the given value.
+```rust
+const v = 2.4;
+assert_eq(v.trunc(), 2);
+```"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -151,7 +181,12 @@ pub fn num_fract() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "fract".into(),
         is_async: false,
-        docs: "# Fract\nReturn the fractional part of self.".into(),
+        docs: r#"# Num.fract(val: int | float) -> int | float
+Return the fractional part of this number.
+```rust
+const v = 2.4;
+assert_eq(v.trunc(), 0.4);
+```"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -172,7 +207,12 @@ pub fn num_signum() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "signum".into(),
         is_async: false,
-        docs: "# Sign Number\nReturn the sign number of self (-1 or 1).".into(),
+        docs: r#"# Num.signum(val: int | float) -> int | float
+Return a number representing the sign of this value (-1 or 1).
+```rust
+assert_eq((42).signum(), 1);
+assert_eq((-42).signum(), -1);
+```"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -193,7 +233,11 @@ pub fn num_exp() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "exp".into(),
         is_async: false,
-        docs: "# Exponential Function\ne^(self).".into(),
+        docs: r#"# Num.exp(val: int | float) -> float
+Exponential function (e^(val)).
+```rust
+assert_eq((1).exp().round(3), 2.718);
+```"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -214,7 +258,11 @@ pub fn num_exp2() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "exp2".into(),
         is_async: false,
-        docs: "# Exponential 2\n2^(self).".into(),
+        docs: r#"# Num.exp2(val: int | float) -> float
+Exponential 2 function (2^(val)).
+```rust
+assert_eq((2).exp2(), 4);
+```"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -235,7 +283,11 @@ pub fn num_ln() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "ln".into(),
         is_async: false,
-        docs: "# Natural Log\nln(self).".into(),
+        docs: r#"# Num.ln(val: int | float) -> float
+Natural log.
+```rust
+assert_eq((1).ln(), 0);
+```"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -256,7 +308,11 @@ pub fn num_nan() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "nan".into(),
         is_async: false,
-        docs: "# Not a Number?\nReturns true if this is value is NaN.".into(),
+        docs: r#"# Num.nan(val: int | float) -> bool
+Return true if this value is NaN.
+```rust
+assert_not((14).nan());
+```"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -277,7 +333,11 @@ pub fn num_inf() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "inf".into(),
         is_async: false,
-        docs: "# Infinity?\nReturns true if this number is infinity.".into(),
+        docs: r#"# Num.inf(val: int | float) -> bool
+Return true if this value is infinity.
+```rust
+assert_not((14).inf());
+```"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -298,7 +358,9 @@ pub fn num_sin() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "sin".into(),
         is_async: false,
-        docs: "# Sine\nSine function.".into(),
+        docs: r#"# Num.sin(val: int | float) -> float
+Sine function.
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -319,7 +381,9 @@ pub fn num_cos() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "cos".into(),
         is_async: false,
-        docs: "# Cosine\nCosine function.".into(),
+        docs: r#"# Num.cos(val: int | float) -> float
+Cosine function.
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -340,7 +404,9 @@ pub fn num_tan() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "tan".into(),
         is_async: false,
-        docs: "# Tangent\nTangent function.".into(),
+        docs: r#"# Num.tan(val: int | float) -> float
+Tangent function.
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -361,7 +427,9 @@ pub fn num_asin() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "asin".into(),
         is_async: false,
-        docs: "# Arc Sine\nASine function (return Radians).".into(),
+        docs: r#"# Num.asin(val: int | float) -> rad
+Arc Sine function (returns a float with radian units).
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -382,7 +450,9 @@ pub fn num_acos() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "acos".into(),
         is_async: false,
-        docs: "# Arc Cosine\nACosine function (returns Radians).".into(),
+        docs: r#"# Num.acos(val: int | float) -> rad
+Arc Cosine function (returns a float with radian units).
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -403,7 +473,9 @@ pub fn num_atan() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "atan".into(),
         is_async: false,
-        docs: "# Arc Tangent\nATangent function (return Radians).".into(),
+        docs: r#"# Num.atan(val: int | float) -> rad
+Arc Tangent function (returns a float with radian units).
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -424,7 +496,9 @@ pub fn num_sinh() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "sinh".into(),
         is_async: false,
-        docs: "# Hyperbolic Sine\nSinH function.".into(),
+        docs: r#"# Num.sinh(val: int | float) -> float
+Hyperbolic Sine function.
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -445,7 +519,9 @@ pub fn num_cosh() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "cosh".into(),
         is_async: false,
-        docs: "# Hyperbolic Cosine\nCosH function.".into(),
+        docs: r#"# Num.cosh(val: int | float) -> float
+Hyperbolic Cosine function.
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -466,7 +542,9 @@ pub fn num_tanh() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "tanh".into(),
         is_async: false,
-        docs: "# Hyperbolic Tangent\nTanH function.".into(),
+        docs: r#"# Num.tanh(val: int | float) -> float
+Hyperbolic Tangent function.
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -487,7 +565,9 @@ pub fn num_asinh() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "asinh".into(),
         is_async: false,
-        docs: "# Inverse Hyperbolic Sine\nASinH function.".into(),
+        docs: r#"# Num.asinh(val: int | float) -> float
+Inverse hyperbolic Sine function.
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -508,7 +588,9 @@ pub fn num_acosh() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "acosh".into(),
         is_async: false,
-        docs: "# Inverse Hyperbolic Cosine\nACosH function.".into(),
+        docs: r#"# Num.acosh(val: int | float) -> float
+Inverse hyperbolic Cosine function.
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -529,7 +611,9 @@ pub fn num_atanh() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "atanh".into(),
         is_async: false,
-        docs: "# Inverse Hyperbolic Tangent\nATanH function.".into(),
+        docs: r#"# Num.atanh(val: int | float) -> float
+Inverse hyperbolic Tangent function.
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -550,7 +634,12 @@ pub fn num_hex() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "hex".into(),
         is_async: false,
-        docs: "# Hex String\nReturn this numbers hex string (integer).".into(),
+        docs: r#"# Num.hex(val: int) -> str
+Returns this number represented as a hexidecimal string.
+```rust
+assert_eq((10).hex(), "A");
+```
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -571,7 +660,12 @@ pub fn num_bin() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "bin".into(),
         is_async: false,
-        docs: "# Binary String\nReturn this numbers binary string (integer).".into(),
+        docs: r#"# Num.bin(val: int) -> str
+Returns this number represented as a binary string.
+```rust
+assert_eq((10).bin(), "1010");
+```
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -592,7 +686,12 @@ pub fn num_oct() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "oct".into(),
         is_async: false,
-        docs: "# Oct String\nReturn this numbers octal string (integer).".into(),
+        docs: r#"# Num.oct(val: int) -> str
+Returns this number represented as an octal string.
+```rust
+assert_eq((10).oct(), "12");
+```
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -613,7 +712,13 @@ pub fn num_string() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "to_string".into(),
         is_async: false,
-        docs: "# To String\nReturn this number as a string (like print).".into(),
+        docs: r#"# Num.to_string(val: int | float) -> str
+Returns this number represented as a string (like print).
+```rust
+assert_eq((10).to_string(), "10");
+assert_eq(str(10), "10"); // prefer Std.str(..)
+```
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -634,7 +739,13 @@ pub fn num_has_units() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "has_units".into(),
         is_async: false,
-        docs: "# Has Units?\nReturn true if this number has units.".into(),
+        docs: r#"# Num.has_units(val: int | float) -> bool
+Returns true if the given number has units.
+```rust
+const val = 10kg;
+assert(val.has_units());
+```
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -655,7 +766,13 @@ pub fn num_remove_units() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "remove_units".into(),
         is_async: false,
-        docs: "# Remove Units\nRemove units if this number has any.".into(),
+        docs: r#"# Num.remove_units(val: int | float) -> int | float
+Removes the units (if any) on this number.
+```rust
+const val = 10kg;
+assert_eq(typeof val.remove_units(), "float");
+```
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -676,7 +793,13 @@ pub fn num_is_angle() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "is_angle".into(),
         is_async: false,
-        docs: "# Is Angle?\nReturn true if this number has angle units.".into(),
+        docs: r#"# Num.is_angle(val: int | float) -> bool
+Returns true if the given number has angular units (degrees or radians).
+```rust
+const val = 10deg;
+assert(val.is_angle());
+```
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -697,7 +820,13 @@ pub fn num_is_temp() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "is_temp".into(),
         is_async: false,
-        docs: "# Is Temperature?\nReturn true if this number has temperature units.".into(),
+        docs: r#"# Num.is_temp(val: int | float) -> bool
+Returns true if the given number has temperature units.
+```rust
+const val = 10F;
+assert(val.is_temp());
+```
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -718,7 +847,13 @@ pub fn num_is_length() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "is_length".into(),
         is_async: false,
-        docs: "# Is Length?\nReturn true if this number has units of length.".into(),
+        docs: r#"# Num.is_length(val: int | float) -> bool
+Returns true if the given number has length units.
+```rust
+const val = 10m;
+assert(val.is_length());
+```
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -739,7 +874,13 @@ pub fn num_is_time() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "is_time".into(),
         is_async: false,
-        docs: "# Is Time?\nReturn true if this number has units of time.".into(),
+        docs: r#"# Num.is_time(val: int | float) -> bool
+Returns true if the given number has units of time.
+```rust
+const val = 10s;
+assert(val.is_time());
+```
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -760,7 +901,13 @@ pub fn num_is_mass() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "is_mass".into(),
         is_async: false,
-        docs: "# Is Mass?\nReturn true if this number has units of mass.".into(),
+        docs: r#"# Num.is_mass(val: int | float) -> bool
+Returns true if the given number has units of mass.
+```rust
+const val = 10kg;
+assert(val.is_mass());
+```
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -781,7 +928,14 @@ pub fn num_round() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "round".into(),
         is_async: false,
-        docs: "# Round\nRound this number, optionally specifying the number of places to be rounded to.".into(),
+        docs: r#"# Num.round(val: int | float, places: int = 0) -> int | float
+Round the given number to the given number of places. If value is an integer, do nothing.
+```rust
+const val = 10.348;
+assert_eq(val.round(2), 10.35);
+assert_eq(val.round(), 10);
+```
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None },
             Param { name: "places".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Num(Num::Int(0))))) }
@@ -803,7 +957,14 @@ pub fn num_pow() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "pow".into(),
         is_async: false,
-        docs: "# Power\nRaise this number to a power (default is to square).".into(),
+        docs: r#"# Num.pow(val: int | float, to: int | float = 2) -> float
+Returns the given value raised to the given power.
+```rust
+const val = 10;
+assert_eq(val.pow(to = 2), 100);
+assert_eq(val.pow(), 100);
+```
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None },
             Param { name: "to".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Num(Num::Int(2))))) }
@@ -825,7 +986,12 @@ pub fn num_log() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "log".into(),
         is_async: false,
-        docs: "# Log\nLog function with a base (default of 10).".into(),
+        docs: r#"# Num.log(val: int | float, base: int | float = 10) -> float
+Log function with a given base value.
+```rust
+assert_eq((2).log().round(3), 0.301);
+```
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None },
             Param { name: "base".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Num(Num::Int(10))))) }
@@ -847,7 +1013,12 @@ pub fn num_atan2() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "atan2".into(),
         is_async: false,
-        docs: "# ATan2 Function\nATan2 function.".into(),
+        docs: r#"# Num.atan2(y: int | float, x: int | float) -> rad
+Computes the four quadrant arctangent of self (y) and other (x) in radians.
+```rust
+assert_eq((Num.atan2(1, 2) as deg).round(), 27deg);
+```
+"#.into(),
         params: vector![
             Param { name: "y".into(), param_type: Type::Void, default: None },
             Param { name: "x".into(), param_type: Type::Void, default: None }

@@ -12,92 +12,178 @@ fn main() {
 }
 ```
 
-# Absolute Value
-Return the absolute value of a number.
+# Num.abs(val: int | float) -> int | float
+Return the absolute value of the given number.
+```rust
+const v = -2;
+assert_eq(v.abs(), 2);
+```
 
-# Arc Cosine
-ACosine function (returns Radians).
+# Num.acos(val: int | float) -> rad
+Arc Cosine function (returns a float with radian units).
 
-# Inverse Hyperbolic Cosine
-ACosH function.
 
-# Arc Sine
-ASine function (return Radians).
+# Num.acosh(val: int | float) -> float
+Inverse hyperbolic Cosine function.
 
-# Inverse Hyperbolic Sine
-ASinH function.
+
+# Num.asin(val: int | float) -> rad
+Arc Sine function (returns a float with radian units).
+
+
+# Num.asinh(val: int | float) -> float
+Inverse hyperbolic Sine function.
+
 
 # Index of Number
 Used when iterating over the integers up to a number (single value range). For example, if the number is 45.at(5), the result will be 5. Or if the number is 45.at(50), the result will be 45.
 
-# Arc Tangent
-ATangent function (return Radians).
+# Num.atan(val: int | float) -> rad
+Arc Tangent function (returns a float with radian units).
 
-# ATan2 Function
-ATan2 function.
 
-# Inverse Hyperbolic Tangent
-ATanH function.
+# Num.atan2(y: int | float, x: int | float) -> rad
+Computes the four quadrant arctangent of self (y) and other (x) in radians.
+```rust
+assert_eq((Num.atan2(1, 2) as deg).round(), 27deg);
+```
 
-# Binary String
-Return this numbers binary string (integer).
 
-# Cube Root
+# Num.atanh(val: int | float) -> float
+Inverse hyperbolic Tangent function.
+
+
+# Num.bin(val: int) -> str
+Returns this number represented as a binary string.
+```rust
+assert_eq((10).bin(), "1010");
+```
+
+
+# Num.cbrt(val: int | float) -> float
 Return the cube root of a number.
+```rust
+const v = 8;
+assert_eq(v.cbrt(), 2);
+```
 
-# Ceil
-Return the smallest integer greater than or equal to self.
+# Num.ceil(val: int | float) -> int | float
+Return the smallest integer greater than or equal to the given value.
+```rust
+const v = 2.4;
+assert_eq(v.ceil(), 3);
+```
 
-# Cosine
+# Num.cos(val: int | float) -> float
 Cosine function.
 
-# Hyperbolic Cosine
-CosH function.
 
-# Exponential Function
-e^(self).
+# Num.cosh(val: int | float) -> float
+Hyperbolic Cosine function.
 
-# Exponential 2
-2^(self).
 
-# Floor
-Return the largest integer less than or equal to self.
+# Num.exp(val: int | float) -> float
+Exponential function (e^(val)).
+```rust
+assert_eq((1).exp().round(3), 2.718);
+```
 
-# Fract
-Return the fractional part of self.
+# Num.exp2(val: int | float) -> float
+Exponential 2 function (2^(val)).
+```rust
+assert_eq((2).exp2(), 4);
+```
 
-# Has Units?
-Return true if this number has units.
+# Num.floor(val: int | float) -> int | float
+Return the largest integer less than or equal to the given value.
+```rust
+const v = 2.4;
+assert_eq(v.floor(), 2);
+```
 
-# Hex String
-Return this numbers hex string (integer).
+# Num.fract(val: int | float) -> int | float
+Return the fractional part of this number.
+```rust
+const v = 2.4;
+assert_eq(v.trunc(), 0.4);
+```
 
-# Infinity?
-Returns true if this number is infinity.
+# Num.has_units(val: int | float) -> bool
+Returns true if the given number has units.
+```rust
+const val = 10kg;
+assert(val.has_units());
+```
 
-# Is Angle?
-Return true if this number has angle units.
 
-# Is Length?
-Return true if this number has units of length.
+# Num.hex(val: int) -> str
+Returns this number represented as a hexidecimal string.
+```rust
+assert_eq((10).hex(), "A");
+```
 
-# Is Mass?
-Return true if this number has units of mass.
 
-# Is Temperature?
-Return true if this number has temperature units.
+# Num.inf(val: int | float) -> bool
+Return true if this value is infinity.
+```rust
+assert_not((14).inf());
+```
 
-# Is Time?
-Return true if this number has units of time.
+# Num.is_angle(val: int | float) -> bool
+Returns true if the given number has angular units (degrees or radians).
+```rust
+const val = 10deg;
+assert(val.is_angle());
+```
+
+
+# Num.is_length(val: int | float) -> bool
+Returns true if the given number has length units.
+```rust
+const val = 10m;
+assert(val.is_length());
+```
+
+
+# Num.is_mass(val: int | float) -> bool
+Returns true if the given number has units of mass.
+```rust
+const val = 10kg;
+assert(val.is_mass());
+```
+
+
+# Num.is_temp(val: int | float) -> bool
+Returns true if the given number has temperature units.
+```rust
+const val = 10F;
+assert(val.is_temp());
+```
+
+
+# Num.is_time(val: int | float) -> bool
+Returns true if the given number has units of time.
+```rust
+const val = 10s;
+assert(val.is_time());
+```
+
 
 # Length of a Number
 Used when iterating over the integers up to a number (single value range).
 
-# Natural Log
-ln(self).
+# Num.ln(val: int | float) -> float
+Natural log.
+```rust
+assert_eq((1).ln(), 0);
+```
 
-# Log
-Log function with a base (default of 10).
+# Num.log(val: int | float, base: int | float = 10) -> float
+Log function with a given base value.
+```rust
+assert_eq((2).log().round(3), 0.301);
+```
+
 
 # Maximum Value
 Return the maximum value for all parameters given (unbounded). If a list or set is provided, this will contemplate the max value in that collection. Will consider units if provided as well.
@@ -105,42 +191,87 @@ Return the maximum value for all parameters given (unbounded). If a list or set 
 # Minimum Value
 Return the minimum value for all parameters given (unbounded). If a list or set is provided, this will contemplate the min value in that collection. Will consider units if provided as well.
 
-# Not a Number?
-Returns true if this is value is NaN.
+# Num.nan(val: int | float) -> bool
+Return true if this value is NaN.
+```rust
+assert_not((14).nan());
+```
 
-# Oct String
-Return this numbers octal string (integer).
+# Num.oct(val: int) -> str
+Returns this number represented as an octal string.
+```rust
+assert_eq((10).oct(), "12");
+```
 
-# Power
-Raise this number to a power (default is to square).
 
-# Remove Units
-Remove units if this number has any.
+# Num.pow(val: int | float, to: int | float = 2) -> float
+Returns the given value raised to the given power.
+```rust
+const val = 10;
+assert_eq(val.pow(to = 2), 100);
+assert_eq(val.pow(), 100);
+```
 
-# Round
-Round this number, optionally specifying the number of places to be rounded to.
 
-# Sign Number
-Return the sign number of self (-1 or 1).
+# Num.remove_units(val: int | float) -> int | float
+Removes the units (if any) on this number.
+```rust
+const val = 10kg;
+assert_eq(typeof val.remove_units(), "float");
+```
 
-# Sine
+
+# Num.round(val: int | float, places: int = 0) -> int | float
+Round the given number to the given number of places. If value is an integer, do nothing.
+```rust
+const val = 10.348;
+assert_eq(val.round(2), 10.35);
+assert_eq(val.round(), 10);
+```
+
+
+# Num.signum(val: int | float) -> int | float
+Return a number representing the sign of this value (-1 or 1).
+```rust
+assert_eq((42).signum(), 1);
+assert_eq((-42).signum(), -1);
+```
+
+# Num.sin(val: int | float) -> float
 Sine function.
 
-# Hyperbolic Sine
-SinH function.
 
-# Square Root
+# Num.sinh(val: int | float) -> float
+Hyperbolic Sine function.
+
+
+# Num.sqrt(val: int | float) -> float
 Return the square root of a number.
+```rust
+const v = 4;
+assert_eq(v.sqrt(), 2);
+```
 
-# Tangent
+# Num.tan(val: int | float) -> float
 Tangent function.
 
-# Hyperbolic Tangent
-TanH function.
 
-# To String
-Return this number as a string (like print).
+# Num.tanh(val: int | float) -> float
+Hyperbolic Tangent function.
 
-# Trunc
-Return the integer part of self.
+
+# Num.to_string(val: int | float) -> str
+Returns this number represented as a string (like print).
+```rust
+assert_eq((10).to_string(), "10");
+assert_eq(str(10), "10"); // prefer Std.str(..)
+```
+
+
+# Num.trunc(val: int | float) -> int | float
+Return the integer part of the given value.
+```rust
+const v = 2.4;
+assert_eq(v.trunc(), 2);
+```
 
