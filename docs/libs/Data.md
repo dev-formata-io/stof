@@ -1,5 +1,5 @@
 # Data Library (Data)
-Library for working with opaque data pointers. If referenced explicitely, will work with custom data also.
+Library for working with opaque data pointers. If referenced explicitely, will work with custom data also, like PDFs, Images, etc.
 
 ## Example Usage
 ```rust
@@ -17,33 +17,81 @@ fn main() {
 }
 ```
 
-# Attach To
-Attach this data to an additional object.
+# Data.attach(ptr: data, obj: obj) -> bool
+Attach this data to an additional object. This data will now be accessible using the same name from the object.
+```rust
+const func: fn = self.hi;
+const other = new {};
+assert(func.data().attach(other));
+assert_eq(other.hi, func);
+```
 
-# Drop
-Remove data completely from the graph.
+# Data.drop(ptr: data) -> bool
+Drop this data from the document, returning true if the data existed and was removed.
+```rust
+const func: fn = self.hi;
+assert(func.data().drop());
+```
 
-# Drop From
-Remove data from a node in the graph (object). If this node is the only object referencing the data, the data will be removed completely from the graph.
+# Data.drop_from(ptr: data, obj: obj) -> bool
+Drop this data from a specific object. If the given object was the only reference, the data will be dropped completely from the document.
+```rust
+const func: fn = self.hi;
+assert(func.data().drop_from(self));
+```
 
-# Data Exists?
-Returns true if this data reference points to valid data in a graph.
+# Data.exists(ptr: data) -> bool
+Does this data pointer point to existing data? Will be false if the data has been dropped from the document.
+```rust
+const func: fn = self.hi;
+const ptr = func.data();
+drop(func);
+assert_not(ptr.exists());
+```
 
-# From Field Path
-Create a data reference from a dot '.' separated field path.
+# Data.field(path: str) -> data
+Create a data pointer to a field, using a path/name from the current object context.
+```rust
+const ptr = Data.field('myfield'); // self.myfield
+assert(ptr.exists());
+```
 
-# From ID
-Create a data reference from a string ID.
+# Data.from_id(id: str) -> data
+Create a new data pointer with a string ID.
+```rust
+const func: fn = self.hi;
+const id = func.data().id();
+assert_eq(Data.from_id(id), func.data());
+```
 
-# Data Id
-String ID for this data reference.
+# Data.id(ptr: data) -> str
+Get the id for this data pointer, which can be used to later construct another reference.
+```rust
+const func: fn = self.hi;
+const id = func.data().id();
+assert_eq(Data.from_id(id), func.data());
+```
 
-# Data Library Name
-The 'tagname' for this data reference. If the data points to a function, this will return 'Fn' for example. For custom data, like a PDF, this would return 'Pdf'.
+# Data.libname(ptr: data) -> str
+Get the library name for this data pointer, if applicable.
+```rust
+const func: fn = self.hi;
+assert_eq(func.data().libname(), "Fn");
+```
 
-# Move
-Drop this data from an object and move it to another object.
+# Data.move(ptr: data, from: obj, to: obj) -> bool
+Combines a drop and attach, removing this data from an object and placing it on another.
+```rust
+const func: fn = self.hi;
+const other = new {};
+assert(func.data().move(self, other));
+assert_not(self.hi); // func is now on other
+```
 
-# Data Objects
-List of objects that this data is attached to.
+# Data.objs(ptr: data) -> list
+List of objects that this data is attached to (will always have at least one).
+```rust
+const func: fn = self.hi;
+assert_eq(func.data().objs().front(), self);
+```
 

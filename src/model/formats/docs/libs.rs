@@ -162,7 +162,7 @@ fn main() {
 fn data_lib(graph: &mut Graph) {
     graph.insert_libdoc(literal!("Data"), 
 r#"# Data Library (Data)
-Library for working with opaque data pointers. If referenced explicitely, will work with custom data also.
+Library for working with opaque data pointers. If referenced explicitely, will work with custom data also, like PDFs, Images, etc.
 
 ## Example Usage
 ```rust
