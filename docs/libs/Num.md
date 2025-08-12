@@ -35,8 +35,13 @@ Arc Sine function (returns a float with radian units).
 Inverse hyperbolic Sine function.
 
 
-# Index of Number
-Used when iterating over the integers up to a number (single value range). For example, if the number is 45.at(5), the result will be 5. Or if the number is 45.at(50), the result will be 45.
+# Num.at(val: int | float, index: int) -> int
+Index into this number (helpful for iteration of single value ranges).
+```rust
+assert_eq((10).at(5), 5);
+assert_eq((10).at(20), 10);
+```
+
 
 # Num.atan(val: int | float) -> rad
 Arc Tangent function (returns a float with radian units).
@@ -169,8 +174,12 @@ assert(val.is_time());
 ```
 
 
-# Length of a Number
-Used when iterating over the integers up to a number (single value range).
+# Num.len(val: int | float) -> int
+Length of this number (helpful for iteration).
+```rust
+assert_eq((10).len(), 10);
+```
+
 
 # Num.ln(val: int | float) -> float
 Natural log.
@@ -185,11 +194,19 @@ assert_eq((2).log().round(3), 0.301);
 ```
 
 
-# Maximum Value
-Return the maximum value for all parameters given (unbounded). If a list or set is provided, this will contemplate the max value in that collection. Will consider units if provided as well.
+# Num.max(..) -> unknown
+Return the maximum value of all given arguments. If the argument is a collection, this will get the maximum value within that collection for comparison with the others. Will consider units if provided as well.
+```rust
+assert_eq(Num.max(12, 23, 10, 42, 0), 42);
+```
 
-# Minimum Value
-Return the minimum value for all parameters given (unbounded). If a list or set is provided, this will contemplate the min value in that collection. Will consider units if provided as well.
+
+# Num.min(..) -> unknown
+Return the minimum value of all given arguments. If the argument is a collection, this will get the minimum value within that collection for comparison with the others. Will consider units if provided as well.
+```rust
+assert_eq(Num.min(12, 23, 10, 42, 0), 0);
+```
+
 
 # Num.nan(val: int | float) -> bool
 Return true if this value is NaN.

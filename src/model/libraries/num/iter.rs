@@ -26,7 +26,12 @@ pub fn num_len() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "len".into(),
         is_async: false,
-        docs: "# Length of a Number\nUsed when iterating over the integers up to a number (single value range).".into(),
+        docs: r#"# Num.len(val: int | float) -> int
+Length of this number (helpful for iteration).
+```rust
+assert_eq((10).len(), 10);
+```
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -47,7 +52,13 @@ pub fn num_at() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "at".into(),
         is_async: false,
-        docs: "# Index of Number\nUsed when iterating over the integers up to a number (single value range). For example, if the number is 45.at(5), the result will be 5. Or if the number is 45.at(50), the result will be 45.".into(),
+        docs: r#"# Num.at(val: int | float, index: int) -> int
+Index into this number (helpful for iteration of single value ranges).
+```rust
+assert_eq((10).at(5), 5);
+assert_eq((10).at(20), 10);
+```
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None },
             Param { name: "index".into(), param_type: Type::Num(NumT::Int), default: None }

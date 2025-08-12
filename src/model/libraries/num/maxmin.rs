@@ -26,7 +26,12 @@ pub fn num_max() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "max".into(),
         is_async: false,
-        docs: "# Maximum Value\nReturn the maximum value for all parameters given (unbounded). If a list or set is provided, this will contemplate the max value in that collection. Will consider units if provided as well.".into(),
+        docs: r#"# Num.max(..) -> unknown
+Return the maximum value of all given arguments. If the argument is a collection, this will get the maximum value within that collection for comparison with the others. Will consider units if provided as well.
+```rust
+assert_eq(Num.max(12, 23, 10, 42, 0), 42);
+```
+"#.into(),
         params: vector![],
         return_type: None,
         unbounded_args: true,
@@ -46,7 +51,12 @@ pub fn num_min() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "min".into(),
         is_async: false,
-        docs: "# Minimum Value\nReturn the minimum value for all parameters given (unbounded). If a list or set is provided, this will contemplate the min value in that collection. Will consider units if provided as well.".into(),
+        docs: r#"# Num.min(..) -> unknown
+Return the minimum value of all given arguments. If the argument is a collection, this will get the minimum value within that collection for comparison with the others. Will consider units if provided as well.
+```rust
+assert_eq(Num.min(12, 23, 10, 42, 0), 0);
+```
+"#.into(),
         params: vector![],
         return_type: None,
         unbounded_args: true,
