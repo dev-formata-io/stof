@@ -12,39 +12,87 @@ fn main() {
 }
 ```
 
-# Attributes
-Returns a map of this functions attributes (with values).
+# Fn.attributes(func: fn) -> map
+Get a map of attributes (name & value) that this function has, if any.
+```rust
+const func: fn = self.hi; // #[hi] fn hi() {}
+assert_eq(func.attributes(), {"hi": null});
+```
 
-# Call Function
-Will call this function with the provided arguments.
+# Fn.call(func: fn, ..) -> unknown
+Call this function, using any arguments given after the function itself (some library functions can take N arguments, this is one of them).
+```rust
+const func: fn = (name: str):str => "Hi, " + name;
+assert_eq(func.call("Bob"), "Hi, Bob");
+```
 
-# Expanded Call Function
-Will call this function but will expand the arguments out if they are containers. For example, providing a list of values here will result in each individual list value as a separate function argument.
+# Fn.call_expanded(func: fn, ..) -> unknown
+Call this function, using any arguments given after the function itself. However, if an argument is a collection (ex. list), expand the list values out as arguments themselves.
+```rust
+const func: fn = (name: str):str => "Hi, " + name;
+assert_eq(func.call_expanded(["Bob"]), "Hi, Bob");
+```
 
-# Data
-Converts a function reference into a generic data reference.
+# Fn.data(func: fn) -> data
+Get the data pointer for this function.
+```rust
+const func: fn = self.hi;
+assert(func.data().exists());
+```
 
-# Has Attribute?
-Returns true if this function has an attribute with the requested name.
+# Fn.has_attribute(func: fn, name: str) -> bool
+Returns true if the given function has an attribute with the given name.
+```rust
+const func: fn = self.hi; // #[hi] fn hi() {}
+assert(func.has_attribute("hi"));
+```
 
-# ID
-Returns the ID of a function reference.
+# Fn.id(func: fn) -> str
+Get the data ID for this function (shorthand for "func.data().id()").
+```rust
+const func: fn = self.hi;
+assert_eq(func.id(), func.data().id());
+```
 
-# Is Async?
-Returns true if this function is an async function (has an 'async' attribute).
+# Fn.is_async(func: fn) -> bool
+Is this function async? This is just shorthand for checking if an "async" attribute exists (what makes a func async).
+```rust
+const func: fn = self.hi; // async fn hi() {}
+assert(func.is_async());
+```
 
-# Name
-Returns the name of a function.
+# Fn.name(func: fn) -> str
+Get the name of this function.
+```rust
+const func: fn = self.hi; // fn hi() {}
+assert_eq(func.name(), "hi");
+```
 
-# Object
-Returns the first object reference found that this function is attached to.
+# Fn.obj(func: fn) -> obj
+Get the first object found that references this function.
+```rust
+const func: fn = self.hi;
+assert_eq(func.obj(), self);
+```
 
-# Objects
-Returns a list of object references that this function is attached to.
+# Fn.objs(func: fn) -> list
+Get a list of all objects that this function is attached to.
+```rust
+const func: fn = self.hi;
+assert_eq(func.objs(), [self]);
+```
 
-# Parameters
-Returns a list of tuples containing the name and type of each expected parameter.
+# Fn.params(func: fn) -> list
+Get a list of expected parameters for this function (tuple containing the name and type).
+```rust
+const func: fn = self.hi; // fn hi(a: int) {}
+assert_eq(func.params(), [("a", "int")]);
+```
 
-# Return Type
-Returns a string (typeof) for this functions return type.
+# Fn.return_type(func: fn) -> str
+Get the return type for the given function.
+```rust
+const func: fn = self.hi; // fn hi() -> int { 42 }
+assert_eq(func.return_type(), "int");
+```
 

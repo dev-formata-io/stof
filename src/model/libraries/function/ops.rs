@@ -25,7 +25,12 @@ pub fn fn_id() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "id".into(),
         is_async: false,
-        docs: "# ID\nReturns the ID of a function reference.".into(),
+        docs: r#"# Fn.id(func: fn) -> str
+Get the data ID for this function (shorthand for "func.data().id()").
+```rust
+const func: fn = self.hi;
+assert_eq(func.id(), func.data().id());
+```"#.into(),
         params: vector![
             Param { name: "fn".into(), param_type: Type::Fn, default: None }
         ],
@@ -46,7 +51,12 @@ pub fn fn_data() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "data".into(),
         is_async: false,
-        docs: "# Data\nConverts a function reference into a generic data reference.".into(),
+        docs: r#"# Fn.data(func: fn) -> data
+Get the data pointer for this function.
+```rust
+const func: fn = self.hi;
+assert(func.data().exists());
+```"#.into(),
         params: vector![
             Param { name: "fn".into(), param_type: Type::Fn, default: None }
         ],
@@ -67,7 +77,12 @@ pub fn fn_name() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "name".into(),
         is_async: false,
-        docs: "# Name\nReturns the name of a function.".into(),
+        docs: r#"# Fn.name(func: fn) -> str
+Get the name of this function.
+```rust
+const func: fn = self.hi; // fn hi() {}
+assert_eq(func.name(), "hi");
+```"#.into(),
         params: vector![
             Param { name: "fn".into(), param_type: Type::Fn, default: None }
         ],
@@ -88,7 +103,12 @@ pub fn fn_params() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "params".into(),
         is_async: false,
-        docs: "# Parameters\nReturns a list of tuples containing the name and type of each expected parameter.".into(),
+        docs: r#"# Fn.params(func: fn) -> list
+Get a list of expected parameters for this function (tuple containing the name and type).
+```rust
+const func: fn = self.hi; // fn hi(a: int) {}
+assert_eq(func.params(), [("a", "int")]);
+```"#.into(),
         params: vector![
             Param { name: "fn".into(), param_type: Type::Fn, default: None }
         ],
@@ -109,7 +129,12 @@ pub fn fn_return_type() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "return_type".into(),
         is_async: false,
-        docs: "# Return Type\nReturns a string (typeof) for this functions return type.".into(),
+        docs: r#"# Fn.return_type(func: fn) -> str
+Get the return type for the given function.
+```rust
+const func: fn = self.hi; // fn hi() -> int { 42 }
+assert_eq(func.return_type(), "int");
+```"#.into(),
         params: vector![
             Param { name: "fn".into(), param_type: Type::Fn, default: None }
         ],
@@ -130,7 +155,12 @@ pub fn fn_has_attr() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "has_attribute".into(),
         is_async: false,
-        docs: "# Has Attribute?\nReturns true if this function has an attribute with the requested name.".into(),
+        docs: r#"# Fn.has_attribute(func: fn, name: str) -> bool
+Returns true if the given function has an attribute with the given name.
+```rust
+const func: fn = self.hi; // #[hi] fn hi() {}
+assert(func.has_attribute("hi"));
+```"#.into(),
         params: vector![
             Param { name: "fn".into(), param_type: Type::Fn, default: None },
             Param { name: "name".into(), param_type: Type::Str, default: None }
@@ -152,7 +182,12 @@ pub fn fn_attributes() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "attributes".into(),
         is_async: false,
-        docs: "# Attributes\nReturns a map of this functions attributes (with values).".into(),
+        docs: r#"# Fn.attributes(func: fn) -> map
+Get a map of attributes (name & value) that this function has, if any.
+```rust
+const func: fn = self.hi; // #[hi] fn hi() {}
+assert_eq(func.attributes(), {"hi": null});
+```"#.into(),
         params: vector![
             Param { name: "fn".into(), param_type: Type::Fn, default: None }
         ],
@@ -173,7 +208,12 @@ pub fn fn_obj() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "obj".into(),
         is_async: false,
-        docs: "# Object\nReturns the first object reference found that this function is attached to.".into(),
+        docs: r#"# Fn.obj(func: fn) -> obj
+Get the first object found that references this function.
+```rust
+const func: fn = self.hi;
+assert_eq(func.obj(), self);
+```"#.into(),
         params: vector![
             Param { name: "fn".into(), param_type: Type::Fn, default: None }
         ],
@@ -194,7 +234,12 @@ pub fn fn_objs() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "objs".into(),
         is_async: false,
-        docs: "# Objects\nReturns a list of object references that this function is attached to.".into(),
+        docs: r#"# Fn.objs(func: fn) -> list
+Get a list of all objects that this function is attached to.
+```rust
+const func: fn = self.hi;
+assert_eq(func.objs(), [self]);
+```"#.into(),
         params: vector![
             Param { name: "fn".into(), param_type: Type::Fn, default: None }
         ],
@@ -215,7 +260,12 @@ pub fn fn_is_async() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "is_async".into(),
         is_async: false,
-        docs: "# Is Async?\nReturns true if this function is an async function (has an 'async' attribute).".into(),
+        docs: r#"# Fn.is_async(func: fn) -> bool
+Is this function async? This is just shorthand for checking if an "async" attribute exists (what makes a func async).
+```rust
+const func: fn = self.hi; // async fn hi() {}
+assert(func.is_async());
+```"#.into(),
         params: vector![
             Param { name: "fn".into(), param_type: Type::Fn, default: None }
         ],
@@ -236,7 +286,12 @@ pub fn fn_call() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "call".into(),
         is_async: false,
-        docs: "# Call Function\nWill call this function with the provided arguments.".into(),
+        docs: r#"# Fn.call(func: fn, ..) -> unknown
+Call this function, using any arguments given after the function itself (some library functions can take N arguments, this is one of them).
+```rust
+const func: fn = (name: str):str => "Hi, " + name;
+assert_eq(func.call("Bob"), "Hi, Bob");
+```"#.into(),
         params: vector![
             Param { name: "fn".into(), param_type: Type::Fn, default: None }
             // Unbounded parameters after the first function reference
@@ -258,7 +313,12 @@ pub fn fn_exp_call() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "call_expanded".into(),
         is_async: false,
-        docs: "# Expanded Call Function\nWill call this function but will expand the arguments out if they are containers. For example, providing a list of values here will result in each individual list value as a separate function argument.".into(),
+        docs: r#"# Fn.call_expanded(func: fn, ..) -> unknown
+Call this function, using any arguments given after the function itself. However, if an argument is a collection (ex. list), expand the list values out as arguments themselves.
+```rust
+const func: fn = (name: str):str => "Hi, " + name;
+assert_eq(func.call_expanded(["Bob"]), "Hi, Bob");
+```"#.into(),
         params: vector![
             Param { name: "fn".into(), param_type: Type::Fn, default: None }
             // Unbounded parameters after the first function reference
