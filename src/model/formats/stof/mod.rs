@@ -162,6 +162,6 @@ mod tests {
         // For testing purposes, document the test suite...
         //graph.parse_stof_file("stof", "src/model/formats/stof/tests/tests.stof", None, true).unwrap();
 
-        graph.docs("src/model/formats/stof/docs", None).unwrap();
+        graph.docs("docs/libs", None).unwrap();
     }
 }
