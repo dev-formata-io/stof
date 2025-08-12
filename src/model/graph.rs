@@ -20,8 +20,25 @@ use bytes::Bytes;
 use colored::Colorize;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{blob::insert_blob_lib, filesys::fs_library, http::insert_http_lib, insert_image_library, insert_pdf_library, libraries::{data::insert_data_lib, function::insert_fn_lib}, libs::insert_lib_documentation, list::insert_list_lib, load_image_formats, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, time::insert_time_lib, tup::insert_tup_lib, ver::insert_semver_lib, BstfFormat, BytesFormat, Data, DataRef, DocxFormat, Format, JsonFormat, LibFunc, MdDocsFormat, MdFormat, Node, NodeRef, PdfFormat, SId, SPath, StofData, StofFormat, StofPackageFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, INVALID_NODE_NEW}, parser::context::ParseContext, runtime::{table::SymbolTable, Error, Runtime, Val}};
+use crate::{model::{blob::insert_blob_lib, libraries::{data::insert_data_lib, function::insert_fn_lib}, libs::insert_lib_documentation, list::insert_list_lib, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, tup::insert_tup_lib, ver::insert_semver_lib, BstfFormat, BytesFormat, Data, DataRef, Format, JsonFormat, LibFunc, MdDocsFormat, MdFormat, Node, NodeRef, SId, SPath, StofData, StofFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, INVALID_NODE_NEW}, parser::context::ParseContext, runtime::{table::SymbolTable, Error, Runtime, Val}};
 
+#[cfg(feature = "system")]
+use crate::model::{time::insert_time_lib, filesys::fs_library};
+
+#[cfg(feature = "pkg")]
+use crate::model::StofPackageFormat;
+
+#[cfg(feature = "http")]
+use crate::model::http::insert_http_lib;
+
+#[cfg(feature = "pdf")]
+use crate::model::{pdf::insert_pdf_library, formats::pdf::PdfFormat};
+
+#[cfg(feature = "image")]
+use crate::model::{image::insert_image_library, formats::image::load_image_formats};
+
+#[cfg(feature = "docx")]
+use crate::model::docx::DocxFormat;
 
 /// Root node name.
 pub const ROOT_NODE_NAME: SId = SId(Bytes::from_static(b"root"));
@@ -175,29 +192,36 @@ impl Graph {
     /// Insert standard library functions.
     pub fn insert_std_lib(&mut self) {
         // Std libs
-        stof_std_lib(self);
-        insert_number_lib(self);
-        insert_string_lib(self);
-        insert_semver_lib(self);
-        insert_blob_lib(self);
-        insert_fn_lib(self);
-        insert_obj_lib(self);
-        insert_data_lib(self);
-        insert_list_lib(self);
-        insert_set_lib(self);
-        insert_map_lib(self);
-        insert_tup_lib(self);
-
-        // Markdown lib
-        insert_md_lib(self);
+        #[cfg(feature = "stof_std")]
+        {
+            stof_std_lib(self);
+            insert_number_lib(self);
+            insert_string_lib(self);
+            insert_semver_lib(self);
+            insert_blob_lib(self);
+            insert_fn_lib(self);
+            insert_obj_lib(self);
+            insert_data_lib(self);
+            insert_list_lib(self);
+            insert_set_lib(self);
+            insert_map_lib(self);
+            insert_tup_lib(self);
+            insert_md_lib(self);
+        }
         
         // System libs
+        #[cfg(feature = "system")]
         insert_time_lib(self);
+        #[cfg(feature = "system")]
         fs_library(self);
+
+        #[cfg(feature = "http")]
         insert_http_lib(self);
 
         // Data libs
+        #[cfg(feature = "pdf")]
         insert_pdf_library(self);
+        #[cfg(feature = "image")]
         insert_image_library(self);
     }
 
@@ -1036,20 +1060,30 @@ impl Graph {
     
     /// Load standard (included) formats.
     pub fn load_std_formats(&mut self) {
-        self.load_format(Arc::new(StofFormat{}));
-        self.load_format(Arc::new(BstfFormat{}));
-        self.load_format(Arc::new(MdDocsFormat{}));
-        self.load_format(Arc::new(JsonFormat{}));
-        self.load_format(Arc::new(TomlFormat{}));
-        self.load_format(Arc::new(YamlFormat{}));
-        self.load_format(Arc::new(TextFormat{}));
-        self.load_format(Arc::new(MdFormat{}));
-        self.load_format(Arc::new(BytesFormat{}));
-        self.load_format(Arc::new(UrlEncodedFormat{}));
+        #[cfg(feature = "stof_std")]
+        {
+            self.load_format(Arc::new(StofFormat{}));
+            self.load_format(Arc::new(BstfFormat{}));
+            self.load_format(Arc::new(MdDocsFormat{}));
+            self.load_format(Arc::new(JsonFormat{}));
+            self.load_format(Arc::new(TomlFormat{}));
+            self.load_format(Arc::new(YamlFormat{}));
+            self.load_format(Arc::new(TextFormat{}));
+            self.load_format(Arc::new(MdFormat{}));
+            self.load_format(Arc::new(BytesFormat{}));
+            self.load_format(Arc::new(UrlEncodedFormat{}));
+        }
+
+        #[cfg(feature = "pkg")]
         self.load_format(Arc::new(StofPackageFormat::default()));
 
+        #[cfg(feature = "pdf")]
         self.load_format(Arc::new(PdfFormat{}));
+
+        #[cfg(feature = "image")]
         load_image_formats(self);
+        
+        #[cfg(feature = "docx")]
         self.load_format(Arc::new(DocxFormat{}));
     }
     

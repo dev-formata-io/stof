@@ -22,7 +22,5 @@ import './hello.docx' as self.Doc;
 fn import_doc() {
     if (format('docx')) {
         assert_eq(self.Doc.text(), 'Hello , World! This is CJ! HI ');
-    } else {
-        assert(self.Doc.bytes);
     }
 }

@@ -19,8 +19,12 @@ use arcstr::ArcStr;
 use imbl::Vector;
 use crate::{model::{Graph, Param}, runtime::{instruction::Instructions, proc::ProcEnv, Error, Type}};
 
+#[cfg(feature = "system")]
 pub mod filesys;
+#[cfg(feature = "system")]
 pub mod time;
+
+#[cfg(feature = "http")]
 pub mod http;
 
 pub mod stof_std;

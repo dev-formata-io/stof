@@ -41,14 +41,22 @@ pub use bytes::*;
 pub mod urlencoded;
 pub use urlencoded::*;
 
+#[cfg(feature = "pkg")]
 pub mod pkg;
+#[cfg(feature = "pkg")]
 pub use pkg::*;
 
+#[cfg(feature = "pdf")]
 pub mod pdf;
+#[cfg(feature = "pdf")]
 pub use pdf::*;
 
+#[cfg(feature = "image")]
 pub mod image;
+#[cfg(feature = "image")]
 pub use image::*;
 
+#[cfg(feature = "docx")]
 pub mod docx;
+#[cfg(feature = "docx")]
 pub use docx::*;

@@ -24,9 +24,6 @@ fn import_pdf() {
         assert(self.pdf);
         assert(Data.exists(self.pdf));
         assert(Data.id(self.pdf).len() > 0);
-    } else {
-        assert(self.bytes);
-        assert_eq(typeof self.bytes, 'blob');
     }
 }
 
