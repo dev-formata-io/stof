@@ -117,7 +117,7 @@ fn main() {
 fn blob_lib(graph: &mut Graph) {
     graph.insert_libdoc(literal!("Blob"), 
 r#"# Blob Library (Blob)
-Library for working with blobs (Vec<u8> or Uint8Array), linked to the 'blob' type.
+Library for working with binary blobs (Vec\<u8> or Uint8Array), linked to the 'blob' type. Useful when working with web APIs, raw binary data, and in exchange scenarios between formats (see "blobify" in the Std library for more details).
 "#.into());
 }
 

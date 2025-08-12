@@ -1,27 +1,60 @@
 # Blob Library (Blob)
-Library for working with blobs (Vec<u8> or Uint8Array), linked to the 'blob' type.
+Library for working with binary blobs (Vec\<u8> or Uint8Array), linked to the 'blob' type. Useful when working with web APIs, raw binary data, and in exchange scenarios between formats (see "blobify" in the Std library for more details).
 
-# At
-Index into this blob at a specific byte.
+# Blob.at(bytes: blob, index: int) -> int
+Byte at a specific index within this blob.
+```rust
+const bytes: blob = "hello";
+assert_eq(bytes[1], 101); // or '.at(1)' or 'Blob.at(bytes, 1)'
+```
 
-# Base64 String
-Encode this blob as a base64 string.
+# Blob.base64(bytes: blob) -> str
+Transform this blob into a string using Base64 encoding.
+```rust
+const bytes: blob = "hello";
+assert_eq(bytes.base64(), "aGVsbG8=");
+```
 
-# From Base64 String
-Decode a base 64 string into a blob.
+# Blob.from_base64(val: str) -> blob
+Transform a string into a blob, using Base64 encoding.
+```rust
+const bytes: blob = Blob.from_base64("aGVsbG8=");
+assert_eq(bytes as str, "hello");
+```
 
-# From URL-Safe Base64 String
-Decode a URL safe base 64 string into a blob.
+# Blob.from_url_base64(val: str) -> blob
+Transform a string into a blob, using URL-safe Base64 encoding.
+```rust
+const bytes: blob = Blob.from_url_base64("aGVsbG8=");
+assert_eq(bytes as str, "hello");
+```
 
-# From UTF-8 String
-UTF-8 string into a blob.
+# Blob.from_utf8(val: str) -> blob
+Transform a string into a blob, using standard UTF-8 encoding (default for normal casts too).
+```rust
+const bytes: blob = "hello";
+assert_eq(bytes, Blob.from_utf8("hello"));
+```
 
-# Length (size)
+# Blob.len(bytes: blob) -> int
 Size of this binary blob (number of bytes).
+```rust
+const bytes: blob = "hello";
+assert_eq(bytes.len(), 5);
+```
 
-# URL-Safe Base64 String
-Encode this blob as a URL safe base64 string.
+# Blob.url_base64(bytes: blob) -> str
+Transform this blob into a string using URL-safe Base64 encoding.
+```rust
+const bytes: blob = "hello";
+assert_eq(bytes.url_base64(), "aGVsbG8=");
+```
 
-# UTF-8 String
-Get the string version of this blob if its encoded as UTF-8.
+# Blob.utf8(bytes: blob) -> str
+Transform this blob into a string using UTF-8 (default conversion for casts also).
+```rust
+const bytes: blob = "hello";
+assert_eq(bytes.utf8(), "hello");
+assert_eq(bytes as str, "hello");
+```
 
