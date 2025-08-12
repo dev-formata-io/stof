@@ -43,7 +43,12 @@ fn http_fetch(sender: &Sender<HTTPRequest>) -> LibFunc {
         library: HTTP_LIB.clone(),
         name: "fetch".into(),
         is_async: true,
-        docs: "# Send HTTP Request (fetch)\nExecute an async HTTP request, returning a map of the results.".into(),
+        docs: r#"# async Http.fetch(url: str, method: str = "get", body: str | blob = null, headers: map = null, timeout: seconds = null, query: map = null, bearer: str = null) -> Promise<map>
+Make an HTTP request, using the thread pool in the background so that other Stof processes can continue running.
+```rust
+const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
+assert(resp.get('text').len() > 100);
+```"#.into(),
         params: vector![
             Param { name: "url".into(), param_type: Type::Str, default: None },
             Param { name: "method".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Str("get".into())))) },

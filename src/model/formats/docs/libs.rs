@@ -283,7 +283,10 @@ Functions for working with the file system. Requires the "system" feature to aut
 fn http_lib(graph: &mut Graph) {
     graph.insert_libdoc(literal!("Http"), 
 r#"# HTTP Network Library (Http)
-Functions for working with HTTP over the network (async fetch, etc.).
+Functions for working with HTTP calls over a system network connection (async fetch, etc.). Requires the "http" feature flag to be enabled.
+
+## Thread Pool
+This library adds a thread pool in the background for processing HTTP requests, allowing Stof to keep running while requests are executed separately. Asyncronous fetch requests will create a new Stof process, which will wait for the thread pool to execute the request before returning a map with the response data. You can then await this response map when you need it, which significantly increases performance by enabling parallel HTTP requests.
 "#.into());
 }
 
