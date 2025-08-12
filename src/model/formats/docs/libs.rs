@@ -222,7 +222,7 @@ fn main() {
 fn map_lib(graph: &mut Graph) {
     graph.insert_libdoc(literal!("Map"), 
 r#"# Map Library (Map)
-Library linked to the 'map' type.
+Library linked to the 'map' type. Maps are ordered by keys.
 
 ## Example Usage
 ```rust

@@ -51,7 +51,13 @@ fn map_append() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "append".into(),
         is_async: false,
-        docs: "# Append\nAppends another map to this one (returns nothing).".into(),
+        docs: r#"# Map.append(this: map, other: map) -> void
+Append the items of another map onto this map.
+```rust
+const map = {"a": 1};
+map.append({"b": 2});
+assert_eq(map, {"a": 1, "b": 2});
+```"#.into(),
         params: vector![
             Param { name: "map".into(), param_type: Type::Map, default: None },
             Param { name: "other".into(), param_type: Type::Map, default: None }
@@ -73,7 +79,13 @@ fn map_clear() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "clear".into(),
         is_async: false,
-        docs: "# Clear\nClears a map of all keys and values (returns nothing).".into(),
+        docs: r#"# Map.clear(this: map) -> void
+Clear this map of all items.
+```rust
+const map = {"a": 1};
+map.clear();
+assert(map.empty());
+```"#.into(),
         params: vector![
             Param { name: "map".into(), param_type: Type::Map, default: None }
         ],
@@ -94,7 +106,12 @@ fn map_contains() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "contains".into(),
         is_async: false,
-        docs: "# Contains Key?\nReturns true if a map contains a key.".into(),
+        docs: r#"# Map.contains(this: map, key: unknown) -> bool
+Returns true if this map contains a key that equals the given value.
+```rust
+const map = {"a": 1};
+assert(map.contains("a"));
+```"#.into(),
         params: vector![
             Param { name: "map".into(), param_type: Type::Map, default: None },
             Param { name: "key".into(), param_type: Type::Void, default: None }
@@ -116,7 +133,12 @@ fn map_first() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "first".into(),
         is_async: false,
-        docs: "# First\nReturns the minimum key-value pair in this map.".into(),
+        docs: r#"# Map.first(this: map) -> (unknown, unknown)
+Return the first key-value pair in this ordered map, or null if the map is empty. Optionally return the value as a reference with the '&' operator.
+```rust
+const map = {"a": 1};
+assert_eq(map.first(), ("a", 1));
+```"#.into(),
         params: vector![
             Param { name: "map".into(), param_type: Type::Map, default: None }
         ],
@@ -141,7 +163,12 @@ fn map_last() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "last".into(),
         is_async: false,
-        docs: "# Last\nReturns the maximum key-value pair in this map.".into(),
+        docs: r#"# Map.last(this: map) -> (unknown, unknown)
+Return the last key-value pair in this ordered map, or null if the map is empty. Optionally return the value as a reference with the '&' operator.
+```rust
+const map = {"a": 1, "b": 3};
+assert_eq(map.last(), ("b", 3));
+```"#.into(),
         params: vector![
             Param { name: "map".into(), param_type: Type::Map, default: None }
         ],
@@ -166,7 +193,12 @@ fn map_get() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "get".into(),
         is_async: false,
-        docs: "# Get\nGet a value in this map by key.".into(),
+        docs: r#"# Map.get(this: map, key: unknown) -> unknown
+Return a value for the given key in this map, optionally by reference.
+```rust
+const map = {"a": 1};
+assert_eq(map.get("a"), 1);
+```"#.into(),
         params: vector![
             Param { name: "map".into(), param_type: Type::Map, default: None },
             Param { name: "key".into(), param_type: Type::Void, default: None }
@@ -192,7 +224,13 @@ fn map_insert() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "insert".into(),
         is_async: false,
-        docs: "# Insert\nInsert a key-value pair into this map.".into(),
+        docs: r#"# Map.insert(this: map, key: unknown, value: unknown) -> unknown
+Insert a key-value pair into this map, returning the old value if the key was already present, or null otherwise.
+```rust
+const map = {"a": 1};
+assert_eq(map.insert("a", 3), 1);
+assert_eq(map, {"a": 3});
+```"#.into(),
         params: vector![
             Param { name: "map".into(), param_type: Type::Map, default: None },
             Param { name: "key".into(), param_type: Type::Void, default: None },
@@ -215,7 +253,12 @@ fn map_empty() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "empty".into(),
         is_async: false,
-        docs: "# Empty?\nReturns true if this map is empty.".into(),
+        docs: r#"# Map.empty(this: map) -> bool
+Is this map empty?
+```rust
+const map = map();
+assert(map.empty());
+```"#.into(),
         params: vector![
             Param { name: "map".into(), param_type: Type::Map, default: None }
         ],
@@ -236,7 +279,12 @@ fn map_any() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "any".into(),
         is_async: false,
-        docs: "# Any?\nReturns true if this map is not empty.".into(),
+        docs: r#"# Map.any(this: map) -> bool
+Does this map contain any key-value pairs?
+```rust
+const map = map();
+assert_not(map.any());
+```"#.into(),
         params: vector![
             Param { name: "map".into(), param_type: Type::Map, default: None }
         ],
@@ -257,7 +305,12 @@ fn map_keys() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "keys".into(),
         is_async: false,
-        docs: "# Keys\nReturns a set of keys in this map.".into(),
+        docs: r#"# Map.keys(this: map) -> set
+A set of this map's keys.
+```rust
+const map = {"a": 1, "b": 2};
+assert_eq(map.keys(), {"a", "b"});
+```"#.into(),
         params: vector![
             Param { name: "map".into(), param_type: Type::Map, default: None }
         ],
@@ -278,7 +331,12 @@ fn map_values() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "values".into(),
         is_async: false,
-        docs: "# Values\nReturns a list of values in this map.".into(),
+        docs: r#"# Map.values(this: map) -> list
+A list of this map's values.
+```rust
+const map = {"a": 1, "b": 2};
+assert_eq(map.values(), [1, 2]);
+```"#.into(),
         params: vector![
             Param { name: "map".into(), param_type: Type::Map, default: None }
         ],
@@ -303,7 +361,12 @@ fn map_len() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "len".into(),
         is_async: false,
-        docs: "# Length (size)\nReturns the size of this map.".into(),
+        docs: r#"# Map.len(this: map) -> int
+The number of key-value pairs in this map.
+```rust
+const map = {"a": 1, "b": 2};
+assert_eq(map.len(), 2);
+```"#.into(),
         params: vector![
             Param { name: "map".into(), param_type: Type::Map, default: None }
         ],
@@ -324,7 +387,12 @@ fn map_at() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "at".into(),
         is_async: false,
-        docs: "# At\nReturns a key-value pair at an index within this map.".into(),
+        docs: r#"# Map.at(this: map, index: int) -> (unknown, unknown)
+The key-value pair at the given index in this sorted map.
+```rust
+const map = {"a": 1, "b": 2};
+assert_eq(map.at(1), ("b", 2));
+```"#.into(),
         params: vector![
             Param { name: "map".into(), param_type: Type::Map, default: None },
             Param { name: "index".into(), param_type: Type::Num(NumT::Int), default: None }
@@ -350,7 +418,12 @@ fn map_pop_first() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "pop_first".into(),
         is_async: false,
-        docs: "# Pop First (min)\nRemoves and returns the first key-pair in this map (min) or null if the map is empty.".into(),
+        docs: r#"# Map.pop_first(this: map) -> (unknown, unknown)
+Remove the smallest key-value pair from this map and return it.
+```rust
+const map = {"a": 1, "b": 2};
+assert_eq(map.pop_first(), ("a", 1));
+```"#.into(),
         params: vector![
             Param { name: "map".into(), param_type: Type::Map, default: None }
         ],
@@ -371,8 +444,12 @@ fn map_pop_last() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "pop_last".into(),
         is_async: false,
-        docs: "# Pop Last (max)\nRemoves and returns the last key-pair in this map (max) or null if the map is empty.".into(),
-        params: vector![
+        docs: r#"# Map.pop_last(this: map) -> (unknown, unknown)
+Remove the largest key-value pair from this map and return it.
+```rust
+const map = {"a": 1, "b": 2};
+assert_eq(map.pop_last(), ("b", 2));
+```"#.into(),params: vector![
             Param { name: "map".into(), param_type: Type::Map, default: None }
         ],
         return_type: None,
@@ -392,7 +469,13 @@ fn map_remove() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "remove".into(),
         is_async: false,
-        docs: "# Remove\nRemoves a value in this map by key or returns null if the key isn't found.".into(),
+        docs: r#"# Map.remove(this: map, key: unknown) -> unknown
+Remove the value with the given key and return it, or null if the key isn't present.
+```rust
+const map = {"a": 1, "b": 2};
+assert_eq(map.remove("b"), 2);
+assert_eq(map, {"a": 1});
+```"#.into(),
         params: vector![
             Param { name: "map".into(), param_type: Type::Map, default: None },
             Param { name: "key".into(), param_type: Type::Void, default: None }
