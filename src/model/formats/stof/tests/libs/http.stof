@@ -20,3 +20,14 @@ fn get_request() {
     const resp = await Http.fetch('https://restcountries.com/v3.1/region/europe');
     assert(resp.get('text').len() > 100);
 }
+
+//#[test]
+fn get_requests() {
+    const handles = [];
+    for (let i in 10) {
+        handles.push_back(Http.fetch('https://restcountries.com/v3.1/region/europe'));
+    }
+    for (const response in await handles) {
+        pln(response.get('bytes'));
+    }
+}
