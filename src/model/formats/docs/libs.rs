@@ -275,7 +275,7 @@ Functions for working with time.
 fn fs_lib(graph: &mut Graph) {
     graph.insert_libdoc(literal!("fs"), 
 r#"# File System Library (fs)
-Functions for working with the file system (file IO).
+Functions for working with the file system. Requires the "system" feature to automatically be added, otherwise, remove this library to further sandbox your environment.
 "#.into());
 }
 

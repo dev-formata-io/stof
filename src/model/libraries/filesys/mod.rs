@@ -40,7 +40,11 @@ pub(self) fn read() -> LibFunc {
         library: FS_LIB.clone(),
         name: "read".into(),
         is_async: false,
-        docs: "# Read a File\nReads a file into a binary blob from a path.".into(),
+        docs: r#"# fs.read(path: str) -> blob
+If available, will read a file from a path into a binary blob.
+```rust
+const bytes = fs.read("src/lib.rs");
+```"#.into(),
         params: vector![
             Param { name: "path".into(), param_type: Type::Str, default: None }
         ],
@@ -62,7 +66,11 @@ pub(self) fn read_string() -> LibFunc {
         library: FS_LIB.clone(),
         name: "read_string".into(),
         is_async: false,
-        docs: "# Read a File\nReads a file into a binary blob from a path.".into(),
+        docs: r#"# fs.read_string(path: str) -> str
+If available, will read a file from a path into a string.
+```rust
+const content = fs.read_string("src/lib.rs");
+```"#.into(),
         params: vector![
             Param { name: "path".into(), param_type: Type::Str, default: None }
         ],
@@ -84,7 +92,11 @@ pub(self) fn write() -> LibFunc {
         library: FS_LIB.clone(),
         name: "write".into(),
         is_async: false,
-        docs: "# Write to a File\nWrites content to a file.".into(),
+        docs: r#"# fs.write(path: str, content: str | blob) -> void
+If available, will write content into a file at the given path. Will throw an error if the directory doesn't exist and will overwrite the file if it already exists.
+```rust
+fs.write("src/text.txt", "testing");
+```"#.into(),
         params: vector![
             Param { name: "path".into(), param_type: Type::Str, default: None },
             Param { name: "content".into(), param_type: Type::Union(vector![Type::Str, Type::Blob]), default: None }
