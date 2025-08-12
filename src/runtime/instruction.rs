@@ -29,7 +29,6 @@ pub struct Instructions {
     /// Store instructions in a Func, then clone into the proc without any copies.
     pub instructions: Vector<Arc<dyn Instruction>>,
     pub executed: Vector<Arc<dyn Instruction>>,
-    try_catch_count: u8,
 }
 impl From<Arc<dyn Instruction>> for Instructions {
     fn from(value: Arc<dyn Instruction>) -> Self {
@@ -59,7 +58,6 @@ impl Instructions {
     pub fn clear(&mut self) {
         self.instructions.clear();
         self.executed.clear();
-        self.try_catch_count = 0;
     }
 
     #[inline(always)]
@@ -126,30 +124,6 @@ impl Instructions {
         }
     }
 
-    /// Backup to the last try to see where we need to go, then forward to there.
-    fn unwind_try(&mut self) -> bool {
-        let mut try_tag = None;
-        'unwind: while let Some(ins) = self.executed.pop_back() {
-            if let Some(base) = ins.as_dyn_any().downcast_ref::<Base>() {
-                match base {
-                    Base::CtrlTry(tag) => {
-                        try_tag = Some(tag.clone());
-                        self.executed.push_back(ins);
-                        break 'unwind;
-                    },
-                    _ => {}
-                }
-            }
-            self.instructions.push_front(ins);
-        }
-        if let Some(tag) = try_tag {
-            self.forward_to(&tag);
-            true
-        } else {
-            false
-        }
-    }
-
     #[inline]
     /// Execute one instruction, in order.
     /// This will pop the first instruction, leaving the next ready to be consumed later.
@@ -157,7 +131,13 @@ impl Instructions {
         let keep_count = limit > 0;
         'exec_loop: loop {
             if keep_count {
-                if limit <= 0 { return Ok(ProcRes::More); }
+                if limit <= 0 {
+                    if self.more() {
+                        return Ok(ProcRes::More);
+                    } else {
+                        return Ok(ProcRes::Done);
+                    }
+                }
                 limit -= 1;
             }
 
@@ -168,16 +148,6 @@ impl Instructions {
                     match base {
                         Base::CtrlTrace(n) => {
                             return Ok(ProcRes::Trace(*n));
-                        },
-                        Base::CtrlTry(_) => {
-                            self.try_catch_count += 1;
-                            continue 'exec_loop;
-                        },
-                        Base::CtrlTryEnd => {
-                            if self.try_catch_count > 0 {
-                                self.try_catch_count -= 1;
-                            }
-                            continue 'exec_loop;
                         },
                         Base::CtrlExit => {
                             if let Some(promise) = env.stack.pop() {
@@ -374,7 +344,8 @@ impl Instructions {
                         }
                     },
                     Err(error) => {
-                        if self.try_catch_count > 0 && self.unwind_try() {
+                        if let Some(try_tag) = env.try_stack.pop() {
+                            self.forward_to(&try_tag);
                             match error {
                                 Error::Thrown(val) => {
                                     env.stack.push(Variable::val(val));

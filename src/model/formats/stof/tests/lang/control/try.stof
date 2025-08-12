@@ -52,3 +52,22 @@ fn std_error() {
 
     assert(caught);
 }
+
+#[test]
+fn nested_try() {
+    let caught;
+    try {
+        try {
+            try {
+                throw('hello')
+            } catch (error: str) {
+                throw(error + ', world');
+            }
+        } catch (error: str) {
+            throw(error + '!!');
+        }
+    } catch (error: str) {
+        caught = error;
+    }
+    assert_eq(caught, 'hello, world!!');
+}

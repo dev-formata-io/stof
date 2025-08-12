@@ -88,7 +88,7 @@ pub(self) const STD_LIB: ArcStr = literal!("Std");
 // Static instructions.
 lazy_static! {
     pub(self) static ref SLEEP: Arc<dyn Instruction> = Arc::new(StdIns::Sleep);
-    pub(self) static ref THROW: Arc<dyn Instruction> = Arc::new(StdIns::Throw);
+    pub(crate) static ref THROW: Arc<dyn Instruction> = Arc::new(StdIns::Throw);
     pub(self) static ref ASSERT: Arc<dyn Instruction> = Arc::new(StdIns::Assert);
     pub(self) static ref ASSERT_NOT: Arc<dyn Instruction> = Arc::new(StdIns::AssertNot);
     pub(self) static ref ASSERT_EQ: Arc<dyn Instruction> = Arc::new(StdIns::AssertEq);
@@ -304,6 +304,8 @@ impl Instruction for StdIns {
             Self::Throw => {
                 if let Some(val) = env.stack.pop() {
                     return Err(Error::Thrown(val.get()));
+                } else {
+                    return Err(Error::Thrown(Val::Null));
                 }
             },
 

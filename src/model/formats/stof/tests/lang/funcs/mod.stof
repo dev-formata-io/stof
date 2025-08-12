@@ -21,6 +21,7 @@
  */
 
 import './init' as self.Init;
+import './return' as self.Return;
 
 
 #[test]

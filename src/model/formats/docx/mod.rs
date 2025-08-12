@@ -53,7 +53,7 @@ impl Format for DocxFormat {
                             }
                             fn __docx_child__(node: obj, text: str, sep: str) {
                                 for (const child in node.data.children) {
-                                    if (child.type != 'text') text.push(this(&child, &text, &sep));
+                                    if (child.type != 'text') this(&child, &text, &sep);
                                     else text.push(child.data.text + sep);
                                 }
                             }

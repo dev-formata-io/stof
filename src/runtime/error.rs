@@ -436,7 +436,7 @@ pub enum Error {
     FuncDne,
     FuncDefaultArg(Box<Self>),
     FuncArgs,
-    FuncNotVoid,
+    FuncInvalidReturn,
 
     // Value errors
     Truthy,

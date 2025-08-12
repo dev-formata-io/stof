@@ -17,9 +17,8 @@
 use std::{ops::Deref, sync::Arc};
 use arcstr::{literal, ArcStr};
 use imbl::Vector;
-use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Field, Func, Graph, LibFunc, NodeRef, Prototype, SId, ASYNC_FUNC_ATTR, PROTOTYPE_TYPE_ATTR, SELF_STR_KEYWORD, SUPER_STR_KEYWORD, UNSELF_FUNC_ATTR}, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, DUPLICATE, POP_CALL, POP_RETURN, POP_SELF, PUSH_CALL, PUSH_RETURN, PUSH_SELF, PUSH_SYMBOL_SCOPE, SUSPEND}, proc::ProcEnv, Error, Type, Val, ValRef, Variable}};
+use crate::{model::{DataRef, Field, Func, Graph, LibFunc, NodeRef, Prototype, SId, ASYNC_FUNC_ATTR, PROTOTYPE_TYPE_ATTR, SELF_STR_KEYWORD, SUPER_STR_KEYWORD, UNSELF_FUNC_ATTR}, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, DUPLICATE, POP_CALL, POP_RETURN, POP_SELF, PUSH_CALL, PUSH_RETURN, PUSH_SELF, PUSH_SYMBOL_SCOPE, PUSH_VAL_RET, PUSH_VOID_RET, SUSPEND, VALIDATE_FN_RET}, proc::ProcEnv, Error, Type, Val, ValRef, Variable}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -566,19 +565,16 @@ impl Instruction for FuncCall {
 
         // Push the function instructions
         if !rtype.empty() {
+            instructions.push(PUSH_VAL_RET.clone());
             instructions.append(&func_instructions);
-            
-            if !is_async { // await will perform the cast
+            instructions.push(VALIDATE_FN_RET.clone());
+            if !is_async { // await will perform the cast lazily
                 instructions.push(Arc::new(Base::Cast(rtype.clone())));
             }
         } else {
-            // Make sure we get an error if the last value is not void (or doesn't exist on stack)
-            let val = Val::Str(nanoid!(10).into());
-            instructions.push(Arc::new(Base::Literal(val.clone())));
+            instructions.push(PUSH_VOID_RET.clone());
             instructions.append(&func_instructions);
-            // This will pop the last val from the stack and compare with this val
-            // will throw an error if the values are not equal (void func)
-            instructions.push(Arc::new(Base::FuncVoidRet(val)));
+            instructions.push(VALIDATE_FN_RET.clone());
         }
 
         // Cleanup stacks

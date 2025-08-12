@@ -37,17 +37,18 @@ impl Instruction for TryCatchIns {
         let size = env.stack.len();
 
         let mut instructions = Instructions::default();
-        instructions.push(Arc::new(Base::CtrlTry(catch_tag.clone()))); // Go here when theres an error & inc try count
+        instructions.push(Arc::new(Base::Try(catch_tag.clone()))); // Go here when theres an error & inc try count
         instructions.append(&self.try_ins);
-
+        instructions.push(END_TRY.clone());
         instructions.push(Arc::new(Base::CtrlForwardTo(end_tag.clone())));
+        
         instructions.push(Arc::new(Base::Tag(catch_tag))); // now theres an error on the stack!
+        // throw will have already popped the try stack, so no need for another END_TRY
         instructions.append(&self.err_ins);
         instructions.push(Arc::new(Base::PopUntilStackCount(size)));
         instructions.append(&self.catch_ins);
 
         instructions.push(Arc::new(Base::Tag(end_tag)));
-        instructions.push(END_TRY.clone()); // de-increment the try count.
         Ok(Some(instructions))
     }
 }

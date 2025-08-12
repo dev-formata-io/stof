@@ -45,6 +45,8 @@ pub struct ProcEnv {
     pub table: Box<SymbolTable>,
     pub loop_stack: Vec<ArcStr>,
     pub return_stack: Vec<ArcStr>,
+    pub ret_valid_stack: Vec<usize>,
+    pub try_stack: Vec<ArcStr>,
 
     // Setting this will put the process into a waiting mode
     pub spawn: Option<Box<Process>>,

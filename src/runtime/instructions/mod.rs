@@ -45,7 +45,7 @@ lazy_static! {
     pub static ref SUSPEND: Arc<dyn Instruction> = Arc::new(Base::CtrlSuspend);
     pub static ref AWAIT: Arc<dyn Instruction> = Arc::new(Base::CtrlAwait);
     pub static ref NOOP: Arc<dyn Instruction> = Arc::new(Base::CtrlNoOp);
-    pub static ref END_TRY: Arc<dyn Instruction> = Arc::new(Base::CtrlTryEnd);
+    pub static ref END_TRY: Arc<dyn Instruction> = Arc::new(Base::TryEnd);
     pub static ref EXIT: Arc<dyn Instruction> = Arc::new(Base::CtrlExit);
 
     pub static ref PUSH_SELF: Arc<dyn Instruction> = Arc::new(Base::PushSelf);
@@ -58,6 +58,9 @@ lazy_static! {
     pub static ref POP_NEW: Arc<dyn Instruction> = Arc::new(Base::PopNew);
 
     pub static ref POP_STACK: Arc<dyn Instruction> = Arc::new(Base::PopStack);
+    pub static ref PUSH_VAL_RET: Arc<dyn Instruction> = Arc::new(Base::PushValFuncRet);
+    pub static ref PUSH_VOID_RET: Arc<dyn Instruction> = Arc::new(Base::PushVoidFuncRet);
+    pub static ref VALIDATE_FN_RET: Arc<dyn Instruction> = Arc::new(Base::ValidateFuncRet);
 
     pub static ref FN_RETURN: Arc<dyn Instruction> = Arc::new(Base::CtrlFnReturn);
     pub static ref POP_RETURN: Arc<dyn Instruction> = Arc::new(Base::PopReturn);
@@ -143,9 +146,8 @@ pub enum Base {
     PopReturn,
 
     // Try catch control instructions.
-    // Go forward to this tag if an error occurrs.
-    CtrlTry(ArcStr),
-    CtrlTryEnd,
+    Try(ArcStr),
+    TryEnd,
 
     // Sleep instructions.
     CtrlSleepFor(Duration),
@@ -175,7 +177,9 @@ pub enum Base {
     // Pop a variable from the stack. (drop val)
     PopStack,
     PopUntilStackCount(usize),
-    FuncVoidRet(Val),
+    PushValFuncRet,
+    PushVoidFuncRet,
+    ValidateFuncRet,
 
     // Spawn a new process.
     Spawn((Instructions, Type)),
@@ -261,8 +265,12 @@ impl Instruction for Base {
 
             Self::CtrlJumpTable(..) => {}, // Nothing here... used by instructions...
 
-            Self::CtrlTry(_) => {}, // Nothing here... used by instructions...
-            Self::CtrlTryEnd => {}, // Nothing here... used by instructions...
+            Self::Try(tag) => {
+                env.try_stack.push(tag.clone());
+            },
+            Self::TryEnd => {
+                env.try_stack.pop();
+            },
 
             Self::CtrlTrace(_) => {}, // Nothing here... used by instructions...
 
@@ -334,8 +342,13 @@ impl Instruction for Base {
                 // Creates a new PID every time here, avoiding a lot of issues...
                 let mut proc = Process::from(async_ins.clone());
                 let pid = proc.env.pid.clone();
+
                 proc.env = env.clone(); // clone this environment
                 proc.env.stack.clear(); // new stack for this new proc
+                proc.env.loop_stack.clear();
+                proc.env.return_stack.clear();
+                proc.env.ret_valid_stack.clear();
+                proc.env.try_stack.clear();
                 proc.env.spawn = None;
                 proc.env.pid = pid.clone();
 
@@ -717,14 +730,16 @@ impl Instruction for Base {
                     env.stack.pop();
                 }
             },
-            Self::FuncVoidRet(val) => {
-                while let Some(var) = env.stack.pop() {
-                    let res = var.val.read().equal(val)?;
-                    if !res.truthy() {
-                        // The function ended and has added to the stack, so error
-                        return Err(Error::FuncNotVoid);
-                    } else {
-                        break;
+            Self::PushValFuncRet => {
+                env.ret_valid_stack.push(env.stack.len() + 1);
+            },
+            Self::PushVoidFuncRet => {
+                env.ret_valid_stack.push(env.stack.len());
+            },
+            Self::ValidateFuncRet => {
+                if let Some(size) = env.ret_valid_stack.pop() {
+                    if env.stack.len() != size {
+                        return Err(Error::FuncInvalidReturn);
                     }
                 }
             },
