@@ -45,7 +45,7 @@ pub struct FieldDoc {
     pub docs: String,
 }
 
-#[typetag::serde(name = "_Field")]
+#[typetag::serde(name = "Field")]
 impl StofData for Field {
     fn core_data(&self) -> bool {
         return true;
@@ -71,7 +71,7 @@ impl StofData for Field {
         })
     }
 }
-#[typetag::serde(name = "_FieldDoc")]
+#[typetag::serde(name = "FieldDoc")]
 impl StofData for FieldDoc {
     fn core_data(&self) -> bool {
         return true;

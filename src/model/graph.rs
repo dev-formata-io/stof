@@ -1467,7 +1467,7 @@ mod tests {
 
         let dref = graph.insert_stof_data(&root, "test", Box::new("value".to_owned()), None).unwrap();
         assert_eq!(dref.data_name(&graph).unwrap().as_ref(), "test");
-        assert_eq!(dref.tagname(&graph).unwrap(), "_String");
+        assert_eq!(dref.tagname(&graph).unwrap(), "String");
 
         assert_eq!(root.node_data_named(&graph, "test").unwrap(), &dref);
         assert_eq!(graph.data.len(), 1);

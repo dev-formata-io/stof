@@ -32,7 +32,7 @@ use crate::model::{Graph, NodeRef, StofData};
 pub struct InnerDoc {
     pub docs: String,
 }
-#[typetag::serde(name = "_InnerDoc")]
+#[typetag::serde(name = "InnerDoc")]
 impl StofData for InnerDoc {
     fn core_data(&self) -> bool {
         return true;

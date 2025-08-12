@@ -64,13 +64,13 @@ impl FuncDoc {
     }
 }
 
-#[typetag::serde(name = "_Func")]
+#[typetag::serde(name = "Fn")]
 impl StofData for Func {
     fn core_data(&self) -> bool {
         return true;
     }
 }
-#[typetag::serde(name = "_FuncDoc")]
+#[typetag::serde(name = "FnDoc")]
 impl StofData for FuncDoc {
     fn core_data(&self) -> bool {
         return true;

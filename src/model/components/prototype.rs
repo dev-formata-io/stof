@@ -32,7 +32,7 @@ pub struct Prototype {
     pub node: NodeRef,
 }
 
-#[typetag::serde(name = "_Proto")]
+#[typetag::serde(name = "Proto")]
 impl StofData for Prototype {
     fn core_data(&self) -> bool {
         true

@@ -1228,7 +1228,7 @@ impl Val {
             Self::Fn(dref) => {
                 match target {
                     Type::Data(inner) => {
-                        if inner != &DATA && inner != &literal!("_Func") {
+                        if inner != &DATA && inner != &literal!("Fn") {
                             Err(Error::NotImplemented)
                         } else {
                             *self = Self::Data(dref.clone());

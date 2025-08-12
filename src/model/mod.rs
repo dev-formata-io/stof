@@ -113,7 +113,7 @@ impl Clone for Box<dyn StofData> {
 
 
 /// String data.
-#[typetag::serde(name = "_String")]
+#[typetag::serde(name = "String")]
 impl StofData for String {
     fn core_data(&self) -> bool {
         return true;
@@ -122,7 +122,7 @@ impl StofData for String {
 
 
 /// Empty data.
-#[typetag::serde(name = "_None")]
+#[typetag::serde(name = "None")]
 impl StofData for () {
     fn core_data(&self) -> bool {
         return true;
@@ -137,7 +137,7 @@ impl StofData for () {
 pub struct StofDataContainer {
     pub contained: Vec<u8>,
 }
-#[typetag::serde(name = "_Contained")]
+#[typetag::serde(name = "Contained")]
 impl StofData for StofDataContainer {
     fn core_data(&self) -> bool {
         return true;
