@@ -61,7 +61,13 @@ fn list_append() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "append".into(),
         is_async: false,
-        docs: "# Append\nAppends another list to this one (returns nothing).".into(),
+        docs: r#"# List.append(array: list, other: list) -> void
+Append another list to this list, leaving other unmodified.
+```rust
+const array = [1, 2, 3];
+array.append([4, 5]);
+assert_eq(array, [1, 2, 3, 4, 5]);
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "other".into(), param_type: Type::List, default: None }
@@ -83,7 +89,13 @@ fn list_push_back() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "push_back".into(),
         is_async: false,
-        docs: "# Push Back\nPushes arguments to the back of this list.".into(),
+        docs: r#"# List.push_back(array: list, ..) -> void
+Push N values to the back of this list.
+```rust
+const array = [1, 2, 3];
+array.push_back(4, 5);
+assert_eq(array, [1, 2, 3, 4, 5]);
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
@@ -104,7 +116,13 @@ fn list_push_front() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "push_front".into(),
         is_async: false,
-        docs: "# Push Front\nPushes arguments to the front of this list (in order).".into(),
+        docs: r#"# List.push_front(array: list, ..) -> void
+Push N values to the front of this list.
+```rust
+const array = [1, 2, 3];
+array.push_front(4, 5);
+assert_eq(array, [5, 4, 1, 2, 3]);
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
@@ -125,7 +143,13 @@ fn list_pop_front() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "pop_front".into(),
         is_async: false,
-        docs: "# Pop Front\nRemoves a value from the front of this list, returning that value or null if the list is empty.".into(),
+        docs: r#"# List.pop_front(array: list) -> unknown
+Remove a single value from the front of this list and return it. 
+```rust
+const array = [1, 2, 3];
+assert_eq(array.pop_front(), 1);
+assert_eq(array, [2, 3]);
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
@@ -146,7 +170,13 @@ fn list_pop_back() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "pop_back".into(),
         is_async: false,
-        docs: "# Pop Back\nRemoves a value from the back of this list, returning that value or null if the list is empty.".into(),
+        docs: r#"# List.pop_back(array: list) -> unknown
+Remove a single value from the back of this list and return it. 
+```rust
+const array = [1, 2, 3];
+assert_eq(array.pop_back(), 3);
+assert_eq(array, [1, 2]);
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
@@ -167,7 +197,13 @@ fn list_clear() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "clear".into(),
         is_async: false,
-        docs: "# Clear\nClears the list of all values.".into(),
+        docs: r#"# List.clear(array: list) -> void
+Clear all values from this list.
+```rust
+const array = [1, 2, 3];
+array.clear();
+assert_eq(array, []);
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
@@ -188,7 +224,13 @@ fn list_reverse() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "reverse".into(),
         is_async: false,
-        docs: "# Reverse\nReverses the list in place.".into(),
+        docs: r#"# List.reverse(array: list) -> void
+Reverses this list in-place.
+```rust
+const array = [1, 2, 3];
+array.reverse();
+assert_eq(array, [3, 2, 1]);
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
@@ -209,7 +251,14 @@ fn list_reversed() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "reversed".into(),
         is_async: false,
-        docs: "# Reversed\nReturns a new list in the reverse order.".into(),
+        docs: r#"# List.reversed(array: list) -> list
+Return a new list that is reversed, leaving this list unmodified.
+```rust
+const array = [1, 2, 3];
+const other = array.reversed();
+assert_eq(array, [1, 2, 3]);
+assert_eq(other, [3, 2, 1]);
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
@@ -230,7 +279,12 @@ fn list_len() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "len".into(),
         is_async: false,
-        docs: "# Length\nReturns the length of this list.".into(),
+        docs: r#"# List.len(array: list) -> int
+Return the length of this list.
+```rust
+const array = [1, 2, 3];
+assert_eq(array.len(), 3);
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
@@ -251,7 +305,14 @@ fn list_at() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "at".into(),
         is_async: false,
-        docs: "# At\nReturn an element at the given index (or null if out of bounds).".into(),
+        docs: r#"# List.at(array: list, index: int) -> unknown
+Get the value at the given index, optionally by reference. 
+```rust
+const array = [1, 2, 3];
+let v = &array[1]; // &List.at(array, 1);
+v = 5;
+assert_eq(array, [1, 5, 3]);
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "index".into(), param_type: Type::Num(NumT::Int), default: None }
@@ -277,7 +338,12 @@ fn list_empty() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "empty".into(),
         is_async: false,
-        docs: "# Empty\nReturns true if this list is empty.".into(),
+        docs: r#"# List.empty(array: list) -> bool
+Is this list empty?
+```rust
+const array = [1];
+assert_not(array.empty());
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
@@ -298,7 +364,12 @@ fn list_any() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "any".into(),
         is_async: false,
-        docs: "# Any\nReturns true if this list is not empty.".into(),
+        docs: r#"# List.any(array: list) -> bool
+Does this list contain any values?
+```rust
+const array = [1];
+assert(array.any());
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
@@ -319,7 +390,12 @@ fn list_front() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "front".into(),
         is_async: false,
-        docs: "# Front\nReturns the value at the front of this list or null if the list is empty.".into(),
+        docs: r#"# List.front(array: list) -> unknown
+Get the value at the front of this list, optionally by reference.
+```rust
+const array = [1];
+assert_eq(array.front(), 1);
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
@@ -344,7 +420,12 @@ fn list_back() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "back".into(),
         is_async: false,
-        docs: "# Back\nReturns the value at the back of this list or null if the list is empty.".into(),
+        docs: r#"# List.back(array: list) -> unknown
+Get the value at the back of this list, optionally by reference.
+```rust
+const array = [1, 2];
+assert_eq(array.back(), 2);
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
@@ -369,7 +450,12 @@ fn list_join() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "join".into(),
         is_async: false,
-        docs: "# Join\nJoins the values in this list into a string, separated by a given separator (default is an empty space char).".into(),
+        docs: r#"# List.join(array: list, sep: str) -> str
+Join the values in this array together into a single string.
+```rust
+const array = ["hello", "world"];
+assert_eq(array.join(", "), "hello, world");
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "sep".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Str(literal!(" "))))) }
@@ -391,7 +477,12 @@ fn list_contains() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "contains".into(),
         is_async: false,
-        docs: "# Contains\nReturns true if this list contains the given value.".into(),
+        docs: r#"# List.contains(array: list, value: unknown) -> bool
+Does this list contain the given value?
+```rust
+const array = [1];
+assert(array.contains(1));
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "search".into(), param_type: Type::Void, default: None }
@@ -413,7 +504,12 @@ fn list_index_of() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "index_of".into(),
         is_async: false,
-        docs: "# Index Of\nReturns the first index of the given value if found or -1 if not found.".into(),
+        docs: r#"# List.index_of(array: list, v: unknown) -> int
+If the list contains the given value, return the index of the first matched value. Returns -1 if the list does not contain the given value.
+```rust
+const array = [1, 2, 3];
+assert_eq(array.index_of(2), 1);
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "search".into(), param_type: Type::Void, default: None }
@@ -435,7 +531,13 @@ fn list_remove() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "remove".into(),
         is_async: false,
-        docs: "# Remove\nRemove a value at the given index, returning it if found or null if the index is out of bounds.".into(),
+        docs: r#"# List.remove(array: list, index: int) -> unknown
+Remove a value at the given index and return it. Returns null if index is out of bounds.
+```rust
+const array = [1];
+assert_eq(array.remove(0), 1);
+assert(array.empty());
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "index".into(), param_type: Type::Num(NumT::Int), default: None }
@@ -457,7 +559,13 @@ fn list_remove_first() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "remove_first".into(),
         is_async: false,
-        docs: "# Remove First\nRemove the first occurrance of a value, returning it if found or null otherwise.".into(),
+        docs: r#"# List.remove_first(array: list, val: unknown) -> unknown
+Remove the first occurrance of a value in this array (equals) and return it.
+```rust
+const array = [2, 1, 1, 2];
+assert_eq(array.remove_first(2), 2);
+assert_eq(array, [1, 1, 2]);
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "search".into(), param_type: Type::Void, default: None }
@@ -479,7 +587,13 @@ fn list_remove_last() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "remove_last".into(),
         is_async: false,
-        docs: "# Remove Last\nRemove the last occurrance of a value, returning it if found or null otherwise.".into(),
+        docs: r#"# List.remove_last(array: list, val: unknown) -> unknown
+Remove the last occurrance of a value in this array (equals) and return it.
+```rust
+const array = [2, 1, 1, 2];
+assert_eq(array.remove_last(2), 2);
+assert_eq(array, [2, 1, 1]);
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "search".into(), param_type: Type::Void, default: None }
@@ -501,7 +615,13 @@ fn list_remove_all() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "remove_all".into(),
         is_async: false,
-        docs: "# Remove All\nRemove all occurrances of a value, returning true if any were found and removed.".into(),
+        docs: r#"# List.remove_all(array: list, val: unknown) -> bool
+Remove all occurrances of a value in this array (equals) and return true if any were removed.
+```rust
+const array = [2, 1, 1, 2];
+assert(array.remove_all(2));
+assert_eq(array, [1, 1]);
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "search".into(), param_type: Type::Void, default: None }
@@ -523,7 +643,13 @@ fn list_insert() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "insert".into(),
         is_async: false,
-        docs: "# Insert\nInsert a value into this list at the given index, pushing values right.".into(),
+        docs: r#"# List.insert(array: list, index: int, val: unknown) -> void
+Insert a value into this list at the given index.
+```rust
+const array = [2, 1];
+array.insert(1, 3);
+assert_eq(array, [2, 3, 1]);
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "index".into(), param_type: Type::Num(NumT::Int), default: None },
@@ -546,7 +672,13 @@ fn list_replace() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "replace".into(),
         is_async: false,
-        docs: "# Replace\nReplace a value into this list at the given index, returning the old value.".into(),
+        docs: r#"# List.replace(array: list, index: int, val: unknown) -> unknown
+Replace/set the value at the given index with a new value, returning the old.
+```rust
+const array = [2, 1];
+assert_eq(array.replace(1, 4), 1);
+assert_eq(array, [2, 4]);
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "index".into(), param_type: Type::Num(NumT::Int), default: None },
@@ -569,7 +701,13 @@ fn list_sort() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "sort".into(),
         is_async: false,
-        docs: "# Sort\nSorts this list given the default value ordering.".into(),
+        docs: r#"# List.sort(array: list) -> void
+Sort the values in this array according to their already defined ordering.
+```rust
+const array = [2, 1, 4, 3];
+array.sort();
+assert_eq(array, [1, 2, 3, 4]);
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
@@ -590,7 +728,12 @@ fn list_is_uniform() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "is_uniform".into(),
         is_async: false,
-        docs: "# Is Uniform?\nReturns true if the list contains only a singular type of value.".into(),
+        docs: r#"# List.is_uniform(array: list) -> bool
+Returns true if every value in this list has the same specific type (does not account for object prototype inheritance).
+```rust
+const array = ["hi", true];
+assert_not(array.is_uniform());
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
@@ -611,7 +754,13 @@ fn list_to_uniform() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "to_uniform".into(),
         is_async: false,
-        docs: "# To Uniform Type\nCasts each value in this list to a given type.".into(),
+        docs: r#"# List.to_uniform(array: list, type: str) -> void
+Try casting all values in this list to the given type (given as a string like you would in a Stof file). Will throw an error if a value cannot be cast.
+```rust
+const array = [1, "hi", true];
+array.to_uniform("str");
+assert_eq(array, ["1", "hi", "true"]);
+```"#.into(),
         params: vector![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "type".into(), param_type: Type::Str, default: None }

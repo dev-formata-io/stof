@@ -11,81 +11,204 @@ fn main() {
 }
 ```
 
-# Any
-Returns true if this list is not empty.
+# List.any(array: list) -> bool
+Does this list contain any values?
+```rust
+const array = [1];
+assert(array.any());
+```
 
-# Append
-Appends another list to this one (returns nothing).
+# List.append(array: list, other: list) -> void
+Append another list to this list, leaving other unmodified.
+```rust
+const array = [1, 2, 3];
+array.append([4, 5]);
+assert_eq(array, [1, 2, 3, 4, 5]);
+```
 
-# At
-Return an element at the given index (or null if out of bounds).
+# List.at(array: list, index: int) -> unknown
+Get the value at the given index, optionally by reference. 
+```rust
+const array = [1, 2, 3];
+let v = &array[1]; // &List.at(array, 1);
+v = 5;
+assert_eq(array, [1, 5, 3]);
+```
 
-# Back
-Returns the value at the back of this list or null if the list is empty.
+# List.back(array: list) -> unknown
+Get the value at the back of this list, optionally by reference.
+```rust
+const array = [1, 2];
+assert_eq(array.back(), 2);
+```
 
-# Clear
-Clears the list of all values.
+# List.clear(array: list) -> void
+Clear all values from this list.
+```rust
+const array = [1, 2, 3];
+array.clear();
+assert_eq(array, []);
+```
 
-# Contains
-Returns true if this list contains the given value.
+# List.contains(array: list, value: unknown) -> bool
+Does this list contain the given value?
+```rust
+const array = [1];
+assert(array.contains(1));
+```
 
-# Empty
-Returns true if this list is empty.
+# List.empty(array: list) -> bool
+Is this list empty?
+```rust
+const array = [1];
+assert_not(array.empty());
+```
 
-# Front
-Returns the value at the front of this list or null if the list is empty.
+# List.front(array: list) -> unknown
+Get the value at the front of this list, optionally by reference.
+```rust
+const array = [1];
+assert_eq(array.front(), 1);
+```
 
-# Index Of
-Returns the first index of the given value if found or -1 if not found.
+# List.index_of(array: list, v: unknown) -> int
+If the list contains the given value, return the index of the first matched value. Returns -1 if the list does not contain the given value.
+```rust
+const array = [1, 2, 3];
+assert_eq(array.index_of(2), 1);
+```
 
-# Insert
-Insert a value into this list at the given index, pushing values right.
+# List.insert(array: list, index: int, val: unknown) -> void
+Insert a value into this list at the given index.
+```rust
+const array = [2, 1];
+array.insert(1, 3);
+assert_eq(array, [2, 3, 1]);
+```
 
-# Is Uniform?
-Returns true if the list contains only a singular type of value.
+# List.is_uniform(array: list) -> bool
+Returns true if every value in this list has the same specific type (does not account for object prototype inheritance).
+```rust
+const array = ["hi", true];
+assert_not(array.is_uniform());
+```
 
-# Join
-Joins the values in this list into a string, separated by a given separator (default is an empty space char).
+# List.join(array: list, sep: str) -> str
+Join the values in this array together into a single string.
+```rust
+const array = ["hello", "world"];
+assert_eq(array.join(", "), "hello, world");
+```
 
-# Length
-Returns the length of this list.
+# List.len(array: list) -> int
+Return the length of this list.
+```rust
+const array = [1, 2, 3];
+assert_eq(array.len(), 3);
+```
 
-# Pop Back
-Removes a value from the back of this list, returning that value or null if the list is empty.
+# List.pop_back(array: list) -> unknown
+Remove a single value from the back of this list and return it. 
+```rust
+const array = [1, 2, 3];
+assert_eq(array.pop_back(), 3);
+assert_eq(array, [1, 2]);
+```
 
-# Pop Front
-Removes a value from the front of this list, returning that value or null if the list is empty.
+# List.pop_front(array: list) -> unknown
+Remove a single value from the front of this list and return it. 
+```rust
+const array = [1, 2, 3];
+assert_eq(array.pop_front(), 1);
+assert_eq(array, [2, 3]);
+```
 
-# Push Back
-Pushes arguments to the back of this list.
+# List.push_back(array: list, ..) -> void
+Push N values to the back of this list.
+```rust
+const array = [1, 2, 3];
+array.push_back(4, 5);
+assert_eq(array, [1, 2, 3, 4, 5]);
+```
 
-# Push Front
-Pushes arguments to the front of this list (in order).
+# List.push_front(array: list, ..) -> void
+Push N values to the front of this list.
+```rust
+const array = [1, 2, 3];
+array.push_front(4, 5);
+assert_eq(array, [5, 4, 1, 2, 3]);
+```
 
-# Remove
-Remove a value at the given index, returning it if found or null if the index is out of bounds.
+# List.remove(array: list, index: int) -> unknown
+Remove a value at the given index and return it. Returns null if index is out of bounds.
+```rust
+const array = [1];
+assert_eq(array.remove(0), 1);
+assert(array.empty());
+```
 
-# Remove All
-Remove all occurrances of a value, returning true if any were found and removed.
+# List.remove_all(array: list, val: unknown) -> bool
+Remove all occurrances of a value in this array (equals) and return true if any were removed.
+```rust
+const array = [2, 1, 1, 2];
+assert(array.remove_all(2));
+assert_eq(array, [1, 1]);
+```
 
-# Remove First
-Remove the first occurrance of a value, returning it if found or null otherwise.
+# List.remove_first(array: list, val: unknown) -> unknown
+Remove the first occurrance of a value in this array (equals) and return it.
+```rust
+const array = [2, 1, 1, 2];
+assert_eq(array.remove_first(2), 2);
+assert_eq(array, [1, 1, 2]);
+```
 
-# Remove Last
-Remove the last occurrance of a value, returning it if found or null otherwise.
+# List.remove_last(array: list, val: unknown) -> unknown
+Remove the last occurrance of a value in this array (equals) and return it.
+```rust
+const array = [2, 1, 1, 2];
+assert_eq(array.remove_last(2), 2);
+assert_eq(array, [2, 1, 1]);
+```
 
-# Replace
-Replace a value into this list at the given index, returning the old value.
+# List.replace(array: list, index: int, val: unknown) -> unknown
+Replace/set the value at the given index with a new value, returning the old.
+```rust
+const array = [2, 1];
+assert_eq(array.replace(1, 4), 1);
+assert_eq(array, [2, 4]);
+```
 
-# Reverse
-Reverses the list in place.
+# List.reverse(array: list) -> void
+Reverses this list in-place.
+```rust
+const array = [1, 2, 3];
+array.reverse();
+assert_eq(array, [3, 2, 1]);
+```
 
-# Reversed
-Returns a new list in the reverse order.
+# List.reversed(array: list) -> list
+Return a new list that is reversed, leaving this list unmodified.
+```rust
+const array = [1, 2, 3];
+const other = array.reversed();
+assert_eq(array, [1, 2, 3]);
+assert_eq(other, [3, 2, 1]);
+```
 
-# Sort
-Sorts this list given the default value ordering.
+# List.sort(array: list) -> void
+Sort the values in this array according to their already defined ordering.
+```rust
+const array = [2, 1, 4, 3];
+array.sort();
+assert_eq(array, [1, 2, 3, 4]);
+```
 
-# To Uniform Type
-Casts each value in this list to a given type.
+# List.to_uniform(array: list, type: str) -> void
+Try casting all values in this list to the given type (given as a string like you would in a Stof file). Will throw an error if a value cannot be cast.
+```rust
+const array = [1, "hi", true];
+array.to_uniform("str");
+assert_eq(array, ["1", "hi", "true"]);
+```
 
