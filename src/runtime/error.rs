@@ -418,7 +418,6 @@ pub enum Error {
     AssignConst,
     VariableSet,
     FieldReadOnlySet,
-    FieldPrivate,
     AssignSelf,
     AssignSuper,
     AssignRootNonObj,

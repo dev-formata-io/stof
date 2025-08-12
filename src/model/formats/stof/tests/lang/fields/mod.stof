@@ -19,6 +19,7 @@ some_obj: {
     field: 42
 }
 
+
 #[test]
 fn assign_field() {
     let o = self.some_obj;
@@ -26,4 +27,70 @@ fn assign_field() {
 
     o.field = 50;
     assert_eq(o.field, 50);
+}
+
+
+#[type]
+MyArrayFieldType: {
+    msg: ''
+}
+array: [
+    {
+        msg: 'hello'
+    } as MyArrayFieldType,
+    {
+        msg: 'world'
+    } as MyArrayFieldType,
+]
+
+#[test]
+fn array_field() {
+    for (const o in self.array) {
+        assert(o.instance_of('MyArrayFieldType'));
+    }
+}
+
+
+#[readonly]
+read_only_field: 42
+
+#[test]
+fn readonly_field() {
+    try self.read_only_field = 89;
+    catch (error: str) assert_eq(error, 'FieldReadOnlySet');
+
+    assert_eq(self.read_only_field, 42);
+}
+
+
+Inner: {
+    #[private]
+    private_field: 'secret'
+
+    #[test]
+    fn can_see() {
+        assert_eq(self.private_field, 'secret');
+    }
+
+    InnerInner: {
+        #[test]
+        fn cannot_see() {
+            assert_not(super.private_field);
+        }
+    }
+}
+
+#[test]
+fn cannot_see() {
+    assert_not(self.Inner.private_field);
+}
+
+
+const const_field: 'hello, there'
+
+#[test]
+fn const_fields() {
+    try self.const_field = 'yo, dude';
+    catch (error: str) assert_eq(error, 'AssignConst');
+    assert_eq(self.const_field, 'hello, there');
 }

@@ -18,7 +18,7 @@ use std::ops::Deref;
 use colored::Colorize;
 use imbl::vector;
 use nanoid::nanoid;
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0, multispace1}, combinator::{map, opt, peek}, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0, multispace1}, combinator::{map, opt, peek, recognize}, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
 use rustc_hash::FxHashMap;
 use crate::{model::{Field, FieldDoc}, parser::{context::ParseContext, doc::{document_statement, err_fail, StofParseError}, expr::expr, ident::ident, parse_attributes, string::{double_string, single_string}, types::parse_type, whitespace::{doc_comment, whitespace}}, runtime::{Val, Variable}};
 
@@ -159,11 +159,12 @@ fn array_value<'a>(input: &'a str, _name: &str, context: &mut ParseContext) -> I
         }
 
         let (rest, del) = alt((
-            delimited(whitespace, char(','), whitespace),
-            preceded(whitespace, char(']'))
+            preceded(whitespace, recognize((tag(","), preceded(whitespace, tag("]"))))),
+            delimited(whitespace, tag(","), whitespace),
+            preceded(whitespace, tag("]"))
         )).parse(input)?;
         input = rest;
-        if del == ']' { break; } // end of the array
+        if del.contains(']') { break; } // end of the array
     }
     Ok((input, Variable::val(Val::List(values))))
 }

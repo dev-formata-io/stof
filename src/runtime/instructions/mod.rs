@@ -445,7 +445,8 @@ impl Instruction for Base {
                                         let self_ptr = env.self_ptr();
                                         let field_nodes = field_ref.data_nodes(&graph);
                                         if !field_nodes.contains(&self_ptr) {
-                                            return Err(Error::FieldPrivate);
+                                            env.stack.push(Variable::val(Val::Null));
+                                            return Ok(None);
                                         }
                                     }
                                     env.stack.push(field.value.stack_var(*by_ref));
@@ -489,7 +490,8 @@ impl Instruction for Base {
                                 let self_ptr = env.self_ptr();
                                 let field_nodes = field_ref.data_nodes(&graph);
                                 if !field_nodes.contains(&self_ptr) {
-                                    return Err(Error::FieldPrivate);
+                                    env.stack.push(Variable::val(Val::Null));
+                                    return Ok(None);
                                 }
                             }
                             env.stack.push(field.value.stack_var(*by_ref));
@@ -521,7 +523,8 @@ impl Instruction for Base {
                                 let self_ptr = env.self_ptr();
                                 let field_nodes = field_ref.data_nodes(&graph);
                                 if !field_nodes.contains(&self_ptr) {
-                                    return Err(Error::FieldPrivate);
+                                    env.stack.push(Variable::val(Val::Null));
+                                    return Ok(None);
                                 }
                             }
                             env.stack.push(field.value.stack_var(*by_ref));

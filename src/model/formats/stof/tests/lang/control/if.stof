@@ -72,3 +72,15 @@ fn nested_if() {
     }
     assert(res);
 }
+
+#[test]
+fn ternary() {
+    let x = 10;
+    
+    let y = x > 5 ? true : false;
+    assert(y);
+
+    x = 3;
+    y = x > 5 ? true : false;
+    assert_not(y);
+}

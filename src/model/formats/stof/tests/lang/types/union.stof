@@ -15,15 +15,14 @@
 //
 
 
-/*!
- * This module is where we'll test basic language features, like control flow.
- * Scope: root.Lang
- */
+fn accepts_multiple(val: str | int | bool | ver) -> unknown {
+    val
+}
 
-import './control/mod' as self.Control;
-import './funcs/mod' as self.Funcs;
-import './strings/mod' as self.Strings;
-import './fields/mod' as self.Fields;
-import './obj/mod' as self.Objects;
-import './async/mod' as self.Async;
-import './types/mod' as self.Types;
+#[test]
+fn union_types() {
+    assert_eq(self.accepts_multiple('hello'), 'hello');
+    assert_eq(self.accepts_multiple(456), 456);
+    assert_eq(self.accepts_multiple(true), true);
+    assert_eq(self.accepts_multiple(1.2.3), 1.2.3);
+}
