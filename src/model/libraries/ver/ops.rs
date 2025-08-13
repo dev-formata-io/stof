@@ -25,7 +25,13 @@ pub fn ver_major() -> LibFunc {
         library: VER_LIB.clone(),
         name: "major".into(),
         is_async: false,
-        docs: "# Major\nReturn the major portion of this version.".into(),
+        docs: r#"# Ver.major(ver: ver) -> int
+Return the major portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+assert_eq(ver.major(), 1);
+```
+"#.into(),
         params: vector![
             Param { name: "ver".into(), param_type: Type::Ver, default: None }
         ],
@@ -46,7 +52,13 @@ pub fn ver_minor() -> LibFunc {
         library: VER_LIB.clone(),
         name: "minor".into(),
         is_async: false,
-        docs: "# Minor\nReturn the minor portion of this version.".into(),
+        docs: r#"# Ver.minor(ver: ver) -> int
+Return the minor portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+assert_eq(ver.minor(), 2);
+```
+"#.into(),
         params: vector![
             Param { name: "ver".into(), param_type: Type::Ver, default: None }
         ],
@@ -67,7 +79,13 @@ pub fn ver_patch() -> LibFunc {
         library: VER_LIB.clone(),
         name: "patch".into(),
         is_async: false,
-        docs: "# Patch\nReturn the patch portion of this version.".into(),
+        docs: r#"# Ver.patch(ver: ver) -> int
+Return the patch portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+assert_eq(ver.patch(), 3);
+```
+"#.into(),
         params: vector![
             Param { name: "ver".into(), param_type: Type::Ver, default: None }
         ],
@@ -88,7 +106,13 @@ pub fn ver_release() -> LibFunc {
         library: VER_LIB.clone(),
         name: "release".into(),
         is_async: false,
-        docs: "# Release\nReturn the release portion of this version.".into(),
+        docs: r#"# Ver.release(ver: ver) -> str
+Return the release portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+assert_eq(ver.release(), "release");
+```
+"#.into(),
         params: vector![
             Param { name: "ver".into(), param_type: Type::Ver, default: None }
         ],
@@ -109,7 +133,13 @@ pub fn ver_build() -> LibFunc {
         library: VER_LIB.clone(),
         name: "build".into(),
         is_async: false,
-        docs: "# Build\nReturn the build portion of this version.".into(),
+        docs: r#"# Ver.build(ver: ver) -> str
+Return the build portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+assert_eq(ver.build(), "build");
+```
+"#.into(),
         params: vector![
             Param { name: "ver".into(), param_type: Type::Ver, default: None }
         ],
@@ -130,7 +160,14 @@ pub fn ver_set_major() -> LibFunc {
         library: VER_LIB.clone(),
         name: "set_major".into(),
         is_async: false,
-        docs: "# Set Major\nSet the major portion of this version (does not return anything).".into(),
+        docs: r#"# Ver.set_major(ver: ver, val: int) -> void
+Set the major portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+ver.set_major(4);
+assert_eq(ver, 4.2.3-release+build);
+```
+"#.into(),
         params: vector![
             Param { name: "ver".into(), param_type: Type::Ver, default: None },
             Param { name: "val".into(), param_type: Type::Num(NumT::Int), default: None }
@@ -152,7 +189,14 @@ pub fn ver_set_minor() -> LibFunc {
         library: VER_LIB.clone(),
         name: "set_minor".into(),
         is_async: false,
-        docs: "# Set Minor\nSet the minor portion of this version (does not return anything).".into(),
+        docs: r#"# Ver.set_minor(ver: ver, val: int) -> void
+Set the minor portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+ver.set_minor(4);
+assert_eq(ver, 1.4.3-release+build);
+```
+"#.into(),
         params: vector![
             Param { name: "ver".into(), param_type: Type::Ver, default: None },
             Param { name: "val".into(), param_type: Type::Num(NumT::Int), default: None }
@@ -174,7 +218,14 @@ pub fn ver_set_patch() -> LibFunc {
         library: VER_LIB.clone(),
         name: "set_patch".into(),
         is_async: false,
-        docs: "# Set Patch\nSet the patch portion of this version (does not return anything).".into(),
+        docs: r#"# Ver.set_patch(ver: ver, val: int) -> void
+Set the patch portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+ver.set_patch(4);
+assert_eq(ver, 1.2.4-release+build);
+```
+"#.into(),
         params: vector![
             Param { name: "ver".into(), param_type: Type::Ver, default: None },
             Param { name: "val".into(), param_type: Type::Num(NumT::Int), default: None }
@@ -196,7 +247,14 @@ pub fn ver_set_release() -> LibFunc {
         library: VER_LIB.clone(),
         name: "set_release".into(),
         is_async: false,
-        docs: "# Set Release\nSet the release portion of this version (does not return anything).".into(),
+        docs: r#"# Ver.set_release(ver: ver, val: str) -> void
+Set the release portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+ver.set_release("modified");
+assert_eq(ver, 1.2.3-modified+build);
+```
+"#.into(),
         params: vector![
             Param { name: "ver".into(), param_type: Type::Ver, default: None },
             Param { name: "val".into(), param_type: Type::Str, default: None }
@@ -218,7 +276,14 @@ pub fn ver_set_build() -> LibFunc {
         library: VER_LIB.clone(),
         name: "set_build".into(),
         is_async: false,
-        docs: "# Set Build\nSet the build portion of this version (does not return anything).".into(),
+        docs: r#"# Ver.set_build(ver: ver, val: str) -> void
+Set the build portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+ver.set_build("modified");
+assert_eq(ver, 1.2.3-release+modified);
+```
+"#.into(),
         params: vector![
             Param { name: "ver".into(), param_type: Type::Ver, default: None },
             Param { name: "val".into(), param_type: Type::Str, default: None }
@@ -240,7 +305,14 @@ pub fn ver_clear_release() -> LibFunc {
         library: VER_LIB.clone(),
         name: "clear_release".into(),
         is_async: false,
-        docs: "# Clear Release\nRemoves the release portion of this version (does not return anything).".into(),
+        docs: r#"# Ver.clear_release(ver: ver) -> void
+Clear the release portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+ver.clear_release();
+assert_eq(ver, 1.2.3+build);
+```
+"#.into(),
         params: vector![
             Param { name: "ver".into(), param_type: Type::Ver, default: None }
         ],
@@ -261,7 +333,14 @@ pub fn ver_clear_build() -> LibFunc {
         library: VER_LIB.clone(),
         name: "clear_build".into(),
         is_async: false,
-        docs: "# Clear Build\nRemoves the build portion of this version (does not return anything).".into(),
+        docs: r#"# Ver.clear_build(ver: ver) -> void
+Clear the build portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+ver.clear_build();
+assert_eq(ver, 1.2.3-release);
+```
+"#.into(),
         params: vector![
             Param { name: "ver".into(), param_type: Type::Ver, default: None }
         ],

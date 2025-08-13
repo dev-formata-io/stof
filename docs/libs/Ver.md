@@ -13,39 +13,106 @@ fn main() {
 }
 ```
 
-# Build
-Return the build portion of this version.
+# Ver.build(ver: ver) -> str
+Return the build portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+assert_eq(ver.build(), "build");
+```
 
-# Clear Build
-Removes the build portion of this version (does not return anything).
 
-# Clear Release
-Removes the release portion of this version (does not return anything).
+# Ver.clear_build(ver: ver) -> void
+Clear the build portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+ver.clear_build();
+assert_eq(ver, 1.2.3-release);
+```
 
-# Major
-Return the major portion of this version.
 
-# Minor
-Return the minor portion of this version.
+# Ver.clear_release(ver: ver) -> void
+Clear the release portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+ver.clear_release();
+assert_eq(ver, 1.2.3+build);
+```
 
-# Patch
-Return the patch portion of this version.
 
-# Release
-Return the release portion of this version.
+# Ver.major(ver: ver) -> int
+Return the major portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+assert_eq(ver.major(), 1);
+```
 
-# Set Build
-Set the build portion of this version (does not return anything).
 
-# Set Major
-Set the major portion of this version (does not return anything).
+# Ver.minor(ver: ver) -> int
+Return the minor portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+assert_eq(ver.minor(), 2);
+```
 
-# Set Minor
-Set the minor portion of this version (does not return anything).
 
-# Set Patch
-Set the patch portion of this version (does not return anything).
+# Ver.patch(ver: ver) -> int
+Return the patch portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+assert_eq(ver.patch(), 3);
+```
 
-# Set Release
-Set the release portion of this version (does not return anything).
+
+# Ver.release(ver: ver) -> str
+Return the release portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+assert_eq(ver.release(), "release");
+```
+
+
+# Ver.set_build(ver: ver, val: str) -> void
+Set the build portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+ver.set_build("modified");
+assert_eq(ver, 1.2.3-release+modified);
+```
+
+
+# Ver.set_major(ver: ver, val: int) -> void
+Set the major portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+ver.set_major(4);
+assert_eq(ver, 4.2.3-release+build);
+```
+
+
+# Ver.set_minor(ver: ver, val: int) -> void
+Set the minor portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+ver.set_minor(4);
+assert_eq(ver, 1.4.3-release+build);
+```
+
+
+# Ver.set_patch(ver: ver, val: int) -> void
+Set the patch portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+ver.set_patch(4);
+assert_eq(ver, 1.2.4-release+build);
+```
+
+
+# Ver.set_release(ver: ver, val: str) -> void
+Set the release portion of this semantic version.
+```rust
+const ver = 1.2.3-release+build;
+ver.set_release("modified");
+assert_eq(ver, 1.2.3-modified+build);
+```
+
 

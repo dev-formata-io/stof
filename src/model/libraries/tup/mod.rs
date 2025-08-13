@@ -37,7 +37,13 @@ fn tup_len() -> LibFunc {
         library: TUP_LIB.clone(),
         name: "len".into(),
         is_async: false,
-        docs: "# Length\nReturns the size of this tuple.".into(),
+        docs: r#"# Tup.len(tup: (..)) -> int
+Return the length of this tuple.
+```rust
+const tup = ("hi", 42, true);
+assert_eq(tup.len(), 3);
+```
+"#.into(),
         params: vector![
             Param { name: "tup".into(), param_type: Type::Void, default: None }
         ],
@@ -59,7 +65,13 @@ fn tup_at() -> LibFunc {
         library: TUP_LIB.clone(),
         name: "at".into(),
         is_async: false,
-        docs: "# At\nReturn an element at the given index (or null if out of bounds).".into(),
+        docs: r#"# Tup.at(tup: (..), index: int) -> unknown
+Return the value (optionally by reference) at the given index in the tuple.
+```rust
+const tup = ("hi", 42, true);
+assert_eq(&tup[1], 42);
+```
+"#.into(),
         params: vector![
             Param { name: "tup".into(), param_type: Type::Void, default: None },
             Param { name: "index".into(), param_type: Type::Num(NumT::Int), default: None }

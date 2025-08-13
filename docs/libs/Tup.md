@@ -12,9 +12,19 @@ fn main() {
 }
 ```
 
-# At
-Return an element at the given index (or null if out of bounds).
+# Tup.at(tup: (..), index: int) -> unknown
+Return the value (optionally by reference) at the given index in the tuple.
+```rust
+const tup = ("hi", 42, true);
+assert_eq(&tup[1], 42);
+```
 
-# Length
-Returns the size of this tuple.
+
+# Tup.len(tup: (..)) -> int
+Return the length of this tuple.
+```rust
+const tup = ("hi", 42, true);
+assert_eq(tup.len(), 3);
+```
+
 
