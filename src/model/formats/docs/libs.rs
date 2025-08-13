@@ -267,7 +267,17 @@ Helper functions for common markdown operations, like turning Md strings into HT
 fn time_lib(graph: &mut Graph) {
     graph.insert_libdoc(literal!("Time"), 
 r#"# Time Library (Time)
-Functions for working with time.
+Functions for working with time. Requires the "system" feature flag to be enabled. Includes timestamps (Time.now()) as well as common time formats (like RFC-3339) that are used in APIs and across systems.
+
+## Example Usage
+```rust
+#[main]
+fn main() {
+    const now = Time.now(); // default units are ms
+    sleep(50ms);
+    pln(Time.diff(now) as seconds); // having units is really nice
+}
+```
 "#.into());
 }
 
