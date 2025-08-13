@@ -45,14 +45,14 @@ pub fn insert_lib_documentation(graph: &mut Graph) {
 fn std_lib(graph: &mut Graph) {
     graph.insert_libdoc(literal!("Std"), 
 r#"# Standard Library (Std)
-Functions in the 'Std' library are foundational to Stof and therefore do not requre one to explicitly reference 'Std' when calling. Within the standard library, you'll find functions for asserting values, printing to the console, throwing errors, putting processes to sleep, etc. Note for advanced users that it is possible to extend or modify this library as needed.
+Functions in the 'Std' library are foundational to Stof and therefore do not requre one to explicitly reference 'Std' when calling them. Within the standard library, you'll find functions for asserting values, printing to the console, throwing errors, putting processes to sleep, etc. Note for advanced users that it is possible to extend or modify this library as needed.
 
 ## Example Usage
 ```rust
 #[main]
 fn main() {
-    Std.pln('printing a line');
-    pln('printing another line'); // no 'Std' needed for this library
+    Std.pln("printing a line");
+    pln("printing another line"); // no 'Std' needed for this library
 }
 ```
 "#.into());

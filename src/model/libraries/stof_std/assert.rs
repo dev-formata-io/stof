@@ -26,9 +26,14 @@ pub fn throw() -> LibFunc {
         library: STD_LIB.clone(),
         name: "throw".into(),
         is_async: false,
-        docs: "# Throw an error\nUsed to force an error anywhere inside Stof.".into(),
+        docs: r#"# Std.throw(value: unknown = "Error") -> void
+Throw an error with an optional value. Optionally catch this value within a try-catch block. Otherwise, this process will immediately hault executing with the given error.
+```rust
+throw("error message");
+```
+"#.into(),
         params: vector![
-            Param { name: "value".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Str(literal!("Std.throw()"))))) }
+            Param { name: "value".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Str(literal!("Error"))))) }
         ],
         return_type: None,
         unbounded_args: false,
@@ -48,7 +53,13 @@ pub fn assert() -> LibFunc {
         library: STD_LIB.clone(),
         name: "assert".into(),
         is_async: false,
-        docs: "# Make an assertion\nUsed in testing and to assert truthiness.".into(),
+        docs: r#"# Std.assert(value: unknown = false) -> void
+Throw an error if the given value is not truthy.
+```rust
+assert(true);
+assert(false); // errors
+```
+"#.into(),
         params: vector![
             Param { name: "value".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Bool(false)))) }
         ],
@@ -70,7 +81,13 @@ pub fn assert_not() -> LibFunc {
         library: STD_LIB.clone(),
         name: "assert_not".into(),
         is_async: false,
-        docs: "# Make a Falsy assertion\nUsed in testing and to assert that a value is falsy.".into(),
+        docs: r#"# Std.assert_not(value: unknown = true) -> void
+Throw an error if the given value is truthy.
+```rust
+assert_not(false);
+assert_not(true); // errors
+```
+"#.into(),
         params: vector![
             Param { name: "value".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Bool(true)))) }
         ],
@@ -92,7 +109,13 @@ pub fn assert_eq() -> LibFunc {
         library: STD_LIB.clone(),
         name: "assert_eq".into(),
         is_async: false,
-        docs: "# Make a equal assertion\nUsed in testing and to assert that two values are equal.".into(),
+        docs: r#"# Std.assert_eq(first: unknown, second: unknown) -> void
+Throw an error if the first value does not equal the second.
+```rust
+assert_eq('a', 'a');
+assert_eq(43, 42); // errors
+```
+"#.into(),
         params: vector![
             Param { name: "first".into(), param_type: Type::Void, default: None },
             Param { name: "second".into(), param_type: Type::Void, default: None }
@@ -115,7 +138,13 @@ pub fn assert_neq() -> LibFunc {
         library: STD_LIB.clone(),
         name: "assert_neq".into(),
         is_async: false,
-        docs: "# Make a not equals assertion\nUsed in testing and to assert that two values are not equal.".into(),
+        docs: r#"# Std.assert_neq(first: unknown, second: unknown) -> void
+Throw an error if the first value equals the second.
+```rust
+assert_neq('a', 'b');
+assert_neq(34, 34); // errors
+```
+"#.into(),
         params: vector![
             Param { name: "first".into(), param_type: Type::Void, default: None },
             Param { name: "second".into(), param_type: Type::Void, default: None }

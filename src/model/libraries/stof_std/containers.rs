@@ -25,7 +25,12 @@ pub fn std_list() -> LibFunc {
         library: STD_LIB.clone(),
         name: "list".into(),
         is_async: false,
-        docs: "# List Constructor\nCreate a new list.".into(),
+        docs: r#"# Std.list(..) -> list
+Construct a new list with the given arguments.
+```rust
+assert_eq(list(1, 2, 3), [1, 2, 3]);
+```
+"#.into(),
         params: vector![],
         return_type: None,
         unbounded_args: true,
@@ -44,7 +49,12 @@ pub fn std_set() -> LibFunc {
         library: STD_LIB.clone(),
         name: "set".into(),
         is_async: false,
-        docs: "# Set Constructor\nCreate a new set.".into(),
+        docs: r#"# Std.set(..) -> set
+Construct a new set with the given arguments.
+```rust
+assert_eq(set(1, 2, 3), {1, 2, 3});
+```
+"#.into(),
         params: vector![],
         return_type: None,
         unbounded_args: true,
@@ -63,7 +73,12 @@ pub fn std_map() -> LibFunc {
         library: STD_LIB.clone(),
         name: "map".into(),
         is_async: false,
-        docs: "# Map Constructor\nCreate a new map.".into(),
+        docs: r#"# Std.map(..) -> map
+Construct a new map with the given arguments (tuples of key & value). Helpful as a way to create an empty map.
+```rust
+assert_eq(map(("a", 1), ("b", 2)), {"a": 1, "b": 2});
+```
+"#.into(),
         params: vector![],
         return_type: None,
         unbounded_args: true,
@@ -82,7 +97,15 @@ pub fn std_copy() -> LibFunc {
         library: STD_LIB.clone(),
         name: "copy".into(),
         is_async: false,
-        docs: "# Deep Copy\nCopy a value completely.".into(),
+        docs: r#"# Std.copy(val: unknown) -> unknown
+Deep copy the given value. If this value is an object (or contains one), recursively deep copy the object (all fields, funcs, & data).
+```rust
+const a = {1, 2, 3};
+const b = copy(a);
+b.clear();
+assert_neq(a, b);
+```
+"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -103,7 +126,16 @@ pub fn std_swap() -> LibFunc {
         library: STD_LIB.clone(),
         name: "swap".into(),
         is_async: false,
-        docs: "# Swap\nSwap the memory of two values.".into(),
+        docs: r#"# Std.swap(first: unknown, second: unknown) -> void
+Swap the memory addresses of any two values.
+```rust
+const a = 42;
+const b = -55;
+swap(&a, &b); // '&' because int is a value type (not automatically a reference)
+assert_eq(a, -55);
+assert_eq(b, 42);
+```
+"#.into(),
         params: vector![
             Param { name: "first".into(), param_type: Type::Void, default: None },
             Param { name: "second".into(), param_type: Type::Void, default: None }
@@ -125,7 +157,15 @@ pub fn std_drop() -> LibFunc {
         library: STD_LIB.clone(),
         name: "drop".into(),
         is_async: false,
-        docs: "# Drop\nDrop fields, functions, objects, and data from the graph.".into(),
+        docs: r#"# Std.drop(..) -> bool | list
+Drop fields (by str path), functions (path or fn), objects (path or obj), and data from the graph. Objects will have their #[dropped] functions called when dropped. When dropping multiple values at once, this will return a list of booleans indicating a successful removal or not for each value.
+```rust
+const func = () => {};
+const object = new {};
+const results = drop("self.field", func, object);
+assert_eq(results, [true, true, true]);
+```
+"#.into(),
         params: vector![],
         return_type: None,
         unbounded_args: true,
@@ -145,7 +185,15 @@ pub fn std_funcs() -> LibFunc {
         library: STD_LIB.clone(),
         name: "funcs".into(),
         is_async: false,
-        docs: "# Functions\nGet all functions within this graph, optionally specifying attributes as a filter (single string, or a list/tuple/set of strings).".into(),
+        docs: r#"# Std.funcs(attributes: str | list | set = null) -> list
+Get a list of all functions in this graph, optionally filtering by attributes (single string, list of strings, set of strings, or tuple of strings).
+```rust
+for (const func in funcs({"test", "main"})) {
+    // all test and main functions in the graph
+    // call them or whatever you need
+}
+```
+"#.into(),
         params: vector![
             Param { name: "attributes".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) },
         ],
@@ -166,7 +214,15 @@ pub fn std_shallow_drop() -> LibFunc {
         library: STD_LIB.clone(),
         name: "shallow_drop".into(),
         is_async: false,
-        docs: "# Shallow Drop\nDrop fields, functions, objects, and data from the graph. If removing a field and the field points to some data or an object, don't drop that object or additional data (shallow).".into(),
+        docs: r#"# Std.shallow_drop(..) -> bool | list
+Operates the same way Std.drop(..) does, however, if dropping a field and the field points to an object or data, only remove the field and not the associated object/data. This is used instead of drop in instances where multiple fields might point to the same object and you'd like to remove the field without removing the object.
+```rust
+const object = self.field; // field is an obj value
+assert(shallow_drop("self.field"));
+assert_not(self.field); // note: this will still work if the objects name is "field"
+assert(object.exists()); // object was kept around
+```
+"#.into(),
         params: vector![],
         return_type: None,
         unbounded_args: true,

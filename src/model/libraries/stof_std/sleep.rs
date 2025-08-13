@@ -25,7 +25,12 @@ pub fn stof_sleep() -> LibFunc {
         library: STD_LIB.clone(),
         name: "sleep".into(),
         is_async: false,
-        docs: "# Put Process to Sleep\nInstruct this process to sleep for an amount of time. Use time units for specificity (Ex. sleep(200ms)).".into(),
+        docs: r#"# Std.sleep(time: ms) -> void
+Instruct this process to sleep for an amount of time, while others continue executing. Use time units for specificity, but don't expect this to be very accurate (guaranteed it will sleep for at least this long, but maybe longer). Default unit is milliseconds.
+```rust
+sleep(1s); // sleep for 1 second
+```
+"#.into(),
         params: vector![
             Param { name: "time".into(), param_type: Type::Num(NumT::Float), default: Some(Arc::new(Base::Literal(Val::Num(Num::Float(1000.))))) }
         ],

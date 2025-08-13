@@ -1,114 +1,281 @@
 # Standard Library (Std)
-Functions in the 'Std' library are foundational to Stof and therefore do not requre one to explicitly reference 'Std' when calling. Within the standard library, you'll find functions for asserting values, printing to the console, throwing errors, putting processes to sleep, etc. Note for advanced users that it is possible to extend or modify this library as needed.
+Functions in the 'Std' library are foundational to Stof and therefore do not requre one to explicitly reference 'Std' when calling them. Within the standard library, you'll find functions for asserting values, printing to the console, throwing errors, putting processes to sleep, etc. Note for advanced users that it is possible to extend or modify this library as needed.
 
 ## Example Usage
 ```rust
 #[main]
 fn main() {
-    Std.pln('printing a line');
-    pln('printing another line'); // no 'Std' needed for this library
+    Std.pln("printing a line");
+    pln("printing another line"); // no 'Std' needed for this library
 }
 ```
 
-# Make an assertion
-Used in testing and to assert truthiness.
+# Std.assert(value: unknown = false) -> void
+Throw an error if the given value is not truthy.
+```rust
+assert(true);
+assert(false); // errors
+```
 
-# Make a equal assertion
-Used in testing and to assert that two values are equal.
 
-# Make a not equals assertion
-Used in testing and to assert that two values are not equal.
+# Std.assert_eq(first: unknown, second: unknown) -> void
+Throw an error if the first value does not equal the second.
+```rust
+assert_eq('a', 'a');
+assert_eq(43, 42); // errors
+```
 
-# Make a Falsy assertion
-Used in testing and to assert that a value is falsy.
 
-# Blobify
-Export a portion of this graph as a binary blob in the desired format. The default format is JSON (as UTF-8 bytes).
+# Std.assert_neq(first: unknown, second: unknown) -> void
+Throw an error if the first value equals the second.
+```rust
+assert_neq('a', 'b');
+assert_neq(34, 34); // errors
+```
 
-# Callstack
-Return the current callstack as a list of functions (last function is 'this').
 
-# Deep Copy
-Copy a value completely.
+# Std.assert_not(value: unknown = true) -> void
+Throw an error if the given value is truthy.
+```rust
+assert_not(false);
+assert_not(true); // errors
+```
 
-# Print Debug to Standard Output
-Will print N arguments (using a debug format) to the standard output stream.
 
-# Trace Stack
-Prints the current stack (debug mode).
+# Std.blobify(format: str = "json", context: obj = null) -> blob
+Use a loaded format to export a binary blob from the given context (or entire graph/document). The default format is json, and the standard implementation only exports object fields. Export results will vary depending on the format, some support more than others (it is up to the format implementation to decide how it exports data). You can always create your own to use.
+```rust
+const object = new { x: 3.14km, y: 42m };
+const export = blobify("json", object); // json string like "stringify", but as a utf8 blob
+assert(export.len() > 0);
+```
 
-# Drop
-Drop fields, functions, objects, and data from the graph.
 
-# Print to Error Output
-Will print N arguments to the error output stream.
+# Std.callstack() -> list
+Return the current callstack as a list of function pointers (last function is 'this').
+```rust
+// inside a function call
+for (const func in callstack()) {
+    pln(func.obj().path(), ".", func.name());
+}
+```
 
-# Exit a process
-Immediately terminates this (or another) process. Pass a promise into this function to terminate that process.
 
-# Has Format?
-Return true if a given format is available in this graph.
+# Std.copy(val: unknown) -> unknown
+Deep copy the given value. If this value is an object (or contains one), recursively deep copy the object (all fields, funcs, & data).
+```rust
+const a = {1, 2, 3};
+const b = copy(a);
+b.clear();
+assert_neq(a, b);
+```
 
-# Format Content Type
-Returns the requested format's content type, or null if the format is not available. Ex. assert_eq(format_content_type('json'), 'application/json')
 
-# Formats
-Returns a set of all available formats (for parse, stringify, blobify, etc.).
+# Std.dbg(..) -> void
+Prints all arguments as debug output to the standard output stream.
+```rust
+dbg("hello, world");
+```
 
-# Functions
-Get all functions within this graph, optionally specifying attributes as a filter (single string, or a list/tuple/set of strings).
 
-# Graph ID
-Return this graph's unique ID.
+# Std.dbg_tracestack() -> void
+Print a snapshot of the current stack.
 
-# Has Library?
-Return true if a given library is available in this graph.
 
-# Libs
-Returns a set of all available libraries.
+# Std.drop(..) -> bool | list
+Drop fields (by str path), functions (path or fn), objects (path or obj), and data from the graph. Objects will have their #[dropped] functions called when dropped. When dropping multiple values at once, this will return a list of booleans indicating a successful removal or not for each value.
+```rust
+const func = () => {};
+const object = new {};
+const results = drop("self.field", func, object);
+assert_eq(results, [true, true, true]);
+```
 
-# List Constructor
-Create a new list.
 
-# Map Constructor
-Create a new map.
+# Std.err(..) -> void
+Prints all arguments to the error output stream.
+```rust
+err("hello, world");
+```
 
-# Maximum Value
-Return the maximum value for all parameters given (unbounded). If a list or set is provided, this will contemplate the max value in that collection. Will consider units if provided as well.
 
-# Minimum Value
-Return the minimum value for all parameters given (unbounded). If a list or set is provided, this will contemplate the min value in that collection. Will consider units if provided as well.
+# Std.exit(..) -> void
+Immediately terminates this (or another) Stof process. Pass a promise into this function to terminate it's processes execution.
+```rust
+const promise = async {
+    sleep(10s);
+};
+exit(promise);
+```
 
-# Nano ID
-Generate a new nanoid string (URL safe). Default lenght is 21 characters.
 
-# Parse
-Parse additional data into the document, using any format available to the graph (stof, json, images, pdfs, etc.). The default format used is Stof (.stof) and the default context is 'self' (the calling object).
+# Std.format(format: str) -> bool
+Is the given format loaded/available to use?
+```rust
+assert(format("json"));
+assert_not(format("step"));
+```
 
-# Print to Standard Output
-Will print N arguments to the standard output stream.
 
-# Set Constructor
-Create a new set.
+# Std.format_content_type(format: str) -> str
+Returns the available format's content type (HTTP header value), or null if the format is not available. All formats are required to give a content type, even if it doesn't apply to that format.
+```rust
+assert_eq(format_content_type("json"), "application/json");
+```
 
-# Shallow Drop
-Drop fields, functions, objects, and data from the graph. If removing a field and the field points to some data or an object, don't drop that object or additional data (shallow).
 
-# Put Process to Sleep
-Instruct this process to sleep for an amount of time. Use time units for specificity (Ex. sleep(200ms)).
+# Std.formats() -> set
+A set of all available formats, available to use with parse, stringify, and blobify.
+```rust
+const loaded = formats();
+assert(loaded.contains("json"));
+```
 
-# Create a String
-Will print N arguments into a string and return it.
 
-# Stringify
-Export a portion of this graph as a string in the desired format. The default format is JSON.
+# Std.funcs(attributes: str | list | set = null) -> list
+Get a list of all functions in this graph, optionally filtering by attributes (single string, list of strings, set of strings, or tuple of strings).
+```rust
+for (const func in funcs({"test", "main"})) {
+    // all test and main functions in the graph
+    // call them or whatever you need
+}
+```
 
-# Swap
-Swap the memory of two values.
 
-# Throw an error
-Used to force an error anywhere inside Stof.
+# Std.graph_id() -> str
+Return this graph's unique string ID.
+```rust
+assert(graph_id().len() > 10);
+```
 
-# Trace
-Trace this location in the current process.
+
+# Std.lib(lib: str) -> bool
+Is the given library loaded/available to use?
+```rust
+assert(lib("Std")); // standard library is loaded
+assert_not(lib("Render")); // no "Render" library loaded
+```
+
+
+# Std.libs() -> set
+Set of all available libraries. This will most likely include standard libraries like Std, Fn, Set, List, etc.
+```rust
+assert(libs().superset({"Std", "Fn", "Num", "Set"}));
+```
+
+
+# Std.list(..) -> list
+Construct a new list with the given arguments.
+```rust
+assert_eq(list(1, 2, 3), [1, 2, 3]);
+```
+
+
+# Std.map(..) -> map
+Construct a new map with the given arguments (tuples of key & value). Helpful as a way to create an empty map.
+```rust
+assert_eq(map(("a", 1), ("b", 2)), {"a": 1, "b": 2});
+```
+
+
+# Std.max(..) -> unknown
+Return the maximum value of all given arguments. If an argument is a collection, the max value within the collection will be considered only.
+```rust
+assert_eq(max(1km, 2m, 3mm), 1km);
+```
+
+
+# Std.min(..) -> unknown
+Return the minimum value of all given arguments. If an argument is a collection, the min value within the collection will be considered only.
+```rust
+assert_eq(min(1km, 2m, 3mm), 3mm);
+```
+
+
+# Std.nanoid(length: int = 21) -> str
+Generate a URL safe random string ID, using the nanoid algorithm with a specified length (default is 21 characters). Probability of a collision is very low, and inversely proportional to ID length.
+```rust
+assert_neq(nanoid(), nanoid(33));
+```
+
+
+# Std.parse(source: str | blob, context: str | obj = self, format: str = "stof") -> bool
+Parse data into this document/graph at the given location (default context is the calling object), using the given format (default is Stof). Formats are extensible and replaceable in Stof, so use whichever formats you have loaded (json, stof, images, pdfs, docx, etc.).
+```rust
+parse("fn hello() -> str { \"hello\" }");
+assert_eq(self.hello(), "hello"); // can now call it
+```
+
+
+# Std.pln(..) -> void
+Prints all arguments to the standard output stream.
+```rust
+pln("hello, world");
+```
+
+
+# Std.set(..) -> set
+Construct a new set with the given arguments.
+```rust
+assert_eq(set(1, 2, 3), {1, 2, 3});
+```
+
+
+# Std.shallow_drop(..) -> bool | list
+Operates the same way Std.drop(..) does, however, if dropping a field and the field points to an object or data, only remove the field and not the associated object/data. This is used instead of drop in instances where multiple fields might point to the same object and you'd like to remove the field without removing the object.
+```rust
+const object = self.field; // field is an obj value
+assert(shallow_drop("self.field"));
+assert_not(self.field); // note: this will still work if the objects name is "field"
+assert(object.exists()); // object was kept around
+```
+
+
+# Std.sleep(time: ms) -> void
+Instruct this process to sleep for an amount of time, while others continue executing. Use time units for specificity, but don't expect this to be very accurate (guaranteed it will sleep for at least this long, but maybe longer). Default unit is milliseconds.
+```rust
+sleep(1s); // sleep for 1 second
+```
+
+
+# Std.str(..) -> str
+Prints all arguments to a string, just like it would be to an output stream.
+```rust
+assert_eq(str("hello, world"), "hello, world");
+```
+
+
+# Std.stringify(format: str = "json", context: obj = null) -> str
+Use a loaded format to export a string from the given context (or entire graph/document). The default format is json, and the standard implementation only exports object fields. Export results will vary depending on the format, some support more than others (it is up to the format implementation to decide how it exports data). You can always create your own to use.
+```rust
+const object = new { x: 3.14km, y: 42m };
+assert_eq(stringify("json", object), "{\"x\":3.14,\"y\":42}"); // lossy as json doesn't have a units concept
+```
+
+
+# Std.swap(first: unknown, second: unknown) -> void
+Swap the memory addresses of any two values.
+```rust
+const a = 42;
+const b = -55;
+swap(&a, &b); // '&' because int is a value type (not automatically a reference)
+assert_eq(a, -55);
+assert_eq(b, 42);
+```
+
+
+# Std.throw(value: unknown = "Error") -> void
+Throw an error with an optional value. Optionally catch this value within a try-catch block. Otherwise, this process will immediately hault executing with the given error.
+```rust
+throw("error message");
+```
+
+
+# Std.trace(..) -> void
+Trace this location within your code execution. Will print out your arguments plus process debug information and the current instruction stack. If the last argument given is an integer value, that number of executed instruction stack instructions will be shown (very helpful for deeper debugging).
+```rust
+trace("Getting here"); // will print "Getting here", then output a trace of the current process info and last 10 executed instructions
+trace(70); // last 70 executed instructions (most recent on bottom and numbered)
+```
+
 

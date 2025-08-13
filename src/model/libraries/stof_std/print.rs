@@ -25,7 +25,12 @@ pub fn pln() -> LibFunc {
         library: STD_LIB.clone(),
         name: "pln".into(),
         is_async: false,
-        docs: "# Print to Standard Output\nWill print N arguments to the standard output stream.".into(),
+        docs: r#"# Std.pln(..) -> void
+Prints all arguments to the standard output stream.
+```rust
+pln("hello, world");
+```
+"#.into(),
         params: vector![],
         return_type: None,
         unbounded_args: true, // allow an unbounded number of arguments
@@ -44,7 +49,12 @@ pub fn string() -> LibFunc {
         library: STD_LIB.clone(),
         name: "str".into(),
         is_async: false,
-        docs: "# Create a String\nWill print N arguments into a string and return it.".into(),
+        docs: r#"# Std.str(..) -> str
+Prints all arguments to a string, just like it would be to an output stream.
+```rust
+assert_eq(str("hello, world"), "hello, world");
+```
+"#.into(),
         params: vector![],
         return_type: None,
         unbounded_args: true, // allow an unbounded number of arguments
@@ -63,7 +73,12 @@ pub fn dbg() -> LibFunc {
         library: STD_LIB.clone(),
         name: "dbg".into(),
         is_async: false,
-        docs: "# Print Debug to Standard Output\nWill print N arguments (using a debug format) to the standard output stream.".into(),
+        docs: r#"# Std.dbg(..) -> void
+Prints all arguments as debug output to the standard output stream.
+```rust
+dbg("hello, world");
+```
+"#.into(),
         params: vector![],
         return_type: None,
         unbounded_args: true, // allow an unbounded number of arguments
@@ -82,7 +97,12 @@ pub fn err() -> LibFunc {
         library: STD_LIB.clone(),
         name: "err".into(),
         is_async: false,
-        docs: "# Print to Error Output\nWill print N arguments to the error output stream.".into(),
+        docs: r#"# Std.err(..) -> void
+Prints all arguments to the error output stream.
+```rust
+err("hello, world");
+```
+"#.into(),
         params: vector![],
         return_type: None,
         unbounded_args: true, // allow an unbounded number of arguments

@@ -25,7 +25,13 @@ pub fn std_parse() -> LibFunc {
         library: STD_LIB.clone(),
         name: "parse".into(),
         is_async: false,
-        docs: "# Parse\nParse additional data into the document, using any format available to the graph (stof, json, images, pdfs, etc.). The default format used is Stof (.stof) and the default context is 'self' (the calling object).".into(),
+        docs: r#"# Std.parse(source: str | blob, context: str | obj = self, format: str = "stof") -> bool
+Parse data into this document/graph at the given location (default context is the calling object), using the given format (default is Stof). Formats are extensible and replaceable in Stof, so use whichever formats you have loaded (json, stof, images, pdfs, docx, etc.).
+```rust
+parse("fn hello() -> str { \"hello\" }");
+assert_eq(self.hello(), "hello"); // can now call it
+```
+"#.into(),
         params: vector![
             Param { name: "source".into(), param_type: Type::Void, default: None, },
             Param { name: "context".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))), },
@@ -48,7 +54,13 @@ pub fn std_stringify() -> LibFunc {
         library: STD_LIB.clone(),
         name: "stringify".into(),
         is_async: false,
-        docs: "# Stringify\nExport a portion of this graph as a string in the desired format. The default format is JSON.".into(),
+        docs: r#"# Std.stringify(format: str = "json", context: obj = null) -> str
+Use a loaded format to export a string from the given context (or entire graph/document). The default format is json, and the standard implementation only exports object fields. Export results will vary depending on the format, some support more than others (it is up to the format implementation to decide how it exports data). You can always create your own to use.
+```rust
+const object = new { x: 3.14km, y: 42m };
+assert_eq(stringify("json", object), "{\"x\":3.14,\"y\":42}"); // lossy as json doesn't have a units concept
+```
+"#.into(),
         params: vector![
             Param { name: "format".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))), },
             Param { name: "context".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))), },
@@ -70,7 +82,14 @@ pub fn std_blobify() -> LibFunc {
         library: STD_LIB.clone(),
         name: "blobify".into(),
         is_async: false,
-        docs: "# Blobify\nExport a portion of this graph as a binary blob in the desired format. The default format is JSON (as UTF-8 bytes).".into(),
+        docs: r#"# Std.blobify(format: str = "json", context: obj = null) -> blob
+Use a loaded format to export a binary blob from the given context (or entire graph/document). The default format is json, and the standard implementation only exports object fields. Export results will vary depending on the format, some support more than others (it is up to the format implementation to decide how it exports data). You can always create your own to use.
+```rust
+const object = new { x: 3.14km, y: 42m };
+const export = blobify("json", object); // json string like "stringify", but as a utf8 blob
+assert(export.len() > 0);
+```
+"#.into(),
         params: vector![
             Param { name: "format".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))), },
             Param { name: "context".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))), },
@@ -92,7 +111,13 @@ pub fn std_has_format() -> LibFunc {
         library: STD_LIB.clone(),
         name: "format".into(),
         is_async: false,
-        docs: "# Has Format?\nReturn true if a given format is available in this graph.".into(),
+        docs: r#"# Std.format(format: str) -> bool
+Is the given format loaded/available to use?
+```rust
+assert(format("json"));
+assert_not(format("step"));
+```
+"#.into(),
         params: vector![
             Param { name: "format".into(), param_type: Type::Str, default: None, },
         ],
@@ -113,7 +138,13 @@ pub fn std_formats() -> LibFunc {
         library: STD_LIB.clone(),
         name: "formats".into(),
         is_async: false,
-        docs: "# Formats\nReturns a set of all available formats (for parse, stringify, blobify, etc.).".into(),
+        docs: r#"# Std.formats() -> set
+A set of all available formats, available to use with parse, stringify, and blobify.
+```rust
+const loaded = formats();
+assert(loaded.contains("json"));
+```
+"#.into(),
         params: vector![],
         return_type: None,
         unbounded_args: false,
@@ -132,7 +163,12 @@ pub fn std_format_content_type() -> LibFunc {
         library: STD_LIB.clone(),
         name: "format_content_type".into(),
         is_async: false,
-        docs: "# Format Content Type\nReturns the requested format's content type, or null if the format is not available. Ex. assert_eq(format_content_type('json'), 'application/json')".into(),
+        docs: r#"# Std.format_content_type(format: str) -> str
+Returns the available format's content type (HTTP header value), or null if the format is not available. All formats are required to give a content type, even if it doesn't apply to that format.
+```rust
+assert_eq(format_content_type("json"), "application/json");
+```
+"#.into(),
         params: vector![
             Param { name: "format".into(), param_type: Type::Str, default: None, },
         ],
@@ -153,7 +189,13 @@ pub fn std_has_lib() -> LibFunc {
         library: STD_LIB.clone(),
         name: "lib".into(),
         is_async: false,
-        docs: "# Has Library?\nReturn true if a given library is available in this graph.".into(),
+        docs: r#"# Std.lib(lib: str) -> bool
+Is the given library loaded/available to use?
+```rust
+assert(lib("Std")); // standard library is loaded
+assert_not(lib("Render")); // no "Render" library loaded
+```
+"#.into(),
         params: vector![
             Param { name: "lib".into(), param_type: Type::Str, default: None, },
         ],
@@ -174,7 +216,12 @@ pub fn std_libs() -> LibFunc {
         library: STD_LIB.clone(),
         name: "libs".into(),
         is_async: false,
-        docs: "# Libs\nReturns a set of all available libraries.".into(),
+        docs: r#"# Std.libs() -> set
+Set of all available libraries. This will most likely include standard libraries like Std, Fn, Set, List, etc.
+```rust
+assert(libs().superset({"Std", "Fn", "Num", "Set"}));
+```
+"#.into(),
         params: vector![],
         return_type: None,
         unbounded_args: false,
@@ -193,7 +240,12 @@ pub fn std_nanoid() -> LibFunc {
         library: STD_LIB.clone(),
         name: "nanoid".into(),
         is_async: false,
-        docs: "# Nano ID\nGenerate a new nanoid string (URL safe). Default lenght is 21 characters.".into(),
+        docs: r#"# Std.nanoid(length: int = 21) -> str
+Generate a URL safe random string ID, using the nanoid algorithm with a specified length (default is 21 characters). Probability of a collision is very low, and inversely proportional to ID length.
+```rust
+assert_neq(nanoid(), nanoid(33));
+```
+"#.into(),
         params: vector![
             Param { name: "length".into(), param_type: Type::Num(NumT::Int), default: Some(Arc::new(Base::Literal(Val::Num(Num::Int(21))))), },
         ],
@@ -214,7 +266,12 @@ pub fn std_graph_id() -> LibFunc {
         library: STD_LIB.clone(),
         name: "graph_id".into(),
         is_async: false,
-        docs: "# Graph ID\nReturn this graph's unique ID.".into(),
+        docs: r#"# Std.graph_id() -> str
+Return this graph's unique string ID.
+```rust
+assert(graph_id().len() > 10);
+```
+"#.into(),
         params: vector![],
         return_type: None,
         unbounded_args: false,
@@ -233,7 +290,12 @@ pub fn std_max() -> LibFunc {
         library: STD_LIB.clone(),
         name: "max".into(),
         is_async: false,
-        docs: "# Maximum Value\nReturn the maximum value for all parameters given (unbounded). If a list or set is provided, this will contemplate the max value in that collection. Will consider units if provided as well.".into(),
+        docs: r#"# Std.max(..) -> unknown
+Return the maximum value of all given arguments. If an argument is a collection, the max value within the collection will be considered only.
+```rust
+assert_eq(max(1km, 2m, 3mm), 1km);
+```
+"#.into(),
         params: vector![],
         return_type: None,
         unbounded_args: true,
@@ -253,7 +315,12 @@ pub fn std_min() -> LibFunc {
         library: STD_LIB.clone(),
         name: "min".into(),
         is_async: false,
-        docs: "# Minimum Value\nReturn the minimum value for all parameters given (unbounded). If a list or set is provided, this will contemplate the min value in that collection. Will consider units if provided as well.".into(),
+        docs: r#"# Std.min(..) -> unknown
+Return the minimum value of all given arguments. If an argument is a collection, the min value within the collection will be considered only.
+```rust
+assert_eq(min(1km, 2m, 3mm), 3mm);
+```
+"#.into(),
         params: vector![],
         return_type: None,
         unbounded_args: true,
@@ -272,7 +339,15 @@ pub fn std_callstack() -> LibFunc {
         library: STD_LIB.clone(),
         name: "callstack".into(),
         is_async: false,
-        docs: "# Callstack\nReturn the current callstack as a list of functions (last function is 'this').".into(),
+        docs: r#"# Std.callstack() -> list
+Return the current callstack as a list of function pointers (last function is 'this').
+```rust
+// inside a function call
+for (const func in callstack()) {
+    pln(func.obj().path(), ".", func.name());
+}
+```
+"#.into(),
         params: vector![],
         return_type: None,
         unbounded_args: false,
@@ -291,7 +366,13 @@ pub fn std_trace() -> LibFunc {
         library: STD_LIB.clone(),
         name: "trace".into(),
         is_async: false,
-        docs: "# Trace\nTrace this location in the current process.".into(),
+        docs: r#"# Std.trace(..) -> void
+Trace this location within your code execution. Will print out your arguments plus process debug information and the current instruction stack. If the last argument given is an integer value, that number of executed instruction stack instructions will be shown (very helpful for deeper debugging).
+```rust
+trace("Getting here"); // will print "Getting here", then output a trace of the current process info and last 10 executed instructions
+trace(70); // last 70 executed instructions (most recent on bottom and numbered)
+```
+"#.into(),
         params: vector![],
         return_type: None,
         unbounded_args: true,
@@ -310,7 +391,9 @@ pub fn std_tracestack() -> LibFunc {
         library: STD_LIB.clone(),
         name: "dbg_tracestack".into(),
         is_async: false,
-        docs: "# Trace Stack\nPrints the current stack (debug mode).".into(),
+        docs: r#"# Std.dbg_tracestack() -> void
+Print a snapshot of the current stack.
+"#.into(),
         params: vector![],
         return_type: None,
         unbounded_args: false,
