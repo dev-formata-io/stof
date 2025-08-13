@@ -30,7 +30,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "width".into(),
         is_async: false,
-        docs: "# Width\nImage width in pixels.".into(),
+        docs: r#"# Image.width(img: Data\<Image>) -> int
+Width in pixels of this image.
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
@@ -49,7 +51,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "height".into(),
         is_async: false,
-        docs: "# Height\nImage height in pixels.".into(),
+        docs: r#"# Image.height(img: Data\<Image>) -> int
+Height in pixels of this image.
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
@@ -68,7 +72,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "grayscale".into(),
         is_async: false,
-        docs: "# Grayscale\nTurn this image into a grayscale one (no return value).".into(),
+        docs: r#"# Image.grayscale(img: Data\<Image>) -> void
+Turn this image into grayscale.
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
@@ -87,7 +93,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "invert".into(),
         is_async: false,
-        docs: "# Invert\nInvert this image (no return value).".into(),
+        docs: r#"# Image.invert(img: Data\<Image>) -> void
+Invert this image.
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
@@ -106,7 +114,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "flip_vertical".into(),
         is_async: false,
-        docs: "# Flip Vertical\nFlip this image vertically (no return value).".into(),
+        docs: r#"# Image.flip_vertical(img: Data\<Image>) -> void
+Flip this image vertically.
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
@@ -125,7 +135,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "flip_horizontal".into(),
         is_async: false,
-        docs: "# Flip Horizontal\nFlip this image horizontally (no return value).".into(),
+        docs: r#"# Image.flip_horizontal(img: Data\<Image>) -> void
+Flip this image horizontally.
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
@@ -144,7 +156,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "rotate_90".into(),
         is_async: false,
-        docs: "# Rotate 90 degrees Clockwise\nRotate this image 90 deg clockwise (no return value).".into(),
+        docs: r#"# Image.rotate_90(img: Data\<Image>) -> void
+Rotate this image 90 degrees clockwise.
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
@@ -163,7 +177,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "rotate_180".into(),
         is_async: false,
-        docs: "# Rotate 180 degrees Clockwise\nRotate this image 180 deg clockwise (no return value).".into(),
+        docs: r#"# Image.rotate_180(img: Data\<Image>) -> void
+Rotate this image 180 degrees clockwise.
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
@@ -182,7 +198,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "rotate_270".into(),
         is_async: false,
-        docs: "# Rotate 270 degrees Clockwise\nRotate this image 270 deg clockwise (no return value).".into(),
+        docs: r#"# Image.rotate_270(img: Data\<Image>) -> void
+Rotate this image 270 degrees clockwise.
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
@@ -201,7 +219,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "resize".into(),
         is_async: false,
-        docs: "# Resize\nReturns true if the image was resized to a width and height (preserving aspect ratio).".into(),
+        docs: r#"# Image.resize(img: Data\<Image>, width: int, height: int) -> bool
+Resize this image, preserving it's aspect ratio. Will return true if the image was successfully resized.
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
             Param { name: "width".into(), param_type: Type::Num(NumT::Int), default: None, },
@@ -222,7 +242,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "resize_exact".into(),
         is_async: false,
-        docs: "# Resize Exact\nReturns true if the image was resized to a width and height (without preserving aspect ratio).".into(),
+        docs: r#"# Image.resize_exact(img: Data\<Image>, width: int, height: int) -> bool
+Resize this image, without preserving it's aspect ratio. Will return true if the image was successfully resized.
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
             Param { name: "width".into(), param_type: Type::Num(NumT::Int), default: None, },
@@ -243,7 +265,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "thumbnail".into(),
         is_async: false,
-        docs: "# Thumbnail\nReturns true if the image was resized to a width and height thumbnail (preserving aspect ratio).".into(),
+        docs: r#"# Image.thumbnail(img: Data\<Image>, width: int, height: int) -> bool
+Resize this image into a thumbnail, preserving it's aspect ratio. Will return true if the image was successfully resized.
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
             Param { name: "width".into(), param_type: Type::Num(NumT::Int), default: None, },
@@ -264,7 +288,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "thumbnail_exact".into(),
         is_async: false,
-        docs: "# Thumbnail Exact\nReturns true if the image was resized to a width and height thumbnail (without preserving aspect ratio).".into(),
+        docs: r#"# Image.thumbnail_exact(img: Data\<Image>, width: int, height: int) -> bool
+Resize this image into a thumbnail, without preserving it's aspect ratio. Will return true if the image was successfully resized.
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
             Param { name: "width".into(), param_type: Type::Num(NumT::Int), default: None, },
@@ -285,7 +311,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "blur".into(),
         is_async: false,
-        docs: "# Blur\nBlur this image with a floating point value (no return value).".into(),
+        docs: r#"# Image.blur(img: Data\<Image>, blur: float) -> void
+Blur this image with the given blur value (sigma in a gaussian blur).
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
             Param { name: "blur".into(), param_type: Type::Num(NumT::Float), default: None, },
@@ -305,7 +333,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "fast_blur".into(),
         is_async: false,
-        docs: "# Fast Blur\nBlur this image with a floating point value (no return value).".into(),
+        docs: r#"# Image.fast_blur(img: Data\<Image>, blur: float) -> void
+Blur this image with the given blur value (sigma in a gaussian blur).
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
             Param { name: "blur".into(), param_type: Type::Num(NumT::Float), default: None, },
@@ -325,7 +355,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "contrast".into(),
         is_async: false,
-        docs: "# Adjust Contrast\nSet contrast of this image with a floating point value (no return value).".into(),
+        docs: r#"# Image.contrast(img: Data\<Image>, contrast: float) -> void
+Set the contrast of this image (positive to increase, negative to decrease).
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
             Param { name: "contrast".into(), param_type: Type::Num(NumT::Float), default: None, },
@@ -345,7 +377,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "brighten".into(),
         is_async: false,
-        docs: "# Brighten\nBrighten this image with an integer value (no return value).".into(),
+        docs: r#"# Image.brighten(img: Data\<Image>, brighten: int) -> void
+Brighten this image with the given value (positive to increase each pixel and negative to decrease).
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
             Param { name: "brighten".into(), param_type: Type::Num(NumT::Int), default: None, },
@@ -365,7 +399,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "blob".into(),
         is_async: false,
-        docs: "# Blob\nReturn a blob representing this image.".into(),
+        docs: r#"# Image.blob(img: Data\<Image>) -> blob
+Transform this image into a binary blob value (raw binary is a PNG).
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
@@ -384,7 +420,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "png".into(),
         is_async: false,
-        docs: "# Png\nReturn a blob representing this image as a PNG.".into(),
+        docs: r#"# Image.png(img: Data\<Image>) -> blob
+Transform this image into a binary blob value that is in PNG format.
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
@@ -403,7 +441,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "jpeg".into(),
         is_async: false,
-        docs: "# Jpeg\nReturn a blob representing this image as a JPEG.".into(),
+        docs: r#"# Image.jpeg(img: Data\<Image>) -> blob
+Transform this image into a binary blob value that is in JPEG format.
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
@@ -422,7 +462,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "gif".into(),
         is_async: false,
-        docs: "# Gif\nReturn a blob representing this image as a GIF.".into(),
+        docs: r#"# Image.gif(img: Data\<Image>) -> blob
+Transform this image into a binary blob value that is in GIF format.
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
@@ -441,7 +483,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "webp".into(),
         is_async: false,
-        docs: "# Webp\nReturn a blob representing this image as a WEBP.".into(),
+        docs: r#"# Image.webp(img: Data\<Image>) -> blob
+Transform this image into a binary blob value that is in WEBP format.
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
@@ -460,7 +504,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "tiff".into(),
         is_async: false,
-        docs: "# Tiff\nReturn a blob representing this image as a TIFF.".into(),
+        docs: r#"# Image.tiff(img: Data\<Image>) -> blob
+Transform this image into a binary blob value that is in TIFF format.
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
@@ -479,7 +525,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "bmp".into(),
         is_async: false,
-        docs: "# Bmp\nReturn a blob representing this image as a BMP.".into(),
+        docs: r#"# Image.bmp(img: Data\<Image>) -> blob
+Transform this image into a binary blob value that is in BMP format.
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
@@ -498,7 +546,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "ico".into(),
         is_async: false,
-        docs: "# Ico\nReturn a blob representing this image as a ICO.".into(),
+        docs: r#"# Image.ico(img: Data\<Image>) -> blob
+Transform this image into a binary blob value that is in ICO format.
+"#.into(),
         params: vector![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
@@ -517,7 +567,9 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "from_blob".into(),
         is_async: false,
-        docs: "# From Blob\nReturn an image, given a blob of bytes.".into(),
+        docs: r#"# Image.from_blob(bytes: blob) -> Data\<Image>
+Create an image (on the calling/current object) given a binary blob, attempting to auto-detect the image's format.
+"#.into(),
         params: vector![
             Param { name: "bytes".into(), param_type: Type::Blob, default: None, },
         ],
