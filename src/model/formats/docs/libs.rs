@@ -304,7 +304,7 @@ This library adds a thread pool in the background for processing HTTP requests, 
 fn pdf_lib(graph: &mut Graph) {
     graph.insert_libdoc(literal!("Pdf"), 
 r#"# PDF Library (Pdf)
-Functions for working with PDF files, loaded into Stof via the custom Data<Pdf> type.
+Functions for working with PDF files, loaded into Stof via the custom Data<Pdf> type. Requires the "pdf" feature flag to be enabled.
 "#.into());
 }
 
@@ -312,6 +312,6 @@ Functions for working with PDF files, loaded into Stof via the custom Data<Pdf> 
 fn image_lib(graph: &mut Graph) {
     graph.insert_libdoc(literal!("Image"), 
 r#"# Image Library (Image)
-Functions for working with images, loaded into Stof via the custom Data<Image> type. This can be done with several image formats.
+Functions for working with images, loaded into Stof via the custom Data<Image> type. This can be done with several image formats. Requires the "image" feature flag to be enabled.
 "#.into());
 }

@@ -28,7 +28,14 @@ pub fn insert_pdf_library(graph: &mut Graph) {
         library: PDF_LIB.clone(),
         name: "extract_text".into(),
         is_async: false,
-        docs: "# Extract Text\nReturn the text of every page of this PDF as a string.".into(),
+        docs: r#"# Pdf.extract_text(pdf: Data\<Pdf>) -> str
+Given a data pointer to a PDF document, extract all text from the PDF file and return it as a string.
+```rust
+// import './test_stof_pdf.pdf'; // taken from stof PDF format tests
+const text = self.pdf.extract_text();
+assert_eq(text, "Example Stof\nDocument\n");
+```
+"#.into(),
         params: vector![
             Param { name: "pdf".into(), param_type: Type::Data(PDF_LIB.clone()), default: None, },
         ],
@@ -46,7 +53,16 @@ pub fn insert_pdf_library(graph: &mut Graph) {
         library: PDF_LIB.clone(),
         name: "extract_images".into(),
         is_async: false,
-        docs: "# Extract Images\nReturn the images off of every page of this PDF as a list of maps.".into(),
+        docs: r#"# Pdf.extract_images(pdf: Data\<Pdf>) -> list
+Given a data pointer to a PDF document, extract all images from every page, returning them as a list of maps with image data.
+```rust
+// import './test_stof_pdf.pdf'; // taken from stof PDF format tests
+const images = self.pdf.extract_images();
+assert_eq(images.len(), 1);
+assert_eq(images[0].get('height'), 500);
+assert_eq(images[0].get('width'), 1250);
+```
+"#.into(),
         params: vector![
             Param { name: "pdf".into(), param_type: Type::Data(PDF_LIB.clone()), default: None, },
         ],
