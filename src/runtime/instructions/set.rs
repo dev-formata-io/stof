@@ -29,13 +29,16 @@ lazy_static! {
     pub static ref CLEAR_SET: Arc<dyn Instruction> = Arc::new(SetIns::Clear);
     pub static ref CONTAINS_SET: Arc<dyn Instruction> = Arc::new(SetIns::Contains);
     pub static ref FIRST_SET: Arc<dyn Instruction> = Arc::new(SetIns::First);
+    pub static ref FIRST_REF_SET: Arc<dyn Instruction> = Arc::new(SetIns::FirstRef);
     pub static ref LAST_SET: Arc<dyn Instruction> = Arc::new(SetIns::Last);
+    pub static ref LAST_REF_SET: Arc<dyn Instruction> = Arc::new(SetIns::LastRef);
     pub static ref INSERT_SET: Arc<dyn Instruction> = Arc::new(SetIns::Insert);
     pub static ref SPLIT_SET: Arc<dyn Instruction> = Arc::new(SetIns::Split);
     pub static ref EMPTY_SET: Arc<dyn Instruction> = Arc::new(SetIns::Empty);
     pub static ref ANY_SET: Arc<dyn Instruction> = Arc::new(SetIns::Any);
     pub static ref LEN_SET: Arc<dyn Instruction> = Arc::new(SetIns::Len);
     pub static ref AT_SET: Arc<dyn Instruction> = Arc::new(SetIns::At);
+    pub static ref AT_REF_SET: Arc<dyn Instruction> = Arc::new(SetIns::AtRef);
     pub static ref POP_FIRST_SET: Arc<dyn Instruction> = Arc::new(SetIns::PopFirst);
     pub static ref POP_LAST_SET: Arc<dyn Instruction> = Arc::new(SetIns::PopLast);
     pub static ref REMOVE_SET: Arc<dyn Instruction> = Arc::new(SetIns::Remove);
@@ -66,13 +69,16 @@ pub enum SetIns {
     Clear,
     Contains,
     First,
+    FirstRef,
     Last,
+    LastRef,
     Insert,
     Split,
     Empty,
     Any,
     Len,
     At,
+    AtRef,
     PopFirst,
     PopLast,
     Remove,
@@ -190,12 +196,44 @@ impl Instruction for SetIns {
                 }
                 Err(Error::SetFirst)
             },
+            Self::FirstRef => {
+                if let Some(var) = env.stack.pop() {
+                    match var.val.read().deref() {
+                        Val::Set(set) => {
+                            if let Some(first) = set.get_min() {
+                                env.stack.push(Variable::refval(first.duplicate(true)));
+                            } else {
+                                env.stack.push(Variable::val(Val::Null));
+                            }
+                            return Ok(None);
+                        },
+                        _ => {}
+                    }
+                }
+                Err(Error::SetFirst)
+            },
             Self::Last => {
                 if let Some(var) = env.stack.pop() {
                     match var.val.read().deref() {
                         Val::Set(set) => {
                             if let Some(last) = set.get_max() {
                                 env.stack.push(Variable::refval(last.duplicate(false)));
+                            } else {
+                                env.stack.push(Variable::val(Val::Null));
+                            }
+                            return Ok(None);
+                        },
+                        _ => {}
+                    }
+                }
+                Err(Error::SetLast)
+            },
+            Self::LastRef => {
+                if let Some(var) = env.stack.pop() {
+                    match var.val.read().deref() {
+                        Val::Set(set) => {
+                            if let Some(last) = set.get_max() {
+                                env.stack.push(Variable::refval(last.duplicate(true)));
                             } else {
                                 env.stack.push(Variable::val(Val::Null));
                             }
@@ -282,6 +320,30 @@ impl Instruction for SetIns {
                                         let index = num.int() as usize;
                                         if let Some(val) = set.iter().nth(index) {
                                             env.stack.push(Variable::refval(val.duplicate(false)));
+                                        } else {
+                                            env.stack.push(Variable::val(Val::Null));
+                                        }
+                                        return Ok(None);
+                                    },
+                                    _ => {}
+                                }
+                            },
+                            _ => {}
+                        }
+                    }
+                }
+                Err(Error::SetAt)
+            },
+            Self::AtRef => {
+                if let Some(index_var) = env.stack.pop() {
+                    if let Some(var) = env.stack.pop() {
+                        match var.val.read().deref() {
+                            Val::Set(set) => {
+                                match index_var.val.read().deref() {
+                                    Val::Num(num) => {
+                                        let index = num.int() as usize;
+                                        if let Some(val) = set.iter().nth(index) {
+                                            env.stack.push(Variable::refval(val.duplicate(true)));
                                         } else {
                                             env.stack.push(Variable::val(Val::Null));
                                         }
