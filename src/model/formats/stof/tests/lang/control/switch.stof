@@ -1,0 +1,55 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+/*!
+ * Switch statement tests.
+ */
+
+#[test]
+fn fall_into_default() {
+    let res = false;
+    switch ('d') {
+        case 'a':
+        case 'hello': {
+            res = false;
+        }
+        case 'd':
+        default: {
+            res = true;
+        }
+    }
+    assert(res);
+}
+
+#[test]
+fn normal() {
+    let res = false;
+    switch ('hi') {
+        case 'hi': res = true;
+    }
+    assert(res);
+}
+
+#[test]
+fn switch_expr() {
+    let res = switch ('yo') {
+        case 'yo': 42 // these are return values btw (no ;)
+        case 'other': 100
+        default: 500
+    };
+    assert_eq(res, 42);
+}

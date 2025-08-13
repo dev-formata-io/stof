@@ -1,0 +1,228 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+#[test]
+fn append() {
+    let a = [1, 2, 3];
+    let b = [4, 5, 6];
+    a.append(b);
+
+    assert_eq(a, [1, 2, 3, 4, 5, 6]);
+    assert_eq(b, [4, 5, 6]);
+}
+
+#[test]
+fn push_back() {
+    let a = [];
+    for (let i in 10) a.push_back(i);
+    assert_eq(a, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+}
+
+#[test]
+fn push_front() {
+    let a = [];
+    for (let i in 10) a.push_front(i);
+    assert_eq(a, [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]);
+}
+
+#[test]
+fn pop_back() {
+    let a = [45, 64];
+    assert_eq(a.pop_back(), 64);
+    assert_eq(a, [45]);
+}
+
+#[test]
+fn pop_front() {
+    let a = [45, 64];
+    assert_eq(a.pop_front(), 45);
+    assert_eq(a, [64]);
+}
+
+#[test]
+fn clear() {
+    let a = [45, 64];
+    a.clear();
+    assert(a.empty());
+    assert(!a.any());
+    assert_eq(a, []);
+}
+
+#[test]
+fn reverse() {
+    let a = [1, 2, 3];
+    a.reverse();
+    assert_eq(a, [3, 2, 1]);
+}
+
+#[test]
+fn reversed() {
+    let a = [1, 2, 3];
+    let b = a.reversed();
+    assert_eq(a, [1, 2, 3]);
+    assert_eq(b, [3, 2, 1]);
+}
+
+#[test]
+fn len() {
+    let a = [1, 2, 3];
+    assert_eq(a.len(), 3);
+}
+
+#[test]
+fn at() {
+    let a = ['hi', 54, true, 3.4.5];
+    assert_eq(a.at(2), true);
+    assert_eq(a.at(3), 3.4.5);
+    assert_eq(a.front(), 'hi');
+    assert_eq(a.back(), 3.4.5);
+}
+
+#[test]
+fn at_ref() {
+    let a = ['hi', 54, true, 3.4.5];
+    
+    let first = &a.front();
+    first = 'yo';
+    assert_eq(a, ['yo', 54, true, 3.4.5]);
+
+    let last = &a.back();
+    last = 'changed';
+    assert_eq(a, ['yo', 54, true, 'changed']);
+
+    let mid = &a[1];
+    mid = 42;
+    assert_eq(a, ['yo', 42, true, 'changed']);
+}
+
+#[test]
+fn join() {
+    let a = ['hello', 'cj'];
+    assert_eq(a.join(', '), 'hello, cj');
+    assert_eq(a.join(' | '), 'hello | cj');
+    assert_eq(a, ['hello', 'cj']);
+}
+
+#[test]
+fn contains() {
+    let a = [42, 'hello', 3.4.5];
+    assert(a.contains(42));
+    assert(a.contains('hello'));
+    assert(a.contains(3.4.5));
+    assert(!a.contains(3.4.6));
+}
+
+#[test]
+fn index_of() {
+    let a = [2, 52, 12];
+    assert_eq(a.index_of(52), 1);
+    assert_eq(a.index_of(13), -1);
+}
+
+#[test]
+fn remove() {
+    let a = [1, 2, 3, 4];
+    assert_eq(a.remove(2), 3);
+    assert_eq(a, [1, 2, 4]);
+}
+
+#[test]
+fn remove_first() {
+    let a = [1, 2, 1, 3];
+    assert_eq(a.remove_first(1), 1);
+    assert_eq(a, [2, 1, 3]);
+}
+
+#[test]
+fn remove_last() {
+    let a = [1, 2, 1, 3];
+    assert_eq(a.remove_last(1), 1);
+    assert_eq(a, [1, 2, 3]);
+}
+
+#[test]
+fn remove_all() {
+    let a = [1, 2, 1, 3];
+    assert(a.remove_all(1));
+    assert_eq(a, [2, 3]);
+}
+
+#[test]
+fn insert() {
+    let a = [1, 2, 3];
+    a.insert(1, 'hi');
+    assert_eq(a, [1, 'hi', 2, 3]);
+}
+
+#[test]
+fn replace() {
+    let a = [1, 2, 3];
+    a.replace(1, 'hi');
+    assert_eq(a, [1, 'hi', 3]);
+}
+
+#[test]
+fn sort() {
+    let a = [3, 45, 23, 7, 6];
+    a.sort();
+    assert_eq(a, [3, 6, 7, 23, 45]);
+}
+
+#[test]
+fn is_uniform() {
+    let a = [1, 2, 3];
+    let b = ['hi', false];
+    assert(a.is_uniform());
+    assert(!b.is_uniform());
+}
+
+#[test]
+fn to_uniform() {
+    let a = ['10kg', 34g, 100mg, false];
+    a.to_uniform('g');
+    assert(a.is_uniform());
+    assert_eq(a, [10_000g, 34g, 0.1g, 0g]);
+}
+
+#[test]
+fn edit_inner() {
+    let a = [[]];
+    
+    let inner = a.front();
+    inner.push_back(5);
+
+    assert_eq(a, [[5]]);
+}
+
+
+test: []
+
+#[test]
+fn push_back_field() {
+    self.test.push_back(42);
+    assert_eq(self.test, [42]);
+}
+
+#[test]
+fn list_constructor() {
+    let a = list();
+    assert(a.empty());
+    assert_eq(typeof a, 'list');
+
+    a = list(1, 2, 3);
+    assert_eq(a, [1, 2, 3]);
+}

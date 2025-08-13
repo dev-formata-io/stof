@@ -1,0 +1,397 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+#[test]
+fn obj_name() {
+    assert_eq(self.name(), 'ObjLib');
+}
+
+#[test]
+fn obj_id() {
+    assert(self.id().len() > 0);
+}
+
+#[test]
+fn obj_path() {
+    assert_eq(self.path(), 'root.Libs.ObjLib');
+}
+
+#[test]
+fn obj_parent() {
+    assert_eq(self.parent().path(), 'root.Libs');
+}
+
+#[test]
+fn obj_is_parent() {
+    const parent = self.parent();
+    assert(parent.is_parent(self));
+    assert(Obj.is_parent(parent, self));
+}
+
+#[test]
+fn obj_exists() {
+    assert(self.exists());
+}
+
+#[test]
+fn obj_children() {
+    const children = self.parent().children();
+    assert_eq(typeof children, 'list');
+    assert(children.len());
+}
+
+#[test]
+fn obj_root() {
+    const rt = self.root();
+    assert(rt);
+    assert(rt.is_root());
+}
+
+#[test]
+fn obj_empty() {
+    assert_not(self.empty());
+}
+
+#[test]
+fn obj_any() {
+    assert(self.any());
+}
+
+#[test]
+fn obj_fields() {
+    assert(self.fields().len() > 0);
+}
+
+#[super_secret_func]
+fn mysecret_func() -> int { 100 }
+
+#[test]
+fn obj_funcs() {
+    assert(self.funcs().len() > 0);
+
+    const funcs = self.funcs('super_secret_func');
+    assert_eq(funcs.len(), 1);
+    assert_eq(funcs.front().call(), 100);
+}
+
+Prototypes: {
+    //#[type('CustomAType')] // same thing as create_type below
+    const a: {
+        fn hello() -> str { 'hello' }
+    }
+    const b: {}
+
+    #[test]
+    fn obj_set_proto() {
+        self.a.create_type('CustomAType');
+
+        assert_eq(typename self.b, 'obj');
+        self.b.set_prototype('CustomAType');
+        assert_eq(typename self.b, 'CustomAType');
+        
+        assert_eq(<CustomAType>.hello(), 'hello');
+        assert_eq(b.hello(), 'hello');
+
+        assert(self.b.instance_of('CustomAType'));
+        assert(self.b.instance_of(self.a));
+
+        assert_eq(self.b.prototype(), self.a);
+
+        self.b.remove_prototype();
+        assert_not(self.b.instance_of(self.a));
+        assert_eq(typename self.b, 'obj');
+    }
+}
+
+Index: {
+    const object: {
+        first: 'a'
+        second: 'b'
+        third: 'c'
+        fourth: 'd'
+    }
+
+    #[test]
+    fn obj_contains() {
+        assert(self.object.contains('first'));
+        assert_not(self.object.contains('doesnt'));
+    }
+
+    #[test]
+    fn iter() {
+        let res = '';
+        for (const field in self.object) {
+            if (first) res += str(field);
+            else res += str(', ', field);
+        }
+        assert_eq(res, '("first", "a"), ("fourth", "d"), ("second", "b"), ("third", "c")');
+    }
+
+    const obj_for_ref: {
+        a: 'a'
+        b: 'b'
+    }
+
+    #[test]
+    fn get_ref() {
+        let a_ref = &self.obj_for_ref[0][1];
+        assert_eq(a_ref, 'a');
+        a_ref = 'aa';
+        assert_eq(a_ref, 'aa');
+        assert_eq(self.obj_for_ref.a, 'aa');
+
+        let b_ref = &self.obj_for_ref.get('b');
+        assert_eq(b_ref, 'b');
+        b_ref = 'bb';
+        assert_eq(self.obj_for_ref.b, 'bb');
+
+        swap(&self.obj_for_ref.a, &self.obj_for_ref.b);
+        assert_eq(str(self.obj_for_ref), '{"a":"bb","b":"aa"}');
+    }
+}
+
+InsertRemove: {
+    #[test]
+    fn insert_direct() {
+        self.insert('direct', 42);
+        assert_eq(self.direct, 42);
+
+        assert(self.remove('direct'));
+        assert_eq(self.direct, null);
+    }
+
+    #[test]
+    fn insert_sub() {
+        self.insert('sub.another.dude', 'hello');
+        assert_eq(self.sub.another.dude, 'hello');
+
+        self.remove('sub', shallow = false);
+        assert_eq(self.sub.another.dude, null);
+        assert_eq(self.sub, null);
+    }
+
+    obj first: {}
+
+    #[test]
+    fn remove_shallow() {
+        // Create two fields to the same obj
+        self.second = self.first;
+        assert_eq(self.second, self.first);
+
+        self.remove('second', shallow = true);
+        assert_eq(self.second, null);
+        assert(self.first);
+    }
+}
+
+MoveField: {
+    source: {
+        to_rename: 42
+        to_move: 'hi'
+    }
+    dest: {}
+
+    #[test]
+    fn rename_field() {
+        assert(self.source.move_field('to_rename', 'renamed'));
+        assert_eq(self.source.renamed, 42);
+        assert_not(self.source.to_rename);
+    }
+
+    #[test]
+    fn moving_fields() {
+        assert(self.move_field('self.source.to_move', 'dest.moved'));
+        assert_not(self.source.to_move);
+        assert_eq(self.dest.moved, 'hi');
+    }
+
+    #[test]
+    fn move_dne() {
+        assert_not(self.move_field('dne', 'target'));
+    }
+}
+
+#[custom(42)]
+Attributes: {
+    #[my_attr({})]
+    field: 'hello';
+
+    #[test]
+    fn obj_attributes() {
+        assert_eq(self.attributes(), {'custom': 42});
+        assert_eq(self.attributes('obj_attributes'), {'test': null});
+        assert_eq(self.attributes('self.super.Attributes.field'), {'my_attr': {}});
+    }
+}
+
+Distance: {
+    #[test]
+    fn obj_distance() {
+        assert_eq(self.dist(root), 3);
+        assert_eq(self.dist(self), 0);
+        assert_eq(self.dist(self.parent()), 1);
+        assert_eq(self.dist(self.parent().parent()), 2);
+    }
+}
+
+Move: {
+    ma: {}
+    mb: {
+        mc: {}
+    }
+
+    #[test]
+    fn move_obj() {
+        let o = self.mb.mc;
+        o.move(self.ma);
+        assert(self.ma.mc);
+        assert_eq(self.ma.mc.parent(), self.ma);
+    }
+}
+
+Run: {
+    #[test]
+    fn running() {
+        self.run();
+
+        assert(self.basic);
+        assert_eq(self.runarg, 42);
+        assert_eq(self.subobj.order, [1, 2, 3]);
+        assert(self.listed);
+        assert(self.sub_listed);
+        assert(self.field_functioning);
+    }
+
+    #[run]
+    fn basic_run() {
+        self.basic = true;
+    }
+
+    #[run({"args": [42]})]
+    fn run_arg(arg: int) {
+        self.runarg = arg;
+    }
+
+    #[run]
+    subobj: {
+        order: []
+
+        #[run(1)]
+        fn first() {
+            self.order.push_back(1);
+        }
+
+        #[run(2)]
+        fn second() {
+            self.order.push_back(2);
+        }
+
+        #[run(3)]
+        fn third() {
+            self.order.push_back(3);
+        }
+    }
+
+    #[run]
+    list_run: [
+        () => { self.listed = true; },
+        {
+            #[run]
+            fn sub_list_run() {
+                super.sub_listed = true;
+            }
+        }
+    ]
+
+    #[run]
+    fn field_func: () => { self.field_functioning = true; }
+}
+
+Schemafy: {
+    schema: {
+        #[schema((target_value: str): bool => target_value.len() > 2)]
+        first: 'John'
+
+        #[schema(( // pipelines are big AND filters, applied in order and short circuited like &&
+            (target_value: unknown): bool => (typeof target_value) == 'str',
+            (target_value: str): bool => target_value.contains('Dude'),
+        ))]
+        last: 'Doe'
+    }
+
+    target: {
+        first: 'aj'
+        last: 'Dude'
+        undefined: 'blah'
+    }
+
+    #[test]
+    fn schemafy_obj() {
+        assert(self.schema.schemafy(self.target, remove_invalid = true, remove_undefined = true));
+        assert_eq(str(self.target), '{"last":"Dude"}');
+    }
+}
+
+ToFromMap: {
+    test: 'hello, world'
+    value: 42
+
+    #[test]
+    fn obj_from_map() {
+        const map = {
+            'a': 'aa',
+            'b': 'bb',
+            'c': 'cc',
+            45: 34, // not a string key, so ignored...
+        };
+        const obj = Obj.from_map(map);
+        assert_eq(obj.parent(), self);
+        assert_eq(obj.a, 'aa');
+        assert_eq(obj.b, 'bb');
+        assert_eq(obj.c, 'cc');
+        assert_eq(obj.fields().len(), 3);
+    }
+
+    #[test]
+    fn obj_to_map() {
+        const map = self.to_map();
+        assert_eq(map.get('test'), 'hello, world');
+        assert_eq(map.get('value'), 42);
+        assert_eq(map.len(), 2);
+
+        const tmp = new {
+            a: 1,
+            b: 2,
+            c: 3
+        };
+        const mp = tmp.to_map();
+        assert_eq(mp, {'a': 1, 'b': 2, 'c': 3});
+        assert(drop(tmp));
+        assert_not(tmp.exists());
+    }
+}
+
+FromID: {
+    #[test]
+    fn obj_from_id() {
+        const id = self.id();
+        const obj = Obj.from_id(id);
+        assert_eq(obj, self);
+
+        //Obj.dbg_graph();
+    }
+}

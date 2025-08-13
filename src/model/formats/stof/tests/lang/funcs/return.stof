@@ -1,0 +1,63 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+#[test]
+fn no_statement_test() {
+    assert_eq(self.no_statement(), 'hello, world');
+}
+fn no_statement() -> str {
+    'hello, world'
+}
+
+
+#[test]
+fn ret_statement_test() {
+    assert_eq(self.ret_statement(), 'hello, world');
+}
+fn ret_statement() -> str {
+    return 'hello, world';
+}
+
+
+#[test]
+fn void_ret_no_semicolon_test() {
+    self.void_ret_no_semicolon();
+}
+fn void_ret_no_semicolon() {
+    assert(true) // doesn't have a return value, so this works okay
+}
+
+
+#[test]
+#[errors]
+fn void_fn_not_void() {
+    self.not_void();
+}
+fn not_void() {
+    42
+}
+
+
+#[test]
+#[errors]
+fn not_void_no_ret_errors() {
+    const val = self.not_void_no_ret();
+    // should not get here, as the func did not return a val
+}
+fn not_void_no_ret() -> str {
+    42; // no return
+}

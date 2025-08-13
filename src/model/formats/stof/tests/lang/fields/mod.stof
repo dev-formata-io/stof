@@ -1,0 +1,96 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+some_obj: {
+    field: 42
+}
+
+
+#[test]
+fn assign_field() {
+    let o = self.some_obj;
+    assert_eq(o.field, 42);
+
+    o.field = 50;
+    assert_eq(o.field, 50);
+}
+
+
+#[type]
+MyArrayFieldType: {
+    msg: ''
+}
+array: [
+    {
+        msg: 'hello'
+    } as MyArrayFieldType,
+    {
+        msg: 'world'
+    } as MyArrayFieldType,
+]
+
+#[test]
+fn array_field() {
+    for (const o in self.array) {
+        assert(o.instance_of('MyArrayFieldType'));
+    }
+}
+
+
+#[readonly]
+read_only_field: 42
+
+#[test]
+fn readonly_field() {
+    try self.read_only_field = 89;
+    catch (error: str) assert_eq(error, 'FieldReadOnlySet');
+
+    assert_eq(self.read_only_field, 42);
+}
+
+
+Inner: {
+    #[private]
+    private_field: 'secret'
+
+    #[test]
+    fn can_see() {
+        assert_eq(self.private_field, 'secret');
+    }
+
+    InnerInner: {
+        #[test]
+        fn cannot_see() {
+            assert_not(super.private_field);
+        }
+    }
+}
+
+#[test]
+fn cannot_see() {
+    assert_not(self.Inner.private_field);
+}
+
+
+const const_field: 'hello, there'
+
+#[test]
+fn const_fields() {
+    try self.const_field = 'yo, dude';
+    catch (error: str) assert_eq(error, 'AssignConst');
+    assert_eq(self.const_field, 'hello, there');
+}

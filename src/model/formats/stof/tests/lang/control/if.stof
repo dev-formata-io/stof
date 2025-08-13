@@ -1,0 +1,86 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+/*!
+ * If statements.
+ * Scope: root.Lang.Control.If
+ */
+
+
+#[test]
+fn if_case() {
+    if (true) {
+        // getting here
+    } else {
+        assert();
+    }
+}
+
+#[test]
+fn else_if_case() {
+    if (false) {
+        assert();
+    } else if (true) {
+        // getting here
+    } else {
+        assert();
+    }
+}
+
+#[test]
+fn else_case() {
+    if (false) {
+        assert();
+    } else if (false) {
+        assert();
+    } else if (0) {
+        assert();
+    } else {
+        // getting here
+    }
+}
+
+#[test]
+fn nested_if() {
+    const val = true;
+    let res: bool; // null
+    assert_not(res);
+    if (val) {
+        if (val) {
+            if (val) {
+                if (false) {
+                    
+                } else {
+                    res = true;
+                }
+            }
+        }
+    }
+    assert(res);
+}
+
+#[test]
+fn ternary() {
+    let x = 10;
+    
+    let y = x > 5 ? true : false;
+    assert(y);
+
+    x = 3;
+    y = x > 5 ? true : false;
+    assert_not(y);
+}

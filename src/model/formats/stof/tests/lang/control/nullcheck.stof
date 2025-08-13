@@ -1,0 +1,62 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+/*!
+ * Nullcheck and ternary operator tests.
+ */
+
+#[test]
+fn double_question_nullcheck() {
+    let x = null ?? 42;
+    assert_eq(x, 42);
+}
+
+#[test]
+fn chained_nullcheck() {
+    let x = null ?? null ?? null ?? 'hi' ?? null ?? 'yo';
+    assert_eq(x, 'hi');
+}
+
+#[test]
+fn falsy_nullcheck() {
+    let x = false ?? 'hi';
+    assert_eq(x, false);
+}
+
+#[test]
+fn as_nullcheck() {
+    let x = null as kg ?? 43 as g;
+    assert_eq(x, 43000mg);
+}
+
+#[test]
+fn ternary_operator() {
+    let x = 'hi' ? 42 : 50;
+    assert_eq(x, 42);
+}
+
+#[test]
+fn falsy_ternary() {
+    let x = 0 ? 'nope' : 'yup';
+    assert_eq(x, 'yup');
+}
+
+#[test]
+fn nested_ternary() {
+    let x = 0 ? 30 : true as int ? null ?? 76 : 'man';
+    assert_eq(x, 76);
+}

@@ -14,49 +14,7 @@
 // limitations under the License.
 //
 
-pub mod core;
-pub use core::*;
 
-pub mod data;
-pub use data::*;
-
-pub mod stof;
-pub use stof::*;
-
-pub mod text;
-pub mod bytes;
-
-pub mod gitbook;
-
-#[cfg(feature = "pkg")]
-pub mod pkg;
-
-#[cfg(feature = "wasm")]
-pub mod js;
-
-#[cfg(feature = "json")]
-pub mod json;
-
-#[cfg(feature = "toml")]
-pub mod toml;
-
-#[cfg(feature = "yaml")]
-pub mod yaml;
-
-#[cfg(feature = "xml")]
-pub mod xml;
-
-#[cfg(feature = "urlencoded")]
-pub mod urlencoded;
-
-#[cfg(feature = "docx")]
-pub mod docx;
-
-#[cfg(feature = "image")]
-pub mod image;
-
-#[cfg(feature = "pdf")]
-pub mod pdf;
-
-#[cfg(test)]
-mod tests;
+pub mod model;
+pub mod runtime;
+pub mod parser;

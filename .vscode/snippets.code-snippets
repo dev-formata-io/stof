@@ -14,5 +14,21 @@
 		"body": [
 			"/*****************************************************************************\n * $1\n *****************************************************************************/\n$2"
 		]
+	},
+	"doccomment": {
+		"description": "A snippet to insert a doc comment.",
+		"prefix": "doccomment",
+		"scope": "typescript,javascript,css,html,md,txt,rust,wat,stof",
+		"body": [
+			"/**\n * $1\n */\n$2"
+		]
+	},
+	"docinnercomment": {
+		"description": "A snippet to insert a doc comment.",
+		"prefix": "docinnercomment",
+		"scope": "typescript,javascript,css,html,md,txt,rust,wat,stof",
+		"body": [
+			"/*!\n * $1\n */\n$2"
+		]
 	}
 }

@@ -1,0 +1,419 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+/*!
+ * "Std" library tests.
+ */
+
+#[custom_search_func]
+fn myfunc() -> str {
+    'yo'
+}
+
+
+#[test]
+fn functions() {
+    const funcs = funcs('custom_search_func');
+    assert_eq(funcs.len(), 1);
+    assert_eq(funcs.front().call(), 'yo');
+}
+
+
+Throw: {
+    #[test]
+    #[errors]
+    fn throw_error() {
+        throw('can be any value here');
+    }
+
+    #[test]
+    fn catch_thrown() {
+        let res = 10;
+        
+        try throw(42);
+        catch (val: int) res = val;
+        
+        assert_eq(res, 42);
+    }
+}
+
+
+Print: {
+    #[test]
+    fn std_print_line() {
+        pln('std print line');
+    }
+
+    #[test]
+    fn std_print_err() {
+        err('std print error');
+    }
+
+    #[test]
+    fn std_debug() {
+        dbg('std debug print line');
+    }
+}
+
+
+/**
+ * Sleep is also in Time, but Stof is async at heart, so here too.
+ */
+Sleep: {
+    #[test]
+    fn sleeping_process() {
+        // Note: every #[test] is a separate process (async) already, so this won't hold anything up
+        sleep(1ms); // default units are ms, but use what you'd like (maybe not days tho)
+    }
+}
+
+
+/**
+ * Exit a process.
+ */
+Exit: {
+    #[test]
+    fn exiting_process() {
+        // Note: every #[test] is a separate process, so this will work just fine.
+        let another = async {
+            loop {
+                // This is an infinite loop...
+            }
+        };
+        let yet_another = async {
+            sleep(30s);
+        };
+        exit(another, yet_another); // Exit other processes
+        exit(); // Exit this process
+    }
+}
+
+
+Copy: {
+    #[test]
+    fn copy_basic() {
+        let a = 42;
+        let b = copy(a);
+        assert_eq(a, b);
+    }
+
+    #[test]
+    fn copy_ref() {
+        let a = 42;
+        let b = &a;
+        
+        b = 20;
+        assert_eq(a, 20);
+
+        let c = copy(b);
+        c = 42;
+        assert_eq(a, 20);
+        assert_eq(b, 20);
+    }
+
+    #[test]
+    fn copy_list() {
+        let a = [1, 2, 3];
+        let b = a;
+        b.pop_back();
+        assert_eq(a, b);
+        assert_eq(a, [1, 2]);
+
+        let c = copy(a);
+        c.pop_back();
+        assert_eq(c, [1]);
+        assert_eq(a, [1, 2]);
+        assert_eq(b, [1, 2]);
+    }
+
+    #[test]
+    fn copy_list_list() {
+        let a = [[[42]]];
+        let b = copy(a);
+        
+        assert_eq(a.front().front().replace(0, 89), 42);
+        assert_eq(a.front().front().front(), 89);
+        assert_eq(b.front().front().front(), 42);
+    }
+
+    #[test]
+    fn copy_map() {
+        let a = {
+            'example': {
+                'a': 1,
+                'b': 5
+            }
+        };
+        
+        let b = copy(a);
+        assert_eq(b.get('example').remove('b'), 5);
+        assert_eq(b.get('example').insert('a', 10), 1);
+        assert_eq(b, {'example': {'a': 10}});
+        assert_eq(a, {'example': {'a': 1, 'b': 5}});
+    }
+
+    Object: {
+        obj_to_copy: {
+            test_field: 42
+            test_sub: {
+                test_field: 'hi'
+            }
+        }
+
+        #[test]
+        fn deep_copy_obj() {
+            let existing = self.obj_to_copy;
+            let copied = copy(existing);
+            
+            assert_neq(copied, existing);
+            assert_eq(copied.test_field, existing.test_field);
+            assert_eq(existing.test_field, 42);
+            assert_eq(copied.test_sub.test_field, existing.test_sub.test_field);
+            assert_eq(copied.test_sub.test_field, 'hi');
+
+            copied.test_sub.test_field = 'yo';
+            assert_neq(copied.test_sub.test_field, existing.test_sub.test_field);
+            assert_eq(copied.test_sub.test_field, 'yo');
+        }
+    }
+}
+
+
+Swap: {
+    #[test]
+    fn swap_basic() {
+        let a = 42;
+        let b = 100;
+        swap(&a, &b); // have to load val vars by ref here...
+
+        assert_eq(a, 100);
+        assert_eq(b, 42);
+    }
+
+    #[test]
+    fn swap_containers() {
+        let a = {42};
+        let b = {1, 2, 3};
+        swap(a, b);
+
+        assert_eq(a, {1, 2, 3});
+        assert_eq(b, {42});
+    }
+
+    #[test]
+    fn swap_mixed() {
+        let a = 42;
+        let b = [4, 5, 6];
+        swap(&a, b);
+
+        assert_eq(a, [4, 5, 6]);
+        assert_eq(b, 42);
+    }
+}
+
+
+Drop: {
+    obj_to_drop: {}
+    another_obj_to_drop: {}
+
+    #[test]
+    fn drop_obj() {
+        assert_eq(typeof self.obj_to_drop, 'obj');
+        assert(drop('self.obj_to_drop'));
+        assert_eq(self.obj_to_drop, null);
+
+        assert_eq(typeof self.another_obj_to_drop, 'obj');
+        drop(self.another_obj_to_drop);
+        assert_eq(self.another_obj_to_drop, null);
+    }
+
+    #[test]
+    fn drop_fn() {
+        const func = ():int=>42;
+        assert_eq(func(), 42);
+
+        const data = func.data();
+        drop(func);
+        assert(!data.exists());
+
+        let caught = false;
+        try {
+            func();
+        } catch {
+            caught = true;
+        }
+        assert(caught);
+    }
+
+    #[test]
+    fn drop_data() {
+        const func = ():int=>42;
+        assert_eq(func(), 42);
+
+        const data = func.data();
+        drop(data);
+        assert(!data.exists());
+
+        let caught = false;
+        try func();
+        catch caught = true;
+        assert(caught);
+    }
+
+    field_to_drop: 'hey there';
+    another_field_to_drop: 56kg;
+
+    #[test]
+    fn drop_field() {
+        assert_eq(self.field_to_drop, 'hey there');
+        assert_eq(self.another_field_to_drop, 56kg);
+
+        const res = drop('self.field_to_drop', 'self.another_field_to_drop', 'super.does_not_exist');
+        assert_eq(res, [true, true, false]);
+        assert_eq(self.field_to_drop, null);
+        assert_eq(self.another_field_to_drop, null);
+    }
+}
+
+Parse: {
+    #[test]
+    fn parse_source() {
+        const stof = r#"
+            fn greetings() {
+                self.greeting = 'Hello, Stof Parse!';
+            }
+        "#;
+        parse(stof); // parse the stof into this context
+
+        self.greetings();
+        assert_eq(self.greeting, 'Hello, Stof Parse!');
+    }
+
+    #[test]
+    fn parse_another_context() {
+        const context = new {} on self;
+        const stof = r#"
+            fn doin_it() -> int {
+                self.x = 42;
+                self.y = 56;
+                self.x + self.y
+            }
+        "#;
+        assert(parse(stof, context, format = 'stof'));
+        assert_eq(context.doin_it(), 98);
+        assert_eq(context.x, 42);
+        assert_eq(context.y, 56);
+        drop(context);
+    }
+}
+
+Formats: {
+    #[test]
+    fn has_format() {
+        assert(format('stof'));
+    }
+
+    #[test]
+    fn formats() {
+        const formats = Std.formats();
+        assert_eq(typeof formats, 'set');
+        assert(formats.len());
+    }
+
+    #[test]
+    fn format_content_type() {
+        const ct = format_content_type('stof');
+        assert_eq(ct, 'application/stof');
+    }
+}
+
+Libs: {
+    #[test]
+    fn has_library() {
+        assert(lib('Std'));
+        assert(lib('Num'));
+        assert(lib('Fn'));
+        assert_not(lib('Dne'));
+    }
+
+    #[test]
+    fn libraries() {
+        const libs = libs();
+        assert(libs.len() > 3);
+        assert('set' == typeof libs);
+    }
+}
+
+Ids: {
+    #[test]
+    fn nanoids() {
+        let id = nanoid();
+        assert_eq(id.len(), 21);
+
+        id = Std.nanoid(32);
+        assert_eq(id.len(), 32);
+    }
+
+    #[test]
+    fn graph_ids() {
+        const gid = Std.graph_id();
+        assert(gid.len() > 10);
+    }
+}
+
+MinMax: {
+    #[test]
+    fn minimum() {
+        const min = min(12, 23, -4);
+        assert_eq(min, -4);
+    }
+
+    #[test]
+    fn maximum() {
+        let max = max();
+        assert_eq(max, null);
+
+        max = max(12, 1000, 345, -5);
+        assert_eq(max, 1000);
+    }
+}
+
+Callstack: {
+    #[test]
+    fn callstack() {
+        const stack = Std.callstack();
+        assert_eq(stack.len(), 1);
+        assert_eq(stack.front(), this);
+    }
+}
+
+Trace: {
+    #[test]
+    fn tracing() {
+        const res = await self.another();
+        assert(res > 10ms);
+    }
+
+    async fn another() -> ms {
+        const ts = Time.now();
+        sleep(10ms);
+        
+        //trace(`Total sleep: ${Time.diff(ts)}`);
+        
+        Time.diff(ts)
+    }
+}

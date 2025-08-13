@@ -1,0 +1,35 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+/*!
+ * Library tests.
+ */
+
+import './std' as self.StdLib;
+import './num' as self.NumLib;
+import './str' as self.StrLib;
+import './ver' as self.VerLib;
+import './time' as self.TimeLib;
+import './http' as self.HttpLib;
+import './fn' as self.FnLib;
+import './list' as self.ListLib;
+import './set' as self.SetLib;
+import './map' as self.MapLib;
+import './tup' as self.TupLib;
+import './blob' as self.BlobLib;
+import './data' as self.DataLib;
+import './obj' as self.ObjLib;

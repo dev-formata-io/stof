@@ -1,0 +1,54 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+#[test]
+fn stringify_text() {
+    const object = new {
+        text: 'hello, there'
+    };
+    const text = stringify('text', object);
+    drop(object);
+
+    assert_eq(typeof text, 'str');
+    assert_eq(text, 'hello, there');
+}
+
+#[test]
+fn parse_text() {
+    const text = 'hello, there';
+    const object = new {};
+    parse(text, object, format = 'text');
+    
+    assert_eq(object.text, 'hello, there');
+    assert_eq(stringify('text', object), text);
+    drop(object);
+}
+
+Imports: {
+    import text './test.json' as self.Imported;
+
+    #[test]
+    fn import_text() {
+        assert_eq(self.Imported.text, r#"{
+    "message": "hello, world",
+    "person": {
+        "name": "Bob Smith",
+        "age": 42
+    }
+}"#);
+    }
+}

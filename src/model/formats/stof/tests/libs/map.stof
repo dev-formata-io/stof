@@ -1,0 +1,154 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+#[test]
+fn append() {
+    let a = {'a': 0, 'b': 1};
+    let b = {'c': 2, 'd': 3};
+    a.append(b);
+
+    assert_eq(a, {'a': 0, 'b': 1, 'c': 2, 'd': 3});
+    assert_eq(b, {'c': 2, 'd': 3});
+}
+
+#[test]
+fn clear() {
+    let a = {'a': 0, 'b': 1};
+    a.clear();
+    assert(a.empty());
+}
+
+#[test]
+fn contains() {
+    let a = {'a': 0, 'b': 1};
+    assert(a.contains('a'));
+    assert(!a.contains('c'));
+}
+
+#[test]
+fn first() {
+    let a = {'a': 0, 'b': 1};
+    assert_eq(a.first(), ('a', 0));
+}
+
+#[test]
+fn last() {
+    let a = {'a': 0, 'b': 1};
+    assert_eq(a.last(), ('b', 1));
+}
+
+#[test]
+fn get() {
+    let a = {'a': 0, 'b': 1};
+    assert_eq(a.get('b'), 1);
+}
+
+#[test]
+fn get_ref() {
+    let a = {'a': 0, 'b': 1};
+    
+    let b = &a.get('b');
+    b = 42;
+
+    assert_eq(a, {'a': 0, 'b': 42});
+}
+
+#[test]
+fn insert() {
+    let a = {'a': 0, 'b': 1};
+    a.insert('c', 5);
+    assert_eq(a, {'a': 0, 'b': 1, 'c': 5});
+}
+
+#[test]
+fn empty() {
+    let a = {'a': 0, 'b': 1};
+    a.remove('a');
+    a.remove('b');
+    assert(a.empty());
+}
+
+#[test]
+fn any() {
+    let a = {'a': 0, 'b': 1};
+    assert(a.any());
+}
+
+#[test]
+fn keys() {
+    let a = {'a': 0, 'b': 1};
+    assert_eq(a.keys(), {'a', 'b'});
+}
+
+#[test]
+fn values() {
+    let a = {'a': 0, 'b': 1};
+    assert_eq(a.values(), [0, 1]);
+}
+
+#[test]
+fn len() {
+    let a = {'a': 0, 'b': 1};
+    assert_eq(a.len(), 2);
+}
+
+#[test]
+fn at() {
+    let a = {'a': 0, 'b': 1};
+    assert_eq(a.at(1), ('b', 1));
+    assert_eq(a.at(2), null);
+}
+
+#[test]
+fn pop_first() {
+    let a = {'a': 0, 'b': 1};
+    assert_eq(a.pop_first(), ('a', 0));
+    assert_eq(a, {'b': 1});
+}
+
+#[test]
+fn pop_last() {
+    let a = {'a': 0, 'b': 1};
+    assert_eq(a.pop_last(), ('b', 1));
+    assert_eq(a, {'a': 0});
+}
+
+#[test]
+fn remove() {
+    let a = {'a': 0, 'b': 1};
+    assert_eq(a.remove('b'), 1);
+    assert_eq(a, {'a': 0});
+}
+
+#[test]
+fn iter() {
+    let a = {'a': 0, 'b': 1, 'c': 2};
+    for (const pair in a) {
+        if (first) assert_eq(pair, ('a', 0));
+        if (last) assert_eq(pair, ('c', 2));
+    }
+}
+
+#[test]
+fn map_constructor() {
+    let a = map(('a', 0), ('b', 1));
+    assert_eq(a, {'a': 0, 'b': 1});
+
+    let b = map();
+    assert(b.empty());
+    assert_eq(typeof b, 'map');
+}

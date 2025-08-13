@@ -1,0 +1,237 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+Ops: {
+    #[test]
+    fn absolute_value() {
+        assert_eq((-23).abs(), 23);
+        assert_eq((-5.).abs(), 5.0);
+    }
+
+    #[test]
+    fn square_root() {
+        assert_eq((4).sqrt(), 2);
+    }
+
+    #[test]
+    fn cube_root() {
+        assert_eq((8).cbrt(), 2);
+    }
+
+    #[test]
+    fn floor() {
+        assert_eq((5.7).floor(), 5);
+    }
+
+    #[test]
+    fn ceil() {
+        assert_eq((5.7).ceil(), 6);
+    }
+
+    #[test]
+    fn trunc() {
+        assert_eq((5.7).trunc(), 5);
+    }
+
+    #[test]
+    fn fract() {
+        assert_eq((5.7).fract().round(2), 0.7);
+    }
+
+    #[test]
+    fn signum() {
+        assert_eq((4).signum(), 1);
+        assert_eq((-4).signum(), -1);
+    }
+
+    #[test]
+    fn exp() {
+        assert_eq((1).exp().round(3), 2.718);
+    }
+
+    #[test]
+    fn exp2() {
+        assert_eq((2).exp2(), 4);
+    }
+
+    #[test]
+    fn ln() {
+        assert_eq((1).ln(), 0);
+    }
+
+    #[test]
+    fn pow() {
+        assert_eq((2).pow(4), 16);
+    }
+
+    #[test]
+    fn log() {
+        assert_eq((2).log().round(3), 0.301);
+    }
+
+    #[test]
+    fn atan2() {
+        assert_eq(Num.atan2(1, 2).round(3), 0.464);
+    }
+
+    #[test]
+    fn strings() {
+        const x = 10;
+        assert_eq(x.to_string(), '10');
+        assert_eq(x.hex(), 'A');
+        assert_eq(x.oct(), '12');
+        assert_eq(x.bin(), '1010');
+    }
+}
+
+Units: {
+    #[test]
+    fn has_units() {
+        let x = 10m;
+        let y = 10;
+        assert(x.has_units());
+        assert(!y.has_units());
+    }
+    
+    #[test]
+    fn remove_units() {
+        let x = 10kg;
+        x.remove_units();
+        assert(!x.has_units());
+        assert_eq(typeof x, 'float');
+    }
+
+    #[test]
+    fn is_angle() {
+        let x = 30deg;
+        let y = 30;
+        assert(x.is_angle());
+        assert(!y.is_angle());
+    }
+
+    #[test]
+    fn is_temp() {
+        let x = 212F;
+        let y = 212;
+        assert(x.is_temp());
+        assert(!y.is_temp());
+    }
+
+    #[test]
+    fn is_length() {
+        let x = 5280ft;
+        let y = 5280;
+        assert(x.is_length());
+        assert(!y.is_length());
+    }
+
+    #[test]
+    fn is_mass() {
+        let x = 24kg;
+        let y = 24;
+        assert(x.is_mass());
+        assert(!y.is_mass());
+    }
+    
+    #[test]
+    fn is_time() {
+        let x = 34s;
+        let y = 34;
+        assert(x.is_time());
+        assert(!y.is_time());
+    }
+}
+
+#[test]
+fn maximum() {
+    let max = Num.max(0, 12, 2, 43, 32, 12);
+    assert_eq(max, 43);
+}
+
+#[test]
+fn max_units() {
+    let max = Num.max(2g, 0.5kg, 100mg);
+    assert_eq(max, 0.5kg);
+}
+
+#[test]
+fn max_list() {
+    let max = Num.max([34, 32, 100, 23], [24, 56, 300, 43]);
+    assert_eq(max, 300);
+}
+
+#[test]
+fn minimum() {
+    let min = Num.min(29, -49, 23, -23);
+    assert_eq(min, -49);
+}
+
+#[test]
+fn min_units() {
+    let min = Num.min(100mg, 43g, 1kg);
+    assert_eq(min, 100mg);
+}
+
+#[test]
+fn min_list() {
+    let min = Num.min([20, 40, -50, 43], [-3, 23, 34, 15, -34]);
+    assert_eq(min, -50);
+}
+
+#[test]
+fn parse_numbers() {
+    let val = '0b001' as int;
+    assert_eq(val, 1);
+
+    val = '0xff' as int;
+    assert_eq(val, 255);
+
+    val = '0o4' as int;
+    assert_eq(val, 4);
+
+    val = '12kg' as float;
+    assert_eq(val, 12000g);
+}
+
+#[test]
+fn num_len() {
+    let len = (56).len();
+    assert_eq(len, 56);
+}
+
+#[test]
+fn num_at() {
+    const a = 45;
+
+    let at = a.at(5);
+    assert_eq(at, 5);
+    
+    at = a.at(50);
+    assert_eq(at, 45);
+}
+
+#[test]
+fn num_iter() {
+    let total = 0;
+    // uses .len() & .at(idx) for iteration
+    for (const i in 10) {
+        if (first) { assert_eq(i, 0); continue; }
+        if (last) { assert_eq(i, 9); continue; }
+
+        total += 1;
+    }
+    assert_eq(total, 8);
+}

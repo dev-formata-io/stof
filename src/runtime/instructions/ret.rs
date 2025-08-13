@@ -1,0 +1,44 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+use std::sync::Arc;
+use serde::{Deserialize, Serialize};
+use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{FN_RETURN, POP_LOOP}, proc::ProcEnv, Error}};
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Return instruction.
+pub struct RetIns {
+    pub expr: Option<Arc<dyn Instruction>>
+}
+#[typetag::serde(name = "RetIns")]
+impl Instruction for RetIns {
+    fn exec(&self, env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
+        let mut instructions = Instructions::default();
+        
+        if let Some(ins) = &self.expr {
+            instructions.push(ins.clone());
+        }
+
+        // If we are in a loop, we will be skipping over the POP_LOOP instruction at the end, so do that here
+        for _loop_tag in &env.loop_stack {
+            instructions.push(POP_LOOP.clone());
+        }
+
+        instructions.push(FN_RETURN.clone());
+        Ok(Some(instructions))
+    }
+}

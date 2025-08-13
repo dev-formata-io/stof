@@ -1,0 +1,58 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+#[test]
+fn stringify_yaml() {
+    const object = new {
+        a: 'hello',
+        b: 42,
+        c: true,
+    };
+    const yaml = stringify('yaml', object);
+    drop(object);
+
+    assert_eq(typeof yaml, 'str');
+    assert_eq(yaml, 'a: hello\nb: 42\nc: true\n');
+}
+
+#[test]
+fn parse_yaml() {
+    const yaml = 'a: hello\nb: 42\nc: true\n';
+    const object = new {};
+    parse(yaml, object, format = 'yaml');
+    
+    assert_eq(object.a, 'hello');
+    assert_eq(object.b, 42);
+    assert(object.c);
+    assert_eq(stringify('yaml', object), yaml);
+    drop(object);
+}
+
+Imports: {
+    import './test.yaml';
+    import yaml './test.yaml' as self.Imported;
+
+    #[test]
+    fn import_yaml() {
+        assert_eq(self.message, 'hello, world');
+        assert_eq(self.person.name, 'Bob Smith');
+        assert_eq(self.person.age, 42);
+
+        assert_eq(self.Imported.message, 'hello, world');
+        assert_eq(self.Imported.person.name, 'Bob Smith');
+        assert_eq(self.Imported.person.age, 42);
+    }
+}

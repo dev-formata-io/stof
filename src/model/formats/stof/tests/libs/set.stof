@@ -1,0 +1,207 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+#[test]
+fn append() {
+    let a = {1, 2, 3};
+    let b = {3, 4, 5};
+    a.append(b);
+    assert_eq(a, {1, 2, 3, 4, 5});
+    assert_eq(b, {3, 4, 5});
+}
+
+#[test]
+fn clear() {
+    let a = {1, 2, 3};
+    a.clear();
+    assert_eq(a, {});
+}
+
+#[test]
+fn contains() {
+    let a = {1, 2, 3};
+    assert(a.contains(2));
+    assert(!a.contains('hi'));
+}
+
+#[test]
+fn first() {
+    let a = {3, 4, 2};
+    assert_eq(a.first(), 2);
+}
+
+#[test]
+fn last() {
+    let a = {3, 4, 2};
+    assert_eq(a.last(), 4);
+}
+
+#[test]
+fn insert() {
+    let a = {};
+    a.insert('hello');
+    a.insert(43);
+    assert_eq(a, {43, 'hello'});
+}
+
+#[test]
+fn split() {
+    let a = {1, 2, 3, 4, 5, 6};
+    let split = a.split(3);
+    assert_eq(split, ({1, 2}, {4, 5, 6}));
+}
+
+#[test]
+fn empty() {
+    let a = {};
+    assert(a.empty());
+    assert(!a.any());
+}
+
+#[test]
+fn any() {
+    let a = {1};
+    assert(!a.empty());
+    assert(a.any());
+}
+
+#[test]
+fn len() {
+    let a = {};
+    assert_eq(a.len(), 0);
+    a.insert(3);
+    assert_eq(a.len(), 1);
+}
+
+#[test]
+fn at() {
+    let a = {1, 2, 6, 4, 3};
+    assert_eq(a.at(2), 3);
+}
+
+#[test]
+fn pop_first() {
+    let a = {1, 2, 3};
+    assert_eq(a.pop_first(), 1);
+    assert_eq(a.len(), 2);
+}
+
+#[test]
+fn pop_last() {
+    let a = {1, 2, 3};
+    assert_eq(a.pop_last(), 3);
+    assert_eq(a.len(), 2);
+}
+
+#[test]
+fn remove() {
+    let a = {'hi', 'a', 'a', 34, 23};
+    assert_eq(a.remove('a'), 'a');
+    assert_eq(a, {23, 34, 'hi'});
+}
+
+#[test]
+fn union() {
+    let a = {1, 2, 3};
+    let b = {4, 5, 6};
+    let c = a.union(b);
+
+    assert_eq(c, {1, 2, 3, 4, 5, 6});
+    assert_eq(a, {1, 2, 3});
+    assert_eq(b, {4, 5, 6});
+}
+
+#[test]
+fn difference() {
+    let a = {1, 2, 3};
+    let b = {2, 3, 4};
+    let c = a.difference(b);
+    let d = b.difference(a);
+    assert_eq(c, {1});
+    assert_eq(d, {4});
+}
+
+#[test]
+fn intersection() {
+    let a = {1, 2, 3};
+    let b = {2, 3, 4};
+    let c = a.intersection(b);
+    assert_eq(c, {2, 3});
+    assert_eq(a, {1, 2, 3});
+    assert_eq(b, {2, 3, 4});
+}
+
+#[test]
+fn symmetric_difference() {
+    let a = {1, 2, 3};
+    let b = {2, 3, 4};
+    let c = a.symmetric_difference(b);
+    assert_eq(c, {1, 4});
+    assert_eq(a, {1, 2, 3});
+    assert_eq(b, {2, 3, 4});
+}
+
+#[test]
+fn disjoint() {
+    let a = {1, 2};
+    let b = {2, 3};
+    let c = {3, 4};
+
+    assert(a.disjoint(c));
+    assert(!a.disjoint(b));
+}
+
+#[test]
+fn subset_superset() {
+    let a = {1, 2};
+    let b = {1, 2, 3, 4};
+    assert(a.subset(b));
+    assert(b.superset(a));
+    assert(!b.subset(a));
+    assert(!a.superset(b));
+}
+
+#[test]
+fn is_uniform() {
+    let a = {1, 2, 3};
+    assert(a.is_uniform());
+
+    assert(a.insert('hi')); // newly inserted
+    assert(!a.insert('hi'));
+
+    assert(!a.is_uniform());
+}
+
+#[test]
+fn to_uniform() {
+    let a = {'10kg', 1000g, 7454_367mg};
+    assert(!a.is_uniform());
+    a.to_uniform('kg');
+
+    assert(a.is_uniform());
+    assert_eq(a, {1kg, 10kg, 7.454_367kg});
+}
+
+#[test]
+fn set_constructor() {
+    let a = set();
+    assert(a.empty());
+    assert_eq(typeof a, 'set');
+    
+    a = set(1, 2, 3);
+    assert_eq(a, {1, 2, 3});
+}
