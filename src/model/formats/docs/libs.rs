@@ -259,7 +259,7 @@ fn main() {
 fn md_lib(graph: &mut Graph) {
     graph.insert_libdoc(literal!("Md"), 
 r#"# Markdown Library (Md)
-Helper functions for common markdown operations, like turning Md strings into HTML.
+Helper functions for common markdown operations, like turning Md strings into HTML strings.
 "#.into());
 }
 
