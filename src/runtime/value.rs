@@ -1446,6 +1446,11 @@ impl Val {
                                     let field_type = field_value.spec_type(graph);
                                     if existing_value.spec_type(graph) != field_type {
                                         existing_value.cast(&field_type, graph, context.clone())?;
+                                    } else if let Some(field_obj) = field_value.try_obj() {
+                                        if let Some(existing_obj) = existing_value.try_obj() {
+                                            let target = Type::Obj(field_obj);
+                                            Self::Obj(existing_obj).cast(&target, graph, context.clone())?;
+                                        }
                                     }
                                     if let Some(field) = graph.get_mut_stof_data::<Field>(existing) {
                                         field.value = existing_value;
@@ -1460,6 +1465,15 @@ impl Val {
                                 }
                             } else {
                                 let copied = field_value.deep_copy(graph, context.clone());
+                                
+                                // if copied is an object, cast it too & move it to the new object
+                                if let Some(copy) = copied.try_obj() {
+                                    graph.move_node(&copy, &obj);
+
+                                    let target = Type::Obj(field_value.try_obj().unwrap());
+                                    Self::Obj(copy).cast(&target, graph, context.clone())?;
+                                }
+
                                 let field = Field::new(copied, field_attributes);
                                 graph.insert_stof_data(&obj, &fname, Box::new(field), None);
                             }

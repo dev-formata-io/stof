@@ -125,3 +125,50 @@ Geometry: {
         assert_not(self.pointed_field);
     }
 }
+
+Geo: {
+    #[type]
+    Point: {
+        x: 0
+        y: 0
+    }
+}
+Another: {
+    #[type]
+    Point: {
+        x: 3
+        y: 3
+    }
+}
+
+#[test]
+fn scoped_points() {
+    const first = new self.Geo.Point {};
+    const second = new self.Another.Point {};
+    
+    assert_eq(first.x, 0);
+    assert_eq(first.y, 0);
+    assert_eq(second.x, 3);
+    assert_eq(second.y, 3);
+}
+
+
+GoodPoint: {
+    #[type]
+    Point: { x: 0, y: 0 }
+
+    fn add(first: self.Point, second: Point) -> Point {
+        new Point {
+            x: first.x + second.x;
+            y: first.y + second.y;
+        }
+    }
+
+    #[test]
+    fn pass_points() {
+        const first = new Point { x: 2, y: 2 };
+        const res = self.add(first, first);
+        assert_eq(res.x, 4);
+        assert_eq(res.y, 4);
+    }
+}

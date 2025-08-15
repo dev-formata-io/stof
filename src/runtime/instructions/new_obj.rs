@@ -15,7 +15,7 @@
 //
 
 use serde::{Deserialize, Serialize};
-use crate::{model::{Graph, SId}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Type, Val, Variable}};
+use crate::{model::{Graph, SId}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Val, Variable}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -24,28 +24,19 @@ use crate::{model::{Graph, SId}, runtime::{instruction::{Instruction, Instructio
 pub struct NewObjIns {
     /// Set to true if a parent is on the stack.
     pub parent: bool,
-    /// Cast the object to a type?
-    pub cast_type: Option<Type>,
+    /// Is this object a new root?
+    pub root: bool,
 }
 #[typetag::serde(name = "NewObjIns")]
 impl Instruction for NewObjIns {
     fn exec(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions>, Error> {
-        if !self.parent { // cannot have an "on" when creating a new root object
-            if let Some(cast_type) = &self.cast_type {
-                match cast_type {
-                    Type::Obj(typename) => {
-                        if typename.as_ref() == "root" {
-                            // Special syntax for creating a root object instead of a sub-object
-                            // Name will be re-assigned when using SetVariable Ex. MyRoot = new root {};
-                            let name = SId::default();
-                            let nref = graph.insert_root(name);
-                            env.stack.push(Variable::val(Val::Obj(nref)));
-                            return Ok(None);
-                        }
-                    },
-                    _ => {}
-                }
-            }
+        if !self.parent && self.root {
+            // Special syntax for creating a root object instead of a sub-object
+            // Name will be re-assigned when using SetVariable Ex. MyRoot = new root {};
+            let name = SId::default();
+            let nref = graph.insert_root(name);
+            env.stack.push(Variable::val(Val::Obj(nref)));
+            return Ok(None);
         }
 
         let mut parent = Some(env.self_ptr());
@@ -60,12 +51,7 @@ impl Instruction for NewObjIns {
         let id = SId::default();
         let name = id.clone();
         let nref = graph.insert_node_id(name, id, parent, false);
-
-        let mut val = Val::Obj(nref);
-        if let Some(cast_type) = &self.cast_type {
-            val.cast(cast_type, graph, Some(env.self_ptr()))?;
-        }
-        env.stack.push(Variable::val(val));
+        env.stack.push(Variable::val(Val::Obj(nref)));
         Ok(None)
     }
 }

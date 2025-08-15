@@ -34,9 +34,26 @@ pub fn new_obj_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofPars
         parent = true;
         block.ins.push_back(on_expr);
     }
+
+    let mut root = false;
+    if !parent { // cannot have an "on" when creating a new root object
+        if let Some(cast_type) = &cast_type {
+            match cast_type {
+                Type::Obj(typename) => {
+                    if typename.as_ref() == "root" {
+                        // Special syntax for creating a root object instead of a sub-object
+                        // Name will be re-assigned when using SetVariable Ex. MyRoot = new root {};
+                        root = true;
+                    }
+                },
+                _ => {}
+            }
+        }
+    }
+
     block.ins.push_back(Arc::new(NewObjIns {
         parent,
-        cast_type,
+        root,
     }));
 
     // Now new obj is on the stack
@@ -56,6 +73,13 @@ pub fn new_obj_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofPars
             }
         }
         block.ins.push_back(POP_NEW.clone());
+    }
+
+    // Cast this object to it's desired type if needed (and not a new root)
+    if !root {
+        if let Some(cast_type) = &cast_type {
+            block.ins.push_back(Arc::new(Base::Cast(cast_type.clone())));
+        }
     }
 
     // Call any constructors on this objects prototypes
