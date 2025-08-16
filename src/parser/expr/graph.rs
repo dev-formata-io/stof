@@ -78,6 +78,7 @@ pub(self) fn var_func(input: &str, chained: bool, as_ref: bool) -> IResult<&str,
             func: None,
             search: Some("at".into()),
             args: idx.into_iter().collect(),
+            oself: None,
         })));
     }
 
@@ -106,6 +107,7 @@ pub(self) fn var_func(input: &str, chained: bool, as_ref: bool) -> IResult<&str,
             func: None,
             search: Some(path.into()),
             args: args.into_iter().collect(),
+            oself: None,
         })))
     } else {
         Ok((input, Arc::new(Base::LoadVariable(path.into(), chained, as_ref))))

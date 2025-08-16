@@ -883,6 +883,7 @@ fn example() {
         args_to_symbol_table: false,
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
+            instructions.push(Arc::new(Base::Literal(Val::Null))); // override context
             instructions.push(RUN.clone());
             Ok(instructions)
         })

@@ -589,7 +589,8 @@ impl Instruction for Base {
                                 search: Some(name.as_ref().into()),
                                 stack: true,
                                 as_ref: false,
-                                args: vector![], // no args for a constructor
+                                args: vector![], // no args for a constructor,
+                                oself: None,
                             }));
                         }
                     }

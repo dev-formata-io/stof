@@ -16,7 +16,7 @@
 
 use imbl::Vector;
 use rustc_hash::FxHashMap;
-use serde_json::Value;
+use serde_json::{Map, Value};
 use crate::{model::{Field, Graph, NodeRef, SId, NOEXPORT_FIELD_ATTR}, runtime::{Val, ValRef, Variable}};
 
 
@@ -29,7 +29,11 @@ pub(crate) fn parse_json_object_value(graph: &mut Graph, node: &NodeRef, value: 
                 graph.insert_stof_data(node, &field, Box::new(jf), None);
             }
         },
-        _ => {}
+        _ => {
+            let mut map = Map::new();
+            map.insert("field".into(), value);
+            parse_json_object_value(graph, node, Value::Object(map));
+        }
     }
 }
 

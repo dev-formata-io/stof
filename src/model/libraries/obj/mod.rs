@@ -857,163 +857,169 @@ impl Instruction for ObjIns {
             },
 
             Self::Run => {
-                if let Some(var) = env.stack.pop() {
-                    if let Some(obj) = var.try_obj() {
-                        let mut run_instructions = Vec::new();
+                if let Some(context_var) = env.stack.pop() {
+                    let override_context = context_var.try_obj();
+                    if let Some(var) = env.stack.pop() {
+                        if let Some(obj) = var.try_obj() {
+                            let mut run_instructions = Vec::new();
 
-                        for (_, field_ref) in Field::fields(graph, &obj) {
-                            if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
-                                if let Some(attr) = field.attributes.get("run") {
-                                    let mut order = -2;
-                                    let mut args = None;
-                                    match attr {
-                                        Val::Num(num) => {
-                                            order = num.int();
-                                        },
-                                        Val::Map(map) => {
-                                            if let Some(ord) = map.get(&ValRef::new(Val::Str("order".into()))) {
-                                                match ord.read().deref() {
-                                                    Val::Num(num) => {
-                                                        order = num.int();
-                                                    },
-                                                    _ => {}
+                            for (_, field_ref) in Field::fields(graph, &obj) {
+                                if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
+                                    if let Some(attr) = field.attributes.get("run") {
+                                        let mut order = -2;
+                                        let mut args = None;
+                                        match attr {
+                                            Val::Num(num) => {
+                                                order = num.int();
+                                            },
+                                            Val::Map(map) => {
+                                                if let Some(ord) = map.get(&ValRef::new(Val::Str("order".into()))) {
+                                                    match ord.read().deref() {
+                                                        Val::Num(num) => {
+                                                            order = num.int();
+                                                        },
+                                                        _ => {}
+                                                    }
                                                 }
-                                            }
-                                            if let Some(arguments) = map.get(&ValRef::new(Val::Str("args".into()))) {
-                                                args = Some(arguments.clone());
-                                            }
-                                        },
-                                        _ => {}
-                                    }
-                                    match field.value.val.read().deref() {
-                                        Val::Obj(other) => {
-                                            let instructions = vector![
-                                                Arc::new(Base::Literal(Val::Obj(other.clone()))) as Arc<dyn Instruction>,
-                                                RUN.clone(),
-                                            ];
-                                            run_instructions.push((order, instructions));
-                                        },
-                                        Val::Fn(dref) => {
-                                            let mut arguments: Vector<Arc<dyn Instruction>> = vector![];
-                                            if let Some(args) = args {
-                                                match args.read().deref() {
-                                                    Val::List(args) => {
-                                                        for arg in args {
-                                                            arguments.push_back(Arc::new(Base::Variable(Variable::refval(arg.clone()))));
-                                                        }
-                                                    },
-                                                    _ => {}
-                                                }
-                                            }
-                                            let instructions = vector![
-                                                Arc::new(EmptyIns {
-                                                    ins: Arc::new(FuncCall { func: Some(dref.clone()), search: None, stack: false, as_ref: false, args: arguments })
-                                                }) as Arc<dyn Instruction>
-                                            ];
-                                            run_instructions.push((order, instructions));
-                                        },
-                                        Val::List(list) => {
-                                            let mut instructions = vector![];
-
-                                            let mut arguments: Vector<Arc<dyn Instruction>> = vector![];
-                                            if let Some(args) = args {
-                                                match args.read().deref() {
-                                                    Val::List(args) => {
-                                                        for arg in args {
-                                                            arguments.push_back(Arc::new(Base::Variable(Variable::refval(arg.clone()))));
-                                                        }
-                                                    },
-                                                    _ => {}
-                                                }
-                                            }
-
-                                            for val in list {
-                                                match val.read().deref() {
-                                                    Val::Obj(other) => {
-                                                        instructions.push_back(Arc::new(Base::Literal(Val::Obj(other.clone()))) as Arc<dyn Instruction>);
-                                                        instructions.push_back(RUN.clone());
-                                                    },
-                                                    Val::Fn(dref) => {
-                                                        instructions.push_back(Arc::new(EmptyIns {
-                                                                ins: Arc::new(FuncCall { func: Some(dref.clone()), search: None, stack: false, as_ref: false, args: arguments.clone() })
-                                                            }) as Arc<dyn Instruction>);
-                                                    },
-                                                    _ => {}
-                                                }
-                                            }
-                                            run_instructions.push((order, instructions));
-                                        },
-                                        _ => {}
-                                    }
-                                }
-                            }
-                        }
-
-                        for func_ref in Func::functions(&graph, &obj, &None, false) {
-                            if let Some(func) = graph.get_stof_data::<Func>(&func_ref) {
-                                if let Some(attr) = func.attributes.get("run") {
-                                    let mut order = -1;
-                                    let mut args = None;
-                                    match attr {
-                                        Val::Num(num) => {
-                                            order = num.int();
-                                        },
-                                        Val::Map(map) => {
-                                            if let Some(ord) = map.get(&ValRef::new(Val::Str("order".into()))) {
-                                                match ord.read().deref() {
-                                                    Val::Num(num) => {
-                                                        order = num.int();
-                                                    },
-                                                    _ => {}
-                                                }
-                                            }
-                                            if let Some(arguments) = map.get(&ValRef::new(Val::Str("args".into()))) {
-                                                args = Some(arguments.clone());
-                                            }
-                                        },
-                                        _ => {}
-                                    }
-
-                                    let mut arguments: Vector<Arc<dyn Instruction>> = vector![];
-                                    if let Some(args) = args {
-                                        match args.read().deref() {
-                                            Val::List(args) => {
-                                                for arg in args {
-                                                    arguments.push_back(Arc::new(Base::Variable(Variable::refval(arg.clone()))));
+                                                if let Some(arguments) = map.get(&ValRef::new(Val::Str("args".into()))) {
+                                                    args = Some(arguments.clone());
                                                 }
                                             },
                                             _ => {}
                                         }
-                                    }
+                                        match field.value.val.read().deref() {
+                                            Val::Obj(other) => {
+                                                let instructions = vector![
+                                                    Arc::new(Base::Literal(Val::Obj(other.clone()))) as Arc<dyn Instruction>,
+                                                    Arc::new(Base::Literal(Val::Null)),
+                                                    RUN.clone(),
+                                                ];
+                                                run_instructions.push((order, instructions));
+                                            },
+                                            Val::Fn(dref) => {
+                                                let mut arguments: Vector<Arc<dyn Instruction>> = vector![];
+                                                if let Some(args) = args {
+                                                    match args.read().deref() {
+                                                        Val::List(args) => {
+                                                            for arg in args {
+                                                                arguments.push_back(Arc::new(Base::Variable(Variable::refval(arg.clone()))));
+                                                            }
+                                                        },
+                                                        _ => {}
+                                                    }
+                                                }
+                                                let instructions = vector![
+                                                    Arc::new(EmptyIns {
+                                                        ins: Arc::new(FuncCall { func: Some(dref.clone()), search: None, stack: false, as_ref: false, args: arguments, oself: override_context.clone() })
+                                                    }) as Arc<dyn Instruction>
+                                                ];
+                                                run_instructions.push((order, instructions));
+                                            },
+                                            Val::List(list) => {
+                                                let mut instructions = vector![];
 
-                                    let instructions = vector![
-                                        Arc::new(EmptyIns {
-                                            ins: Arc::new(FuncCall { func: Some(func_ref), search: None, stack: false, as_ref: false, args: arguments })
-                                        }) as Arc<dyn Instruction>
-                                    ];
-                                    run_instructions.push((order, instructions));
+                                                let mut arguments: Vector<Arc<dyn Instruction>> = vector![];
+                                                if let Some(args) = args {
+                                                    match args.read().deref() {
+                                                        Val::List(args) => {
+                                                            for arg in args {
+                                                                arguments.push_back(Arc::new(Base::Variable(Variable::refval(arg.clone()))));
+                                                            }
+                                                        },
+                                                        _ => {}
+                                                    }
+                                                }
+
+                                                for val in list {
+                                                    match val.read().deref() {
+                                                        Val::Obj(other) => {
+                                                            instructions.push_back(Arc::new(Base::Literal(Val::Obj(other.clone()))) as Arc<dyn Instruction>);
+                                                            instructions.push_back(Arc::new(Base::Literal(Val::Null)));
+                                                            instructions.push_back(RUN.clone());
+                                                        },
+                                                        Val::Fn(dref) => {
+                                                            instructions.push_back(Arc::new(EmptyIns {
+                                                                    ins: Arc::new(FuncCall { func: Some(dref.clone()), search: None, stack: false, as_ref: false, args: arguments.clone(), oself: override_context.clone() })
+                                                                }) as Arc<dyn Instruction>);
+                                                        },
+                                                        _ => {}
+                                                    }
+                                                }
+                                                run_instructions.push((order, instructions));
+                                            },
+                                            _ => {}
+                                        }
+                                    }
                                 }
                             }
-                        }
 
-                        let mut highest_order = -2;
-                        for (ord, _) in &run_instructions { if *ord > highest_order { highest_order = *ord; } }
-                        for nref in Prototype::prototype_nodes(&graph, &obj, false) {
-                            let instructions = vector![
-                                Arc::new(Base::Literal(Val::Obj(nref))) as Arc<dyn Instruction>,
-                                RUN.clone()
-                            ];
-                            highest_order += 1;
-                            run_instructions.push((highest_order, instructions));
-                        }
+                            for func_ref in Func::functions(&graph, &obj, &None, false) {
+                                if let Some(func) = graph.get_stof_data::<Func>(&func_ref) {
+                                    if let Some(attr) = func.attributes.get("run") {
+                                        let mut order = -1;
+                                        let mut args = None;
+                                        match attr {
+                                            Val::Num(num) => {
+                                                order = num.int();
+                                            },
+                                            Val::Map(map) => {
+                                                if let Some(ord) = map.get(&ValRef::new(Val::Str("order".into()))) {
+                                                    match ord.read().deref() {
+                                                        Val::Num(num) => {
+                                                            order = num.int();
+                                                        },
+                                                        _ => {}
+                                                    }
+                                                }
+                                                if let Some(arguments) = map.get(&ValRef::new(Val::Str("args".into()))) {
+                                                    args = Some(arguments.clone());
+                                                }
+                                            },
+                                            _ => {}
+                                        }
 
-                        run_instructions.sort_by(|a, b| a.0.cmp(&b.0));
-                        let mut instructions = Instructions::default();
-                        for (_, ins) in run_instructions {
-                            instructions.append(&ins);
-                        }
+                                        let mut arguments: Vector<Arc<dyn Instruction>> = vector![];
+                                        if let Some(args) = args {
+                                            match args.read().deref() {
+                                                Val::List(args) => {
+                                                    for arg in args {
+                                                        arguments.push_back(Arc::new(Base::Variable(Variable::refval(arg.clone()))));
+                                                    }
+                                                },
+                                                _ => {}
+                                            }
+                                        }
 
-                        return Ok(Some(instructions));
+                                        let instructions = vector![
+                                            Arc::new(EmptyIns {
+                                                ins: Arc::new(FuncCall { func: Some(func_ref), search: None, stack: false, as_ref: false, args: arguments, oself: override_context.clone() })
+                                            }) as Arc<dyn Instruction>
+                                        ];
+                                        run_instructions.push((order, instructions));
+                                    }
+                                }
+                            }
+
+                            let mut highest_order = -2;
+                            for (ord, _) in &run_instructions { if *ord > highest_order { highest_order = *ord; } }
+                            for nref in Prototype::prototype_nodes(&graph, &obj, false) {
+                                let instructions = vector![
+                                    Arc::new(Base::Literal(Val::Obj(nref))) as Arc<dyn Instruction>,
+                                    Arc::new(Base::Literal(Val::Obj(obj.clone()))), // override context
+                                    RUN.clone()
+                                ];
+                                highest_order += 1;
+                                run_instructions.push((highest_order, instructions));
+                            }
+
+                            run_instructions.sort_by(|a, b| a.0.cmp(&b.0));
+                            let mut instructions = Instructions::default();
+                            for (_, ins) in run_instructions {
+                                instructions.append(&ins);
+                            }
+
+                            return Ok(Some(instructions));
+                        }
                     }
                 }
                 Err(Error::ObjRun)

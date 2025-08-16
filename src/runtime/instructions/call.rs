@@ -41,6 +41,9 @@ pub struct FuncCall {
     
     /// Single instruction for each argument (think of it like an expr)!
     pub args: Vector<Arc<dyn Instruction>>,
+
+    /// Override self for this function call?
+    pub oself: Option<NodeRef>,
 }
 impl FuncCall {
     /// Find function (Or library name & function).
@@ -545,6 +548,10 @@ impl Instruction for FuncCall {
         let mut pushed_self = false;
         if let Some(proto_self) = func_context.prototype_self {
             instructions.push(Arc::new(Base::Literal(Val::Obj(proto_self))));
+            instructions.push(PUSH_SELF.clone());
+            pushed_self = true;
+        } else if let Some(oself) = &self.oself {
+            instructions.push(Arc::new(Base::Literal(Val::Obj(oself.clone()))));
             instructions.push(PUSH_SELF.clone());
             pushed_self = true;
         } else if !unself {

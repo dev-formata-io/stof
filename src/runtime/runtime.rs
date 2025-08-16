@@ -305,6 +305,7 @@ impl Runtime {
                                 func: Some(func_ref),
                                 search: None,
                                 args: Default::default(),
+                                oself: None,
                             }) as Arc<dyn Instruction>;
                             let proc = Process::from(instruction);
                             rt.push_running_proc(proc, graph);
@@ -319,6 +320,7 @@ impl Runtime {
                     func: Some(func_ref),
                     search: None,
                     args: Default::default(),
+                    oself: None,
                 }) as Arc<dyn Instruction>;
                 let proc = Process::from(instruction);
                 rt.push_running_proc(proc, graph);
@@ -402,6 +404,7 @@ impl Runtime {
                                 func: Some(func_ref),
                                 search: None,
                                 args: Default::default(),
+                                oself: None,
                             }) as Arc<dyn Instruction>;
                             let proc = Process::from(instruction);
                             count += 1;
@@ -417,6 +420,7 @@ impl Runtime {
                     func: Some(func_ref),
                     search: None,
                     args: Default::default(),
+                    oself: None,
                 }) as Arc<dyn Instruction>;
                 let proc = Process::from(instruction);
                 count += 1;
@@ -568,6 +572,7 @@ impl Runtime {
             func: None,
             search: Some(search.into()),
             args: arguments,
+            oself: None,
         });
         Self::eval(graph, instruction)
     }
@@ -585,6 +590,7 @@ impl Runtime {
             func: Some(func.clone()),
             search: None,
             args: arguments,
+            oself: None,
         });
         Self::eval(graph, instruction)
     }

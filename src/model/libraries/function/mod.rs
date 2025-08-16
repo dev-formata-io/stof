@@ -223,7 +223,8 @@ impl Instruction for FuncIns {
                             func: Some(dref),
                             search: None,
                             stack: false,
-                            args
+                            args,
+                            oself: None,
                         }));
                         return Ok(Some(instructions));
                     }
@@ -265,7 +266,8 @@ impl Instruction for FuncIns {
                             func: Some(dref),
                             search: None,
                             stack: false,
-                            args
+                            args,
+                            oself: None,
                         }));
                         return Ok(Some(instructions));
                     }

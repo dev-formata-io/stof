@@ -46,7 +46,7 @@ pub fn for_in_loop(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, S
         declare_instructions.push(inner.expr);
         declare_instructions.push(Arc::new(Base::DeclareConstVar(literal!("iterable"), Type::Void)));
         
-        declare_instructions.push(Arc::new(FuncCall { func: None, search: Some(literal!("iterable.len")), stack: false, args: vector![], as_ref: false }));
+        declare_instructions.push(Arc::new(FuncCall { func: None, search: Some(literal!("iterable.len")), stack: false, args: vector![], as_ref: false, oself: None, }));
         declare_instructions.push(COPY.clone()); // make sure the length is not a reference
         declare_instructions.push(Arc::new(Base::DeclareConstVar(length_var.clone(), Type::Void)));
 
@@ -106,6 +106,7 @@ pub fn for_in_loop(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, S
         stack: false,
         args: vector![Arc::new(Base::LoadVariable(index_var, false, false)) as Arc<dyn Instruction>],
         as_ref: inner.as_ref,
+        oself: None,
     }));
 
     if !vartype.empty() { // cast to the right type

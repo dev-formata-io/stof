@@ -317,6 +317,7 @@ pub fn wrapped_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofPars
                 search: Some(literal!("")),
                 stack: true,
                 args: call_args.unwrap().into_iter().collect(),
+                oself: None,
             }));
 
             ins = Arc::new(block);

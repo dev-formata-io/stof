@@ -526,6 +526,7 @@ impl Instruction for StdIns {
                                 stack: true,
                                 as_ref: false,
                                 args: vector![], // no args for a constructor
+                                oself: None,
                             }));
                         }
                     }

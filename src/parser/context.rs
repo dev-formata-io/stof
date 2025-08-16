@@ -323,6 +323,7 @@ impl<'ctx> Drop for ParseContext<'ctx> {
                     func: Some(init),
                     search: None,
                     args: vector![],
+                    oself: None,
                 });
                 self.runtime.push_running_proc(Process::from(ins), &mut self.graph);
             }
