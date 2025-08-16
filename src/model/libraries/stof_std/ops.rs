@@ -385,6 +385,31 @@ trace(70); // last 70 executed instructions (most recent on bottom and numbered)
     }
 }
 
+/// Peek.
+pub fn std_peek() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "peek".into(),
+        is_async: false,
+        docs: r#"# Std.peek(..) -> void
+Trace this location within your code execution. Will print out your arguments plus process debug information and the next instructions on the instruction stack. If the last argument given is an integer value, that number of (future) instructions will be shown (very helpful for deeper debugging).
+```rust
+peek("Getting here"); // will print "Getting here", then output a trace of the current process info and next 10 instructions to be executed
+peek(70); // next 70 instructions
+```
+"#.into(),
+        params: vector![],
+        return_type: None,
+        unbounded_args: true,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(StdIns::Peek(arg_count)));
+            Ok(instructions)
+        })
+    }
+}
+
 /// Trace stack.
 pub fn std_tracestack() -> LibFunc {
     LibFunc {

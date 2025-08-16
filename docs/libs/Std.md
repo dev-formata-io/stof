@@ -207,6 +207,14 @@ assert_eq(self.hello(), "hello"); // can now call it
 ```
 
 
+# Std.peek(..) -> void
+Trace this location within your code execution. Will print out your arguments plus process debug information and the next instructions on the instruction stack. If the last argument given is an integer value, that number of (future) instructions will be shown (very helpful for deeper debugging).
+```rust
+peek("Getting here"); // will print "Getting here", then output a trace of the current process info and next 10 instructions to be executed
+peek(70); // next 70 instructions
+```
+
+
 # Std.pln(..) -> void
 Prints all arguments to the standard output stream.
 ```rust

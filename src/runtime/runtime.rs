@@ -166,6 +166,10 @@ impl Runtime {
                                 let trace = proc.trace(&graph, n);
                                 println!("{trace}");
                             },
+                            ProcRes::Peek(n) => {
+                                let trace = proc.peek(&graph, n);
+                                println!("{trace}");
+                            },
                             ProcRes::More => {
                                 if let Some(spawn) = proc.env.spawn.take() {
                                     // this is only set via the Spawn instruction, which creates a new PID each time

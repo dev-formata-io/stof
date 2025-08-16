@@ -89,6 +89,29 @@ impl Instructions {
         output
     }
 
+    /// Trace out the next N instructions that are going to be executed.
+    pub fn peek_n(&self, n: usize) -> String {
+        let mut count = 0;
+        let mut ins = Vector::default();
+        for exec in self.instructions.iter() {
+            ins.push_back(exec.clone());
+            count += 1;
+            if count >= n { break; }
+        }
+
+        let mut output = String::default();
+        for i in 0..ins.len() {
+            let ins = &ins[i];
+            let inner = format!("{i}: {:?}", ins);
+            if i == 0 {
+                output.push_str(&format!("\t\t{}", inner.dimmed()));
+            } else {
+                output.push_str(&format!("\n\t\t{}", inner.dimmed()));
+            }
+        }
+        output
+    }
+
     /// Backup to a specific tag in these instructions.
     pub fn back_to(&mut self, tag: &ArcStr) {
         'unwind: while let Some(ins) = self.executed.pop_back() {
@@ -148,6 +171,9 @@ impl Instructions {
                     match base {
                         Base::CtrlTrace(n) => {
                             return Ok(ProcRes::Trace(*n));
+                        },
+                        Base::CtrlPeek(n) => {
+                            return Ok(ProcRes::Peek(*n));
                         },
                         Base::CtrlExit => {
                             if let Some(promise) = env.stack.pop() {

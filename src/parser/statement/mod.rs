@@ -95,14 +95,13 @@ pub fn statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, Sto
         return_statement,
 
         // declarations & assignment
-        // TODO: make sure expr returns something here
         terminated(declare_statement, preceded(multispace0, char(';'))),
         terminated(assign, preceded(multispace0, char(';'))),
         
         // block, standalone expr, and empty statement
         async_block,
-        expr_statement,
         block,
+        expr_statement,
         value(Vector::default(), preceded(whitespace, char(';'))) // empty statement ";"
     )).parse(input)?;
     Ok((input, statements))

@@ -131,6 +131,9 @@ pub enum Base {
     // Trace the last N instructions + process info
     CtrlTrace(usize),
 
+    // Peek into the next N instructions + process info
+    CtrlPeek(usize),
+
     // Tag a place in the instructions.
     // This is a form of GOTO, used for looping & control flow
     Tag(ArcStr),
@@ -273,6 +276,7 @@ impl Instruction for Base {
             },
 
             Self::CtrlTrace(_) => {}, // Nothing here... used by instructions...
+            Self::CtrlPeek(_) => {}, // Nothing here... used by instructions...
 
             Self::CtrlFnReturn => {}, // Nothing here...
             Self::PushReturn => {

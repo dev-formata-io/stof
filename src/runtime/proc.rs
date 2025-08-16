@@ -27,6 +27,7 @@ pub enum ProcRes {
     Done,
     More,
     Trace(usize),
+    Peek(usize),
     Wait(SId),
     SleepFor(Duration),
     Sleep(WakeRef),
@@ -158,7 +159,28 @@ impl Process {
             output.push_str(&format!("\n\t{} {}", "Result:".dimmed().italic(), result.val.read().print(graph).dimmed()));
         }
 
-        output.push_str(&format!("\n\t{}{}", "Instructions:\n".dimmed().italic(), self.instructions.trace_n(n)));
+        output.push_str(&format!("\n\t{}{}", "Executed Instructions:\n".dimmed().italic(), self.instructions.trace_n(n)));
+
+        output
+    }
+
+    /// Peek.
+    pub fn peek(&self, graph: &Graph, n: usize) -> String {
+        let mut output = self.env.trace(graph);
+        
+        if let Some(waiting) = &self.waiting {
+            output.push_str(&format!("\n\t{} {}", "Waiting:".dimmed().italic(), waiting.to_string().bright_green()));
+        }
+
+        if let Some(error) = &self.error {
+            output.push_str(&format!("\n\t{} {}", "Error:".dimmed().italic(), error.to_string().red()));
+        }
+
+        if let Some(result) = &self.result {
+            output.push_str(&format!("\n\t{} {}", "Result:".dimmed().italic(), result.val.read().print(graph).dimmed()));
+        }
+
+        output.push_str(&format!("\n\t{}{}", "Next Instructions:\n".dimmed().italic(), self.instructions.peek_n(n)));
 
         output
     }
