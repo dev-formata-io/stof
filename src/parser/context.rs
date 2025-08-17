@@ -114,7 +114,6 @@ impl<'ctx> ParseContext<'ctx> {
                 path = path.strip_prefix("../").unwrap().to_string();
             }
             path = path.trim_start_matches("./").to_string();
-            path = path.replace("./", "/");
 
             let prefix_path = prefix.as_os_str().to_os_string().into_string();
             if prefix_path.is_err() { return Err(Error::ImportOsStringError); }

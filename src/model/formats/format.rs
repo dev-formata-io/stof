@@ -44,7 +44,7 @@ pub trait Format: std::fmt::Debug + Send + Sync {
                     return self.binary_import(graph, format, Bytes::from(content), node);
                 },
                 Err(error) => {
-                    return Err(Error::FormatFileImportFsError(error.to_string()));
+                    return Err(Error::FormatFileImportFsError(format!("{}: {}", error.to_string(), path)));
                 }
             }
         }

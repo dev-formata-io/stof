@@ -16,7 +16,6 @@
 
 use std::fs;
 use rustc_hash::FxHashSet;
-
 use crate::{model::{filesys::FS_LIB, Format, Graph, NodeRef}, parser::{context::ParseContext, doc::document}, runtime::Error};
 
 
@@ -38,6 +37,10 @@ impl Format for StofFormat {
         document(src, &mut context)?;
         Ok(())
     }
+    fn file_import(&self, graph: &mut Graph, format: &str, path: &str, node: Option<NodeRef>) -> Result<(), Error> {
+        let mut context = ParseContext::new(graph);
+        context.parse_from_file(format, path, node)
+    }
     fn parser_import(&self, _format: &str, path: &str, context: &mut ParseContext) -> Result<(), Error> {
         if let Some(_lib) = context.graph.libfunc(&FS_LIB, "read") {
             match fs::read(path) {
@@ -53,7 +56,7 @@ impl Format for StofFormat {
                     }
                 },
                 Err(error) => {
-                    return Err(Error::FormatFileImportFsError(error.to_string()));
+                    return Err(Error::FormatFileImportFsError(format!("{}: {}", error.to_string(), path)));
                 }
             }
         }
