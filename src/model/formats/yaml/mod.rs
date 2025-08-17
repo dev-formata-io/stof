@@ -22,7 +22,7 @@ use crate::{model::{export::json_value_from_node, import::parse_json_object_valu
 pub struct YamlFormat;
 impl Format for YamlFormat {
     fn identifiers(&self) -> Vec<String> {
-        vec!["yaml".into()]
+        vec!["yaml".into(), "yml".into()]
     }
     fn content_type(&self) -> String {
         "application/yaml".into()

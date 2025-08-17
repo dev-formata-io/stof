@@ -64,7 +64,7 @@ impl<'ctx> ParseContext<'ctx> {
         let mut path = path.to_string();
 
         path = self.create_import_path(format, &path).expect("could not create Stof import path");
-        if !self.fresh_import_for_node(&node, &path) {
+        if !self.fresh_import_for_node(&node, &path, format) {
             self.pop_relative_import_stack();
             return Ok(()); // already parsed this path
         }
@@ -145,17 +145,18 @@ impl<'ctx> ParseContext<'ctx> {
         self.relative_import_stack.pop();
     }
 
-    /// Chech to see that the import path hasn't been seen before.
+    /// Chech to see that the import path hasn't been seen before (with the given format).
     /// If it hasnt, add it and return true.
-    fn fresh_import_for_node(&mut self, node: &NodeRef, path: &str) -> bool {
+    fn fresh_import_for_node(&mut self, node: &NodeRef, path: &str, format: &str) -> bool {
+        let cmp = format!("{format}{path}"); // combine format and path
         if let Some(seen) = self.seen_import_paths.get_mut(node) {
-            if seen.contains(path) {
+            if seen.contains(&cmp) {
                 return false;
             }
-            seen.insert(path.to_string());
+            seen.insert(cmp);
         } else {
             let mut set = FxHashSet::default();
-            set.insert(path.to_string());
+            set.insert(cmp);
             self.seen_import_paths.insert(node.clone(), set);
         }
         true
