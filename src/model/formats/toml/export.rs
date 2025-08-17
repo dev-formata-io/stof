@@ -26,14 +26,18 @@ pub(super) fn toml_value_from_node(graph: &Graph, node: &NodeRef) -> Table {
             if let Some(field) = graph.get_stof_data::<Field>(dref) {
                 if !field.attributes.contains_key(NOEXPORT_FIELD_ATTR.as_str()) {
                     // could still be objects... just not child object fields (unles you create another reference...)
-                    map.insert(name.to_string(), toml_value(graph, field.value.get()));
+                    if let Some(value) = toml_value(graph, field.value.get()) {
+                        map.insert(name.to_string(), value);
+                    }
                 }
             }
         }
         for child in &node.children {
             if let Some(child) = child.node(graph) {
                 if child.is_field() && !child.attributes.contains_key(NOEXPORT_FIELD_ATTR.as_str()) {
-                    map.insert(child.name.to_string(), toml_value(graph, Val::Obj(child.id.clone())));
+                    if let Some(value) = toml_value(graph, Val::Obj(child.id.clone())) {
+                        map.insert(child.name.to_string(), value);
+                    }
                 }
             }
         }
@@ -41,18 +45,18 @@ pub(super) fn toml_value_from_node(graph: &Graph, node: &NodeRef) -> Table {
     map
 }
 
-pub(super) fn toml_value(graph: &Graph, val: Val) -> Value {
+pub(super) fn toml_value(graph: &Graph, val: Val) -> Option<Value> {
     match val {
         Val::Void |
-        Val::Null => Value::String("null".into()),
-        Val::Promise(..) => Value::String("promise".into()),
-        Val::Bool(v) => Value::Boolean(v),
-        Val::Str(v) => Value::String(v.to_string()),
+        Val::Null => None,
+        Val::Promise(..) => None,
+        Val::Bool(v) => Some(Value::Boolean(v)),
+        Val::Str(v) => Some(Value::String(v.to_string())),
         Val::Num(v) => {
             match v {
-                Num::Int(v) => Value::Integer(v),
-                Num::Float(v) => Value::Float(v),
-                Num::Units(v, _) => Value::Float(v),
+                Num::Int(v) => Some(Value::Integer(v)),
+                Num::Float(v) => Some(Value::Float(v)),
+                Num::Units(v, _) => Some(Value::Float(v)),
             }
         },
         Val::Blob(blob) => {
@@ -60,26 +64,27 @@ pub(super) fn toml_value(graph: &Graph, val: Val) -> Value {
             for v in blob {
                 array.push(Value::Integer(v as i64));
             }
-            Value::Array(array)
+            Some(Value::Array(array))
         },
-        Val::Fn(_dref) => Value::String("fn".into()),
-        Val::Data(_dref) => Value::String("data".into()),
-        Val::List(vals) => value_from_array(graph, vals),
-        Val::Tup(vals) => value_from_array(graph, vals),
-        Val::Ver(..) => Value::String(val.to_string()),
-        Val::Set(vals) => value_from_array(graph, vals.into_iter().collect()),
+        Val::Fn(_dref) => None,
+        Val::Data(_dref) => None,
+        Val::List(vals) => Some(value_from_array(graph, vals)),
+        Val::Tup(vals) => Some(value_from_array(graph, vals)),
+        Val::Ver(..) => Some(Value::String(val.to_string())),
+        Val::Set(vals) => Some(value_from_array(graph, vals.into_iter().collect())),
         Val::Obj(nref) => {
             let map = toml_value_from_node(graph, &nref);
-            Value::Table(map)
+            Some(Value::Table(map))
         },
         Val::Map(map) => {
             let mut table = Table::new();
             for (k, v) in map {
                 let key = k.read().to_string();
-                let value = toml_value(graph, v.read().clone());
-                table.insert(key, value);
+                if let Some(value) = toml_value(graph, v.read().clone()) {
+                    table.insert(key, value);
+                }
             }
-            Value::Table(table)
+            Some(Value::Table(table))
         },
     }
 }
@@ -87,7 +92,9 @@ pub(super) fn toml_value(graph: &Graph, val: Val) -> Value {
 fn value_from_array(graph: &Graph, vals: Vector<ValRef<Val>>) -> Value {
     let mut results: Vec<Value> = Vec::new();
     for val in vals {
-        results.push(toml_value(graph, val.read().clone()));
+        if let Some(value) = toml_value(graph, val.read().clone()) {
+            results.push(value);
+        }
     }
     Value::Array(results)
 }
