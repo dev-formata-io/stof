@@ -16,3 +16,13 @@
 
 
 import './memory' as self.Memory;
+
+
+#[test]
+fn undefined_units() {
+    // behavior should be to remove the units when they don't make sense
+    const val = 12km + 34seconds;
+    assert_eq(typeof val, 'float');
+    assert_eq(val, 46);
+    assert_not(val.has_units());
+}

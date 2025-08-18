@@ -15,7 +15,7 @@
 //
 
 use arcstr::literal;
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, recognize, value}, multi::separated_list1, sequence::{delimited, preceded, terminated}, IResult, Parser};
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, opt, recognize, value}, multi::separated_list1, sequence::{delimited, preceded, terminated}, IResult, Parser};
 use crate::{model::SId, parser::{doc::StofParseError, ident::ident_type}, runtime::{NumT, Type, Units}};
 
 
@@ -27,7 +27,7 @@ pub fn parse_type_complete(input: &str) -> Result<Type, nom::Err<StofParseError>
 
 /// Parse a string into a Type.
 pub fn parse_type(input: &str) -> IResult<&str, Type, StofParseError> {
-    map((
+    let (input, mut res_type) = map((
         multispace0,
         alt((
             parse_union,
@@ -51,7 +51,13 @@ pub fn parse_type(input: &str) -> IResult<&str, Type, StofParseError> {
             parse_obj_or_units,
             parse_tuple,
         ))
-    ), |(_, ty)| ty).parse(input)
+    ), |(_, ty)| ty).parse(input)?;
+
+    // optionally a NotNull type?
+    let (input, nn) = opt(char('!')).parse(input)?;
+    if nn.is_some() { res_type = Type::NotNull(Box::new(res_type)); }
+
+    Ok((input, res_type))
 }
 
 /// Inner types do not contain the Union as a possibility

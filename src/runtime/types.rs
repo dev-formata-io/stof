@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 
+use std::ops::Deref;
 use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use serde::{Deserialize, Serialize};
@@ -45,6 +46,9 @@ pub enum Type {
     Void,
     Null,
 
+    // Type that does not match null (used with func args that have a !)
+    NotNull(Box<Self>),
+
     Promise(Box<Self>),
 
     Bool,
@@ -69,7 +73,7 @@ pub enum Type {
 impl PartialEq for Type {
     fn eq(&self, other: &Self) -> bool {
         match other {
-            Self::Null => return true,
+            Self::Null => return !self.exp_not_null(),
             Self::Unknown => return true,
             Self::Union(types) => {
                 match self {
@@ -208,7 +212,8 @@ impl PartialEq for Type {
                     _ => **ty == *other,
                 }
             },
-            Self::Null |
+            Self::Null => !other.exp_not_null(),
+            Self::NotNull(t) => t.deref().eq(other),
             Self::Unknown => true,
         }
     }
@@ -232,11 +237,28 @@ impl Type {
         }
     }
 
+    #[inline]
+    pub fn exp_not_null(&self) -> bool {
+        match self {
+            Self::NotNull(_) => true,
+            _ => false,
+        }
+    }
+
     /// If this is an object type as a name, find the prototype and swap it.
     /// Or if a union, make sure all objects in the union are NodeRefs.
     pub fn obj_to_proto(&mut self, graph: &Graph, mut context: Option<NodeRef>) {
         match &mut *self {
             Self::Union(types) => {
+                for ty in types { ty.obj_to_proto(graph, context.clone()); }
+            },
+            Self::Promise(ctype) => {
+                ctype.obj_to_proto(graph, context);
+            },
+            Self::NotNull(ctype) => {
+                ctype.obj_to_proto(graph, context);
+            },
+            Self::Tup(types) => {
                 for ty in types { ty.obj_to_proto(graph, context.clone()); }
             },
             Self::Obj(name_or_id) => {
@@ -294,6 +316,7 @@ impl Type {
                 format!("Data<{}>", tname).into()
             },
             Self::Null => NULL,
+            Self::NotNull(t) => t.type_of(),
             Self::Num(num) => num.type_of(),
             Self::Ver => VER,
             Self::Str => STR,
@@ -345,6 +368,7 @@ impl Type {
                 format!("Data<{}>", tname).into()
             },
             Self::Null => NULL,
+            Self::NotNull(t) => t.rt_type_of(graph),
             Self::Num(num) => num.type_of(),
             Self::Ver => VER,
             Self::Str => STR,
@@ -406,6 +430,7 @@ impl Type {
             Self::Promise(_) => literal!("Promise"),
             Self::Ver => literal!("Ver"),
             Self::Tup(_) => literal!("Tup"),
+            Self::NotNull(t) => t.gen_lib_name(),
         }
     }
 }

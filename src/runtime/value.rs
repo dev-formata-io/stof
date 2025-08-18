@@ -1143,6 +1143,12 @@ impl Val {
                 }
                 return Err(Error::CastVal);
             },
+            Type::NotNull(t) => {
+                if self.null() {
+                    return Err(Error::CastVal);
+                }
+                return self.cast(t.deref(), graph, context);
+            },
             _ => {}
         }
         match self {
@@ -1481,6 +1487,12 @@ impl Val {
                     }
                 }
                 Ok(())
+            },
+            Type::NotNull(t) => {
+                if self.null() {
+                    return Err(Error::CastVal);
+                }
+                self.cast_object(t.deref(), graph, context)
             },
             _ => Err(Error::CastVal)
         }
