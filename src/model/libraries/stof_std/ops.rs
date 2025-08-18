@@ -18,6 +18,9 @@ use std::sync::Arc;
 use imbl::vector;
 use crate::{model::{stof_std::{StdIns, BLOBIFY, CALLSTACK, FORMATS, FORMAT_CONTENT_TYPE, GRAPH_ID, HAS_FORMAT, HAS_LIB, LIBS, NANO_ID, PARSE, STD_LIB, STRINGIFY}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Num, NumT, Type, Val}};
 
+#[cfg(feature = "system")]
+use crate::model::stof_std::{ENV, SET_ENV, REMOVE_ENV, ENV_MAP};
+
 
 /// Parse.
 pub fn std_parse() -> LibFunc {
@@ -426,6 +429,113 @@ Print a snapshot of the current stack.
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(Arc::new(StdIns::TraceStack));
+            Ok(instructions)
+        })
+    }
+}
+
+#[cfg(feature = "system")]
+/// Env var.
+pub fn std_env() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "env".into(),
+        is_async: false,
+        docs: r#"# Std.env(var: str) -> str
+Get an environment variable by name. Requires the "system" feature flag.
+```rust
+const var = env("HOST");
+```
+"#.into(),
+        params: vector![
+            Param { name: "var".into(), param_type: Type::Str, default: None }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(ENV.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+#[cfg(feature = "system")]
+/// Set env var.
+pub fn std_set_env() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "set_env".into(),
+        is_async: false,
+        docs: r#"# Std.set_env(var: str, value: str) -> void
+Set an environment variable by name with a value. Requires the "system" feature flag.
+```rust
+set_env("HOST", "localhost");
+```
+"#.into(),
+        params: vector![
+            Param { name: "var".into(), param_type: Type::Str, default: None },
+            Param { name: "value".into(), param_type: Type::Str, default: None }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(SET_ENV.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+#[cfg(feature = "system")]
+/// Remove env var.
+pub fn std_remove_env() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "remove_env".into(),
+        is_async: false,
+        docs: r#"# Std.remove_env(var: str) -> void
+Remove an environment variable by name. Requires the "system" feature flag.
+```rust
+remove_env("HOST");
+```
+"#.into(),
+        params: vector![
+            Param { name: "var".into(), param_type: Type::Str, default: None }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(REMOVE_ENV.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+#[cfg(feature = "system")]
+/// Env vars.
+pub fn std_env_vars() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "env_vars".into(),
+        is_async: false,
+        docs: r#"# Std.env_vars() -> map
+Get a map of the current environment variables (str, str). Requires the "system" feature flag.
+```rust
+const vars: map = env_vars();
+```
+"#.into(),
+        params: vector![],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(ENV_MAP.clone());
             Ok(instructions)
         })
     }

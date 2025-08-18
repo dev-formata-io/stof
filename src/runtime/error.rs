@@ -88,6 +88,9 @@ pub enum Error {
     StdHasFormat(String),
     StdHasLib(String),
     StdFormatContentType(String),
+    StdEnv,
+    StdSetEnv,
+    StdRemoveEnv,
 
     /*****************************************************************************
      * HTTP Lib Errors.

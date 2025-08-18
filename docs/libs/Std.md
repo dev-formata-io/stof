@@ -92,6 +92,20 @@ assert_eq(results, [true, true, true]);
 ```
 
 
+# Std.env(var: str) -> str
+Get an environment variable by name. Requires the "system" feature flag.
+```rust
+const var = env("HOST");
+```
+
+
+# Std.env_vars() -> map
+Get a map of the current environment variables (str, str). Requires the "system" feature flag.
+```rust
+const vars: map = env_vars();
+```
+
+
 # Std.err(..) -> void
 Prints all arguments to the error output stream.
 ```rust
@@ -222,10 +236,24 @@ pln("hello, world");
 ```
 
 
+# Std.remove_env(var: str) -> void
+Remove an environment variable by name. Requires the "system" feature flag.
+```rust
+remove_env("HOST");
+```
+
+
 # Std.set(..) -> set
 Construct a new set with the given arguments.
 ```rust
 assert_eq(set(1, 2, 3), {1, 2, 3});
+```
+
+
+# Std.set_env(var: str, value: str) -> void
+Set an environment variable by name with a value. Requires the "system" feature flag.
+```rust
+set_env("HOST", "localhost");
 ```
 
 

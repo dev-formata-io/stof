@@ -417,3 +417,15 @@ Trace: {
         Time.diff(ts)
     }
 }
+
+Env: {
+    #[test]
+    fn vars() {
+        set_env("HOST", "localhost");
+        assert_eq(env("HOST"), "localhost");
+        
+        const vars = env_vars();
+        assert_eq(vars.get("HOST"), "localhost");
+        remove_env("HOST");
+    }
+}

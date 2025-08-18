@@ -24,6 +24,9 @@ use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, containers::{std_copy, std_drop, std_funcs, std_list, std_map, std_set, std_shallow_drop, std_swap}, exit::stof_exit, ops::{std_blobify, std_callstack, std_format_content_type, std_formats, std_graph_id, std_has_format, std_has_lib, std_libs, std_max, std_min, std_nanoid, std_parse, std_peek, std_stringify, std_trace, std_tracestack}, print::{dbg, err, pln, string}, sleep::stof_sleep}, Field, Func, Graph, Prototype, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}, Base, DUPLICATE, EXIT}, proc::ProcEnv, Error, Type, Units, Val, ValRef, Variable}};
 
+#[cfg(feature = "system")]
+use crate::model::stof_std::ops::{std_env, std_set_env, std_remove_env, std_env_vars};
+
 mod print;
 mod sleep;
 mod assert;
@@ -79,6 +82,15 @@ pub fn stof_std_lib(graph: &mut Graph) {
     graph.insert_libfunc(std_trace());
     graph.insert_libfunc(std_peek());
     graph.insert_libfunc(std_tracestack());
+
+    #[cfg(feature = "system")]
+    graph.insert_libfunc(std_env());
+    #[cfg(feature = "system")]
+    graph.insert_libfunc(std_set_env());
+    #[cfg(feature = "system")]
+    graph.insert_libfunc(std_remove_env());
+    #[cfg(feature = "system")]
+    graph.insert_libfunc(std_env_vars());
 }
 
 
@@ -112,6 +124,15 @@ lazy_static! {
     pub(self) static ref NANO_ID: Arc<dyn Instruction> = Arc::new(StdIns::NanoId);
     pub(self) static ref GRAPH_ID: Arc<dyn Instruction> = Arc::new(StdIns::GraphId);
     pub(self) static ref CALLSTACK: Arc<dyn Instruction> = Arc::new(StdIns::Callstack);
+
+    #[cfg(feature = "system")]
+    pub(self) static ref ENV: Arc<dyn Instruction> = Arc::new(StdIns::Env);
+    #[cfg(feature = "system")]
+    pub(self) static ref SET_ENV: Arc<dyn Instruction> = Arc::new(StdIns::SetEnv);
+    #[cfg(feature = "system")]
+    pub(self) static ref REMOVE_ENV: Arc<dyn Instruction> = Arc::new(StdIns::RemoveEnv);
+    #[cfg(feature = "system")]
+    pub(self) static ref ENV_MAP: Arc<dyn Instruction> = Arc::new(StdIns::EnvMap);
 }
 
 
@@ -167,6 +188,15 @@ pub enum StdIns {
     Trace(usize),
     Peek(usize),
     TraceStack,
+
+    #[cfg(feature = "system")]
+    Env,
+    #[cfg(feature = "system")]
+    SetEnv,
+    #[cfg(feature = "system")]
+    RemoveEnv,
+    #[cfg(feature = "system")]
+    EnvMap,
 }
 #[typetag::serde(name = "StdIns")]
 impl Instruction for StdIns {
@@ -958,6 +988,67 @@ impl Instruction for StdIns {
             },
             Self::TraceStack => {
                 println!("{:?}", &env.stack);
+            },
+
+            #[cfg(feature = "system")]
+            Self::Env => {
+                if let Some(var) = env.stack.pop() {
+                    match var.val.read().deref() {
+                        Val::Str(var) => {
+                            if let Ok(env_var) = std::env::var(var.as_str()) {
+                                env.stack.push(Variable::val(Val::Str(env_var.into())));
+                            } else {
+                                env.stack.push(Variable::val(Val::Null));
+                            }
+                            return Ok(None);
+                        },
+                        _ => {}
+                    }
+                }
+                return Err(Error::StdEnv);
+            },
+            #[cfg(feature = "system")]
+            Self::SetEnv => {
+                if let Some(value_var) = env.stack.pop() {
+                    if let Some(key_var) = env.stack.pop() {
+                        match key_var.val.read().deref() {
+                            Val::Str(key) => {
+                                match value_var.val.read().deref() {
+                                    Val::Str(value) => {
+                                        std::env::set_var(key.as_str(), value.as_str());
+                                        return Ok(None);
+                                    },
+                                    _ => {}
+                                }
+                            },
+                            _ => {}
+                        }
+                    }
+                }
+                return Err(Error::StdSetEnv);
+            },
+            #[cfg(feature = "system")]
+            Self::RemoveEnv => {
+                if let Some(var) = env.stack.pop() {
+                    match var.val.read().deref() {
+                        Val::Str(var) => {
+                            std::env::remove_var(var.as_str());
+                            return Ok(None);
+                        },
+                        _ => {}
+                    }
+                }
+                return Err(Error::StdRemoveEnv);
+            },
+            #[cfg(feature = "system")]
+            Self::EnvMap => {
+                use imbl::OrdMap;
+                let mut map = OrdMap::default();
+                for (k, v) in std::env::vars() {
+                    map.insert(ValRef::new(Val::Str(k.into())), ValRef::new(Val::Str(v.into())));
+                }
+                env.stack.push(Variable::val(Val::Map(map)));
+                return Ok(None);
             },
         }
         Ok(None)
