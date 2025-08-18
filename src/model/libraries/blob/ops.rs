@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use imbl::vector;
-use crate::{model::{blob::{AT_BLOB, BASE64_BLOB, BLOB_LIB, FROM_BASE64_BLOB, FROM_URL_SAFE_BLOB, FROM_UTF8_BLOB, LEN_BLOB, URL_SAFE_BLOB, UTF8_BLOB}, LibFunc, Param}, runtime::{instruction::Instructions, NumT, Type}};
+use crate::{model::{blob::{AT_BLOB, BASE64_BLOB, BLOB_LIB, FROM_BASE64_BLOB, FROM_URL_SAFE_BLOB, FROM_UTF8_BLOB, LEN_BLOB, SIZE_BLOB, URL_SAFE_BLOB, UTF8_BLOB}, LibFunc, Param}, runtime::{instruction::Instructions, NumT, Type}};
 
 
 /// Len.
@@ -26,7 +26,7 @@ pub fn blob_len() -> LibFunc {
         name: "len".into(),
         is_async: false,
         docs: r#"# Blob.len(bytes: blob) -> int
-Size of this binary blob (number of bytes).
+Size of this binary blob (integer number of bytes).
 ```rust
 const bytes: blob = "hello";
 assert_eq(bytes.len(), 5);
@@ -40,6 +40,32 @@ assert_eq(bytes.len(), 5);
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(LEN_BLOB.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// Size (bytes).
+pub fn blob_size() -> LibFunc {
+    LibFunc {
+        library: BLOB_LIB.clone(),
+        name: "size".into(),
+        is_async: false,
+        docs: r#"# Blob.size(bytes: blob) -> bytes
+Size of this binary blob (in units of bytes).
+```rust
+const bytes: blob = "hello";
+assert_eq(bytes.size(), 5bytes);
+```"#.into(),
+        params: vector![
+            Param { name: "blob".into(), param_type: Type::Blob, default: None }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(SIZE_BLOB.clone());
             Ok(instructions)
         })
     }

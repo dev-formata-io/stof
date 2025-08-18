@@ -20,7 +20,7 @@ use arcstr::{literal, ArcStr};
 use base64::{engine::general_purpose::{STANDARD, URL_SAFE}, Engine as _};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{blob::ops::{blob_at, blob_base64, blob_from_base64, blob_from_url_base64, blob_from_utf8, blob_len, blob_url_base64, blob_utf8}, Graph}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Num, Val, Variable}};
+use crate::{model::{blob::ops::{blob_at, blob_base64, blob_from_base64, blob_from_url_base64, blob_from_utf8, blob_len, blob_size, blob_url_base64, blob_utf8}, Graph}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Num, Units, Val, Variable}};
 mod ops;
 
 /// Library name.
@@ -31,6 +31,7 @@ pub(self) const BLOB_LIB: ArcStr = literal!("Blob");
 pub fn insert_blob_lib(graph: &mut Graph) {
     graph.insert_libfunc(blob_len());
     graph.insert_libfunc(blob_at());
+    graph.insert_libfunc(blob_size());
     graph.insert_libfunc(blob_utf8());
     graph.insert_libfunc(blob_base64());
     graph.insert_libfunc(blob_url_base64());
@@ -43,6 +44,7 @@ pub fn insert_blob_lib(graph: &mut Graph) {
 
 lazy_static! {
     pub(self) static ref LEN_BLOB: Arc<dyn Instruction> = Arc::new(BlobIns::Len);
+    pub(self) static ref SIZE_BLOB: Arc<dyn Instruction> = Arc::new(BlobIns::Size);
     pub(self) static ref AT_BLOB: Arc<dyn Instruction> = Arc::new(BlobIns::At);
     pub(self) static ref UTF8_BLOB: Arc<dyn Instruction> = Arc::new(BlobIns::Utf8Str);
     pub(self) static ref BASE64_BLOB: Arc<dyn Instruction> = Arc::new(BlobIns::Base64Str);
@@ -58,6 +60,7 @@ lazy_static! {
 pub enum BlobIns {
     Len,
     At,
+    Size,
 
     Utf8Str,
     Base64Str,
@@ -76,6 +79,18 @@ impl Instruction for BlobIns {
                     match var.val.read().deref() {
                         Val::Blob(blob) => {
                             env.stack.push(Variable::val(Val::Num(Num::Int(blob.len() as i64))));
+                            return Ok(None);
+                        },
+                        _ => {}
+                    }
+                }
+                Err(Error::BlobLen)
+            },
+            Self::Size => {
+                if let Some(var) = env.stack.pop() {
+                    match var.val.read().deref() {
+                        Val::Blob(blob) => {
+                            env.stack.push(Variable::val(Val::Num(Num::Units(blob.len() as f64, Units::Bytes))));
                             return Ok(None);
                         },
                         _ => {}

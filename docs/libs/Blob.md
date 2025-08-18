@@ -37,10 +37,17 @@ assert_eq(bytes, Blob.from_utf8("hello"));
 ```
 
 # Blob.len(bytes: blob) -> int
-Size of this binary blob (number of bytes).
+Size of this binary blob (integer number of bytes).
 ```rust
 const bytes: blob = "hello";
 assert_eq(bytes.len(), 5);
+```
+
+# Blob.size(bytes: blob) -> bytes
+Size of this binary blob (in units of bytes).
+```rust
+const bytes: blob = "hello";
+assert_eq(bytes.size(), 5bytes);
 ```
 
 # Blob.url_base64(bytes: blob) -> str
