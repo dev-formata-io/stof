@@ -191,6 +191,7 @@ pub enum Error {
     NumIsLength,
     NumIsTime,
     NumIsMass,
+    NumIsMemory,
     NumRemoveUnits,
 
     NumSin,

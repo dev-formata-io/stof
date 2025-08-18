@@ -331,6 +331,16 @@ impl Num {
         }
     }
 
+    /// Is memory?
+    pub fn is_memory(&self) -> bool {
+        match self {
+            Self::Units(_, units) => {
+                units.is_memory()
+            },
+            _ => false,
+        }
+    }
+
     /// Get units.
     pub fn units(&self) -> Option<Units> {
         match self {

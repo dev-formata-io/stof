@@ -158,6 +158,14 @@ assert(val.is_mass());
 ```
 
 
+# Num.is_memory(val: int | float) -> bool
+Returns true if the given number has units of computer memory (bits, bytes, MB, KB, etc.).
+```rust
+const val = 10MB;
+assert(val.is_memory());
+```
+
+
 # Num.is_temp(val: int | float) -> bool
 Returns true if the given number has temperature units.
 ```rust

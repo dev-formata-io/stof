@@ -81,6 +81,26 @@ pub enum Units {
     Radians,
     PositiveDegrees, // Degrees, kept positive
     PositiveRadians, // Radians, kept positive
+
+    // Computer Memory
+    Bits,
+    Bytes,
+    Kibibytes,
+    Kilobytes,
+    Mebibytes,
+    Megabytes,
+    Gibibytes,
+    Gigabytes,
+    Tebibytes,
+    Terabytes,
+    Pebibytes,
+    Petabytes,
+    Exbibyte,
+    Exabytes,
+    Zebibytes,
+    Zettabytes,
+    Yobibytes,
+    Yottabytes,
 }
 impl<T: AsRef<str>> From<T> for Units {
     fn from(value: T) -> Self {
@@ -141,14 +161,32 @@ impl<T: AsRef<str>> From<T> for Units {
             "tons" | "Ton" => Self::Tons,
             "lb" | "lbs" => Self::Pounds,
             "oz" | "ounces" => Self::Ounce,
+
+            // Computer memory
+            "bit" | "bits" => Self::Bits,
+            "byte" | "bytes" => Self::Bytes,
+            "KiB" | "kibibytes" => Self::Kibibytes,
+            "KB" | "kilobytes" => Self::Kilobytes,
+            "MiB" | "mebibytes" => Self::Mebibytes,
+            "MB" | "megabytes" => Self::Megabytes,
+            "GiB" | "gibibytes" => Self::Gibibytes,
+            "GB" | "gigabytes" => Self::Gigabytes,
+            "TiB" | "tebibytes" => Self::Tebibytes,
+            "TB" | "terabytes" => Self::Terabytes,
+            "PiB" | "pebibytes" => Self::Pebibytes,
+            "PB" | "petabytes" => Self::Petabytes,
+            "EiB" | "exbibytes" => Self::Exbibyte,
+            "EB" | "exabytes" => Self::Exabytes,
+            "ZiB" | "zebibytes" => Self::Zebibytes,
+            "ZB" | "zettabytes" => Self::Zettabytes,
+            "YiB" | "yobibytes" => Self::Yobibytes,
+            "YB" | "yottabytes" => Self::Yottabytes,
             _ => Self::Undefined,
         }
     }
 }
 impl Units {
-    ///
     /// Common unit.
-    ///
     pub fn common(&self, other: Self) -> Self {
         // No units
         if !self.has_units() { return other; }
@@ -200,7 +238,7 @@ impl Units {
 
         // Time units
         if self.is_time() && other.is_time() {
-            if other < *self { // take smaller time unit
+            if other < *self { // take larger time unit
                 return other;
             }
             return *self;
@@ -232,13 +270,18 @@ impl Units {
             return Self::Undefined;
         }
 
+        // Memory units
+        if self.is_memory() && other.is_memory() {
+            if other > *self { return other; }
+            return *self;
+        } else if self.is_memory() || other.is_memory() {
+            return Self::Undefined;
+        }
+
         Self::None
     }
 
-
-    ///
     /// Float convert between units.
-    ///
     pub fn convert(value: f64, units: Self, to: Self) -> Result<f64, String> {
         // No conversion if either has no units! (either converting to or from "None")
         if !units.has_units() || !to.has_units() { return Ok(value); }
@@ -286,13 +329,18 @@ impl Units {
             return Err(format!("Cannot convert {:?} to {:?}", units, to));
         }
 
+        // Memory conversion?
+        if units.is_memory() && to.is_memory() {
+            let gb = Self::to_gib(value, units);
+            return Ok(Self::from_gib(gb, to));
+        } else if units.is_memory() || to.is_memory() {
+            return Err(format!("Cannot convert {:?} to {:?}", units, to));
+        }
+
         return Err(format!("Cannot convert {:?} to {:?}", units, to));
     }
 
-
-    ///
     /// To string.
-    ///
     pub fn to_string(&self) -> ArcStr {
         match self {
             Self::None => literal!(""),
@@ -350,13 +398,30 @@ impl Units {
             Self::Tons => literal!("Ton"),
             Self::Pounds => literal!("lb"),
             Self::Ounce => literal!("oz"),
+
+            // Computer memory.
+            Self::Bits => literal!("bits"),
+            Self::Bytes => literal!("bytes"),
+            Self::Kibibytes => literal!("KiB"),
+            Self::Kilobytes => literal!("KB"),
+            Self::Mebibytes => literal!("MiB"),
+            Self::Megabytes => literal!("MB"),
+            Self::Gibibytes => literal!("GiB"),
+            Self::Gigabytes => literal!("GB"),
+            Self::Tebibytes => literal!("TiB"),
+            Self::Terabytes => literal!("TB"),
+            Self::Pebibytes => literal!("PiB"),
+            Self::Petabytes => literal!("PB"),
+            Self::Exbibyte => literal!("EiB"),
+            Self::Exabytes => literal!("EB"),
+            Self::Zebibytes => literal!("ZiB"),
+            Self::Zettabytes => literal!("ZB"),
+            Self::Yobibytes => literal!("YiB"),
+            Self::Yottabytes => literal!("YB"),
         }
     }
 
-
-    ///
     /// Has units?
-    ///
     pub fn has_units(&self) -> bool {
         match self {
             Self::None => false,
@@ -364,10 +429,7 @@ impl Units {
         }
     }
 
-
-    ///
     /// Is undefined?
-    ///
     pub fn is_undefined(&self) -> bool {
         match self {
             Self::Undefined => true,
@@ -375,10 +437,7 @@ impl Units {
         }
     }
 
-
-    ///
     /// Is angle?
-    ///
     pub fn is_angle(&self) -> bool {
         match self {
             Self::PositiveDegrees |
@@ -389,10 +448,7 @@ impl Units {
         }
     }
 
-
-    ///
     /// Is positive angle?
-    ///
     pub fn is_positive_angle(&self) -> bool {
         match self {
             Self::PositiveDegrees |
@@ -401,10 +457,7 @@ impl Units {
         }
     }
 
-
-    ///
     /// Is radians?
-    ///
     pub fn is_radians(&self) -> bool {
         match self {
             Self::PositiveRadians |
@@ -413,10 +466,7 @@ impl Units {
         }
     }
 
-
-    ///
     /// Is degrees?
-    ///
     pub fn is_degrees(&self) -> bool {
         match self {
             Self::PositiveDegrees |
@@ -425,10 +475,7 @@ impl Units {
         }
     }
 
-
-    ///
     /// To radians.
-    ///
     pub fn to_radians(value: f64, units: Self) -> f64 {
         match units {
             Self::PositiveDegrees |
@@ -437,10 +484,7 @@ impl Units {
         }
     }
 
-
-    ///
     /// From radians.
-    ///
     pub fn from_radians(rad: f64, units: Self) -> f64 {
         match units {
             Self::PositiveDegrees => {
@@ -493,10 +537,7 @@ impl Units {
         }
     }
 
-
-    ///
     /// Is mass?
-    ///
     pub fn is_mass(&self) -> bool {
         match self {
             Self::Gigatonnes |
@@ -515,10 +556,7 @@ impl Units {
         }
     }
 
-
-    ///
     /// Is metric mass?
-    ///
     pub fn is_metric_mass(&self) -> bool {
         match self {
             Self::Gigatonnes |
@@ -534,10 +572,7 @@ impl Units {
         }
     }
 
-
-    ///
     /// Is imperial mass?
-    ///
     pub fn is_imperial_mass(&self) -> bool {
         match self {
             Self::Tons |
@@ -547,10 +582,7 @@ impl Units {
         }
     }
 
-
-    ///
     /// To grams.
-    ///
     fn to_grams(value: f64, units: Self) -> f64 {
         match units {
             Self::Gigatonnes => value*1000000000000000.0,
@@ -569,10 +601,7 @@ impl Units {
         }
     }
 
-
-    ///
     /// From grams.
-    ///
     fn from_grams(value: f64, units: Self) -> f64 {
         match units {
             Self::Gigatonnes => value/1000000000000000.0,
@@ -591,10 +620,7 @@ impl Units {
         }
     }
 
-
-    ///
     /// Is temperature?
-    ///
     pub fn is_temperature(&self) -> bool {
         match self {
             Self::Kelvin |
@@ -604,10 +630,7 @@ impl Units {
         }
     }
 
-
-    ///
     /// To C.
-    ///
     fn to_c(value: f64, units: Self) -> f64 {
         match units {
             Self::Kelvin => value - 273.15,
@@ -617,10 +640,7 @@ impl Units {
         }
     }
 
-
-    ///
     /// From C.
-    ///
     fn from_c(value: f64, units: Self) -> f64 {
         match units {
             Self::Kelvin => value + 273.15,
@@ -630,10 +650,7 @@ impl Units {
         }
     }
 
-
-    ///
     /// Is time?
-    ///
     pub fn is_time(&self) -> bool {
         match self {
             Self::Days |
@@ -647,10 +664,7 @@ impl Units {
         }
     }
 
-
-    ///
     /// To milliseconds.
-    ///
     fn to_ms(value: f64, units: Self) -> f64 {
         match units {
             Self::Days => value*24.0*60.0*60.0*1000.0,
@@ -664,10 +678,7 @@ impl Units {
         }
     }
 
-
-    ///
     /// From milliseconds.
-    ///
     fn from_ms(value: f64, units: Self) -> f64 {
         match units {
             Self::Days => value/1000.0/60.0/60.0/24.0,
@@ -681,10 +692,7 @@ impl Units {
         }
     }
 
-
-    ///
     /// Is length?
-    ///
     pub fn is_length(&self) -> bool {
         match self {
             Self::Kilometers |
@@ -704,10 +712,7 @@ impl Units {
         }
     }
 
-
-    ///
     /// Is metric length?
-    ///
     pub fn is_metric_length(&self) -> bool {
         match self {
             Self::Kilometers |
@@ -723,10 +728,7 @@ impl Units {
         }
     }
 
-
-    ///
     /// Is imperial length?
-    ///
     pub fn is_imperial_length(&self) -> bool {
         match self {
             Self::Miles |
@@ -737,11 +739,8 @@ impl Units {
         }
     }
 
-
-    ///
     /// From millimeters.
     /// 1inch = 25.4mm
-    ///
     fn from_mm(value: f64, units: Self) -> f64 {
         match units {
             Self::Kilometers => value/1000000.0,
@@ -761,10 +760,7 @@ impl Units {
         }
     }
 
-
-    ///
     /// To millimeters.
-    ///
     fn to_mm(value: f64, units: Self) -> f64 {
         match units {
             Self::Kilometers => value*1000000.0,
@@ -781,6 +777,97 @@ impl Units {
             Self::Feet => value*12.0*25.4,
             Self::Inches => value*25.4,
             _ => value,
+        }
+    }
+
+    /// Is computer memory?
+    pub fn is_memory(&self) -> bool {
+        match self {
+            Self::Bits |
+            Self::Bytes |
+            Self::Kibibytes |
+            Self::Kilobytes |
+            Self::Mebibytes |
+            Self::Megabytes |
+            Self::Gibibytes |
+            Self::Gigabytes |
+            Self::Tebibytes |
+            Self::Terabytes |
+            Self::Pebibytes |
+            Self::Petabytes |
+            Self::Exbibyte |
+            Self::Exabytes |
+            Self::Zebibytes |
+            Self::Zettabytes |
+            Self::Yobibytes |
+            Self::Yottabytes => true,
+            _ => false,
+        }
+    }
+
+    /// From GiB
+    fn from_gib(gib: f64, units: Self) -> f64 {
+        match units {
+            Self::Bits => gib*1024.*1024.*1024.*8.,
+            Self::Bytes => gib*1024.*1024.*1024.,
+
+            Self::Kilobytes => gib*1024.*1024.*1.024,
+            Self::Kibibytes => gib*1024.*1024.,
+            
+            Self::Megabytes => gib*1024.*1.048576,
+            Self::Mebibytes => gib*1024.,
+
+            Self::Gigabytes => gib*1.073741824,
+            Self::Gibibytes => gib,
+
+            Self::Terabytes => gib/1024.*1.099511627776,
+            Self::Tebibytes => gib/1024.,
+
+            Self::Petabytes => gib/1024./1024.*1.1258999,
+            Self::Pebibytes => gib/1024./1024.,
+
+            Self::Exabytes => gib/1024./1024./1024.*1.1529215046068,
+            Self::Exbibyte => gib/1024./1024./1024.,
+
+            Self::Zettabytes => gib/1024./1024./1024./1024.*1.1805916207174,
+            Self::Zebibytes => gib/1024./1024./1024./1024.,
+
+            Self::Yottabytes => gib/1024./1024./1024./1024./1024.*1.2089258,
+            Self::Yobibytes => gib/1024./1024./1024./1024./1024.,
+            _ => gib,
+        }
+    }
+
+    /// To GiB
+    fn to_gib(u: f64, units: Self) -> f64 {
+        match units {
+            Self::Bits => u/8./1024./1024./1024.,
+            Self::Bytes => u/1024./1024./1024.,
+
+            Self::Kilobytes => u/1.024/1024./1024.,
+            Self::Kibibytes => u/1024./1024.,
+
+            Self::Megabytes => u/1.048576/1024.,
+            Self::Mebibytes => u/1024.,
+
+            Self::Gigabytes => u/1.073741824,
+            Self::Gibibytes => u,
+
+            Self::Terabytes => u/1.099511627776*1024.,
+            Self::Tebibytes => u*1024.,
+
+            Self::Petabytes => u/1.1258999*1024.*1024.,
+            Self::Pebibytes => u*1024.*1024.,
+
+            Self::Exabytes => u/1.1529215046068*1024.*1024.*1024.,
+            Self::Exbibyte => u*1024.*1024.*1024.,
+
+            Self::Zettabytes => u/1.1805916207174*1024.*1024.*1024.*1024.,
+            Self::Zebibytes => u*1024.*1024.*1024.*1024.,
+
+            Self::Yottabytes => u/1.2089258*1024.*1024.*1024.*1024.*1024.,
+            Self::Yobibytes => u*1024.*1024.*1024.*1024.*1024.,
+            _ => u,
         }
     }
 }

@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use imbl::vector;
-use crate::{model::{num::{ABS, ACOS, ACOSH, ASIN, ASINH, ATAN, ATAN2, ATANH, BIN, CBRT, CEIL, COS, COSH, EXP, EXP2, FLOOR, FRACT, HAS_UNITS, HEX, INF, IS_ANGLE, IS_LENGTH, IS_MASS, IS_TEMP, IS_TIME, LN, LOG, NAN, NUM_LIB, OCT, POW, REMOVE_UNITS, ROUND2, SIGNUM, SIN, SINH, SQRT, STRING, TAN, TANH, TRUNC}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Num, Type, Val}};
+use crate::{model::{num::{ABS, ACOS, ACOSH, ASIN, ASINH, ATAN, ATAN2, ATANH, BIN, CBRT, CEIL, COS, COSH, EXP, EXP2, FLOOR, FRACT, HAS_UNITS, HEX, INF, IS_ANGLE, IS_LENGTH, IS_MASS, IS_MEMORY, IS_TEMP, IS_TIME, LN, LOG, NAN, NUM_LIB, OCT, POW, REMOVE_UNITS, ROUND2, SIGNUM, SIN, SINH, SQRT, STRING, TAN, TANH, TRUNC}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Num, Type, Val}};
 
 
 /// Absolute value library function.
@@ -917,6 +917,33 @@ assert(val.is_mass());
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(IS_MASS.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// Is memory?
+pub fn num_is_memory() -> LibFunc {
+    LibFunc {
+        library: NUM_LIB.clone(),
+        name: "is_memory".into(),
+        is_async: false,
+        docs: r#"# Num.is_memory(val: int | float) -> bool
+Returns true if the given number has units of computer memory (bits, bytes, MB, KB, etc.).
+```rust
+const val = 10MB;
+assert(val.is_memory());
+```
+"#.into(),
+        params: vector![
+            Param { name: "val".into(), param_type: Type::Void, default: None }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(IS_MEMORY.clone());
             Ok(instructions)
         })
     }

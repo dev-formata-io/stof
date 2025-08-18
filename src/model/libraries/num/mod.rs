@@ -18,7 +18,7 @@ use std::sync::Arc;
 use arcstr::{literal, ArcStr};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{num::{iter::{num_at, num_len}, maxmin::{num_max, num_min}, ops::{num_abs, num_acos, num_acosh, num_asin, num_asinh, num_atan, num_atan2, num_atanh, num_bin, num_cbrt, num_ceil, num_cos, num_cosh, num_exp, num_exp2, num_floor, num_fract, num_has_units, num_hex, num_inf, num_is_angle, num_is_length, num_is_mass, num_is_temp, num_is_time, num_ln, num_log, num_nan, num_oct, num_pow, num_remove_units, num_round, num_signum, num_sin, num_sinh, num_sqrt, num_string, num_tan, num_tanh, num_trunc}}, Graph}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Val, Variable}};
+use crate::{model::{num::{iter::{num_at, num_len}, maxmin::{num_max, num_min}, ops::{num_abs, num_acos, num_acosh, num_asin, num_asinh, num_atan, num_atan2, num_atanh, num_bin, num_cbrt, num_ceil, num_cos, num_cosh, num_exp, num_exp2, num_floor, num_fract, num_has_units, num_hex, num_inf, num_is_angle, num_is_length, num_is_mass, num_is_memory, num_is_temp, num_is_time, num_ln, num_log, num_nan, num_oct, num_pow, num_remove_units, num_round, num_signum, num_sin, num_sinh, num_sqrt, num_string, num_tan, num_tanh, num_trunc}}, Graph}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Val, Variable}};
 
 mod ops;
 mod maxmin;
@@ -72,6 +72,7 @@ pub fn insert_number_lib(graph: &mut Graph) {
     graph.insert_libfunc(num_is_temp());
     graph.insert_libfunc(num_is_length());
     graph.insert_libfunc(num_is_mass());
+    graph.insert_libfunc(num_is_memory());
     graph.insert_libfunc(num_is_time());
 
     graph.insert_libfunc(num_round());
@@ -134,6 +135,7 @@ lazy_static! {
     pub(self) static ref IS_MASS: Arc<dyn Instruction> = Arc::new(NumIns::IsMass);
     pub(self) static ref IS_TEMP: Arc<dyn Instruction> = Arc::new(NumIns::IsTemp);
     pub(self) static ref IS_TIME: Arc<dyn Instruction> = Arc::new(NumIns::IsTime);
+    pub(self) static ref IS_MEMORY: Arc<dyn Instruction> = Arc::new(NumIns::IsMemory);
 }
 
 
@@ -190,6 +192,7 @@ pub enum NumIns {
     IsLength,
     IsTime,
     IsMass,
+    IsMemory,
 }
 #[typetag::serde(name = "NumIns")]
 impl Instruction for NumIns {
@@ -689,6 +692,15 @@ impl Instruction for NumIns {
                     }
                 }
                 return Err(Error::NumIsMass);
+            },
+            Self::IsMemory => {
+                if let Some(val) = env.stack.pop() {
+                    if let Some(val) = val.val.write().try_num() {
+                        env.stack.push(Variable::val(Val::Bool(val.is_memory())));
+                        return Ok(None);
+                    }
+                }
+                return Err(Error::NumIsMemory);
             },
             Self::RemoveUnits => {
                 if let Some(val) = env.stack.pop() {

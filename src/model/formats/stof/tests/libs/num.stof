@@ -153,6 +153,14 @@ Units: {
         assert(x.is_time());
         assert(!y.is_time());
     }
+
+    #[test]
+    fn is_memory() {
+        let x = 10MB;
+        let y = 34;
+        assert(x.is_memory());
+        assert(!y.is_memory());
+    }
 }
 
 #[test]

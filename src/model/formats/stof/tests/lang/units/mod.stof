@@ -15,16 +15,4 @@
 //
 
 
-/*!
- * This module is where we'll test basic language features, like control flow.
- * Scope: root.Lang
- */
-
-import './control/mod' as self.Control;
-import './funcs/mod' as self.Funcs;
-import './strings/mod' as self.Strings;
-import './fields/mod' as self.Fields;
-import './obj/mod' as self.Objects;
-import './async/mod' as self.Async;
-import './types/mod' as self.Types;
-import './units/mod' as self.Units;
+import './memory' as self.Memory;
