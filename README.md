@@ -1,22 +1,24 @@
 <p align="center"><img src="./content/stof.png" height="150"></p>
 <p align="center">
-    <a href="https://docs.stof.dev"><img src="https://img.shields.io/badge/docs-docs.stof.dev-purple?logo=gitbook&logoColor=white"></a>
-    <a href="https://discord.gg/Up5kxdeXZt"><img src="https://img.shields.io/discord/1319468398169686016?logo=discord&logoColor=white"></a>
+    <a href="https://docs.stof.dev"><img src="https://img.shields.io/badge/docs-docs.stof.dev-purple?logo=gitbook&logoColor=white"></a><span style="margin: 0px 4px;"></span>
+    <a href="https://github.com/dev-formata-io/stof"><img src="https://img.shields.io/github/stars/dev-formata-io/stof"></a>
 </p>
 <p align="center">
     <a href="https://github.com/dev-formata-io/stof/actions"><img src="https://img.shields.io/github/actions/workflow/status/dev-formata-io/stof/rust.yml"></a>
-    <a href="https://crates.io/crates/stof"><img src="https://img.shields.io/crates/d/stof"></a>
-    <a href="https://crates.io/crates/stof"><img src="https://img.shields.io/crates/l/stof"></a>
-    <a href="https://github.com/dev-formata-io/stof/commits/main/"><img src="https://img.shields.io/github/commit-activity/m/dev-formata-io/stof"></a>
+    <a href="https://crates.io/crates/stof"><img src="https://img.shields.io/crates/d/stof?label=Stof%20downloads&color=aqua"></a>
+    <a href="https://crates.io/crates/stof-cli"><img src="https://img.shields.io/crates/d/stof-cli?label=CLI%20downloads&color=darkgray"></a>
+    <a href="https://crates.io/crates/stof"><img src="https://img.shields.io/crates/l/stof?color=maroon"></a>
+    <a href="https://github.com/dev-formata-io/stof/commits"><img src="https://img.shields.io/github/commit-activity/m/dev-formata-io/stof"></a>
 </p>
 
 ----
 
 <br/>
 
-[Stof](https://stof.dev) is the simplest way to create, store, share, and transform unified data.
+[Stof](https://docs.stof.dev) is the simplest way to create, store, share, and transform unified data.
 
 - [Docs](https://docs.stof.dev)
+- [Repository](https://github.com/dev-formata-io/stof)
 - [Discord](https://discord.gg/Up5kxdeXZt)
 - [Contact](https://stof.dev/contact-us)
 

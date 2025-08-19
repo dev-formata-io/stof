@@ -22,6 +22,12 @@ fn len() {
 }
 
 #[test]
+fn bytes() {
+    let bin: blob = "hello, world";
+    assert_eq(bin.size(), 12bytes);
+}
+
+#[test]
 fn at() {
     let bytes: blob = 'hello, world';
     let byte = bytes[2];
