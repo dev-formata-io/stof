@@ -18,7 +18,7 @@ use std::sync::Arc;
 use imbl::vector;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, opt}, multi::separated_list0, sequence::{delimited, preceded, terminated}, IResult, Parser};
 use rustc_hash::FxHashMap;
-use crate::{model::{DataRef, Func, ASYNC_FUNC_ATTR, UNSELF_FUNC_ATTR}, parser::{doc::StofParseError, expr::expr, func::{opt_parameter, parameter}, statement::block, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::func::FuncLit, Type, Val}};
+use crate::{model::{DataRef, Func, ASYNC_FUNC_ATTR}, parser::{doc::StofParseError, expr::expr, func::{opt_parameter, parameter}, statement::block, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::func::FuncLit, Type, Val}};
 
 
 /// Arrow function "literal" value.
@@ -39,7 +39,6 @@ pub fn func_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseEr
     }
     
     let mut attrs = FxHashMap::default();
-    attrs.insert(UNSELF_FUNC_ATTR.to_string(), Val::Null); // this func won't add self (just like a prototype)
     if async_fn.is_some() {
         attrs.insert(ASYNC_FUNC_ATTR.to_string(), Val::Null); // this is an async arrow function
     }

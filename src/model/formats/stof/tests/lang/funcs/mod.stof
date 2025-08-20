@@ -36,9 +36,9 @@ somescope: {
     // Arrow function as a field!
     fn func: (a: int, b: int) -> int => a + b;
 
-    // Arrow functions don't set the self stack
+    // Arrow functions set the self stack
     stacked: () -> str => {
-        self.exists
+        super.exists
     }
 
     // Arena pattern with a field
