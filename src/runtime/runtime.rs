@@ -17,7 +17,7 @@
 use std::{sync::Arc, time::{SystemTime, UNIX_EPOCH}};
 use colored::Colorize;
 use imbl::Vector;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use crate::{model::{DataRef, Func, Graph, SId}, runtime::{instruction::Instruction, instructions::{call::FuncCall, Base}, proc::{ProcRes, Process}, Error, Val, Waker}};
 
 
@@ -296,8 +296,18 @@ impl Runtime {
     /// Run every #[main] function within this graph.
     /// If throw is false, this will only return Ok.
     pub fn run(graph: &mut Graph, context: Option<String>, throw: bool) -> Result<String, String> {
+        Self::run_functions(graph, context, Func::main_functions(graph), throw)
+    }
+
+    /// Run functions with the given attributes in this graph.
+    pub fn run_attribute_functions(graph: &mut Graph, context: Option<String>, attributes: &Option<FxHashSet<String>>, throw: bool) -> Result<String, String> {
+        Self::run_functions(graph, context, Func::all_functions(graph, attributes), throw)
+    }
+
+    /// Run all given functions.
+    pub fn run_functions(graph: &mut Graph, context: Option<String>, functions: FxHashSet<DataRef>, throw: bool) -> Result<String, String> {
         let mut rt = Self::default();
-        for func_ref in Func::main_functions(&graph) {
+        for func_ref in functions {
             if let Some(context) = &context {
                 for node in func_ref.data_nodes(&graph) {
                     if let Some(node_path) = node.node_path(&graph, true) {
