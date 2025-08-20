@@ -478,6 +478,26 @@ impl Instruction for Base {
                 } else if split_path[0] == SUPER_STR_KEYWORD.as_str() {
                     // Super case
                     context = Variable::val(Val::Obj(env.self_ptr()));
+                } else if split_path[0].starts_with('<') {
+                    // "static" function case
+                    let typename = split_path[0].trim_start_matches('<').trim_end_matches('>');
+                    let mut obj_type = Type::Obj(typename.into());
+                    obj_type.obj_to_proto(graph, Some(env.self_ptr()));
+                    match obj_type {
+                        Type::Obj(proto_id) => {
+                            if proto_id.node_exists(&graph) {
+                                context = Variable::val(Val::Obj(proto_id));
+                                split_path.remove(0);
+                            } else {
+                                env.stack.push(Variable::val(Val::Null));
+                                return Ok(None);
+                            }
+                        },
+                        _ => {
+                            env.stack.push(Variable::val(Val::Null));
+                            return Ok(None);
+                        }
+                    }
                 } else if let Some(var) = env.table.get(split_path[0]) {
                     // Variable case
                     context = var.stack_var(*by_ref);

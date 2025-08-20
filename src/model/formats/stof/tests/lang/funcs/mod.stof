@@ -120,3 +120,18 @@ fn fibonacci(n: int) -> int {
         this.call(n - 1) + this(n - 2)
     }
 }
+
+
+#[type]
+StaticFnType: {
+    fn addition(a: unknown, b: unknown) -> unknown {
+        a + b
+    }
+}
+
+#[test]
+fn static_fn_via_variable() {
+    const addition = <StaticFnType>.addition;
+    assert_eq(addition(30, 12), 42);
+    assert_eq(addition('hello', ', world'), 'hello, world');
+}
