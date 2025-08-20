@@ -1042,45 +1042,56 @@ impl Instruction for ObjIns {
 
                                             let mut schema_attr_val = None;
                                             let mut schema_field_val = None;
+                                            let mut optional = false; // mark valid if the value is null or doesn't exist
                                             if let Some(field) = graph.get_stof_data::<Field>(&schema_field_ref) {
                                                 if let Some(attr) = field.attributes.get("schema") {
                                                     schema_attr_val = Some(attr.clone());
                                                     schema_field_val = Some(field.value.val.duplicate(false));
                                                 }
+                                                if let Some(_) = field.attributes.get("schema_optional") {
+                                                    optional = true;
+                                                }
                                             }
                                             if let Some(schema_val) = schema_field_val {
                                                 if let Some(validate) = schema_attr_val {
                                                     let mut target_val = None;
+                                                    let mut target_null = false;
                                                     if let Some(target_field_ref) = Field::field(graph, &target, &schema_field_name) {
                                                         if let Some(field) = graph.get_stof_data::<Field>(&target_field_ref) {
                                                             target_val = Some(field.value.val.clone()); // reference to the value outright
+                                                            target_null = field.value.val.read().null();
                                                         }
                                                     }
-                                                    let mut field_instructions = validation(graph, &schema, &target, schema_field_name.clone(), validate, schema_val, target_val, remove_invalid, remove_undefined);
-                                                    
-                                                    if remove_invalid {
-                                                        let if_instructions = vector![
-                                                            Arc::new(Base::Literal(Val::Bool(true))) as Arc<dyn Instruction>
-                                                        ];
-                                                        let else_instructions: Vector<Arc<dyn Instruction>> = vector![
-                                                            Arc::new(Base::Literal(Val::Obj(target.clone()))) as Arc<dyn Instruction>,
-                                                            PUSH_SELF.clone(),
-                                                            Arc::new(Base::Literal(Val::Str(format!("self.{schema_field_name}").into()))),
-                                                            Arc::new(StdIns::Drop(1)),
-                                                            POP_STACK.clone(), // get rid of drop stack val
-                                                            POP_SELF.clone(),
-                                                            Arc::new(Base::Literal(Val::Bool(true))), // put truthy back onto the stack to keep things going
-                                                        ];
-                                                        for ins in &mut field_instructions {
-                                                            ins.push_back(Arc::new(IfIns {
-                                                                if_test: Some(TRUTHY.clone()),
-                                                                if_ins: if_instructions.clone(), // put true back onto stack
-                                                                el_ins: else_instructions.clone() // take care of removing the field and put true onto stack
-                                                            }));
+
+                                                    if optional && (target_val.is_none() || target_null) {
+                                                        // No need to jump into validation, this target value is null and the field is optional
+                                                    } else {
+                                                        let mut field_instructions = validation(graph, &schema, &target, schema_field_name.clone(), validate, schema_val, target_val, remove_invalid, remove_undefined);
+                                                        
+                                                        if remove_invalid {
+                                                            let if_instructions = vector![
+                                                                Arc::new(Base::Literal(Val::Bool(true))) as Arc<dyn Instruction>
+                                                            ];
+                                                            let else_instructions: Vector<Arc<dyn Instruction>> = vector![
+                                                                Arc::new(Base::Literal(Val::Obj(target.clone()))) as Arc<dyn Instruction>,
+                                                                PUSH_SELF.clone(),
+                                                                Arc::new(Base::Literal(Val::Str(format!("self.{schema_field_name}").into()))),
+                                                                Arc::new(StdIns::Drop(1)),
+                                                                POP_STACK.clone(), // get rid of drop stack val
+                                                                POP_SELF.clone(),
+                                                                Arc::new(Base::Literal(Val::Bool(true))), // put truthy back onto the stack to keep things going
+                                                            ];
+                                                            for ins in &mut field_instructions {
+                                                                ins.push_back(Arc::new(IfIns {
+                                                                    if_test: Some(TRUTHY.clone()),
+                                                                    if_ins: if_instructions.clone(), // put true back onto stack
+                                                                    el_ins: else_instructions.clone() // take care of removing the field and put true onto stack
+                                                                }));
+                                                            }
                                                         }
+                                                        
+                                                        validation_instructions.append(&mut field_instructions);
                                                     }
-                                                    
-                                                    validation_instructions.append(&mut field_instructions);
                                                 }
                                             }
                                         }

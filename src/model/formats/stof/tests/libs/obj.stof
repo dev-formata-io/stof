@@ -344,6 +344,24 @@ Schemafy: {
         assert(self.schema.schemafy(self.target, remove_invalid = true, remove_undefined = true));
         assert_eq(str(self.target), '{"last":"Dude"}');
     }
+
+    OptionalFields: {
+        #[schema_optional]
+        #[schema((target_val: str): bool => target_val.len() > 0)]
+        str field: null
+    }
+
+    #[test]
+    fn optional_field_schema() {
+        let target = new {};
+        assert(self.OptionalFields.schemafy(target));
+
+        target.field = 'hello';
+        assert(self.OptionalFields.schemafy(target));
+
+        target.field = '';
+        assert_not(self.OptionalFields.schemafy(target));
+    }
 }
 
 ToFromMap: {

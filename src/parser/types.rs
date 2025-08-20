@@ -85,9 +85,8 @@ fn parse_inner_union(input: &str) -> IResult<&str, Type, StofParseError> {
             parse_promise,
             parse_obj_or_units,
             parse_tuple,
-        )),
-        multispace0
-    ), |(_, ty, _)| ty).parse(input)
+        ))
+    ), |(_, ty)| ty).parse(input)
 }
 
 /// Parse object or units type.
@@ -125,7 +124,7 @@ fn parse_union(input: &str) -> IResult<&str, Type, StofParseError> {
     ).parse(input)
 }
 fn parse_union_list(input: &str) -> IResult<&str, Vec<Type>, StofParseError> {
-    let mut parser = separated_list1(tag("|"), parse_inner_union);
+    let mut parser = separated_list1(preceded(multispace0, tag("|")), parse_inner_union);
     let (input, vals) = parser.parse(input)?;
     if vals.len() < 2 {
         Err(nom::Err::Error(StofParseError::from(format!("union type must have at least 2 values: {vals:?}"))))

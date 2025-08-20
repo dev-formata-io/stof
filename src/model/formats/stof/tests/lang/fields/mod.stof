@@ -94,3 +94,30 @@ fn const_fields() {
     catch (error: str) assert_eq(error, 'AssignConst');
     assert_eq(self.const_field, 'hello, there');
 }
+
+
+FieldTypes: {
+    bool | int union_field: true
+    (str, ver) tup_field: ('hi', 1.0.0)
+
+    #[test]
+    fn set_union_field() {
+        self.union_field = 42;
+        assert_eq(self.union_field, 42);
+
+        self.union_field = false;
+        assert_eq(self.union_field, false);
+    }
+
+    #[test]
+    fn non_union_type_converted() {
+        self.union_field = 'hi'; // casts to bool
+        assert_eq(self.union_field, true);
+    }
+
+    #[test]
+    fn set_tup_field() {
+        self.tup_field = ('yo', 0.3.3);
+        assert_eq(self.tup_field, ('yo', 0.3.3));
+    }
+}
