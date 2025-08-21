@@ -306,9 +306,16 @@ Cargo: {
             const dependencies = cargo.dependencies as Dependencies;
             await dependencies.update();
         }
-
         cargo.package.version = version;
+
+        // verify all schemas
         assert(self.schemafy(cargo));
+        for (const field in cargo.fields()) {
+            if ('Target' == typename field[1]) {
+                assert(super.Target.schemafy(field[1]));
+            }
+        }
+
         const header = <CargoValid>.auto_gen_header ?? '';
         return header + cargo.toml();
     }
