@@ -2,6 +2,7 @@
  * Project definitions & configurations.
  */
 import '@cargo' as Rust;
+import pkg '@github' as GitHub;
 
 /// Cargo.toml definition.
 Cargo cargo: {
@@ -125,17 +126,80 @@ Cargo cargo: {
     }
 }
 
+/// GitHub.
+github: {
+    funding: 'dev-formata-io'
+    
+    #[run]
+    workflows: [
+        {
+            name: 'Rust'
+            on: {
+                push: {
+                    branches: ['main']
+                }
+                pull_request: {
+                    branches: ['main']
+                }
+            }
+            env: {
+                CARGO_TERM_COLOR: 'always'
+            }
+            jobs: {
+                build: {
+                    runs-on: 'ubuntu-latest'
+                    steps: [
+                        {
+                            uses: 'actions/checkout@v4'
+                        },
+                        {
+                            name: 'Build'
+                            run: 'cargo build --verbose'
+                        },
+                        {
+                            name: 'Run tests'
+                            run: 'cargo test --verbose -- --nocapture'
+                        }
+                    ]
+                }
+            }
+        } as GitHub.Workflow
+    ]
+
+    #[run]
+    /// Generate GitHub FUNDING.yml.
+    fn generate_funding_yaml() {
+        const object = new { github: self.funding };
+        const yaml = stringify('yaml', object);
+        drop(object);
+        fs.write('.github/FUNDING.yml', yaml);
+    }
+}
+
 #[cargo]
 /// Generate Cargo.toml file.
 /// `stof run project.stof -a cargo`
 async fn generate_cargo_toml() {
     const out = await Rust.Cargo.generate(self.cargo, 0.8.15, update = false);
     fs.write('Cargo.toml', out);
+    pln('Cargo .. ok');
+}
+
+#[github]
+/// Generate GitHub configurations.
+/// `stof run project.stof -a github`
+async fn generate_github() {
+    self.github.run();
+    pln('GitHub .. ok');
 }
 
 #[main]
 /// Run everything.
 /// `stof run project.stof`
 fn main() {
-    self.generate_cargo_toml();
+    await [
+        self.generate_cargo_toml(),
+        self.generate_github(),
+    ];
+    pln('done');
 }

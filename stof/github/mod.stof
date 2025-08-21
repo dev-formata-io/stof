@@ -1,0 +1,24 @@
+#[type]
+/**
+ * Workflow.
+ */
+Workflow: {
+    #[schema((target_val: str): bool => target_val.len() > 0)]
+    str! name: '';
+
+    fn file_path() -> str {
+        const name = self.name.lower().replace(' ', '_');
+        `.github/workflows/${name}.yml`
+    }
+
+    #[run]
+    fn create() {
+        // typically ran with this Workflow as the prototype
+        const proto = self.prototype();
+        if (proto) assert(proto.schemafy(self));
+
+        const path = self.file_path();
+        const out = stringify('yaml', self);
+        fs.write(path, out);
+    }
+}
