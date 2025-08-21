@@ -356,8 +356,20 @@ impl Instruction for Base {
                 proc.env.spawn = None;
                 proc.env.pid = pid.clone();
 
+                let mut promise_type = ty.clone();
+                loop {
+                    match promise_type {
+                        Type::Promise(inner) => {
+                            promise_type = *inner;
+                        },
+                        _ => {
+                            break;
+                        }
+                    }
+                }
+
                 env.spawn = Some(Box::new(proc));
-                env.stack.push(Variable::val(Val::Promise(pid, ty.clone())));
+                env.stack.push(Variable::val(Val::Promise(pid, promise_type)));
                 // up to the caller to add the suspend to actually spawn (don't want this ins replaced)
             },
             

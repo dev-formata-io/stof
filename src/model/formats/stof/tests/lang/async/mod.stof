@@ -64,3 +64,20 @@ async fn this_is_async() -> str {
 fn this_is_also_async() -> str {
     return 'async is actually just an attribute';
 }
+
+#[test]
+fn promise_type() {
+    const promise = self.async_with_promise();
+    assert_eq(typeof promise, 'Promise<str>');
+    assert_eq(await promise, 'hello, promises');
+    assert_eq(await 'hello', 'hello'); // await is passthrough if not a promise
+
+    assert_eq(self.takes_promise_param(self.async_with_promise()), 'hello, promises');
+    assert_eq(self.takes_promise_param('hello, values'), 'hello, values');
+}
+async fn async_with_promise() -> Promise<str> {
+    'hello, promises'
+}
+fn takes_promise_param(param: Promise<str>) -> str {
+    await param
+}
