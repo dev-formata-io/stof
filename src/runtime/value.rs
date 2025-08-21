@@ -1915,7 +1915,7 @@ impl Val {
                 *self = other;
                 Ok(())
             },
-            Self::Blob(ref mut blob) => {
+            Self::Blob(blob) => {
                 match other {
                     Self::Blob(mut other) => {
                         blob.append(&mut other);
@@ -1990,7 +1990,7 @@ impl Val {
                     _ => Err(Error::NotImplemented)
                 }
             },
-            Self::List(ref mut vals) => {
+            Self::List(vals) => {
                 match other {
                     Self::List(other) => {
                         vals.append(other);
@@ -2012,7 +2012,7 @@ impl Val {
                     }
                 }
             },
-            Self::Map(ref mut map) => {
+            Self::Map(map) => {
                 match other {
                     Self::Map(other) => {
                         for (k, v) in other {
@@ -2023,7 +2023,7 @@ impl Val {
                     _ => Err(Error::NotImplemented)
                 }
             },
-            Self::Set(ref mut set) => {
+            Self::Set(set) => {
                 match other {
                     Self::Set(other) => {
                         for val in other { set.insert(val); }
@@ -2107,7 +2107,7 @@ impl Val {
                     _ => Err(Error::NotImplemented)
                 }
             },
-            Self::Map(ref mut map) => {
+            Self::Map(map) => {
                 match other {
                     Self::Map(other) => {
                         for (k, _v) in other {
@@ -2118,7 +2118,7 @@ impl Val {
                     _ => Err(Error::NotImplemented)
                 }
             },
-            Self::Set(ref mut set) => {
+            Self::Set(set) => {
                 match other {
                     Self::Set(other) => {
                         for val in other { set.remove(&val); }

@@ -1,0 +1,315 @@
+#[type]
+/**
+ * Cargo validation helpers.
+ */
+CargoValid: {
+    /// Valid cargo editions.
+    editions: set(
+        '2015',
+        '2021',
+        '2024'
+    );
+
+    /// Auto generated header.
+    auto_gen_header: '# AUTO-GENERATED WITH STOF.\n# RUN "stof run project.stof" TO REGENERATE.\n';
+
+    /// String value is non-empty?
+    fn non_empty_str(target_val: str) -> bool {
+        target_val.len() > 0
+    }
+
+    /// List value is non-empty and contains all strings?
+    fn is_str_list(target_val: list) -> bool {
+        target_val.len() > 0 && (typeof target_val.front() == 'str') && target_val.is_uniform()
+    }
+
+    /// Path exists?
+    fn path_exists(target_val: str) -> bool {
+        try assert(fs.read(target_val).len() > 0);
+        catch return false;
+        true
+    }
+}
+
+
+#[type]
+/**
+ * Cargo target.
+ * Could be a [lib], [[bin]], [[example]], [[test]], or [[bench]].
+ */
+Target: {
+    #[schema_optional]
+    #[schema(<CargoValid>.non_empty_str)]
+    /// Name of the target.
+    str name: null;
+
+    #[schema_optional]
+    #[schema(<CargoValid>.path_exists)]
+    /// The source file of the target.
+    str path: null;
+
+    #[schema_optional]
+    /// Is tested by default?
+    bool test: null;
+
+    #[schema_optional]
+    /// Documentation examples are tested by default?
+    bool doctest: null;
+
+    #[schema_optional]
+    /// Is benchmarked by default?
+    bool bench: null;
+
+    #[schema_optional]
+    /// Is documented by default?
+    bool doc: null;
+
+    #[schema_optional]
+    /// Set to true for a proc-marcro library.
+    bool proc-macro: null;
+
+    #[schema_optional]
+    /// Use libtest harness?
+    bool harness: null;
+
+    #[schema_optional]
+    #[schema(<CargoValid>.is_str_list)]
+    /// Crate types to generate.
+    list crate-type: null;
+
+    #[schema_optional]
+    #[schema(<CargoValid>.is_str_list)]
+    /// Features required to build this target (N/A for lib).
+    list required-features: null;
+}
+
+
+#[type]
+/**
+ * Cargo.toml type.
+ * Place each Target directly inside the Cargo definition.
+ */
+Cargo: {
+    #[schema_optional]
+    #[schema(<CargoValid>.is_str_list)]
+    /// Unstable, nightly only features.
+    list cargo-features: null;
+
+    #[schema]
+    /// Defines a Rust package.
+    obj package: {
+        #[schema(<CargoValid>.non_empty_str)]
+        /// Name of the package.
+        str! name: '';
+
+        #[schema((target_val: ver): bool => target_val.major() > 0 || target_val.minor() > 0 || target_val.patch() > 0)]
+        /// The version of the package.
+        ver version: 0.1.0;
+
+        #[schema(<CargoValid>.is_str_list)]
+        /// The authors of the package.
+        list authors: [];
+        
+        #[schema((target_val: str): bool => {
+            super.super.CargoValid.editions.contains(target_val)
+        })]
+        /// The Rust edition (default is 2024).
+        const str edition: '2024';
+
+        #[schema((target_val: ver): bool => target_val == null || target_val.major() > 1)]
+        /// Optional key that tells cargo what version of the Rust toolchain you support.
+        ver rust-version: null;
+
+        #[schema(<CargoValid>.non_empty_str)]
+        /// A description of the package.
+        str description: '';
+
+        #[schema_optional]
+        #[schema(<CargoValid>.non_empty_str)]
+        /// Optional URL of this packages documentation.
+        str documentation: null;
+
+        #[schema_optional]
+        #[schema(<CargoValid>.path_exists)]
+        /// Optional path to the packages readme file.
+        str readme: null;
+
+        #[schema_optional]
+        #[schema(<CargoValid>.non_empty_str)]
+        /// URL of the package homepage.
+        str homepage: null;
+
+        #[schema_optional]
+        #[schema(<CargoValid>.non_empty_str)]
+        /// URL of the package source repository.
+        str repository: null;
+
+        #[schema_optional]
+        #[schema(<CargoValid>.non_empty_str)]
+        /// The package license.
+        str license: null;
+
+        #[schema_optional]
+        #[schema(<CargoValid>.path_exists)]
+        /// Path to the text of the license.
+        str license-file: null;
+
+        #[schema_optional]
+        #[schema(<CargoValid>.is_str_list)]
+        /// Keywords for the package.
+        list keywords: null;
+
+        #[schema_optional]
+        #[schema(<CargoValid>.is_str_list)]
+        /// Categories for the package.
+        list categories: null;
+
+        #[schema_optional]
+        #[schema(<CargoValid>.path_exists)]
+        /// Path to the workspace for the package.
+        str workspace: null;
+
+        #[schema_optional]
+        #[schema(<CargoValid>.path_exists)]
+        /// Path to the package build script.
+        str build: null;
+
+        #[schema_optional]
+        #[schema(<CargoValid>.non_empty_str)]
+        /// Name of the native library the package links with.
+        str links: null;
+
+        #[schema_optional]
+        #[schema(<CargoValid>.is_str_list)]
+        /// Specify which files are excluded when packaging a project to be published.
+        list exclude: null;
+
+        #[schema_optional]
+        #[schema(<CargoValid>.is_str_list)]
+        /// Specify which files are included when packaging a project to be published.
+        list include: null;
+
+        #[schema_optional]
+        /// Control which registries names the package may be published to.
+        /// Or, set this to "false" to explicitely disable publishing.
+        list | bool publish: null;
+        
+        #[schema_optional]
+        /// Ignored by Cargo, but can be used to store package config for other tools.
+        obj metadata: null;
+
+        #[schema_optional]
+        /// Default binary name picked by cargo run.
+        str default-run: null;
+
+        #[schema_optional]
+        /// Cargo should automatically find libraries?
+        bool autolib: null;
+
+        #[schema_optional]
+        /// Cargo should automatically find binaries?
+        bool autobins: null;
+
+        #[schema_optional]
+        /// Cargo should automatically find examples?
+        bool autoexamples: null;
+        
+        #[schema_optional]
+        /// Cargo should automatically detect tests?
+        bool autotests: null;
+        
+        #[schema_optional]
+        /// Cargo should automatically detect benches?
+        bool autobenches: null;
+        
+        #[schema_optional]
+        /// Set the resolver to use.
+        /// Default for edition 2021 is '2'.
+        /// Default for edition 2024 is '3'.
+        str resolver: null;
+    }
+
+    #[type('Dependencies')]
+    /// Cargo project dependencies.
+    /// Each is either a ver, str, or obj field, named according to the dependency name.
+    /// See "https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html" for more details.
+    obj dependencies: {
+        /// Update all dependencies to the max_stable version.
+        async fn update() {
+            const handles = [];
+            for (const field in self.fields()) {
+                handles.push_back(self.insert_max_stable(field[0]));
+            }
+            await handles;
+        }
+
+        /// Insert a dependency (max_stable_version).
+        async fn insert_max_stable(name: str!) -> bool {
+            try {
+                const resp = await Http.fetch(`https://crates.io/api/v1/crates/${name}`, headers = {
+                    'User-Agent': 'Stof cargo template helper (info@stof.dev)'
+                });
+                const object = new {};
+                parse(resp.remove('text'), object, 'json');
+                const max_stable: ver = object.crate.max_stable_version;
+                
+                const existing = self.get(name);
+                if (!existing) {
+                    self.insert(name, max_stable);
+                } else if ('obj' == typeof existing) {
+                    existing.insert('version', max_stable);
+                }
+                
+                drop(object);
+                true
+            } catch {
+                err(`unable to insert max stable Cargo dependency: ${name}`);
+                false
+            }
+        }
+    };
+
+    /// Cargo project features.
+    /// Each is feature is a list of strings, indicating other features to enable.
+    /// See "https://doc.rust-lang.org/cargo/reference/features.html" for more details.
+    obj features: null;
+
+    /// Cargo linting section.
+    /// Used to override the default linting behavior.
+    /// See "https://doc.rust-lang.org/cargo/reference/manifest.html#the-lints-section" for more details.
+    obj lints: null;
+
+    /// Patch can be used to override dependencies with other copies.
+    /// Syntax is similar to the "dependencies" section.
+    /// See "https://doc.rust-lang.org/cargo/reference/overriding-dependencies.html#the-patch-section" for more details.
+    obj patch: null;
+
+    /// Profiles can be defined to set and override compiler settings.
+    /// Cargo has 4 built-in profiles: dev, release, test, and bench.
+    /// See "https://doc.rust-lang.org/cargo/reference/profiles.html" for more details.
+    obj profile: null;
+
+    /// A workspace is a collection of one or more packages, called workspace members, that are managed together.
+    /// See "https://doc.rust-lang.org/cargo/reference/workspaces.html" for more details.
+    obj workspace: null;
+
+    /// Generate TOML file output.
+    fn toml() -> str {
+        stringify('toml', self)
+    }
+
+    #[static]
+    /// Generate a versions entire output.
+    /// Ensures that the cargo configuration is valid.
+    async fn generate(cargo: Cargo!, version: ver!, update: bool = false) -> str {
+        if (update && 'obj' == typeof cargo.dependencies) {
+            const dependencies = cargo.dependencies as Dependencies;
+            await dependencies.update();
+        }
+
+        cargo.package.version = version;
+        assert(self.schemafy(cargo));
+        const header = <CargoValid>.auto_gen_header ?? '';
+        return header + cargo.toml();
+    }
+}

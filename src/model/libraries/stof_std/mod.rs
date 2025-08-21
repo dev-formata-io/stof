@@ -1015,7 +1015,9 @@ impl Instruction for StdIns {
                             Val::Str(key) => {
                                 match value_var.val.read().deref() {
                                     Val::Str(value) => {
-                                        std::env::set_var(key.as_str(), value.as_str());
+                                        unsafe {
+                                            std::env::set_var(key.as_str(), value.as_str());
+                                        }
                                         return Ok(None);
                                     },
                                     _ => {}
@@ -1032,7 +1034,9 @@ impl Instruction for StdIns {
                 if let Some(var) = env.stack.pop() {
                     match var.val.read().deref() {
                         Val::Str(var) => {
-                            std::env::remove_var(var.as_str());
+                            unsafe {
+                                std::env::remove_var(var.as_str());
+                            }
                             return Ok(None);
                         },
                         _ => {}

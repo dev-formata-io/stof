@@ -1,58 +1,105 @@
-[package]
-name = "stof"
-version = "0.8.14"
-edition = "2021"
-authors = ["CJ Cummings <cj@formata.io>"]
-description = "A simple and embeddable data runtime."
-license = "Apache-2.0"
-repository = "https://github.com/dev-formata-io/stof"
-homepage = "https://docs.stof.dev"
-keywords = ["stof", "language", "embedded", "interpreter", "document"]
-categories = ["compilers", "data-structures", "development-tools"]
-
-[lib]
-crate-type = ["cdylib", "lib"]
-
-[features]
-default = ["basic"]
-basic = ["stof_std", "system", "pkg"]
-full = ["stof_std", "system", "pkg", "image", "docx", "pdf", "http"]
-
-stof_std = []
-system = []
-pkg = ["dep:zip", "dep:regex", "dep:walkdir"]
-image = ["dep:image"]
-docx = ["dep:docx-rs"]
-pdf = ["dep:lopdf", "image"]
-http = ["dep:reqwest", "dep:tokio"]
-
+# AUTO-GENERATED WITH STOF.
+# RUN "stof run project.stof" TO REGENERATE.
 [dependencies]
 anyhow = "1.0.94"
 base64 = "0.22.1"
 bincode = "1.3.3"
-bytes = { version = "1.10.1", features = ["serde"] }
-colored = "2.1.0"
-docx-rs = { version = "0.4.17", optional = true }
-getrandom = { version = "0.2.15", features = ["js"] }
-image = { version = "0.25.6", features = ["serde"], optional = true }
-lazy_static = "1.5.0"
-markdown = { version = "1.0.0", features = ["serde"] }
-nanoid = "0.4.0"
-lopdf = { version = "0.36.0", features = ["serde"], optional = true }
-regex = { version = "1.11.1", optional = true }
-serde = { version = "1.0.215", features = ["derive", "rc"] }
-serde_json = { version = "1.0.14" }
-serde_yaml = { version = "0.9.34" }
-toml = { version = "0.8.19" }
-typetag = "0.2.20"
-urlencoding = { version = "2.1.3" }
-walkdir = { version = "2.5.0", optional = true }
-zip = { version = "3.0.0", optional = true }
 chrono = "0.4.41"
-tokio = { version = "1.45.0", features = ["full"], optional = true }
-reqwest = { version = "0.12.15", optional = true }
-rustc-hash = "2.1.1"
-imbl = { version = "5.0.0", features = ["serde", "triomphe"] }
-arcstr = { version = "1.2.0", features = ["serde"] }
+colored = "2.1.0"
+lazy_static = "1.5.0"
+nanoid = "0.4.0"
 nom = "8.0.0"
-parking_lot = { version = "0.12.4", features = ["serde"] }
+rustc-hash = "2.1.1"
+serde_json = "1.0.14"
+serde_yaml = "0.9.34"
+toml = "0.8.19"
+typetag = "0.2.20"
+urlencoding = "2.1.3"
+
+[dependencies.arcstr]
+features = ["serde"]
+version = "1.2.0"
+
+[dependencies.bytes]
+features = ["serde"]
+version = "1.10.1"
+
+[dependencies.docx-rs]
+optional = true
+version = "0.4.18"
+
+[dependencies.image]
+features = ["serde"]
+optional = true
+version = "0.25.6"
+
+[dependencies.imbl]
+features = ["serde", "triomphe"]
+version = "6.0.0"
+
+[dependencies.lopdf]
+features = ["serde"]
+optional = true
+version = "0.37.0"
+
+[dependencies.markdown]
+features = ["serde"]
+version = "1.0.0"
+
+[dependencies.parking_lot]
+features = ["serde"]
+version = "0.12.4"
+
+[dependencies.regex]
+optional = true
+version = "1.11.1"
+
+[dependencies.reqwest]
+optional = true
+version = "0.12.23"
+
+[dependencies.serde]
+features = ["derive", "rc"]
+version = "1.0.219"
+
+[dependencies.tokio]
+features = ["full"]
+optional = true
+version = "1.47.1"
+
+[dependencies.walkdir]
+optional = true
+version = "2.5.0"
+
+[dependencies.zip]
+optional = true
+version = "4.3.0"
+
+[features]
+basic = ["stof_std", "system", "pkg"]
+default = ["basic"]
+docx = ["dep:docx-rs"]
+full = ["stof_std", "system", "pkg", "image", "docx", "pdf", "http"]
+http = ["dep:reqwest", "dep:tokio"]
+image = ["dep:image"]
+pdf = ["dep:lopdf", "image"]
+pkg = ["dep:zip", "dep:regex", "dep:walkdir"]
+stof_std = []
+system = []
+
+[lib]
+bench = false
+crate-type = ["cdylib", "lib"]
+doctest = false
+
+[package]
+authors = ["CJ Cummings <cj@formata.io>"]
+categories = ["compilers", "data-structures", "development-tools"]
+description = "A simple and embeddable data runtime."
+edition = "2024"
+homepage = "https://docs.stof.dev"
+keywords = ["stof", "language", "embedded", "interpreter", "document"]
+license = "Apache-2.0"
+name = "stof"
+repository = "https://github.com/dev-formata-io/stof"
+version = "0.8.14"
