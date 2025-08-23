@@ -124,14 +124,13 @@ lazy_static! {
     pub(self) static ref NANO_ID: Arc<dyn Instruction> = Arc::new(StdIns::NanoId);
     pub(self) static ref GRAPH_ID: Arc<dyn Instruction> = Arc::new(StdIns::GraphId);
     pub(self) static ref CALLSTACK: Arc<dyn Instruction> = Arc::new(StdIns::Callstack);
+}
 
-    #[cfg(feature = "system")]
+#[cfg(feature = "system")]
+lazy_static! {
     pub(self) static ref ENV: Arc<dyn Instruction> = Arc::new(StdIns::Env);
-    #[cfg(feature = "system")]
     pub(self) static ref SET_ENV: Arc<dyn Instruction> = Arc::new(StdIns::SetEnv);
-    #[cfg(feature = "system")]
     pub(self) static ref REMOVE_ENV: Arc<dyn Instruction> = Arc::new(StdIns::RemoveEnv);
-    #[cfg(feature = "system")]
     pub(self) static ref ENV_MAP: Arc<dyn Instruction> = Arc::new(StdIns::EnvMap);
 }
 

@@ -47,6 +47,10 @@ Cargo cargo: {
         docx: ['dep:docx-rs']
         pdf: ['dep:lopdf', 'image']
         http: ['dep:reqwest', 'dep:tokio']
+
+        /// wasm/js version of the runtime
+        /// should be the only feature enabled when building for the wasm target
+        js: ['stof_std', 'dep:js-sys', 'dep:wasm-bindgen', 'dep:serde-wasm-bindgen', 'dep:getrandom']
     }
 
     dependencies: {
@@ -122,6 +126,27 @@ Cargo cargo: {
         parking_lot: {
             version: 0.12.4
             features: ['serde']
+        }
+
+        /*****************************************************************************
+         * JS features.
+         *****************************************************************************/
+        wasm-bindgen: {
+            version: 0.2.100
+            optional: true
+        }
+        serde-wasm-bindgen: {
+            version: 0.6.5
+            optional: true
+        }
+        js-sys: {
+            version: 0.3.77
+            optional: true
+        }
+        getrandom: {
+            version: 0.2.15
+            optional: true
+            features: ['js']
         }
     }
 }

@@ -16,14 +16,9 @@
 
 
 use std::{fs, ops::Deref, sync::Arc};
-use arcstr::{literal, ArcStr};
 use imbl::vector;
 use serde::{Deserialize, Serialize};
-use crate::{model::{Graph, LibFunc, Param}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Type, Val, Variable}};
-
-
-/// FS library name.
-pub const FS_LIB: ArcStr = literal!("fs");
+use crate::{model::{Graph, LibFunc, Param, FS_LIB}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Type, Val, Variable}};
 
 
 /// Add fs library to a graph.

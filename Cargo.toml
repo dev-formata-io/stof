@@ -28,6 +28,11 @@ version = "1.10.1"
 optional = true
 version = "0.4.18"
 
+[dependencies.getrandom]
+features = ["js"]
+optional = true
+version = "0.2.15"
+
 [dependencies.image]
 features = ["serde"]
 optional = true
@@ -36,6 +41,10 @@ version = "0.25.6"
 [dependencies.imbl]
 features = ["serde", "triomphe"]
 version = "6.0.0"
+
+[dependencies.js-sys]
+optional = true
+version = "0.3.77"
 
 [dependencies.lopdf]
 features = ["serde"]
@@ -62,6 +71,10 @@ version = "0.12.23"
 features = ["derive", "rc"]
 version = "1.0.219"
 
+[dependencies.serde-wasm-bindgen]
+optional = true
+version = "0.6.5"
+
 [dependencies.tokio]
 features = ["full"]
 optional = true
@@ -70,6 +83,10 @@ version = "1.47.1"
 [dependencies.walkdir]
 optional = true
 version = "2.5.0"
+
+[dependencies.wasm-bindgen]
+optional = true
+version = "0.2.100"
 
 [dependencies.zip]
 optional = true
@@ -82,6 +99,7 @@ docx = ["dep:docx-rs"]
 full = ["stof_std", "system", "pkg", "image", "docx", "pdf", "http"]
 http = ["dep:reqwest", "dep:tokio"]
 image = ["dep:image"]
+js = ["stof_std", "dep:js-sys", "dep:wasm-bindgen", "dep:serde-wasm-bindgen", "dep:getrandom"]
 pdf = ["dep:lopdf", "image"]
 pkg = ["dep:zip", "dep:regex", "dep:walkdir"]
 stof_std = []

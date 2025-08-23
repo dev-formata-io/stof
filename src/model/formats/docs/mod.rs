@@ -16,7 +16,7 @@
 
 use std::{fs, path::PathBuf};
 use imbl::OrdMap;
-use crate::{model::{filesys::FS_LIB, Field, FieldDoc, Format, Func, FuncDoc, Graph, InnerDoc, LibFunc, NodeRef}, runtime::{Error, Val}};
+use crate::{model::{FS_LIB, Field, FieldDoc, Format, Func, FuncDoc, Graph, InnerDoc, LibFunc, NodeRef}, runtime::{Error, Val}};
 pub mod libs;
 
 

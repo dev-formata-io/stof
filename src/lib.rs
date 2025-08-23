@@ -18,3 +18,6 @@
 pub mod model;
 pub mod runtime;
 pub mod parser;
+
+#[cfg(feature = "js")]
+pub mod js;

@@ -15,12 +15,16 @@
 //
 
 use std::{fmt::{Debug, Display}, sync::Arc};
-use arcstr::ArcStr;
+use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use crate::{model::{Graph, Param}, runtime::{instruction::Instructions, proc::ProcEnv, Error, Type}};
 
 #[cfg(feature = "system")]
 pub mod filesys;
+
+/// FS library name.
+pub const FS_LIB: ArcStr = literal!("fs");
+
 #[cfg(feature = "system")]
 pub mod time;
 
