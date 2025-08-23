@@ -255,9 +255,15 @@ Cargo: {
                 
                 const existing = self.get(name);
                 if (!existing) {
+                    pln(`Created ${name} and set version to ${max_stable}`);
                     self.insert(name, max_stable);
                 } else if ('obj' == typeof existing) {
-                    existing.insert('version', max_stable);
+                    if (existing.version != max_stable) {
+                        pln(`Updated ${name} version to ${max_stable}`);
+                        existing.insert('version', max_stable);
+                    }
+                } else if (existing != max_stable) {
+                    pln(`Set ${name} version to ${max_stable}`);
                 }
                 
                 drop(object);

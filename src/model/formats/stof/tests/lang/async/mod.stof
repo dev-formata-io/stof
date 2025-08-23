@@ -81,3 +81,16 @@ async fn async_with_promise() -> Promise<str> {
 fn takes_promise_param(param: Promise<str>) -> str {
     await param
 }
+
+#[test]
+fn cast_promises() {
+    let promise = (async { return '100'; }) as Promise<str>;
+    assert_eq(typeof promise, 'Promise<str>');
+    
+    promise = promise as int;
+    assert_eq(typeof promise, 'Promise<int>');
+
+    const res = await promise;
+    assert_eq(typeof res, 'int');
+    assert_eq(res, 100);
+}
