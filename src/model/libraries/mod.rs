@@ -80,7 +80,7 @@ pub struct LibFunc {
 
     /// fn(arg_count, env, graph) -> Instructions
     /// What instructions will this library function execute?
-    pub func: Arc<dyn Fn(bool, usize, &mut ProcEnv, &mut Graph)->Result<Instructions, Error>>
+    pub func: Arc<dyn Fn(bool, usize, &mut ProcEnv, &mut Graph)->Result<Instructions, Error> + Send + Sync + 'static>
 }
 impl Display for LibFunc {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

@@ -120,4 +120,4 @@ keywords = ["stof", "language", "embedded", "interpreter", "document"]
 license = "Apache-2.0"
 name = "stof"
 repository = "https://github.com/dev-formata-io/stof"
-version = "0.8.16"
+version = "0.8.17"
