@@ -81,3 +81,44 @@ fn for_in_ref() {
     }
     assert_eq(list, [3, 4, 5, 6, 7, 8]);
 }
+
+
+#[type]
+Container: {
+    str text: ''
+    list subs: []
+
+    fn out() -> str {
+        const text = self.text;
+        for (const sub: Container in self.subs) {
+            text.push(sub.out());
+        }
+        text
+    }
+}
+
+#[type]
+#[extends(self.Container)]
+ListContainer: {
+    fn out() -> str {
+        const text = self.text;
+        for (const sub: Container in self.subs) {
+            const i: str = index + 1;
+            text.push(`${i}. ${sub.out()}\n`);
+        }
+        text
+    }
+}
+
+#[test]
+fn list_of_outputs() {
+    const container = new ListContainer {
+        text: 'Title\n',
+        subs: [
+            new Container { text: 'First' },
+            new Container { text: 'Second' },
+            new Container { text: 'Third' },
+        ]
+    };
+    assert_eq(container.out(), "Title\n1. First\n2. Second\n3. Third\n");
+}

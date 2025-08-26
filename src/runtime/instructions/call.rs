@@ -145,7 +145,13 @@ impl FuncCall {
         if let Some(obj) = context.read().try_obj() {
             // self.path.function();
             // super.path.function();
-            if let Ok(res) = self.object_search(&context_path, Some(obj), env, graph, false) {
+            if let Ok(mut res) = self.object_search(&context_path, Some(obj), env, graph, false) {
+                if res.prototype_self.is_some() {
+                    if let Some(first) = var_first {
+                        // If the variable came from the symbol table, make sure to go grab the updated version each time
+                        res.prototype_self = Some(Arc::new(Base::LoadVariable(first.into(), false, true)));
+                    }
+                }
                 return Ok(res);
             }
         }
@@ -235,7 +241,7 @@ impl FuncCall {
                     if let Ok(mut res) = self.object_search(func_name, Some(prototype), env, graph, true) {
                         if !in_proto {
                             // add this node to the self stack and mark as a prototype
-                            res.prototype_self = Some(node);
+                            res.prototype_self = Some(Arc::new(Base::Literal(Val::Obj(node))));
                         }
                         return Ok(res);
                     }
@@ -429,7 +435,7 @@ impl FuncCall {
 #[derive(Debug)]
 pub(self) struct CallContext {
     pub lib: Option<ArcStr>,
-    pub prototype_self: Option<NodeRef>,
+    pub prototype_self: Option<Arc<dyn Instruction>>,
     pub func: SId,
     pub stack_arg: Option<Arc<dyn Instruction>>,
 }
@@ -547,7 +553,7 @@ impl Instruction for FuncCall {
         // Add self to self stack if not a prototype function
         let mut pushed_self = false;
         if let Some(proto_self) = func_context.prototype_self {
-            instructions.push(Arc::new(Base::Literal(Val::Obj(proto_self))));
+            instructions.push(proto_self);
             instructions.push(PUSH_SELF.clone());
             pushed_self = true;
         } else if let Some(oself) = &self.oself {

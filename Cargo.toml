@@ -1,18 +1,18 @@
 # AUTO-GENERATED WITH STOF.
 # RUN "stof run project.stof" TO REGENERATE.
 [dependencies]
-anyhow = "1.0.94"
+anyhow = "1.0.99"
 base64 = "0.22.1"
 bincode = "1.3.3"
 chrono = "0.4.41"
-colored = "2.1.0"
+colored = "3.0.0"
 lazy_static = "1.5.0"
 nanoid = "0.4.0"
 nom = "8.0.0"
 rustc-hash = "2.1.1"
-serde_json = "1.0.14"
+serde_json = "1.0.143"
 serde_yaml = "0.9.34"
-toml = "0.8.19"
+toml = "0.9.5"
 typetag = "0.2.20"
 urlencoding = "2.1.3"
 
@@ -61,7 +61,7 @@ version = "0.12.4"
 
 [dependencies.regex]
 optional = true
-version = "1.11.1"
+version = "1.11.2"
 
 [dependencies.reqwest]
 optional = true
@@ -90,7 +90,7 @@ version = "0.2.100"
 
 [dependencies.zip]
 optional = true
-version = "4.3.0"
+version = "4.5.0"
 
 [features]
 basic = ["stof_std", "system", "pkg"]
@@ -120,4 +120,4 @@ keywords = ["stof", "language", "embedded", "interpreter", "document"]
 license = "Apache-2.0"
 name = "stof"
 repository = "https://github.com/dev-formata-io/stof"
-version = "0.8.17"
+version = "0.8.18"
