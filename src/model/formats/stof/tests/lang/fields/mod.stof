@@ -121,3 +121,18 @@ FieldTypes: {
         assert_eq(self.tup_field, ('yo', 0.3.3));
     }
 }
+
+
+ParseFieldBeforeComment: {
+    field: 'hello'
+
+    /// This is a comment that would have killed the expr.
+    fn my_func() {}
+
+    another: 42
+
+    /**
+     * This is a block comment, also failed before without a ';'.
+     */
+    fn another_func() {}
+}

@@ -15,7 +15,7 @@
 //
 
 use std::sync::Arc;
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::map, multi::many0, sequence::preceded, IResult, Parser};
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, space0}, combinator::map, multi::many0, sequence::preceded, IResult, Parser};
 use crate::{parser::{doc::StofParseError, expr::{await_expr, block_expr, fmt_str::formatted_string_expr, graph::graph_expr, list_expr, literal::literal_expr, map_expr, not_expr, set_expr, switch_expr, tup_expr, typename_expr, typeof_expr, wrapped_expr}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{ops::{Op, OpIns}, Base, NOOP}, Num, Val}};
 
 
@@ -157,14 +157,14 @@ pub(self) fn bitwise(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofPar
 
 /// Primary element in a math expr.
 fn primary(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
-    let (input, _) = multispace0(input)?;
+    let (input, _) = space0(input)?;
     let (input, ins) = alt((
         atom,
         map(preceded(char('-'), atom), |ins| {
             Arc::new(OpIns { lhs: Arc::new(Base::Literal(Val::Num(Num::Int(-1)))), op: Op::Mul, rhs: ins }) as Arc<dyn Instruction>
         })
     )).parse(input)?;
-    let (input, _) = multispace0(input)?;
+    let (input, _) = space0(input)?;
     Ok((input, ins))
 }
 
