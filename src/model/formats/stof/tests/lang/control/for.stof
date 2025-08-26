@@ -95,6 +95,10 @@ Container: {
         }
         text
     }
+
+    fn push(cont: Container) {
+        self.subs.push_back(cont);
+    }
 }
 
 #[type]
@@ -112,13 +116,13 @@ ListContainer: {
 
 #[test]
 fn list_of_outputs() {
-    const container = new ListContainer {
+    const cont = new ListContainer {
         text: 'Title\n',
         subs: [
             new Container { text: 'First' },
             new Container { text: 'Second' },
-            new Container { text: 'Third' },
         ]
     };
-    assert_eq(container.out(), "Title\n1. First\n2. Second\n3. Third\n");
+    cont.push(new Container { text: 'Third' });
+    assert_eq(cont.out(), "Title\n1. First\n2. Second\n3. Third\n");
 }

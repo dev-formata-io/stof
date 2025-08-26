@@ -488,6 +488,12 @@ impl Instruction for FuncCall {
         instructions.push(PUSH_CALL.clone());
         instructions.push(PUSH_RETURN.clone());
         instructions.push(PUSH_SYMBOL_SCOPE.clone());
+
+        // Proto self instruction needs to come before args, because of a potential collision in names
+        // From bug, where cont.push(cont: Container) caused an issue (test: root.Lang.Control.For.list_of_outputs).
+        if let Some(proto_self) = &func_context.prototype_self {
+            instructions.push(proto_self.clone());
+        }
         
         // Arguments
         let mut named_args = Vec::new();
@@ -552,8 +558,8 @@ impl Instruction for FuncCall {
 
         // Add self to self stack if not a prototype function
         let mut pushed_self = false;
-        if let Some(proto_self) = func_context.prototype_self {
-            instructions.push(proto_self);
+        if let Some(_proto_self) = &func_context.prototype_self {
+            //instructions.push(proto_self); // happens before the arg instructions
             instructions.push(PUSH_SELF.clone());
             pushed_self = true;
         } else if let Some(oself) = &self.oself {
