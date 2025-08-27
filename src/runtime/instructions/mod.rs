@@ -490,16 +490,25 @@ impl Instruction for Base {
                 } else if split_path[0] == SUPER_STR_KEYWORD.as_str() {
                     // Super case
                     context = Variable::val(Val::Obj(env.self_ptr()));
-                } else if split_path[0].starts_with('<') {
-                    // "static" function case
-                    let typename = split_path[0].trim_start_matches('<').trim_end_matches('>');
-                    let mut obj_type = Type::Obj(typename.into());
+                } else if split_path[0].starts_with('<') && name.contains('>') {
+                    // "static" syntax case Ex. <Location.MyType>.field
+                    let end_index = name.find('>').unwrap();
+                    let (mut first, mut last) = name.split_at(end_index);
+                    first = first.trim_start_matches('<');
+                    last = last.trim_start_matches('>').trim_start_matches('.');
+                    
+                    if last.len() > 0 {
+                        split_path = last.split('.').collect::<Vec<_>>();
+                    } else {
+                        split_path = vec![];
+                    }
+
+                    let mut obj_type = Type::Obj(first.into());
                     obj_type.obj_to_proto(graph, Some(env.self_ptr()));
                     match obj_type {
                         Type::Obj(proto_id) => {
                             if proto_id.node_exists(&graph) {
                                 context = Variable::val(Val::Obj(proto_id));
-                                split_path.remove(0);
                             } else {
                                 env.stack.push(Variable::val(Val::Null));
                                 return Ok(None);

@@ -205,7 +205,7 @@ github: {
 /// Generate Cargo.toml file.
 /// `stof run project.stof -a cargo`
 async fn generate_cargo_toml() {
-    const out = await Rust.Cargo.generate(self.cargo, 0.8.20, update = false);
+    const out = await Rust.Cargo.generate(self.cargo, 0.8.21, update = false);
     fs.write('Cargo.toml', out);
     pln('Cargo .. ok');
 }

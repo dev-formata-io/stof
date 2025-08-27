@@ -102,6 +102,15 @@ Geometry: {
     }
 
     #[test]
+    fn static_load_vars() {
+        const z = <Geometry.Point>.z;
+        assert_eq(z, 0);
+        assert_eq(<Lang.Objects.Types.Geometry.Point>, self.Point);
+        assert_eq(<Point>, self.Point);
+        assert_eq(<Point2D>, self.Point2D);
+    }
+
+    #[test]
     fn dropped() {
         const parent = new {};
         const point = new Point { x: -3.14, y: -44.4, z: 21.5 } on parent;
