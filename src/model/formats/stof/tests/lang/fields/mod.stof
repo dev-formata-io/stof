@@ -136,3 +136,16 @@ ParseFieldBeforeComment: {
      */
     fn another_func() {}
 }
+
+
+#[type]
+AbsolutePathModify: {
+    field: []
+
+    #[test]
+    fn push_list_back() {
+        root.Lang.Fields.AbsolutePathModify.field.push_back('hello');
+        <Fields.AbsolutePathModify>.field.push_back('bob');
+        assert_eq(self.field, ['hello', 'bob']);
+    }
+}

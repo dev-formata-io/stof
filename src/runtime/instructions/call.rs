@@ -134,9 +134,27 @@ impl FuncCall {
             if let Ok(res) = self.object_search(path, None, env, graph, false) {
                 return Ok(res);
             }
-            // Only a valid libcall if the length is 2
+
+            // Only a valid libcall if the length is 2 and a library function exists
             if split_path.len() == 2 {
-                return Ok(CallContext { lib: Some(split_path[0].to_string().into()), stack_arg: None, prototype_self: None, func: SId::from(split_path[1]) });
+                let libname = ArcStr::from(split_path[0]);
+                if graph.libfunc(&libname, split_path[1]).is_some() {
+                    return Ok(CallContext { lib: Some(libname), stack_arg: None, prototype_self: None, func: SId::from(split_path[1]) });
+                }
+            }
+
+            // Now we are looking for a path + implied library function
+            if split_path.len() > 1 {
+                let func_name = split_path.pop().unwrap();
+                let path = split_path.join(".");
+
+                // using Base.LoadVariable as a meta instruction for accuracy
+                // var will be loaded onto the env.stack!
+                Base::LoadVariable(path.into(), false, false).exec(env, graph)?;
+                let var = env.stack.pop().unwrap(); // yup, cool
+
+                let libname = var.lib_name(&graph);
+                return Ok(CallContext { lib: Some(libname), stack_arg: Some(Arc::new(Base::Variable(var))), prototype_self: None, func: SId::from(func_name) });
             }
             return Err(Error::FuncDne);
         }
