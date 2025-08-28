@@ -135,6 +135,11 @@ ParseFieldBeforeComment: {
      * This is a block comment, also failed before without a ';'.
      */
     fn another_func() {}
+
+    first: 1.2.3
+
+    /// Comment after semver on a field
+    second: 'hi'
 }
 
 

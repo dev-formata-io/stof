@@ -15,7 +15,7 @@
 //
 
 use arcstr::ArcStr;
-use nom::{branch::alt, bytes::complete::take_while, character::complete::{char, digit1, multispace0}, combinator::{all_consuming, map_res, map}, sequence::{delimited, preceded}, AsChar, IResult, Parser};
+use nom::{branch::alt, bytes::complete::take_while, character::complete::{char, digit1, space0}, combinator::{all_consuming, map_res, map}, sequence::{delimited, preceded}, AsChar, IResult, Parser};
 use crate::{parser::doc::StofParseError, runtime::Val};
 
 
@@ -37,7 +37,7 @@ fn semver_complete(input: &str) -> IResult<&str, Val, StofParseError> {
 /// Parse a Semantic Version value.
 pub fn parse_semver(input: &str) -> IResult<&str, Val, StofParseError> {
     delimited(
-        multispace0,
+        space0,
     alt(
             (
                 parse_semver_full,
@@ -46,7 +46,7 @@ pub fn parse_semver(input: &str) -> IResult<&str, Val, StofParseError> {
                 parse_semver_basic
             )
         ),
-        multispace0
+        space0
     ).parse(input)
 }
 pub fn parse_semver_basic(input: &str) -> IResult<&str, Val, StofParseError> {
