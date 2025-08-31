@@ -38,6 +38,10 @@ pub struct FuncCall {
 
     /// Is this function call by reference?
     pub as_ref: bool,
+
+    /// To null (null check)?
+    /// Means instead of a FuncDne, you'll get a null value.
+    pub cnull: bool,
     
     /// Single instruction for each argument (think of it like an expr)!
     pub args: Vector<Arc<dyn Instruction>>,
@@ -53,7 +57,9 @@ impl FuncCall {
             return Ok(CallContext { lib: None, stack_arg: None, prototype_self: None, func: dref.clone() });
         }
         if let Some(search) = &self.search {
-            return self.search_func(&search, env, graph);
+            // remove all '?', because they may be present in the path (Ex. hello?.hi()).
+            let path = search.replace('?', "");
+            return self.search_func(&path, env, graph);
         }
         Err(Error::FuncDne)
     }
@@ -462,13 +468,29 @@ pub(self) struct CallContext {
 #[typetag::serde(name = "FuncCall")]
 impl Instruction for FuncCall {
     fn exec(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions>, Error> {
-        let func_context = self.get_func_context(env, graph)?;
+        let func_context;
+        match self.get_func_context(env, graph) {
+            Ok(ctx) => func_context = ctx,
+            Err(err) => {
+                if self.cnull {
+                    let mut instructions = Instructions::default();
+                    instructions.push(Arc::new(Base::Literal(Val::Null)));
+                    return Ok(Some(instructions));
+                }
+                return Err(err);
+            }
+        }
         
         // If this is a library function context, then make that call instead
         if let Some(libname) = func_context.lib {
             let name = func_context.func.as_ref();
             if let Some(func) = graph.libfunc(&libname, name) {
                 return self.call_libfunc(func, func_context.stack_arg, env, graph);
+            }
+            if self.cnull {
+                let mut instructions = Instructions::default();
+                instructions.push(Arc::new(Base::Literal(Val::Null)));
+                return Ok(Some(instructions));
             }
             return Err(Error::FuncDne);
         }
@@ -490,6 +512,11 @@ impl Instruction for FuncCall {
             // Should this function add itself to the self stack?
             unself = func.attributes.contains_key(UNSELF_FUNC_ATTR.as_str());
         } else {
+            if self.cnull {
+                let mut instructions = Instructions::default();
+                instructions.push(Arc::new(Base::Literal(Val::Null)));
+                return Ok(Some(instructions));
+            }
             return Err(Error::FuncDne);
         }
 

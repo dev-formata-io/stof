@@ -319,6 +319,7 @@ impl<'ctx> Drop for ParseContext<'ctx> {
             for init in self.init_funcs.clone() {
                 let ins: Arc<dyn Instruction> = Arc::new(FuncCall {
                     as_ref: false,
+                    cnull: false,
                     stack: false,
                     func: Some(init),
                     search: None,

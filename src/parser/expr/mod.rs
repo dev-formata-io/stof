@@ -313,6 +313,7 @@ pub fn wrapped_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofPars
             block.ins.push_back(ins);
             block.ins.push_back(Arc::new(FuncCall {
                 as_ref: false,
+                cnull: false,
                 func: None,
                 search: Some(literal!("")),
                 stack: true,

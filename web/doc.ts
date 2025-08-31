@@ -55,4 +55,12 @@ export class Doc {
         await Doc.initialize();
         return new Doc(new Stof());
     }
+
+
+    /**
+     * Parse Stof source.
+     */
+    parse(stof: string, node: string | null = null): boolean {
+        return this.stof.parse(stof, node);
+    }
 }

@@ -634,6 +634,7 @@ impl Instruction for Base {
                                 search: Some(name.as_ref().into()),
                                 stack: true,
                                 as_ref: false,
+                                cnull: false,
                                 args: vector![], // no args for a constructor,
                                 oself: None,
                             }));

@@ -167,6 +167,7 @@ pub fn validation(graph: &mut Graph, schema: &NodeRef, target: &NodeRef, field: 
                         search: None,
                         stack: false,
                         as_ref: false,
+                        cnull: false,
                         args,
                         oself: None,
                     }) as Arc<dyn Instruction>

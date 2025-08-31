@@ -60,3 +60,43 @@ fn nested_ternary() {
     let x = 0 ? 30 : true as int ? null ?? 76 : 'man';
     assert_eq(x, 76);
 }
+
+#[test]
+fn null_check_field_expr() {
+    const field = self?.field?.another?.other;
+    assert_eq(field, null);
+}
+
+#[test]
+fn null_check_func() {
+    const result = ?self.func_dne();
+    assert_eq(result, null);
+}
+
+subobj: {
+    fn hello() -> str { 'hi' }
+}
+
+#[test]
+fn null_check_sub_success() {
+    let result = ?self.subobj.hello();
+    assert_eq(result, 'hi');
+
+    result = ?self?.subobj?.hello();
+    assert_eq(result, 'hi');
+
+    result = ?self.subobjdne.hello();
+    assert_eq(result, null);
+
+    result = ?self.subobj.hellooo();
+    assert_eq(result, null);
+
+    result = ?&self.subobj.hellooo(); // for ref syntax, ? goes first
+    assert_eq(result, null);
+}
+
+#[test]
+#[errors]
+fn null_check_sub_errors() {
+    let result = self.subobj.hellooo();
+}

@@ -17,8 +17,8 @@
 import { Doc } from '../doc.ts';
 
 const doc = await Doc.new();
-doc.stof.parse(`
-    value: 42;
+doc.parse(`
+    value: 42
 
     async fn another_process() -> int {
         self.value
@@ -27,7 +27,7 @@ doc.stof.parse(`
     fn meaning() -> int {
         await self.another_process()
     }
-`, null);
+`);
 
 const res = doc.stof.call('root.meaning', undefined);
 console.log(res);

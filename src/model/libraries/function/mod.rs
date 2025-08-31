@@ -220,6 +220,7 @@ impl Instruction for FuncIns {
                         let mut instructions = Instructions::default();
                         instructions.push(Arc::new(FuncCall {
                             as_ref: false,
+                            cnull: false,
                             func: Some(dref),
                             search: None,
                             stack: false,
@@ -263,6 +264,7 @@ impl Instruction for FuncIns {
                         let mut instructions = Instructions::default();
                         instructions.push(Arc::new(FuncCall {
                             as_ref: false,
+                            cnull: false,
                             func: Some(dref),
                             search: None,
                             stack: false,

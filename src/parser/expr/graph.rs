@@ -15,7 +15,7 @@
 //
 
 use std::sync::Arc;
-use nom::{branch::alt, character::complete::{char, multispace0}, combinator::{opt, recognize}, multi::{many0, separated_list0, separated_list1}, sequence::{delimited, preceded}, IResult, Parser};
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, recognize}, multi::{many0, separated_list0, separated_list1}, sequence::{delimited, preceded}, IResult, Parser};
 use crate::{model::SId, parser::{doc::StofParseError, expr::expr, ident::ident, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, call::{FuncCall, NamedArg}, Base}}};
 
 
@@ -27,25 +27,44 @@ use crate::{model::SId, parser::{doc::StofParseError, expr::expr, ident::ident, 
 pub fn graph_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = whitespace(input)?;
 
+    // Is this a null checked expression?
+    let (input, null_check) = opt(char('?')).parse(input)?;
+
     // Is this a reference?
     let (input, as_ref) = opt(char('&')).parse(input)?;
 
     // Get a variable or function call onto the stack, then optionally chain on more!
-    let (mut input, first) = var_func(input, false, as_ref.is_some())?;
+    let (mut input, first) = var_func(input, false, as_ref.is_some(), null_check.is_some())?;
 
     // Get the rest if any more!
     let rest;
     let additional;
-    if as_ref.is_some() {
-        (rest, additional) = many0(alt((
-            preceded(char('.'), ref_chained_var_func),
-            ref_chained_var_func
-        ))).parse(input)?;
+    if null_check.is_some() {
+        if as_ref.is_some() {
+            (rest, additional) = many0(alt((
+                preceded(alt((tag("."), tag("?."))), null_ref_chained_var_func),
+                null_ref_chained_var_func
+            ))).parse(input)?;
+        } else {
+            (rest, additional) = many0(alt((
+                preceded(alt((tag("."), tag("?."))), null_chained_var_func),
+                null_chained_var_func
+            ))).parse(input)?;
+        }
     } else {
-        (rest, additional) = many0(alt((
-            preceded(char('.'), chained_var_func),
-            chained_var_func
-        ))).parse(input)?;
+        if as_ref.is_some() {
+            (rest, additional) = many0(alt((
+                preceded(tag("?."), null_ref_chained_var_func),
+                preceded(char('.'), ref_chained_var_func),
+                ref_chained_var_func
+            ))).parse(input)?;
+        } else {
+            (rest, additional) = many0(alt((
+                preceded(tag("?."), null_chained_var_func),
+                preceded(char('.'), chained_var_func),
+                chained_var_func
+            ))).parse(input)?;
+        }
     }
     input = rest;
 
@@ -61,19 +80,24 @@ pub fn graph_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseE
     Ok((input, Arc::new(block)))
 }
 pub fn chained_var_func(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
-    // TODO add null check operator instruction "?."... will be an additional [dup, if [nullcheck, jump], ..var_func.., jumptag] sequence
-    var_func(input, true, false)
+    var_func(input, true, false, false)
+}
+fn null_chained_var_func(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
+    var_func(input, true, false, true)
 }
 fn ref_chained_var_func(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
-    // TODO add null check operator instruction "?."... will be an additional [dup, if [nullcheck, jump], ..var_func.., jumptag] sequence
-    var_func(input, true, true)
+    var_func(input, true, true, false)
 }
-pub(self) fn var_func(input: &str, chained: bool, as_ref: bool) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
+fn null_ref_chained_var_func(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
+    var_func(input, true, true, true)
+}
+pub(self) fn var_func(input: &str, chained: bool, as_ref: bool, check_null: bool) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     // Special case of [idx][idx][idx] chaining
     if chained && input.starts_with('[') {
         let (input, idx) = index_expr(input)?;
         return Ok((input, Arc::new(FuncCall {
             as_ref,
+            cnull: check_null,
             stack: chained,
             func: None,
             search: Some("at".into()),
@@ -103,6 +127,7 @@ pub(self) fn var_func(input: &str, chained: bool, as_ref: bool) -> IResult<&str,
     if let Some(args) = call {
         Ok((input, Arc::new(FuncCall {
             as_ref,
+            cnull: check_null,
             stack: chained,
             func: None,
             search: Some(path.into()),
@@ -110,6 +135,7 @@ pub(self) fn var_func(input: &str, chained: bool, as_ref: bool) -> IResult<&str,
             oself: None,
         })))
     } else {
+        path = path.replace('?', "");
         Ok((input, Arc::new(Base::LoadVariable(path.into(), chained, as_ref))))
     }
 }
@@ -122,7 +148,7 @@ pub(self) fn var_func(input: &str, chained: bool, as_ref: bool) -> IResult<&str,
 /// Ex. "myFunc()" -> "myFunc" would be the variable expr.
 /// Ex. "self.child.func()" -> "self.child.func" would be the variable expr.
 pub(self) fn variable_expr(input: &str) -> IResult<&str, &str, StofParseError> {
-    recognize(separated_list1(char('.'), ident)).parse(input)
+    recognize(separated_list1(alt((tag("."), tag("?."))), ident)).parse(input)
 }
 
 
