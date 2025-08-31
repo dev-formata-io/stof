@@ -44,6 +44,7 @@ impl Format for BytesFormat {
         }
     }
     fn binary_import(&self, graph: &mut Graph, _format: &str, bytes: Bytes, node: Option<NodeRef>) -> Result<(), Error> {
+        if bytes.is_empty() { return Ok(()); }
         let mut parse_node = graph.ensure_main_root();
         if let Some(nd) = node {
             parse_node = nd;

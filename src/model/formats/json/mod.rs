@@ -31,6 +31,7 @@ impl Format for JsonFormat {
         "application/json".into()
     }
     fn string_import(&self, graph: &mut Graph, _format: &str, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
+        if src.is_empty() { return Ok(()); }
         match serde_json::from_str::<Value>(src) {
             Ok(value) => {
                 let mut parse_node = graph.ensure_main_root();

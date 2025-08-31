@@ -30,6 +30,7 @@ impl Format for StofFormat {
         "application/stof".into()
     }
     fn string_import(&self, graph: &mut Graph, _format: &str, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
+        if src.is_empty() { return Ok(()); }
         let mut context = ParseContext::new(graph);
         if let Some(node) = node {
             context.push_self_node(node);
@@ -47,7 +48,9 @@ impl Format for StofFormat {
                 Ok(content) => {
                     match std::str::from_utf8(&content) {
                         Ok(src) => {
-                            document(src, context)?;
+                            if !src.is_empty() {
+                                document(src, context)?;
+                            }
                             return Ok(());
                         },
                         Err(_error) => {
@@ -100,6 +103,7 @@ impl Format for BstfFormat {
         }
     }
     fn binary_import(&self, graph: &mut Graph, _format: &str, bytes: bytes::Bytes, node: Option<NodeRef>) -> Result<(), Error> {
+        if bytes.is_empty() { return Ok(()); }
         match bincode::deserialize::<Graph>(bytes.as_ref()) {
             Ok(mut imported) => {
                 // Insert types

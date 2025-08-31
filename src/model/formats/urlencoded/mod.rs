@@ -29,6 +29,7 @@ impl Format for UrlEncodedFormat {
         "application/x-www-form-urlencoded".into()
     }
     fn string_import(&self, graph: &mut Graph, _format: &str, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
+        if src.is_empty() { return Ok(()); }
         let value = URLEncode::decode(src);
         let mut parse_node = graph.ensure_main_root();
         if let Some(nd) = node {
