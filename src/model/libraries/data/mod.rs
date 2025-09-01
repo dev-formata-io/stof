@@ -19,7 +19,7 @@ use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{libraries::data::ops::{data_attach, data_drop, data_drop_from, data_exists, data_from_field, data_from_id, data_id, data_libname, data_move, data_objs}, Field, Graph, SId, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Val, ValRef, Variable}};
+use crate::{model::{libraries::data::ops::{data_attach, data_drop, data_drop_from, data_exists, data_from_blob, data_from_field, data_from_id, data_id, data_libname, data_move, data_objs, data_to_blob}, Data, Field, Graph, SId, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error, Val, ValRef, Variable}};
 mod ops;
 
 
@@ -37,8 +37,10 @@ pub fn insert_data_lib(graph: &mut Graph) {
     graph.insert_libfunc(data_drop_from());
     graph.insert_libfunc(data_attach());
     graph.insert_libfunc(data_move());
+    graph.insert_libfunc(data_to_blob());
 
     graph.insert_libfunc(data_from_id());
+    graph.insert_libfunc(data_from_blob());
     graph.insert_libfunc(data_from_field());
 }
 
@@ -54,6 +56,8 @@ lazy_static! {
     pub(self) static ref MOVE: Arc<dyn Instruction> = Arc::new(DataIns::Move);
     pub(self) static ref FIELD: Arc<dyn Instruction> = Arc::new(DataIns::Field);
     pub(self) static ref FROM_ID: Arc<dyn Instruction> = Arc::new(DataIns::FromId);
+    pub(self) static ref TO_BLOB: Arc<dyn Instruction> = Arc::new(DataIns::ToBlob);
+    pub(self) static ref FROM_BLOB: Arc<dyn Instruction> = Arc::new(DataIns::FromBlob);
 }
 
 
@@ -68,9 +72,11 @@ pub enum DataIns {
     Attach,
     Move,
     Tagname,
+    ToBlob,
 
     Field,
     FromId,
+    FromBlob,
 }
 #[typetag::serde(name = "DataIns")]
 impl Instruction for DataIns {
@@ -106,6 +112,19 @@ impl Instruction for DataIns {
                     }
                 }
                 Err(Error::DataExists)
+            },
+            Self::ToBlob => {
+                if let Some(var) = env.stack.pop() {
+                    if let Some(dref) = var.try_data_or_func() {
+                        if let Some(data) = dref.data(&graph) {
+                            if let Ok(bytes) = bincode::serialize(data) {
+                                env.stack.push(Variable::val(Val::Blob(bytes)));
+                                return Ok(None);
+                            }
+                        }
+                    }
+                }
+                Err(Error::DataToBlob)
             },
             Self::Objs => {
                 if let Some(var) = env.stack.pop() {
@@ -193,6 +212,53 @@ impl Instruction for DataIns {
                     }
                 }
                 Err(Error::DataFromId)
+            },
+            Self::FromBlob => {
+                let mut context = env.self_ptr();
+                if let Some(context_var) = env.stack.pop() {
+                    match context_var.val.read().deref() {
+                        Val::Obj(cid) => {
+                            context = cid.clone();
+                        },
+                        Val::Str(path) => {
+                            // cheat a little, puts the loaded path/var on the stack for us to use
+                            Base::LoadVariable(path.clone(), false, false).exec(env, graph)?;
+                            if let Some(var) = env.stack.pop() {
+                                match var.val.read().deref() {
+                                    Val::Obj(cid) => {
+                                        context = cid.clone();
+                                    },
+                                    _ => {
+                                        return Err(Error::DataFromBlob);
+                                    }
+                                }
+                            }
+                        },
+                        _ => {}
+                    }
+                }
+                if let Some(var) = env.stack.pop() {
+                    match var.val.read().deref() {
+                        Val::Blob(bytes) => {
+                            if let Ok(mut data) = bincode::deserialize::<Data>(bytes) {
+                                // avoid colliding with existing data
+                                if data.id.data_exists(&graph) {
+                                    data.id = SId::default();
+                                }
+
+                                // remove existing nodes (inserting a new data)
+                                data.nodes.clear();
+
+                                if let Some(dref) = graph.insert_data(&context, data) {
+                                    env.stack.push(Variable::val(Val::Data(dref)));
+                                    return Ok(None);
+                                }
+                            }
+                        },
+                        _ => {}
+                    }
+                }
+                Err(Error::DataFromBlob)
             },
             Self::Field => {
                 if let Some(var) = env.stack.pop() {

@@ -302,6 +302,8 @@ pub enum Error {
     DataMove,
     DataField,
     DataFromId,
+    DataToBlob,
+    DataFromBlob,
 
     PdfExtractImages,
     PdfExtractText,

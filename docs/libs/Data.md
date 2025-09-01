@@ -26,6 +26,13 @@ assert(func.data().attach(other));
 assert_eq(other.hi, func);
 ```
 
+# Data.blob(ptr: data) -> blob
+Uses bincode serialization to serialize the data (name, attributes, value, etc.), turning it into a blob.
+```rust
+const func: fn = self.hi;
+const bin = func.data().blob(); // entire function as a blob
+```
+
 # Data.drop(ptr: data) -> bool
 Drop this data from the document, returning true if the data existed and was removed.
 ```rust
@@ -77,6 +84,16 @@ Get the library name for this data pointer, if applicable.
 ```rust
 const func: fn = self.hi;
 assert_eq(func.data().libname(), "Fn");
+```
+
+# Data.load_blob(bytes: blob, context: obj | str = self) -> data
+Uses bincode to deserialize the data blob (name, attributes, value, etc.), adding it to the desired context object.
+```rust
+const func: fn = self.hi;
+const bin = func.data().blob(); // entire function as a blob
+
+const other = new {};
+const dref = Data.load_blob(bin, other); // copy of the function is now on "other"
 ```
 
 # Data.move(ptr: data, from: obj, to: obj) -> bool

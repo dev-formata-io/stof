@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use imbl::vector;
-use crate::{model::{libraries::data::{ATTACH, DATA_LIB, DROP, DROP_FROM, EXISTS, FIELD, FROM_ID, ID, MOVE, OBJS, TAGNAME}, LibFunc, Param}, runtime::{instruction::Instructions, Type}};
+use crate::{model::{libraries::data::{ATTACH, DATA_LIB, DROP, DROP_FROM, EXISTS, FIELD, FROM_BLOB, FROM_ID, ID, MOVE, OBJS, TAGNAME, TO_BLOB}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Type, Val}};
 
 
 /// Id.
@@ -121,6 +121,62 @@ assert_eq(func.data().objs().front(), self);
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(OBJS.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// To blob.
+pub fn data_to_blob() -> LibFunc {
+    LibFunc {
+        library: DATA_LIB.clone(),
+        name: "blob".into(),
+        is_async: false,
+        docs: r#"# Data.blob(ptr: data) -> blob
+Uses bincode serialization to serialize the data (name, attributes, value, etc.), turning it into a blob.
+```rust
+const func: fn = self.hi;
+const bin = func.data().blob(); // entire function as a blob
+```"#.into(),
+        params: vector![
+            Param { name: "data".into(), param_type: Type::Void, default: None }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(TO_BLOB.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// From blob.
+pub fn data_from_blob() -> LibFunc {
+    LibFunc {
+        library: DATA_LIB.clone(),
+        name: "load_blob".into(),
+        is_async: false,
+        docs: r#"# Data.load_blob(bytes: blob, context: obj | str = self) -> data
+Uses bincode to deserialize the data blob (name, attributes, value, etc.), adding it to the desired context object.
+```rust
+const func: fn = self.hi;
+const bin = func.data().blob(); // entire function as a blob
+
+const other = new {};
+const dref = Data.load_blob(bin, other); // copy of the function is now on "other"
+```"#.into(),
+        params: vector![
+            Param { name: "bytes".into(), param_type: Type::Blob, default: None },
+            Param { name: "context".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(FROM_BLOB.clone());
             Ok(instructions)
         })
     }

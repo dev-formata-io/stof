@@ -2671,6 +2671,10 @@ impl Val {
                     return node.dump(graph, 0, true);
                 }
             },
+            Self::Blob(bytes) => {
+                let string = format!("{bytes:?}");
+                return format!("|{}|", string.trim_start_matches('[').trim_end_matches(']'));
+            },
             _ => {}
         }
         self.to_string()

@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use crate::{model::InnerDoc, parser::{context::ParseContext, field::parse_field, func::parse_function, ident::ident, import::import, whitespace::{parse_inner_doc_comment, whitespace_fail}}, runtime::Error};
+use crate::{model::InnerDoc, parser::{context::ParseContext, data::parse_data, field::parse_field, func::parse_function, ident::ident, import::import, whitespace::{parse_inner_doc_comment, whitespace_fail}}, runtime::Error};
 use nanoid::nanoid;
 use nom::{bytes::complete::tag, character::complete::{char, multispace0}, combinator::{eof, opt}, error::{ErrorKind, FromExternalError, ParseError}, sequence::{delimited, preceded}, Err, IResult, Parser};
 use serde::{Deserialize, Serialize};
@@ -154,6 +154,25 @@ pub fn document_statement<'a>(input: &'a str, context: &mut ParseContext) -> IRe
     {
         let import_res = import(input, context);
         match import_res {
+            Ok((input, _)) => {
+                return Ok((input, ()));
+            },
+            Err(error) => {
+                match error {
+                    Err::Incomplete(_) |
+                    Err::Error(_) => {},
+                    Err::Failure(_) => {
+                        return Err(error);
+                    }
+                }
+            }
+        }
+    }
+
+    // Data (binary)
+    {
+        let data_res = parse_data(input, context);
+        match data_res {
             Ok((input, _)) => {
                 return Ok((input, ()));
             },

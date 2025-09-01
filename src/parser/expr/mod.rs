@@ -17,7 +17,7 @@
 use std::sync::Arc;
 use arcstr::literal;
 use imbl::vector;
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, peek}, multi::{separated_list0, separated_list1}, sequence::{delimited, preceded, separated_pair, terminated}, IResult, Parser};
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0, one_of}, combinator::{opt, peek, recognize}, multi::{many1, separated_list0, separated_list1}, sequence::{delimited, preceded, separated_pair, terminated}, IResult, Parser};
 use crate::{model::SId, parser::{doc::StofParseError, expr::{fmt_str::formatted_string_expr, func::func_expr, graph::{call_expr, chained_var_func, graph_expr}, literal::literal_expr, math::math_expr, new_obj::new_obj_expr}, statement::{block, switch::switch_statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FuncCall, ifs::IfIns, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, nullcheck::NullcheckIns, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, Base, AWAIT, NOOP, NOT_TRUTHY, POP_RETURN, PUSH_RETURN, SUSPEND, TYPE_NAME, TYPE_OF}, Type, Val}};
 
 pub mod literal;
@@ -39,6 +39,7 @@ pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> 
         typeof_expr,
         tup_expr,
         list_expr,
+        blob_expr,
         set_expr,
         map_expr,
         math_expr,
@@ -130,6 +131,27 @@ pub fn switch_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParse
     statements.push_back(POP_RETURN.clone());
 
     Ok((input, Arc::new(Block { ins: statements })))
+}
+
+
+/// Blob expression.
+pub fn blob_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
+    let (input, _) = whitespace(input)?;
+    let (input, bytes) = delimited(
+        char('|'),
+        terminated(separated_list1(char(','), blob_number), whitespace),
+        alt((
+            preceded(char(','), preceded(whitespace, char('|'))),
+            char('|')
+        ))
+    ).parse(input)?;
+    Ok((input, Arc::new(Base::Literal(Val::Blob(bytes)))))
+}
+pub fn blob_number(input: &str) -> IResult<&str, u8, StofParseError> {
+    let (input, _) = whitespace(input)?;
+    let (input, recognized) = recognize(many1(one_of("0123456789"))).parse(input)?;
+    let value = recognized.parse::<u8>().expect("could not parse floating point number");
+    Ok((input, value))
 }
 
 
