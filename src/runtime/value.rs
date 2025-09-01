@@ -1397,6 +1397,7 @@ impl Val {
         match target {
             Type::Union(types) => {
                 let mut objects = Vec::new();
+                let mut seen_unknown = false;
                 for cast_type in types {
                     match cast_type {
                         Type::Obj(proto_id) => {
@@ -1406,6 +1407,24 @@ impl Val {
                                 objects.push(Type::Obj(proto_id));
                             }
                         },
+                        Type::NotNull(t) => {
+                            match *t {
+                                Type::Obj(proto_id) => {
+                                    if self.instance_of(&proto_id, graph)? {
+                                        return Ok(());
+                                    } else {
+                                        objects.push(Type::Obj(proto_id));
+                                    }
+                                },
+                                Type::Unknown => {
+                                    seen_unknown = true;
+                                },
+                                _ => {}
+                            }
+                        },
+                        Type::Unknown => {
+                            seen_unknown = true; // if all else fails, just ok
+                        },
                         _ => {}
                     }
                 }
@@ -1414,6 +1433,9 @@ impl Val {
                     if res.is_ok() {
                         return Ok(());
                     }
+                }
+                if seen_unknown {
+                    return Ok(());
                 }
                 Err(Error::CastVal)
             },
@@ -1493,6 +1515,9 @@ impl Val {
                     return Err(Error::CastVal);
                 }
                 self.cast_object(t.deref(), graph, context)
+            },
+            Type::Unknown => {
+                Ok(())
             },
             _ => Err(Error::CastVal)
         }
