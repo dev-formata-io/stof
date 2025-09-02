@@ -1208,6 +1208,35 @@ impl Graph {
         }
     }
 
+    #[cfg(feature = "age_encrypt")]
+    /// Age encryption binary export.
+    pub fn age_encrypt_export<'a>(&self, format: &str, node: Option<NodeRef>, recipients: impl Iterator<Item = &'a dyn age::Recipient>) -> Result<Bytes, Error> {
+        use std::io::Write;
+
+        let mut bytes = self.binary_export(format, node)?;
+        let encryptor = age::Encryptor::with_recipients(recipients).expect("age encryption requires recipients");
+        let mut encrypted = vec![];
+        let mut writer = encryptor.wrap_output(&mut encrypted).expect("age could not wrap output");
+        writer.write_all(&bytes).expect("age could not write encrypted output");
+        writer.finish().expect("age could not finish encryption");
+
+        bytes = Bytes::from(encrypted);
+        Ok(bytes)
+    }
+
+    #[cfg(feature = "age_encrypt")]
+    /// Age decription binary import.
+    pub fn age_decrypt_import<'a>(&mut self, format: &str, bytes: Bytes, node: Option<NodeRef>, identity: &'a dyn age::Identity) -> Result<(), Error> {
+        use std::io::Read;
+
+        let decryptor = age::Decryptor::new(bytes.as_ref()).expect("age could not create decryptor");
+        let mut decrypted = vec![];
+        let mut reader = decryptor.decrypt(std::iter::once(identity)).expect("age could not create decrypt reader");
+        reader.read_to_end(&mut decrypted).expect("age read decrypted error");
+
+        self.binary_import(format, Bytes::from(decrypted), node)
+    }
+
     /// File export from this graph, using a loaded format.
     pub fn file_export(&self, format: &str, path: &str, node: Option<NodeRef>) -> Result<(), Error> {
         let id = format;
@@ -1477,5 +1506,27 @@ mod tests {
         assert!(root.node_data_named(&graph, "test").is_none());
         assert_eq!(root.node_data_named(&graph, "renamed").unwrap(), &dref);
         assert_eq!(dref.data_name(&graph).unwrap().as_ref(), "renamed");
+    }
+
+    #[test]
+    #[cfg(feature = "age_encrypt")]
+    fn age_encryption() {
+        let key = age::x25519::Identity::generate();
+        let pubkey = key.to_public();
+
+        //let recipients: Vec<Box<dyn Recipient>> = vec![Box::new(pubkey.clone())];
+        //let iter = recipients.iter().map(|v| v.as_ref());
+        
+        let mut graph = Graph::default();
+        let _ = graph.parse_stof_src(r#"
+            field: 42
+            #[main] fn main() { pln('hi'); }
+        "#, None);
+
+        let bytes = graph.age_encrypt_export("stof", None, std::iter::once(&pubkey as _)).unwrap();
+        
+        let mut other = Graph::default();
+        let _ = other.age_decrypt_import("stof", bytes, None, &key);
+        other.dump(true);
     }
 }

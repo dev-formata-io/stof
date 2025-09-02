@@ -16,6 +16,10 @@ toml = "0.9.5"
 typetag = "0.2.20"
 urlencoding = "2.1.3"
 
+[dependencies.age]
+optional = true
+version = "0.11.1"
+
 [dependencies.arcstr]
 features = ["serde"]
 version = "1.2.0"
@@ -93,10 +97,11 @@ optional = true
 version = "4.5.0"
 
 [features]
+age_encrypt = ["dep:age"]
 basic = ["stof_std", "system", "pkg"]
 default = ["basic"]
 docx = ["dep:docx-rs"]
-full = ["stof_std", "system", "pkg", "image", "docx", "pdf", "http"]
+full = ["stof_std", "system", "pkg", "image", "docx", "pdf", "http", "age_encrypt"]
 http = ["dep:reqwest", "dep:tokio"]
 image = ["dep:image"]
 js = ["stof_std", "dep:js-sys", "dep:wasm-bindgen", "dep:serde-wasm-bindgen", "dep:getrandom"]

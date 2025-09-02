@@ -40,7 +40,7 @@ Cargo cargo: {
     features: {
         default: ['basic']
         basic: ['stof_std', 'system', 'pkg']
-        full: ['stof_std', 'system', 'pkg', 'image', 'docx', 'pdf', 'http']
+        full: ['stof_std', 'system', 'pkg', 'image', 'docx', 'pdf', 'http', 'age_encrypt']
 
         stof_std: []
         system: []
@@ -49,6 +49,7 @@ Cargo cargo: {
         docx: ['dep:docx-rs']
         pdf: ['dep:lopdf', 'image']
         http: ['dep:reqwest', 'dep:tokio']
+        age_encrypt: ['dep:age']
 
         /// wasm/js version of the runtime
         /// should be the only feature enabled when building for the wasm target
@@ -128,6 +129,10 @@ Cargo cargo: {
         parking_lot: {
             version: 0.12.4
             features: ['serde']
+        }
+        age: {
+            version: 0.11.1
+            optional: true
         }
 
         /*****************************************************************************
