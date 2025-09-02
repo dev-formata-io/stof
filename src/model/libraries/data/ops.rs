@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use imbl::vector;
-use crate::{model::{libraries::data::{ATTACH, DATA_LIB, DROP, DROP_FROM, EXISTS, FIELD, FROM_BLOB, FROM_ID, ID, MOVE, OBJS, TAGNAME, TO_BLOB}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Type, Val}};
+use crate::{model::{libraries::data::{ATTACH, DATA_LIB, DROP, DROP_FROM, EXISTS, FIELD, FROM_BLOB, FROM_ID, ID, INVALIDATE, MOVE, OBJS, TAGNAME, TO_BLOB, VALIDATE}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Type, Val}};
 
 
 /// Id.
@@ -95,6 +95,66 @@ assert_not(ptr.exists());
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(EXISTS.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// Invalidate.
+pub fn data_invalidate() -> LibFunc {
+    LibFunc {
+        library: DATA_LIB.clone(),
+        name: "invalidate".into(),
+        is_async: false,
+        docs: r#"# Data.invalidate(data: data, symbol: str = 'value') -> bool
+Invalidate this data, optionally with the given symbol. Will throw an error if the data doesn't exist. Returns true if the data is newly invalidated with the given symbol.
+```rust
+const func: fn = self.hi;
+const ptr = func.data();
+assert(ptr.invalidate('something_happened')); // marks data as invalid
+assert(ptr.validate('something_happened'));
+assert_not(ptr.validate('something_happened')); // already validated
+```"#.into(),
+        params: vector![
+            Param { name: "data".into(), param_type: Type::Void, default: None },
+            Param { name: "symbol".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))) }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(INVALIDATE.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// Validate.
+pub fn data_validate() -> LibFunc {
+    LibFunc {
+        library: DATA_LIB.clone(),
+        name: "validate".into(),
+        is_async: false,
+        docs: r#"# Data.validate(data: data, symbol?: str) -> bool
+Validate this data, optionally with the given symbol. Will throw an error if the data doesn't exist. Returns true if the data was previously invalidated with the given symbol (or any symbol if null). This will remove the symbol (or all symbols if null) from this data's dirty set (no longer invalid).
+```rust
+const func: fn = self.hi;
+const ptr = func.data();
+assert(ptr.invalidate('something_happened'));
+assert(ptr.validate('something_happened'));     // marks the data as valid again
+assert_not(ptr.validate('something_happened')); // already validated
+```"#.into(),
+        params: vector![
+            Param { name: "data".into(), param_type: Type::Void, default: None },
+            Param { name: "symbol".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))) }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(VALIDATE.clone());
             Ok(instructions)
         })
     }

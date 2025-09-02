@@ -154,3 +154,20 @@ Outright: {
         assert_eq((self.to_from_func).attributes(), {'attr': null});
     }
 }
+
+
+InvalidateValidate: {
+    field: 42;
+
+    #[test]
+    fn invalidate_field() {
+        let validated = false;
+        
+        ?Data.field('self.field').invalidate('testing');
+        if (?Data.field('self.field').validate('testing')) {
+            validated = true;
+        }
+
+        assert(validated);
+    }
+}

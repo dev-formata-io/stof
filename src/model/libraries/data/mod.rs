@@ -19,7 +19,7 @@ use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{libraries::data::ops::{data_attach, data_drop, data_drop_from, data_exists, data_from_blob, data_from_field, data_from_id, data_id, data_libname, data_move, data_objs, data_to_blob}, Data, Field, Graph, SId, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error, Val, ValRef, Variable}};
+use crate::{model::{libraries::data::ops::{data_attach, data_drop, data_drop_from, data_exists, data_from_blob, data_from_field, data_from_id, data_id, data_invalidate, data_libname, data_move, data_objs, data_to_blob, data_validate}, Data, Field, Graph, SId, INVALID_DATA_VALUE, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error, Val, ValRef, Variable}};
 mod ops;
 
 
@@ -38,6 +38,9 @@ pub fn insert_data_lib(graph: &mut Graph) {
     graph.insert_libfunc(data_attach());
     graph.insert_libfunc(data_move());
     graph.insert_libfunc(data_to_blob());
+
+    graph.insert_libfunc(data_invalidate());
+    graph.insert_libfunc(data_validate());
 
     graph.insert_libfunc(data_from_id());
     graph.insert_libfunc(data_from_blob());
@@ -58,6 +61,9 @@ lazy_static! {
     pub(self) static ref FROM_ID: Arc<dyn Instruction> = Arc::new(DataIns::FromId);
     pub(self) static ref TO_BLOB: Arc<dyn Instruction> = Arc::new(DataIns::ToBlob);
     pub(self) static ref FROM_BLOB: Arc<dyn Instruction> = Arc::new(DataIns::FromBlob);
+
+    pub(self) static ref INVALIDATE: Arc<dyn Instruction> = Arc::new(DataIns::Invalidate);
+    pub(self) static ref VALIDATE: Arc<dyn Instruction> = Arc::new(DataIns::Validate);
 }
 
 
@@ -73,6 +79,9 @@ pub enum DataIns {
     Move,
     Tagname,
     ToBlob,
+
+    Invalidate,
+    Validate,
 
     Field,
     FromId,
@@ -199,6 +208,54 @@ impl Instruction for DataIns {
                     }
                 }
                 Err(Error::DataMove)
+            },
+
+            Self::Invalidate => {
+                let mut symbol = INVALID_DATA_VALUE;
+                if let Some(symbol_var) = env.stack.pop() {
+                    match symbol_var.val.read().deref() {
+                        Val::Str(sym) => {
+                            symbol = SId::from(sym.as_str());
+                        },
+                        _ => {}
+                    }
+                }
+                if let Some(var) = env.stack.pop() {
+                    if let Some(dref) = var.try_data_or_func() {
+                        if let Some(data) = dref.data_mut(graph) {
+                            let newly_inserted = data.invalidate(symbol);
+                            env.stack.push(Variable::val(Val::Bool(newly_inserted)));
+                            return Ok(None);
+                        }
+                    }
+                }
+                Err(Error::DataInvalidate)
+            },
+            Self::Validate => {
+                let mut symbol = None;
+                if let Some(symbol_var) = env.stack.pop() {
+                    match symbol_var.val.read().deref() {
+                        Val::Str(sym) => {
+                            symbol = Some(SId::from(sym.as_str()));
+                        },
+                        _ => {}
+                    }
+                }
+                if let Some(var) = env.stack.pop() {
+                    if let Some(dref) = var.try_data_or_func() {
+                        if let Some(data) = dref.data_mut(graph) {
+                            let was_dirty;
+                            if let Some(symbol) = symbol {
+                                was_dirty = data.validate(&symbol);
+                            } else {
+                                was_dirty = data.validate_clear();
+                            }
+                            env.stack.push(Variable::val(Val::Bool(was_dirty)));
+                            return Ok(None);
+                        }
+                    }
+                }
+                Err(Error::DataValidate)
             },
 
             Self::FromId => {

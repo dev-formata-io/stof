@@ -119,3 +119,28 @@ fn simple_stof() {
     //pln(stof);
     drop(object);
 }
+
+
+AttributeFunctionTest: {
+    TestObject: {
+        #[schema((target_val: str): bool => target_val.len() > 2)]
+        somemeta: 'hello'
+    }
+
+    #[test]
+    fn capture_fn_attr() {
+        const stof = stringify('stof', self.TestObject);
+        drop('self.TestObject');
+
+        const object = new {};
+        parse(stof, object, 'stof');
+
+        assert_eq(object.somemeta, 'hello');
+        assert(object.schemafy(object));
+        
+        const attrs = object.attributes('somemeta');
+        const func = attrs.get('schema');
+        assert(func('hii'));
+        assert_not(func('hi'));
+    }
+}

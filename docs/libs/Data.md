@@ -79,6 +79,16 @@ const id = func.data().id();
 assert_eq(Data.from_id(id), func.data());
 ```
 
+# Data.invalidate(data: data, symbol: str = 'value') -> bool
+Invalidate this data, optionally with the given symbol. Will throw an error if the data doesn't exist. Returns true if the data is newly invalidated with the given symbol.
+```rust
+const func: fn = self.hi;
+const ptr = func.data();
+assert(ptr.invalidate('something_happened')); // marks data as invalid
+assert(ptr.validate('something_happened'));
+assert_not(ptr.validate('something_happened')); // already validated
+```
+
 # Data.libname(ptr: data) -> str
 Get the library name for this data pointer, if applicable.
 ```rust
@@ -110,5 +120,15 @@ List of objects that this data is attached to (will always have at least one).
 ```rust
 const func: fn = self.hi;
 assert_eq(func.data().objs().front(), self);
+```
+
+# Data.validate(data: data, symbol?: str) -> bool
+Validate this data, optionally with the given symbol. Will throw an error if the data doesn't exist. Returns true if the data was previously invalidated with the given symbol (or any symbol if null). This will remove the symbol (or all symbols if null) from this data's dirty set (no longer invalid).
+```rust
+const func: fn = self.hi;
+const ptr = func.data();
+assert(ptr.invalidate('something_happened'));
+assert(ptr.validate('something_happened'));     // marks the data as valid again
+assert_not(ptr.validate('something_happened')); // already validated
 ```
 

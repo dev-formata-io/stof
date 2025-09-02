@@ -304,6 +304,8 @@ pub enum Error {
     DataFromId,
     DataToBlob,
     DataFromBlob,
+    DataInvalidate,
+    DataValidate,
 
     PdfExtractImages,
     PdfExtractText,
