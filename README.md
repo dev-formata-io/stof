@@ -82,7 +82,7 @@ stof = true
 Add Stof to your `Cargo.toml`:
 ```toml
 [dependencies]
-stof = 0.8.*
+stof = "0.8.*"
 ```
 
 See [installation docs](https://docs.stof.dev/book/installation) for CLI instructions and more information.
