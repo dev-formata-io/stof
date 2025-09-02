@@ -11,21 +11,23 @@ Cargo cargo: {
         authors: [
             'CJ Cummings <cj@formata.io>'
         ]
-        description: 'A simple and embeddable data runtime.'
+        description: 'A smart, declarative runtime for data workflows.'
         license: 'Apache-2.0'
         repository: 'https://github.com/dev-formata-io/stof'
         homepage: 'https://docs.stof.dev'
         keywords: [
-            'stof',
-            'language',
-            'embedded',
+            'schema',
             'interpreter',
-            'document'
+            'async',
+            'validation',
+            'embedded',
         ]
         categories: [
             'compilers',
             'data-structures',
-            'development-tools'
+            'development-tools',
+            'template-engine',
+            'asynchronous',
         ]
     }
 
@@ -205,7 +207,7 @@ github: {
 /// Generate Cargo.toml file.
 /// `stof run project.stof -a cargo`
 async fn generate_cargo_toml() {
-    const out = await Rust.Cargo.generate(self.cargo, 0.8.25, update = false);
+    const out = await Rust.Cargo.generate(self.cargo, 0.8.26, update = false);
     fs.write('Cargo.toml', out);
     pln('Cargo .. ok');
 }

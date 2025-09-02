@@ -15,18 +15,22 @@
 
 <br/>
 
-[Stof](https://docs.stof.dev) is the simplest way to create, store, share, and transform unified data.
-
+**A smart, declarative runtime for data workflows**
 - [Docs](https://docs.stof.dev)
-- [Repository](https://github.com/dev-formata-io/stof)
+- [GitHub](https://github.com/dev-formata-io/stof)
 - [Discord](https://discord.gg/Up5kxdeXZt)
-- [Contact](https://stof.dev/contact-us)
 
-## Example
-> Stof also parses normal JSON object syntax
+## What is Stof?
+Stof works **with** other data formats to bridge the gap between static data and programmable documents. It is a lightweight, embeddable, and portable data logic format & platform for AI, infra-as-code, and config-heavy workflows. It's built to support:
 
-> Check out the examples (and test 'src/model/formats/stof/tests') folder, with real examples for you to play with
+- Data-Mesh, Integration, & Orchestration **glue-layer**
+- Universal LLM & AI workflows, tools, & **intersystem data**
+- Smart configs with logic, types, units, schemas, & **self-validation**
+- Asynchronous **validation & transformation**
 
+> Think of it as a foundation for building robust and declarative data flows, config systems, or backend models.
+
+## Quick Example
 ``` rust
 const list users: [              // optional type and const specification for fields
     {
@@ -36,7 +40,17 @@ const list users: [              // optional type and const specification for fi
     },                           // trailing commas in arrays are okay
 ]
 
-fn joe() -> obj {                // functions are document data, just like fields
+{
+    "json": "normal json data supported when you need it",
+    str "enhanced": "but also with types, units, logic, functions, etc."
+
+    child: {
+        MiB space: 2GiB  // unit types perform conversions when cast (time, temp, mass, etc.)
+        fn apis() -> str { "sections of your document now become APIs" }
+    }
+}
+
+async fn joe() -> obj {                // functions are document data, just like fields
     for (const user in self.users) {
         if (user.name.lower().contains("joe")) return user;
     }
@@ -50,7 +64,7 @@ fn main() {
     assert(this.attributes().get("custom").get("ex"));
     
     async {                                // async at the core (funcs & exprs too)
-        let body = stringify("toml", joe); // any loaded format (binary & parse too)
+        let body = stringify("toml", await joe); // any loaded format (binary & parse too)
         body.push("stof = true\n");
         pln(body);
     }
@@ -64,28 +78,32 @@ name = "Joe Schmo"
 stof = true
 ```
 
-## Motivations
-1. If you've ever wished you could put different data formats into a singular document and manipulate it all at once with a standard (and modern) interface, you're in the right spot.
+## Installation
+Add Stof to your `Cargo.toml`:
+```toml
+[dependencies]
+stof = 0.8.*
+```
 
-2. If you've wanted a singular API that could be used across servers and within different environments, well now you can.
+See [installation docs](https://docs.stof.dev/book/installation) for CLI instructions and more information.
 
-3. If you've been looking for that YAML or JSON replacement/addition that adds a simple programming layer and type system that just makes sense, keep reading.
+## Documentation
+- [Hello, World](https://docs.stof.dev/book/hello-world)
+- [Roadmap](https://docs.stof.dev/roadmap)
+- [Install](https://docs.stof.dev/book/installation)
+- [GitHub](https://github.com/dev-formata-io/stof)
 
-4. If you have an embedded environment where you need to run user sent or untrusted code (especially over the wire), you're pretty good at looking for solutions because you're here.
+## Status
+Stof is currently in **early development**, we welcome feedback and contributions. The core is stable for experimentation, and is actively being used in production at [Formata](https://formata.io).
 
-5. If you've ever thought to yourself "code is just data itself, so why can't I work with it as such?", then you're also in the right place.
-
-## How
-Stof can look and feel like a familiar programming interface, but it's actually just a document of data that comes with a runtime for manipulating itself in a sandbox you control.
-
-Because it's just a normal document of data, it can be shared, stored, combined, split, and otherwise transformed, and seamlessly works with other formats (both binary and text import/export).
-
-We say "data" instead of "field" (like other formats) because a field is just one type of data component (functions are another). Stof is built like an Entity Component System, where components (data) can be anything you'd like, even large PDF documents, 3D models, or binary voice data. All can then be organized cleanly and worked with via Stof functions at the same time.
-
-## Contributing
-We have an awesome and growing community, so jump in and consider supporting the project.
-
-Any fellow programming nerds are probably filled with a lot of good ideas at this point, so lets chat (and please get involved)! Email info@stof.dev or find me via GitHub profile.
+New features are being added weekly, so hop into the Discord and get involved!
 
 ## License
 Apache 2.0. See LICENSE for details.
+
+## Feedback & Community
+- Open issues or discussions on [GitHub](https://github.com/dev-formata-io/stof)
+- Chat with us on [Discord](https://discord.gg/Up5kxdeXZt)
+- Star the project to support future development!
+
+> Reach out to info@stof.dev to contact us directly

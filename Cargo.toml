@@ -112,12 +112,12 @@ doctest = false
 
 [package]
 authors = ["CJ Cummings <cj@formata.io>"]
-categories = ["compilers", "data-structures", "development-tools"]
-description = "A simple and embeddable data runtime."
+categories = ["compilers", "data-structures", "development-tools", "template-engine", "asynchronous"]
+description = "A smart, declarative runtime for data workflows."
 edition = "2024"
 homepage = "https://docs.stof.dev"
-keywords = ["stof", "language", "embedded", "interpreter", "document"]
+keywords = ["schema", "interpreter", "async", "validation", "embedded"]
 license = "Apache-2.0"
 name = "stof"
 repository = "https://github.com/dev-formata-io/stof"
-version = "0.8.25"
+version = "0.8.26"
