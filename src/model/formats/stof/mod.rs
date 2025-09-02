@@ -16,7 +16,8 @@
 
 use std::fs;
 use rustc_hash::FxHashSet;
-use crate::{model::{FS_LIB, Format, Graph, NodeRef}, parser::{context::ParseContext, doc::document}, runtime::Error};
+use crate::{model::{stof::export::StofExportContext, Format, Graph, NodeRef, FS_LIB}, parser::{context::ParseContext, doc::document}, runtime::Error};
+mod export;
 
 
 #[derive(Debug, Default)]
@@ -24,7 +25,7 @@ use crate::{model::{FS_LIB, Format, Graph, NodeRef}, parser::{context::ParseCont
 pub struct StofFormat;
 impl Format for StofFormat {
     fn identifiers(&self) -> Vec<String> {
-        vec!["stof".into()]
+        vec!["stof".into(), "stof:human".into()]
     }
     fn content_type(&self) -> String {
         "application/stof".into()
@@ -64,6 +65,18 @@ impl Format for StofFormat {
             }
         }
         Err(Error::FormatFileImportNotAllowed)
+    }
+    fn string_export(&self, graph: &Graph, format: &str, node: Option<NodeRef>) -> Result<String, Error> {
+        let mut context = StofExportContext::default();
+        context.human = format.contains("human");
+        if let Some(node) = node {
+            context.export_node(graph, &node);
+        } else {
+            for root in &graph.roots {
+                context.export_node(graph, root);
+            }
+        }
+        Ok(context.stof)
     }
 }
 

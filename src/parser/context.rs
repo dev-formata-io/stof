@@ -177,12 +177,21 @@ impl<'ctx> ParseContext<'ctx> {
     }
 
     /// Push a new root node to the self stack.
-    pub fn push_root(&mut self, name: Option<&str>) {
+    pub fn push_root(&mut self, name: Option<String>, cid: Option<SId>) {
         let mut obj_name = nanoid!(12);
         if let Some(name) = name {
-            obj_name = name.to_string();
+            obj_name = name;
         }
-        let nref = self.graph.insert_root(&obj_name);
+        let nref;
+        if let Some(id) = cid {
+            if id.node_exists(&self.graph) {
+                nref = self.graph.insert_root(&obj_name); // no collisions
+            } else {
+                nref = self.graph.insert_node_id(&obj_name, id, None, false);
+            }
+        } else {
+            nref = self.graph.insert_root(&obj_name);
+        }
         let proc = self.parse_proc();
         proc.env.self_stack.push(nref);
     }
@@ -209,12 +218,21 @@ impl<'ctx> ParseContext<'ctx> {
     }
 
     /// Push self stack as a variable.
-    pub fn push_self(&mut self, name: &str, field: bool, attributes: &mut FxHashMap<String, Val>) -> Variable {
+    pub fn push_self(&mut self, name: &str, field: bool, attributes: &mut FxHashMap<String, Val>, id: Option<SId>) -> Variable {
         let parent = self.self_ptr();
         
         // TODO: collisions?
 
-        let nref = self.graph.insert_node(name, Some(parent), field);
+        let nref;
+        if let Some(cid) = id {
+            if cid.node_exists(&self.graph) {
+                nref = self.graph.insert_node(name, Some(parent), field); // no collisions
+            } else {
+                nref = self.graph.insert_node_id(name, cid, Some(parent), field);
+            }
+        } else {
+            nref = self.graph.insert_node(name, Some(parent), field);
+        }
         if let Some(node) = nref.node_mut(&mut self.graph) {
             node.attributes = attributes.clone(); // set node attributes as the same as field attrs
         }

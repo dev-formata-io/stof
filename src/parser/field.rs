@@ -18,9 +18,9 @@ use std::ops::Deref;
 use colored::Colorize;
 use imbl::vector;
 use nanoid::nanoid;
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0, multispace1}, combinator::{map, opt, peek, recognize}, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
+use nom::{branch::alt, bytes::complete::{tag, take_until}, character::complete::{char, multispace0, multispace1, space0}, combinator::{map, opt, peek, recognize}, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
 use rustc_hash::FxHashMap;
-use crate::{model::{Field, FieldDoc}, parser::{context::ParseContext, doc::{document_statement, err_fail, StofParseError}, expr::expr, ident::ident, parse_attributes, string::{double_string, single_string}, types::parse_type, whitespace::{doc_comment, whitespace}}, runtime::{Val, Variable}};
+use crate::{model::{Field, FieldDoc, SId}, parser::{context::ParseContext, doc::{document_statement, err_fail, StofParseError}, expr::expr, ident::ident, parse_attributes, string::{double_string, single_string}, types::parse_type, whitespace::{doc_comment, whitespace}}, runtime::{Val, Variable}};
 
 
 /// Parse a field into a parse context.
@@ -172,8 +172,18 @@ fn array_value<'a>(input: &'a str, _name: &str, context: &mut ParseContext) -> I
 
 /// Create a new object and parse it for this field's value.
 fn object_value<'a>(input: &'a str, name: &str, context: &mut ParseContext, attributes: &mut FxHashMap<String, Val>) -> IResult<&'a str, Variable, StofParseError> {
-    let (mut input, _) = char('{')(input)?;
-    let value = context.push_self(name, true, attributes);
+    let (input, _) = char('{')(input)?;
+
+    // Optional custom object ID - not recommended unless you know what you're doing
+    let (mut input, custom_id) = opt(delimited(
+        space0,
+        delimited(char('('), take_until(")"), char(')')),
+        whitespace,
+    )).parse(input)?;
+    let mut cid = None;
+    if let Some(id) = custom_id { cid = Some(SId::from(id)); }
+
+    let value = context.push_self(name, true, attributes, cid);
     if !input.starts_with('}') { // account for an empty object case "{}"
         loop {
             let res = document_statement(input, context);

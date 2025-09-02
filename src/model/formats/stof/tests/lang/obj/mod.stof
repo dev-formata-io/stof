@@ -140,3 +140,20 @@ root MyRoot {
 fn created_root() {
     assert_eq(MyRoot.hello(), 'hello');
 }
+
+
+// Create an object with a custom ID
+CustomIdObj: { (custom_object_id)
+    #[test]
+    fn has_correct_custom_id() {
+        assert_eq(self.id(), 'custom_object_id');
+    }
+}
+
+// Create a root with a custom ID
+root MyOtherRoot { (custom_root_id)
+    #[test]
+    fn has_correct_custom_id() {
+        assert_eq(self.id(), 'custom_root_id');
+    }
+}

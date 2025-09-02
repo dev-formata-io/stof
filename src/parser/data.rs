@@ -15,7 +15,7 @@
 //
 
 use colored::Colorize;
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, space0}, combinator::opt, multi::separated_list1, sequence::{delimited, preceded, terminated}, IResult, Parser};
+use nom::{branch::alt, bytes::complete::{tag, take_until}, character::complete::{char, space0}, combinator::opt, multi::separated_list1, sequence::{delimited, preceded, terminated}, IResult, Parser};
 use crate::{model::{Data, SId}, parser::{context::ParseContext, doc::StofParseError, expr::blob_number, whitespace::whitespace}};
 
 
@@ -24,8 +24,16 @@ pub fn parse_data<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a
     let (input, _) = whitespace(input)?;
     
     // Optionally start the data declaration with "data"
-    let (input, _) = opt(tag("data")).parse(input)?;
+    let (input, version) = opt(preceded(tag("data"), opt(preceded(char('@'), take_until(" "))))).parse(input)?;
     let (input, _) = space0(input)?;
+
+    // Get version of the data being parsed as a string
+    if let Some(version) = version {
+        if let Some(_version) = version {
+            // Use this version in the future if/when binary data format changes
+            //println!("DATA VERSION: {version}");
+        }
+    }
 
     // Parse the binary data like a normal blob
     let (input, bytes) = delimited(

@@ -40,6 +40,9 @@ impl Instruction for NewObjIns {
         }
 
         let mut parent = Some(env.self_ptr());
+        if let Some(ns) = env.new_stack.last() {
+            parent = Some(ns.clone());
+        }
         if self.parent {
             if let Some(prnt) = env.stack.pop() {
                 if let Some(prnt) = prnt.try_obj() {

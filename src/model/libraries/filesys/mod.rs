@@ -43,7 +43,7 @@ const bytes = fs.read("src/lib.rs");
         params: vector![
             Param { name: "path".into(), param_type: Type::Str, default: None }
         ],
-        return_type: Some(Type::Blob),
+        return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
@@ -69,7 +69,7 @@ const content = fs.read_string("src/lib.rs");
         params: vector![
             Param { name: "path".into(), param_type: Type::Str, default: None }
         ],
-        return_type: Some(Type::Blob),
+        return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {

@@ -14,7 +14,6 @@
 // limitations under the License.
 //
 
-
 import './bstf' as self.BstfFormat;
 import './json' as self.JsonFormat;
 import './toml' as self.TomlFormat;
@@ -27,3 +26,96 @@ import './package' as self.StofPackageFormat;
 import './pdf' as self.PdfFormat;
 import './image' as self.ImageFormat;
 import './docx' as self.DocxFormat;
+
+
+StofExport: {
+    const int field: 42
+    async fn hello() -> str { 'hi' }
+
+    sub: {
+        msg: 'hello'
+
+        #[type]
+        Base: {
+            b: 'b'
+            fn name() -> str { 'base' }
+        }
+
+        #[type]
+        #[extends('Base')]
+        Another: {
+            a: 'a'
+            fn name() -> str { 'another' }
+        }
+
+        Another instance: {}
+    }
+
+    #[custom]
+    complex: (name: str!): (bool, str) => (true, `yo, ${name}`);
+}
+
+#[test]
+fn export_stof() {
+    const stof = stringify('stof:human', self.StofExport);
+    drop('self.StofExport'); // comment this for collision stuff below
+
+    const dest = new {};
+    parse(stof, dest, 'stof');
+
+    const handle = dest.hello();
+    assert_eq(typeof handle, 'Promise<str>');
+    assert_eq(await handle, 'hi');
+    assert_eq(dest.field, 42);
+    assert_eq(dest.sub.msg, 'hello');
+
+    const res = dest.complex('Bob');
+    assert(res[0]);
+    assert_eq(res[1], 'yo, Bob');
+
+    let name = dest.sub.instance.name();
+    assert_eq(name, 'another');
+    name = dest.sub.instance.name<Base>();
+    assert_eq(name, 'base');
+
+    // handles collisions in IDs
+    // note that this may f-up the field references (fields will reference the original in this case)
+    // in practice, use deep copy instead of export/import within the same graph!
+    //assert_neq(dest.sub.Another, self.StofExport.sub.Another);
+    
+    //pln(stof);
+    drop(dest);
+}
+
+#[test]
+fn simple_stof() {
+    let object = new {
+        name: 'Rachel',
+        job: 'Dentist',
+        age: 34,
+        ts: Time.now(),
+        regs: [
+            new {
+                name: 'Sharon',
+                age: 55,
+            }
+        ]
+    };
+    const stof = stringify('stof:human', object);
+    drop(object);
+    assert_not(object.exists());
+
+    object = new {};
+    parse(stof, object, 'stof');
+
+    assert_eq(object.children().len(), 1);
+    assert_eq(object.name, 'Rachel');
+    assert_eq(object.job, 'Dentist');
+    assert_eq(object.age, 34);
+    assert(Time.now() - 1s < object.ts);
+    assert_eq(object.regs.front().name, 'Sharon');
+    assert_eq(object.regs.front().age, 55);
+
+    //pln(stof);
+    drop(object);
+}
