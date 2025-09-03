@@ -91,7 +91,7 @@ impl Pdf {
 
     #[allow(unused)]
     /// Extract single page images.
-    pub fn extract_single_page_images(&self, page: u32) -> Option<Vec<PdfImage>> {
+    pub fn extract_single_page_images(&'_ self, page: u32) -> Option<Vec<PdfImage<'_>>> {
         for (i, (_, id)) in self.doc.get_pages().into_iter().enumerate() {
             if (i + 1) as u32 == page {
                 if let Ok(page_images) = self.doc.get_page_images(id) {
@@ -104,7 +104,7 @@ impl Pdf {
     }
     
     /// Extract all images from all pages.
-    pub fn extract_images(&self) -> Vec<PdfImage> {
+    pub fn extract_images(&'_ self) -> Vec<PdfImage<'_>> {
         let pages = self.doc.get_pages();
         let mut images = Vec::new();
         for (_number, id) in pages.into_iter() {

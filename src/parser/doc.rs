@@ -20,7 +20,7 @@ use nom::{branch::alt, bytes::complete::{tag, take_until}, character::complete::
 use serde::{Deserialize, Serialize};
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct StofParseError {
     pub file_path: Option<String>,
     pub message: String,

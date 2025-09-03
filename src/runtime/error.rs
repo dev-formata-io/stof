@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use crate::{parser::doc::StofParseError, runtime::Val};
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 /// Error.
 pub enum Error {
 
@@ -336,6 +336,8 @@ pub enum Error {
     ImageBmp,
     ImageIco,
     ImageFromBlob,
+
+    AgeNoMatchingKeys,
 
     /*****************************************************************************
      * Tuple Lib Errors.

@@ -1,0 +1,83 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+#[test]
+fn generate_identity() {
+    if (lib('Age')) {
+        const identity = Age.generate();
+        assert(identity);
+        assert(Data.exists(identity));
+
+        drop(identity);
+        assert_not(Data.exists(identity));
+    }
+}
+
+#[test]
+fn public_key() {
+    if (lib('Age')) {
+        const identity = Age.generate();
+        const public = identity.public();
+        assert_eq(typeof public, 'str');
+        assert(public.len() > 1);
+        assert_eq(public, identity.public());
+        drop(identity);
+
+        assert_eq(?identity.public(), null);
+    }
+}
+
+BlobifyParse: {
+    Payload: {
+        field: 42
+        fn hi() -> str { 'hi' }
+    }
+
+    Recipient: {
+        identity: ?Age.generate()
+        public: ?self.identity.public()
+    }
+
+    OtherRecipient: { identity: ?Age.generate() }
+
+    #[test]
+    fn encrypt_decrypt_payload() {
+        if (!lib('Age')) return;
+
+        // uncomment for both recipeints to be valid
+        // const bin = Age.blobify([self.Recipient.public, self.OtherRecipient.identity], 'stof', self.Payload);
+        const bin = Age.blobify(self.Recipient.public, 'stof', self.Payload);
+        assert_eq(typeof bin, 'blob');
+        assert(bin.size() > 1000bytes);
+        
+        drop(self.Payload); // get rid of conflicting data and reset
+        assert_not(self.Payload);
+        self.Payload = new {};
+
+        const success = Age.parse(self.Recipient.identity, bin, self.Payload, 'stof');
+        assert(success);
+        assert_eq(self.Payload.field, 42);
+        assert_eq(self.Payload.hi(), 'hi');
+
+        const dest = new {};
+        const nosuccess = Age.parse(self.OtherRecipient.identity, bin, dest, 'stof');
+        assert_not(nosuccess);
+        assert_eq(dest.field, null);
+        assert_eq(dest.hi, null);
+        drop(dest);
+    }
+}

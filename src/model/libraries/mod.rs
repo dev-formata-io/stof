@@ -31,6 +31,9 @@ pub mod time;
 #[cfg(feature = "http")]
 pub mod http;
 
+#[cfg(feature = "age_encrypt")]
+pub mod age;
+
 pub mod stof_std;
 pub mod num;
 pub mod string;

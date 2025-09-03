@@ -40,6 +40,9 @@ use crate::model::{image::insert_image_library, formats::image::load_image_forma
 #[cfg(feature = "docx")]
 use crate::model::docx::DocxFormat;
 
+#[cfg(feature = "age_encrypt")]
+use crate::model::age::insert_age_encrypt_library;
+
 /// Root node name.
 pub const ROOT_NODE_NAME: SId = SId(Bytes::from_static(b"root"));
 
@@ -223,6 +226,10 @@ impl Graph {
         insert_pdf_library(self);
         #[cfg(feature = "image")]
         insert_image_library(self);
+
+        // Age lib
+        #[cfg(feature = "age_encrypt")]
+        insert_age_encrypt_library(self);
     }
 
     /// Insert library documentation.
@@ -1231,10 +1238,12 @@ impl Graph {
 
         let decryptor = age::Decryptor::new(bytes.as_ref()).expect("age could not create decryptor");
         let mut decrypted = vec![];
-        let mut reader = decryptor.decrypt(std::iter::once(identity)).expect("age could not create decrypt reader");
-        reader.read_to_end(&mut decrypted).expect("age read decrypted error");
-
-        self.binary_import(format, Bytes::from(decrypted), node)
+        if let Ok(mut reader) = decryptor.decrypt(std::iter::once(identity)) {
+            reader.read_to_end(&mut decrypted).expect("age read decrypted error");
+            self.binary_import(format, Bytes::from(decrypted), node)
+        } else {
+            Err(Error::AgeNoMatchingKeys)
+        }
     }
 
     /// File export from this graph, using a loaded format.
