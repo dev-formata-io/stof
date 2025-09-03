@@ -17,7 +17,6 @@
 use std::{sync::Arc, time::Duration};
 use arcstr::ArcStr;
 use colored::Colorize;
-use serde::{Deserialize, Serialize};
 use crate::{model::{DataRef, Func, Graph, NodeRef, SId}, runtime::{instruction::{Instruction, Instructions}, table::SymbolTable, Error, Variable, WakeRef, Waker}};
 
 
@@ -35,7 +34,7 @@ pub enum ProcRes {
 }
 
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default)]
 /// Process Env.
 pub struct ProcEnv {
     pub pid: SId,
@@ -51,6 +50,9 @@ pub struct ProcEnv {
 
     // Setting this will put the process into a waiting mode
     pub spawn: Option<Box<Process>>,
+
+    #[cfg(feature = "tokio")]
+    pub tokio_runtime: Option<tokio::runtime::Handle>,
 }
 impl ProcEnv {
     // Get the current self ptr.
@@ -104,7 +106,7 @@ impl ProcEnv {
 }
 
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default)]
 /// Process.
 pub struct Process {
     pub env: ProcEnv,

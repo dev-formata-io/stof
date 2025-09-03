@@ -21,10 +21,17 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::{model::{DataRef, Func, Graph, SId}, runtime::{instruction::Instruction, instructions::{call::FuncCall, Base}, proc::{ProcRes, Process}, Error, Val, Waker}};
 
 
-#[derive(Default)]
+#[cfg(feature = "tokio")]
+use lazy_static::lazy_static;
+#[cfg(feature = "tokio")]
+lazy_static! {
+    static ref TOKIO_RUNTIME: Arc<std::sync::Mutex<Option<tokio::runtime::Runtime>>> = Arc::new(std::sync::Mutex::new(None));
+}
+
+
 /// Runtime.
 pub struct Runtime {
-    running: Vec<Process>, // TODO: split into high-priority and low-priority based on size to minimize mean running time
+    running: Vec<Process>, // TODO: split into high-priority and low-priority based on size to minimize mean running time?
     waiting: FxHashMap<SId, Process>,
     pub done: FxHashMap<SId, Process>,
     pub errored: FxHashMap<SId, Process>,
@@ -34,6 +41,54 @@ pub struct Runtime {
 
     pub done_callback: Option<Box<dyn FnMut(&Graph, &Process)->bool>>,
     pub err_callback: Option<Box<dyn FnMut(&Graph, &Process)->bool>>,
+
+    #[cfg(feature = "tokio")]
+    /// Optional tokio runtime handle (default exists, but still optional for flexibility & best practice in lib development).
+    /// Processes can use this handle to spawn background tasks (ex. HTTP, Database Ops, etc.).
+    pub tokio_runtime: Option<tokio::runtime::Handle>,
+}
+#[cfg(feature = "tokio")]
+impl Default for Runtime {
+    fn default() -> Self {
+        let mut rt = Self {
+            running: Default::default(),
+            waiting: Default::default(),
+            done: Default::default(),
+            errored: Default::default(),
+            sleeping: Default::default(),
+            wakers: Default::default(),
+            done_callback: Default::default(),
+            err_callback: Default::default(),
+            tokio_runtime: Default::default(),
+        };
+
+        // all Stof runtimes share the same background tokio runtime (thread pool)
+        // lazily create a new tokio runtime if needed
+        let mut tokio_runtime = TOKIO_RUNTIME.lock().unwrap();
+        if let Some(tokio_runtime) = &*tokio_runtime {
+            rt.tokio_runtime = Some(tokio_runtime.handle().clone());
+        } else {
+            let trt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
+            rt.tokio_runtime = Some(trt.handle().clone());
+            *tokio_runtime = Some(trt);
+        }
+        rt
+    }
+}
+#[cfg(not(feature = "tokio"))]
+impl Default for Runtime {
+    fn default() -> Self {
+        Self {
+            running: Default::default(),
+            waiting: Default::default(),
+            done: Default::default(),
+            errored: Default::default(),
+            sleeping: Default::default(),
+            wakers: Default::default(),
+            done_callback: Default::default(),
+            err_callback: Default::default(),
+        }
+    }
 }
 impl Runtime {
     #[inline]
@@ -141,6 +196,17 @@ impl Runtime {
             }
 
             for proc in self.running.iter_mut() {
+
+                #[cfg(feature = "tokio")]
+                {
+                    // make sure each process has a handle to the correct runtime if needed
+                    if self.tokio_runtime.is_some() {
+                        proc.env.tokio_runtime = self.tokio_runtime.clone();
+                    } else {
+                        proc.env.tokio_runtime = None;
+                    }
+                }
+
                 match proc.progress(graph, limit) {
                     Ok(state) => {
                         match state {

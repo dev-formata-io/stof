@@ -40,7 +40,7 @@ Cargo cargo: {
     features: {
         default: ['basic']
         basic: ['stof_std', 'system', 'pkg']
-        full: ['stof_std', 'system', 'pkg', 'image', 'docx', 'pdf', 'http', 'age_encrypt']
+        full: ['stof_std', 'system', 'pkg', 'image', 'docx', 'pdf', 'http', 'tokio', 'age_encrypt']
 
         stof_std: []
         system: []
@@ -48,7 +48,8 @@ Cargo cargo: {
         image: ['dep:image']
         docx: ['dep:docx-rs']
         pdf: ['dep:lopdf', 'image']
-        http: ['dep:reqwest', 'dep:tokio']
+        http: ['dep:reqwest', 'tokio']
+        tokio: ['dep:tokio']
         age_encrypt: ['dep:age']
 
         /// wasm/js version of the runtime

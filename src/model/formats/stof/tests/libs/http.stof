@@ -15,19 +15,31 @@
 //
 
 
-//#[test]
+#[test]
 fn get_request() {
-    const resp = await Http.fetch('https://restcountries.com/v3.1/region/europe');
-    assert(resp.get('text').len() > 100);
+    if (lib('Http')) {
+        const resp: map = await Http.fetch('https://restcountries.com/v3.1/region/europe');
+        assert(Http.success(resp));
+        assert_not(Http.client_error(resp));
+        assert_not(Http.server_error(resp));
+
+        const body = Http.parse(resp, new {});
+        for (const country in body.field) {
+            //pln(country.name.common);
+        }
+        drop(body);
+    }
 }
 
-//#[test]
+#[test]
 fn get_requests() {
-    const handles = [];
-    for (let i in 10) {
-        handles.push_back(Http.fetch('https://restcountries.com/v3.1/region/europe'));
-    }
-    for (const response in await handles) {
-        pln(response.get('bytes'));
+    if (lib('Http')) {
+        const handles = [];
+        for (let i in 10) {
+            handles.push_back(Http.fetch('https://restcountries.com/v3.1/region/europe'));
+        }
+        for (const response in await handles) {
+            pln(response.get('bytes'));
+        }
     }
 }

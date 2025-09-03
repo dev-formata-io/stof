@@ -19,11 +19,18 @@ use std::{ops::Deref, str::FromStr, sync::Arc, time::Duration};
 use arcstr::{literal, ArcStr};
 use bytes::Bytes;
 use imbl::{vector, OrdMap};
+use lazy_static::lazy_static;
 use reqwest::{header::{HeaderMap, HeaderName, CONTENT_TYPE}, Client, Method};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
-use tokio::{runtime::Runtime, sync::{mpsc::{self, Sender}, Mutex}};
+use tokio::sync::Mutex;
 use crate::{model::{Graph, LibFunc, Param}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, reset, wake, Error, Num, NumT, Type, Units, Val, ValRef, Variable, WakeRef}};
+
+
+lazy_static! {
+    static ref HTTP_CLIENT: Arc<Client> = Arc::new(Client::new());
+}
+
 
 /// Http library name.
 pub(self) const HTTP_LIB: ArcStr = literal!("Http");
@@ -31,15 +38,8 @@ pub(self) const HTTP_LIB: ArcStr = literal!("Http");
 
 /// Insert the Http library into a graph.
 pub fn insert_http_lib(graph: &mut Graph) {
-    let sender = start_http_runtime();
-    graph.insert_libfunc(http_fetch(&sender));
-}
-
-
-/// Http.fetch(url: str, method: str, body: blob | str, headers: map, timeout: s, query: map, bearer: str) -> map;
-fn http_fetch(sender: &Sender<HTTPRequest>) -> LibFunc {
-    let sender = sender.clone();
-    LibFunc {
+    // Http.fetch(url: str, method: str, body: blob | str, headers: map, timeout: s, query: map, bearer: str) -> map;
+    graph.insert_libfunc(LibFunc {
         library: HTTP_LIB.clone(),
         name: "fetch".into(),
         is_async: true,
@@ -62,11 +62,114 @@ assert(resp.get('text').len() > 100);
         unbounded_args: false,
         args_to_symbol_table: false,
         func: Arc::new(move |_as_ref, _arg_count, _env, _graph| {
+            let wake_ref = WakeRef::default();
+            let result_map: Arc<Mutex<OrdMap<ValRef<Val>, ValRef<Val>>>> = Arc::new(Mutex::new(OrdMap::default()));
             let mut instructions = Instructions::default();
-            instructions.push(Arc::new(HttpIns::Send(sender.clone())));
+            instructions.push(Arc::new(HttpIns::InternalSend(wake_ref.clone(), result_map.clone())));
+            instructions.push(Arc::new(Base::CtrlSleepRef(wake_ref)));
+            instructions.push(Arc::new(HttpIns::Extract(result_map)));
             Ok(instructions)
         })
-    }
+    });
+
+    // Http.parse(response: map, context: obj = self) -> obj
+    graph.insert_libfunc(LibFunc {
+        library: HTTP_LIB.clone(),
+        name: "parse".into(),
+        is_async: false,
+        docs: r#"# Http.parse(response: map, context: obj = self) -> obj
+Parse an HTTP response into the context object (also the return value), using the response "Content-Type" header as a Stof format (binary import). Default content type if not found in response headers is "stof". Will throw an error if the format isn't accepted by this graph, or if the body doesn't exist.
+```rust
+const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
+const body = new {};
+try Http.parse(resp, body);
+catch { /* didn't work out.. */ }
+```"#.into(),
+        params: vector![
+            Param { name: "response".into(), param_type: Type::Map, default: None },
+            Param { name: "context".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) },
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(move |_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(HttpIns::ParseResponse));
+            Ok(instructions)
+        })
+    });
+
+    // Http.success(response: map) -> bool
+    graph.insert_libfunc(LibFunc {
+        library: HTTP_LIB.clone(),
+        name: "success".into(),
+        is_async: false,
+        docs: r#"# Http.success(response: map) -> bool
+Was the request successful? Meaning, is the response 'status' between [200, 299]?
+```rust
+const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
+assert(Http.success(resp));
+```"#.into(),
+        params: vector![
+            Param { name: "response".into(), param_type: Type::Map, default: None },
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(move |_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(HttpIns::ResponseSuccess));
+            Ok(instructions)
+        })
+    });
+
+    // Http.client_error(response: map) -> bool
+    graph.insert_libfunc(LibFunc {
+        library: HTTP_LIB.clone(),
+        name: "client_error".into(),
+        is_async: false,
+        docs: r#"# Http.client_error(response: map) -> bool
+Was the request a client error? Meaning, is the response 'status' between [400, 499]?
+```rust
+const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
+assert_not(Http.client_error(resp));
+```"#.into(),
+        params: vector![
+            Param { name: "response".into(), param_type: Type::Map, default: None },
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(move |_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(HttpIns::ClientError));
+            Ok(instructions)
+        })
+    });
+
+    // Http.server_error(response: map) -> bool
+    graph.insert_libfunc(LibFunc {
+        library: HTTP_LIB.clone(),
+        name: "server_error".into(),
+        is_async: false,
+        docs: r#"# Http.server_error(response: map) -> bool
+Was the request a server error? Meaning, is the response 'status' between [500, 599]?
+```rust
+const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
+assert_not(Http.server_error(resp));
+```"#.into(),
+        params: vector![
+            Param { name: "response".into(), param_type: Type::Map, default: None },
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(move |_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(HttpIns::ServerError));
+            Ok(instructions)
+        })
+    });
 }
 
 
@@ -85,72 +188,70 @@ pub(self) struct HTTPRequest {
     /// Call wake at the end so that the process resumes with the results.
     pub waker: WakeRef,
 }
-fn start_http_runtime() -> Sender<HTTPRequest> {
-    let (send, recv) = mpsc::channel(100);
-    std::thread::spawn(move || {
-        let rt = Runtime::new().expect("failed to create HTTP tokio runtime");
-        rt.block_on(http_receiver(recv));
-    });
-    send
-}
-async fn http_receiver(mut recv: mpsc::Receiver<HTTPRequest>) {
-    let client = Client::new();
-    while let Some(req) = recv.recv().await {
-        // spawn a new task on this runtime so that this one isn't held up
-        let client = client.clone();
-        tokio::spawn(async move {
-            let mut builder = client.request(req.method, req.url);
-            builder = builder.headers(req.headers);
-            
-            if let Some(bearer) = req.bearer {
-                builder = builder.bearer_auth(bearer);
-            }
-            if let Some(body) = req.body {
-                builder = builder.body(body);
-            }
-            if let Some(timeout) = req.timeout {
-                builder = builder.timeout(timeout);
-            }
-            if let Some(query) = req.query {
-                builder = builder.query(&query);
-            }
-
-            if let Ok(request) = builder.build() {
-                let mut results = req.results.lock().await;
-                match client.execute(request).await {
-                    Ok(response) => {
-                        results.insert(ValRef::new(Val::Str("status".into())), ValRef::new(Val::Num(Num::Int(response.status().as_u16() as i64))));
-                        results.insert(ValRef::new(Val::Str("ok".into())), ValRef::new(Val::Bool(response.status().is_success())));
-
-                        let mut headers = OrdMap::default();
-                        for (k, v) in response.headers() {
-                            if let Ok(val) = v.to_str() {
-                                headers.insert(ValRef::new(Val::Str(k.as_str().into())), ValRef::new(Val::Str(val.into())));
-                            }
-                        }
-                        results.insert(ValRef::new(Val::Str("headers".into())), ValRef::new(Val::Map(headers)));
-                    
-                        if let Some(ctype) = response.headers().get(CONTENT_TYPE) {
-                            if let Ok(val) = ctype.to_str() {
-                                results.insert(ValRef::new(Val::Str("content_type".into())), ValRef::new(Val::Str(val.into())));
-                            }
-                        }
-
-                        if let Ok(bytes) = response.bytes().await {
-                            if let Ok(res) = str::from_utf8(&bytes) {
-                                results.insert(ValRef::new(Val::Str("text".into())), ValRef::new(Val::Str(res.into())));
-                            }
-                            results.insert(ValRef::new(Val::Str("bytes".into())), ValRef::new(Val::Blob(bytes.to_vec())));
-                        }
-                    },
-                    Err(error) => {
-                        results.insert(ValRef::new(Val::Str("error".into())), ValRef::new(Val::Str(error.to_string().into())));
-                    },
+impl HTTPRequest {
+    /// Send this http request with the given process env (potentially blocking).
+    /// Put results into the results map.
+    pub fn send(self, env: &mut ProcEnv) {
+        if let Some(handle) = &env.tokio_runtime {
+            handle.spawn(async move {
+                let client = &HTTP_CLIENT;
+                let mut builder = client.request(self.method, self.url);
+                builder = builder.headers(self.headers);
+                
+                if let Some(bearer) = self.bearer {
+                    builder = builder.bearer_auth(bearer);
                 }
-            }
+                if let Some(body) = self.body {
+                    builder = builder.body(body);
+                }
+                if let Some(timeout) = self.timeout {
+                    builder = builder.timeout(timeout);
+                }
+                if let Some(query) = self.query {
+                    builder = builder.query(&query);
+                }
 
-            wake(&req.waker); // wake the process that is waiting
-        });
+                if let Ok(request) = builder.build() {
+                    let mut results = self.results.lock().await;
+                    match client.execute(request).await {
+                        Ok(response) => {
+                            results.insert(ValRef::new(Val::Str("status".into())), ValRef::new(Val::Num(Num::Int(response.status().as_u16() as i64))));
+                            results.insert(ValRef::new(Val::Str("ok".into())), ValRef::new(Val::Bool(response.status().is_success())));
+
+                            let mut headers = OrdMap::default();
+                            for (k, v) in response.headers() {
+                                if let Ok(val) = v.to_str() {
+                                    headers.insert(ValRef::new(Val::Str(k.as_str().into())), ValRef::new(Val::Str(val.into())));
+                                }
+                            }
+                            results.insert(ValRef::new(Val::Str("headers".into())), ValRef::new(Val::Map(headers)));
+                        
+                            if let Some(ctype) = response.headers().get(CONTENT_TYPE) {
+                                if let Ok(val) = ctype.to_str() {
+                                    results.insert(ValRef::new(Val::Str("content_type".into())), ValRef::new(Val::Str(val.into())));
+                                }
+                            }
+
+                            if let Ok(bytes) = response.bytes().await {
+                                // TODO: v0.9 remove "text" and only use the lib body or parse functions
+                                if let Ok(res) = str::from_utf8(&bytes) {
+                                    results.insert(ValRef::new(Val::Str("text".into())), ValRef::new(Val::Str(res.into())));
+                                }
+                                results.insert(ValRef::new(Val::Str("bytes".into())), ValRef::new(Val::Blob(bytes.to_vec())));
+                            }
+                        },
+                        Err(error) => {
+                            results.insert(ValRef::new(Val::Str("error".into())), ValRef::new(Val::Str(error.to_string().into())));
+                        },
+                    }
+                }
+
+                wake(&self.waker); // wake the process that is waiting
+            });
+        } else {
+            // TODO: blocking reqwests (http depends on tokio at the moment)
+            wake(&self.waker);
+        }
     }
 }
 
@@ -159,32 +260,27 @@ async fn http_receiver(mut recv: mpsc::Receiver<HTTPRequest>) {
 /// HTTP instructions.
 pub(self) enum HttpIns {
     #[serde(skip)]
-    Send(Sender<HTTPRequest>),
-
-    #[serde(skip)]
-    InternalSend(Sender<HTTPRequest>, WakeRef, Arc<Mutex<OrdMap<ValRef<Val>, ValRef<Val>>>>),
+    InternalSend(WakeRef, Arc<Mutex<OrdMap<ValRef<Val>, ValRef<Val>>>>),
 
     #[serde(skip)]
     Extract(Arc<Mutex<OrdMap<ValRef<Val>, ValRef<Val>>>>),
+
+    /// Parse an HTTP response map into an object context, using the recieved content_type (or STOF/JSON by default..)
+    ParseResponse,
+    /// Was the response successful (200 <= status <= 299)?
+    ResponseSuccess,
+    /// Client error response (400 <= status <= 499)?
+    ClientError,
+    /// Server error response (500 <= status <= 599)?
+    ServerError,
 }
 #[typetag::serde(name = "HttpIns")]
 impl Instruction for HttpIns {
     fn exec(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         match self {
-            Self::Send(sender) => {
-                let wake_ref = WakeRef::default();
-                let result_map: Arc<Mutex<OrdMap<ValRef<Val>, ValRef<Val>>>> = Arc::new(Mutex::new(OrdMap::default()));
-
-                let mut instructions = Instructions::default();
-                instructions.push(Arc::new(Self::InternalSend(sender.clone(), wake_ref.clone(), result_map.clone())));
-                instructions.push(Arc::new(Base::CtrlSleepRef(wake_ref)));
-                instructions.push(Arc::new(Self::Extract(result_map)));
-                return Ok(Some(instructions));
-            },
-            Self::InternalSend(sender, waker, result_map) => {
-                // Reset the result map and the waker value (Ex. in a loop)
-                reset(waker);
-                {
+            Self::InternalSend(waker, result_map) => {
+                // Reset the result map and the waker (shouldn't happen, but good redundancy)
+                if reset(waker) {
                     let mut results = result_map.blocking_lock();
                     results.clear();
                 }
@@ -332,17 +428,119 @@ impl Instruction for HttpIns {
                     results: result_map.clone(),
                     waker: waker.clone(),
                 };
-                match sender.blocking_send(request) {
-                    Ok(_) => {},
-                    Err(error) => {
-                        return Err(Error::HttpSendError(error.to_string()));
-                    },
-                }
+                request.send(env);
             },
             Self::Extract(map) => {
                 let map = map.blocking_lock();
                 let map = map.deref().clone(); // structural sharing makes more efficient
                 env.stack.push(Variable::val(Val::Map(map))); // map return value
+            },
+            
+            // Http.parse(response: map, context: obj = self) -> obj
+            Self::ParseResponse => {
+                let mut context = env.self_ptr();
+                if let Some(context_var) = env.stack.pop() {
+                    if let Some(obj) = context_var.try_obj() {
+                        context = obj;
+                    }
+                }
+                if let Some(response) = env.stack.pop() {
+                    match response.val.read().deref() {
+                        Val::Map(response) => {
+                            let mut content_type = "stof".to_string();
+                            if let Some(ctype) = response.get(&ValRef::new(Val::Str("content_type".into()))) {
+                                content_type = ctype.read().to_string();
+                            }
+                            if let Some(body) = response.get(&ValRef::new(Val::Str("bytes".into()))) {
+                                match body.read().deref() {
+                                    Val::Blob(bytes) => {
+                                        let bytes = Bytes::from(bytes.clone()); // TODO: v0.9 Blob(vec) -> Blob(Bytes)
+                                        graph.binary_import(&content_type, bytes, Some(context.clone()))?;
+                                        env.stack.push(Variable::val(Val::Obj(context)));
+                                    },
+                                    _ => {
+                                        return Err(Error::HttpSendError(format!("parse response map 'bytes' body must be a blob")));
+                                    }
+                                }
+                            } else {
+                                return Err(Error::HttpSendError(format!("parse response map must have a 'bytes' key-value blob body")));
+                            }
+                        },
+                        _ => {
+                            return Err(Error::HttpSendError(format!("parse response must be a map")))
+                        }
+                    }
+                }
+            },
+
+            // Http.success(response: map) -> bool
+            Self::ResponseSuccess => {
+                if let Some(response_var) = env.stack.pop() {
+                    match response_var.val.read().deref() {
+                        Val::Map(response) => {
+                            if let Some(status) = response.get(&ValRef::new(Val::Str("status".into()))) {
+                                match status.read().deref() {
+                                    Val::Num(num) => {
+                                        let v = num.int();
+                                        env.stack.push(Variable::val(Val::Bool(v >= 200 && v < 300)));
+                                    },
+                                    _ => {
+                                        env.stack.push(Variable::val(Val::Bool(false)));
+                                    }
+                                }
+                            } else {
+                                env.stack.push(Variable::val(Val::Bool(false)));
+                            }
+                        },
+                        _ => {}
+                    }
+                }
+            },
+            // Http.client_error(response: map) -> bool
+            Self::ClientError => {
+                if let Some(response_var) = env.stack.pop() {
+                    match response_var.val.read().deref() {
+                        Val::Map(response) => {
+                            if let Some(status) = response.get(&ValRef::new(Val::Str("status".into()))) {
+                                match status.read().deref() {
+                                    Val::Num(num) => {
+                                        let v = num.int();
+                                        env.stack.push(Variable::val(Val::Bool(v >= 400 && v < 500)));
+                                    },
+                                    _ => {
+                                        env.stack.push(Variable::val(Val::Bool(false)));
+                                    }
+                                }
+                            } else {
+                                env.stack.push(Variable::val(Val::Bool(false)));
+                            }
+                        },
+                        _ => {}
+                    }
+                }
+            },
+            // Http.server_error(response: map) -> bool
+            Self::ServerError => {
+                if let Some(response_var) = env.stack.pop() {
+                    match response_var.val.read().deref() {
+                        Val::Map(response) => {
+                            if let Some(status) = response.get(&ValRef::new(Val::Str("status".into()))) {
+                                match status.read().deref() {
+                                    Val::Num(num) => {
+                                        let v = num.int();
+                                        env.stack.push(Variable::val(Val::Bool(v >= 500 && v < 600)));
+                                    },
+                                    _ => {
+                                        env.stack.push(Variable::val(Val::Bool(false)));
+                                    }
+                                }
+                            } else {
+                                env.stack.push(Variable::val(Val::Bool(false)));
+                            }
+                        },
+                        _ => {}
+                    }
+                }
             },
         }
         Ok(None)
