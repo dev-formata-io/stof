@@ -170,41 +170,43 @@ impl Field {
                 }
             }
 
-            // Look for a parent with the field name (that is also a field)
-            let mut gp = None;
-            if let Some(parent) = &node.parent {
-                if let Some(parent) = parent.node(&graph) {
-                    if (parent.name.as_ref() == field_name || field_name == SUPER_KEYWORD.as_ref()) && parent.is_field() {
-                        if let Some(grand) = &parent.parent {
-                            if grand.node_exists(&graph) {
-                                gp = Some((grand.clone(), parent.name.clone()));
+            if created.is_none() {
+                // Look for a parent with the field name (that is also a field)
+                let mut gp = None;
+                if let Some(parent) = &node.parent {
+                    if let Some(parent) = parent.node(&graph) {
+                        if (parent.name.as_ref() == field_name || field_name == SUPER_KEYWORD.as_ref()) && parent.is_field() {
+                            if let Some(grand) = &parent.parent {
+                                if grand.node_exists(&graph) {
+                                    gp = Some((grand.clone(), parent.name.clone()));
+                                }
                             }
                         }
                     }
                 }
-            }
-            if let Some((gp, field_name)) = gp {
-                return Self::field(graph, &gp, field_name.as_ref());
-            }
+                if let Some((gp, field_name)) = gp {
+                    return Self::field(graph, &gp, field_name.as_ref());
+                }
 
-            // Is this node the thing?
-            if (node.name.as_ref() == field_name || field_name == SELF_KEYWORD.as_ref()) && node.is_field() {
-                if let Some(parent) = &node.parent {
-                    if parent.node_exists(graph) {
-                        self_parent = Some(parent.clone());
-                        self_name = Some(node.name.clone());
+                // Is this node the thing?
+                if (node.name.as_ref() == field_name || field_name == SELF_KEYWORD.as_ref()) && node.is_field() {
+                    if let Some(parent) = &node.parent {
+                        if parent.node_exists(graph) {
+                            self_parent = Some(parent.clone());
+                            self_name = Some(node.name.clone());
+                        }
                     }
                 }
-            }
-        }
-        if let Some(parent) = self_parent {
-            if let Some(name) = self_name {
-                return Self::field(graph, &parent, name.as_ref());
             }
         }
         if let Some(field) = created {
             if let Some(dref) = graph.insert_stof_data(node, field_name, Box::new(field), None) {
                 return Some(dref);
+            }
+        }
+        if let Some(parent) = self_parent {
+            if let Some(name) = self_name {
+                return Self::field(graph, &parent, name.as_ref());
             }
         }
         None
