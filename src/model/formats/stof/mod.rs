@@ -69,11 +69,12 @@ impl Format for StofFormat {
     fn string_export(&self, graph: &Graph, format: &str, node: Option<NodeRef>) -> Result<String, Error> {
         let mut context = StofExportContext::default();
         context.human = format.contains("human");
+        let mut seen = FxHashSet::default();
         if let Some(node) = node {
-            context.export_node(graph, &node);
+            context.export_node(graph, &node, &mut seen);
         } else {
             for root in &graph.roots {
-                context.export_node(graph, root);
+                context.export_node(graph, root, &mut seen);
             }
         }
         Ok(context.stof)

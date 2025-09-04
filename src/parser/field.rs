@@ -20,7 +20,7 @@ use imbl::vector;
 use nanoid::nanoid;
 use nom::{branch::alt, bytes::complete::{tag, take_until}, character::complete::{char, multispace0, multispace1, space0}, combinator::{map, opt, peek, recognize}, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
 use rustc_hash::FxHashMap;
-use crate::{model::{Field, FieldDoc, SId}, parser::{context::ParseContext, doc::{document_statement, err_fail, StofParseError}, expr::expr, ident::ident, parse_attributes, string::{double_string, single_string}, types::parse_type, whitespace::{doc_comment, whitespace}}, runtime::{Val, Variable}};
+use crate::{model::{Field, FieldDoc, SId, NOFIELD_FIELD_ATTR}, parser::{context::ParseContext, doc::{document_statement, err_fail, StofParseError}, expr::expr, ident::ident, parse_attributes, string::{double_string, single_string}, types::parse_type, whitespace::{doc_comment, whitespace}}, runtime::{Val, Variable}};
 
 
 /// Parse a field into a parse context.
@@ -76,6 +76,12 @@ pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
     // Optionally end the field declaration with a semicolon or a comma
     let (input, _) = opt(preceded(multispace0, alt((char(';'), char(','))))).parse(input).map_err(err_fail)?;
 
+    // check for #[no-field] on an object value, which only creates the object, not a field in addition
+    // this is typically done within/for the stof export
+    if value.try_obj().is_some() && attributes.contains_key(NOFIELD_FIELD_ATTR.as_str()) {
+        return Ok((input, ()));
+    }
+    
     // Instert the new field in the current parse context
     let field = Field::new(value, Some(attributes));
     let self_ptr = context.self_ptr();

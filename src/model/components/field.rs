@@ -24,6 +24,9 @@ use crate::{model::{DataRef, Graph, NodeRef, SPath, StofData, SELF_KEYWORD, SUPE
 /// Used in export formats.
 pub const NOEXPORT_FIELD_ATTR: ArcStr = literal!("no-export");
 
+/// Mark an object field as an object only constructor (no field constructor)
+pub const NOFIELD_FIELD_ATTR: ArcStr = literal!("no-field");
+
 /// Can the field be viewed outside of its scope?
 pub const PRIVATE_FIELD_ATTR: ArcStr = literal!("private");
 

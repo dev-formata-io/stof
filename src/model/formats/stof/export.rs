@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 
+use rustc_hash::FxHashSet;
 use crate::{model::{Field, Func, Graph, NodeRef, NOEXPORT_FIELD_ATTR}, runtime::Val};
 
 
@@ -25,7 +26,10 @@ pub struct StofExportContext {
 }
 impl StofExportContext {
     /// Export a node into this context.
-    pub fn export_node(&mut self, graph: &Graph, node: &NodeRef) {
+    pub fn export_node(&mut self, graph: &Graph, node: &NodeRef, seen: &mut FxHashSet<NodeRef>) {
+        if seen.contains(node) { return; }
+        seen.insert(node.clone());
+
         let mut root = false;
         if node.is_root(graph) {
             if let Some(main) = graph.main_root() {
@@ -50,7 +54,7 @@ impl StofExportContext {
                 if let Some(field) = graph.get_stof_data::<Field>(dref) {
                     if !field.attributes.contains_key(NOEXPORT_FIELD_ATTR.as_str()) {
                         if let Some(field_node) = field.value.try_obj() {
-                            if !field_node.child_of(graph, &node.id) {
+                            if !field_node.child_of(graph, &node.id) && !seen.contains(&field_node) {
                                 if let Some(child) = field_node.node(graph) {
                                     if self.human { self.push_line("", false); }
                                     for attr in &child.attributes {
@@ -62,15 +66,17 @@ impl StofExportContext {
                                             self.push_text(")]", false);
                                         }
                                     }
+                                    self.push_line("#[no-field]", false);
                                     let obj_name = child.name.as_ref().replace("'", "\\'");
                                     self.push_line(&format!("'{}': {{ ({})", obj_name, child.id.as_ref()), false);
                                     self.push_indent();
-                                    self.export_node(graph, &child.id);
+                                    self.export_node(graph, &child.id, seen);
                                     self.pop_indent();
                                     self.push_line("}", false);
                                 }
                             }
-                        } else if let Some(data) = dref.data(graph) {
+                        }
+                        if let Some(data) = dref.data(graph) {
                             if let Ok(bytes) = bincode::serialize(data) {
                                 if self.human {
                                     self.push_line("", false);
@@ -127,22 +133,27 @@ impl StofExportContext {
             }
             for child in &node.children {
                 if let Some(child) = child.node(graph) {
-                    if self.human { self.push_line("", false); }
-                    for attr in &child.attributes {
-                        if attr.1.empty() {
-                            self.push_line(&format!("#[{}]", attr.0), false);
-                        } else if attr.0 != "extends" { // prototypes are already included... this may error otherwise with Str typenames
-                            self.push_line(&format!("#[{}(", attr.0), false);
-                            self.export_value(graph, attr.1.clone());
-                            self.push_text(")]", false);
+                    if !seen.contains(&child.id) {
+                        if self.human { self.push_line("", false); }
+                        for attr in &child.attributes {
+                            if attr.1.empty() {
+                                self.push_line(&format!("#[{}]", attr.0), false);
+                            } else if attr.0 != "extends" { // prototypes are already included... this may error otherwise with Str typenames
+                                self.push_line(&format!("#[{}(", attr.0), false);
+                                self.export_value(graph, attr.1.clone());
+                                self.push_text(")]", false);
+                            }
                         }
+                        if !child.is_field() {
+                            self.push_line("#[no-field]", false);
+                        }
+                        let obj_name = child.name.as_ref().replace("'", "\\'");
+                        self.push_line(&format!("'{}': {{ ({})", obj_name, child.id.as_ref()), false);
+                        self.push_indent();
+                        self.export_node(graph, &child.id, seen);
+                        self.pop_indent();
+                        self.push_line("}", false);
                     }
-                    let obj_name = child.name.as_ref().replace("'", "\\'");
-                    self.push_line(&format!("'{}': {{ ({})", obj_name, child.id.as_ref()), false);
-                    self.push_indent();
-                    self.export_node(graph, &child.id);
-                    self.pop_indent();
-                    self.push_line("}", false);
                 }
             }
         }
