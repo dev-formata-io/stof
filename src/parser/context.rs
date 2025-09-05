@@ -218,20 +218,19 @@ impl<'ctx> ParseContext<'ctx> {
     }
 
     /// Push self stack as a variable.
-    pub fn push_self(&mut self, name: &str, field: bool, attributes: &mut FxHashMap<String, Val>, id: Option<SId>) -> Variable {
+    pub fn push_self(&mut self, name: &str, attributes: &mut FxHashMap<String, Val>, id: Option<SId>) -> Variable {
         let parent = self.self_ptr();
-        
-        // TODO: collisions?
 
+        // Insert the new node, not as a field (we're overridding attributes anyways)
         let nref;
         if let Some(cid) = id {
             if cid.node_exists(&self.graph) {
-                nref = self.graph.insert_node(name, Some(parent), field); // no collisions
+                nref = self.graph.insert_node(name, Some(parent), false); // no collisions
             } else {
-                nref = self.graph.insert_node_id(name, cid, Some(parent), field);
+                nref = self.graph.insert_node_id(name, cid, Some(parent), false);
             }
         } else {
-            nref = self.graph.insert_node(name, Some(parent), field);
+            nref = self.graph.insert_node(name, Some(parent), false);
         }
         if let Some(node) = nref.node_mut(&mut self.graph) {
             node.attributes = attributes.clone(); // set node attributes as the same as field attrs

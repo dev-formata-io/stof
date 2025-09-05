@@ -74,3 +74,9 @@ fn url_safe_base64() {
     assert_eq(other, bytes);
     assert_eq(other as str, 'hello, world');
 }
+
+#[test]
+fn from_raw() {
+    const msg = |104, 101, 108, 108, 111, 44, 32, 119, 111, 114, 108, 100|;
+    assert_eq(msg as str, 'hello, world');
+}

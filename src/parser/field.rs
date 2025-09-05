@@ -189,7 +189,7 @@ fn object_value<'a>(input: &'a str, name: &str, context: &mut ParseContext, attr
     let mut cid = None;
     if let Some(id) = custom_id { cid = Some(SId::from(id)); }
 
-    let value = context.push_self(name, true, attributes, cid);
+    let value = context.push_self(name, attributes, cid);
     if !input.starts_with('}') { // account for an empty object case "{}"
         loop {
             let res = document_statement(input, context);
