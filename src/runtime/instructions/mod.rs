@@ -16,7 +16,7 @@
 
 use std::{sync::Arc, time::Duration};
 use arcstr::ArcStr;
-use imbl::vector;
+use imbl::{vector, Vector};
 use lazy_static::lazy_static;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
@@ -176,6 +176,24 @@ pub enum Base {
     PopLoop,
     CtrlBreak,
     CtrlContinue,
+    // Kill the while loop that just executed and start over
+    CtrlLoopBackTo {
+        // Tag we are going back to.
+        top_tag: ArcStr,
+
+        // While loop test instruction.
+        test: Arc<dyn Instruction>,
+        // End tag for the while loop.
+        end_tag: ArcStr,
+
+        // Inner instructions.
+        ins: Vector<Arc<dyn Instruction>>,
+
+        // Continue tag & end of while.
+        continue_tag: ArcStr,
+        scope_count: usize,
+        inc: Option<Arc<dyn Instruction>>,
+    },
 
     // Pop a variable from the stack. (drop val)
     PopStack,
@@ -336,6 +354,30 @@ impl Instruction for Base {
             },
             Self::CtrlBreak => {}, // Nothing here...
             Self::CtrlContinue => {}, // Nothing here...
+            Self::CtrlLoopBackTo { top_tag: _, test, end_tag, ins, continue_tag, scope_count, inc } => {
+                let mut instructions = Instructions::default();
+                // Test if the value is truthy, go to end_tag if not
+                instructions.push(test.clone());
+                instructions.push(TRUTHY.clone());
+                instructions.push(Arc::new(Base::CtrlForwardToIfNotTruthy(end_tag.clone(), ConsumeStack::Consume)));
+                
+                // Do the thing
+                instructions.push(PUSH_SYMBOL_SCOPE.clone());
+                instructions.append(ins);
+
+                // Continue statements will go to here
+                instructions.push(Arc::new(Base::Tag(continue_tag.clone())));
+                instructions.push(Arc::new(Base::PopSymbolScopeUntilDepth(scope_count + 1))); // take loop count into consideration
+
+                // If we have an inc expr, do that now before we start the loop again
+                if let Some(inc) = &inc {
+                    instructions.push(inc.clone());
+                }
+
+                // Go back to the top
+                instructions.push(Arc::new(self.clone()));
+                return Ok(Some(instructions));
+            },
 
             
             /*****************************************************************************

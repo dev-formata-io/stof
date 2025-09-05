@@ -118,7 +118,6 @@ impl FuncCall {
         
         // In this case, we are searching for a generic path, using the symbol table, libraries, and graph
         let context;
-        let mut var_first = None;
         if split_path[0] == SELF_STR_KEYWORD.as_str() {
             context = ValRef::new(Val::Obj(env.self_ptr()));
             split_path.remove(0);
@@ -131,7 +130,7 @@ impl FuncCall {
             }
         } else if let Some(var) = env.table.get(split_path[0]) {
             context = var.val.clone();
-            var_first = Some(split_path.remove(0));
+            split_path.remove(0);
         } else if split_path[0] == "this" && env.call_stack.len() > 0 {
             context = ValRef::new(Val::Fn(env.call_stack.last().unwrap().clone()));
             split_path.remove(0);
@@ -169,23 +168,13 @@ impl FuncCall {
         if let Some(obj) = context.read().try_obj() {
             // self.path.function();
             // super.path.function();
-            if let Ok(mut res) = self.object_search(&context_path, Some(obj), env, graph, false) {
-                if res.prototype_self.is_some() {
-                    if let Some(first) = var_first {
-                        // If the variable came from the symbol table, make sure to go grab the updated version each time
-                        res.prototype_self = Some(Arc::new(Base::LoadVariable(first.into(), false, true)));
-                    }
-                }
+            if let Ok(res) = self.object_search(&context_path, Some(obj), env, graph, false) {
                 return Ok(res);
             }
         }
         if split_path.len() < 2 {
             // var.split('.'); // string variable for example
             let libname = context.read().lib_name(&graph);
-            if let Some(first) = var_first {
-                // If the variable came from the symbol table, make sure to go grab the updated version each time
-                return Ok(CallContext { lib: Some(libname), stack_arg: Some(Arc::new(Base::LoadVariable(first.into(), false, true))), prototype_self: None, func: SId::from(split_path[0]) });
-            }
             return Ok(CallContext { lib: Some(libname), stack_arg: Some(Arc::new(Base::Variable(Variable::refval(context)))), prototype_self: None, func: SId::from(split_path[0]) });
         }
 

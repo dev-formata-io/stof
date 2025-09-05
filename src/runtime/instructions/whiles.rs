@@ -74,7 +74,7 @@ impl Instruction for WhileIns {
             instructions.append(&self.ins);
 
             // Continue statements will go to here
-            instructions.push(Arc::new(Base::Tag(continue_tag)));
+            instructions.push(Arc::new(Base::Tag(continue_tag.clone())));
             instructions.push(Arc::new(Base::PopSymbolScopeUntilDepth(scope_count + 1))); // take loop count into consideration
 
             // If we have an inc expr, do that now before we start the loop again
@@ -82,8 +82,16 @@ impl Instruction for WhileIns {
                 instructions.push(inc.clone());
             }
 
-            // Go back to the top
-            instructions.push(Arc::new(Base::CtrlBackTo(top_tag)));
+            // Go back to the top in our special loopy way
+            instructions.push(Arc::new(Base::CtrlLoopBackTo {
+                top_tag,
+                test: self.test.clone(),
+                end_tag: end_tag.clone(),
+                ins: self.ins.clone(),
+                continue_tag,
+                scope_count,
+                inc: self.inc.clone()
+            }));
         }
 
         // Break statements will go here, as well as our jump if not truthy

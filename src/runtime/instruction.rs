@@ -130,6 +130,23 @@ impl Instructions {
         }
     }
 
+    /// Backup to a specific tag in these instructions, killing all instructions.
+    pub fn kill_back_to(&mut self, tag: &ArcStr) {
+        'unwind: while let Some(ins) = self.executed.pop_back() {
+            if let Some(base) = ins.as_dyn_any().downcast_ref::<Base>() {
+                match base {
+                    Base::Tag(tagged) => {
+                        if tagged == tag {
+                            self.executed.push_back(ins);
+                            break 'unwind;
+                        }
+                    },
+                    _ => {}
+                }
+            }
+        }
+    }
+
     /// Backup to a specific tag in these instructions.
     pub fn forward_to(&mut self, tag: &ArcStr) {
         'fast_forward: while let Some(ins) = self.instructions.pop_front() {
@@ -289,6 +306,10 @@ impl Instructions {
                                 self.forward_to(&continue_tag);
                                 continue 'exec_loop;
                             }
+                        },
+                        Base::CtrlLoopBackTo { top_tag, .. } => {
+                            self.kill_back_to(top_tag);
+                            // don't continue...
                         },
                         Base::CtrlJumpTable(table, default) => {
                             // Compares the value on the top of the stack and jumps forwards to the associated tag
