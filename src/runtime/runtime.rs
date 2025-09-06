@@ -20,12 +20,15 @@ use imbl::Vector;
 use rustc_hash::{FxHashMap, FxHashSet};
 use crate::{model::{DataRef, Func, Graph, SId}, runtime::{instruction::Instruction, instructions::{call::FuncCall, Base}, proc::{ProcRes, Process}, Error, Val, Waker}};
 
+#[cfg(feature = "tokio")]
+use parking_lot::RwLock;
 
 #[cfg(feature = "tokio")]
 use lazy_static::lazy_static;
 #[cfg(feature = "tokio")]
 lazy_static! {
     static ref TOKIO_RUNTIME: Arc<std::sync::Mutex<Option<tokio::runtime::Runtime>>> = Arc::new(std::sync::Mutex::new(None));
+    static ref TOKIO_HANDLE_OVERRIDE: Arc<RwLock<Option<tokio::runtime::Handle>>> = Arc::new(RwLock::new(None));
 }
 
 
@@ -63,14 +66,20 @@ impl Default for Runtime {
         };
 
         // all Stof runtimes share the same background tokio runtime (thread pool)
-        // lazily create a new tokio runtime if needed
-        let mut tokio_runtime = TOKIO_RUNTIME.lock().unwrap();
-        if let Some(tokio_runtime) = &*tokio_runtime {
-            rt.tokio_runtime = Some(tokio_runtime.handle().clone());
+        // check to see if there has been a tokio runtime handle given to us
+        let tokio_runtime_handle = TOKIO_HANDLE_OVERRIDE.read();
+        if let Some(handle) = &*tokio_runtime_handle {
+            rt.tokio_runtime = Some(handle.clone());
         } else {
-            let trt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
-            rt.tokio_runtime = Some(trt.handle().clone());
-            *tokio_runtime = Some(trt);
+            // lazily create our own new tokio runtime if needed with defaults
+            let mut tokio_runtime = TOKIO_RUNTIME.lock().unwrap();
+            if let Some(tokio_runtime) = &*tokio_runtime {
+                rt.tokio_runtime = Some(tokio_runtime.handle().clone());
+            } else {
+                let trt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
+                rt.tokio_runtime = Some(trt.handle().clone());
+                *tokio_runtime = Some(trt);
+            }
         }
         rt
     }
@@ -707,5 +716,12 @@ impl Runtime {
         } else {
             Err(Error::NotImplemented)
         }
+    }
+
+    #[cfg(feature = "tokio")]
+    /// Set tokio runtime handle for Stof.
+    pub fn set_tokio_runtime(runtime: tokio::runtime::Handle) {
+        let mut tokio_handle = TOKIO_HANDLE_OVERRIDE.write();
+        *tokio_handle = Some(runtime);
     }
 }
