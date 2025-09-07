@@ -57,7 +57,9 @@ impl StofExportContext {
                             if !field_node.child_of(graph, &node.id) && !seen.contains(&field_node) {
                                 if let Some(child) = field_node.node(graph) {
                                     if self.human { self.push_line("", false); }
+                                    let mut saw_no_field = false;
                                     for attr in &child.attributes {
+                                        if attr.0 == "no-field" { saw_no_field = true; }
                                         if attr.1.empty() {
                                             self.push_line(&format!("#[{}]", attr.0), false);
                                         } else if attr.0 != "extends" { // prototypes are already included... this may error otherwise with Str typenames
@@ -66,7 +68,9 @@ impl StofExportContext {
                                             self.push_text(")]", false);
                                         }
                                     }
-                                    self.push_line("#[no-field]", false);
+                                    if !saw_no_field {
+                                        self.push_line("#[no-field]", false);
+                                    }
                                     let obj_name = child.name.as_ref().replace("'", "\\'");
                                     self.push_line(&format!("'{}': {{ ({})", obj_name, child.id.as_ref()), false);
                                     self.push_indent();
@@ -135,7 +139,9 @@ impl StofExportContext {
                 if let Some(child) = child.node(graph) {
                     if !seen.contains(&child.id) {
                         if self.human { self.push_line("", false); }
+                        let mut saw_no_field = false;
                         for attr in &child.attributes {
+                            if attr.0 == "no-field" { saw_no_field = true; }
                             if attr.1.empty() {
                                 self.push_line(&format!("#[{}]", attr.0), false);
                             } else if attr.0 != "extends" { // prototypes are already included... this may error otherwise with Str typenames
@@ -144,7 +150,7 @@ impl StofExportContext {
                                 self.push_text(")]", false);
                             }
                         }
-                        if !child.is_field() {
+                        if !child.is_field() && !saw_no_field {
                             self.push_line("#[no-field]", false);
                         }
                         let obj_name = child.name.as_ref().replace("'", "\\'");
