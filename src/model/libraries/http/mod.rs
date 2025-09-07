@@ -15,7 +15,7 @@
 //
 
 use core::str;
-use std::{ops::Deref, str::FromStr, sync::Arc, time::Duration};
+use std::{ops::{Deref, DerefMut}, str::FromStr, sync::Arc, time::Duration};
 use arcstr::{literal, ArcStr};
 use bytes::Bytes;
 use imbl::{vector, OrdMap};
@@ -23,8 +23,7 @@ use lazy_static::lazy_static;
 use reqwest::{header::{HeaderMap, HeaderName, CONTENT_TYPE}, Client, Method};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
-use crate::{model::{Graph, LibFunc, Param}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, reset, wake, Error, Num, NumT, Type, Units, Val, ValRef, Variable, WakeRef}};
+use crate::{model::{Graph, LibFunc, Param}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, wake, Error, Num, NumT, Type, Units, Val, ValRef, Variable, WakeRef}};
 
 
 lazy_static! {
@@ -63,11 +62,9 @@ assert(resp.get('text').len() > 100);
         args_to_symbol_table: false,
         func: Arc::new(move |_as_ref, _arg_count, _env, _graph| {
             let wake_ref = WakeRef::default();
-            let result_map: Arc<Mutex<OrdMap<ValRef<Val>, ValRef<Val>>>> = Arc::new(Mutex::new(OrdMap::default()));
             let mut instructions = Instructions::default();
-            instructions.push(Arc::new(HttpIns::InternalSend(wake_ref.clone(), result_map.clone())));
+            instructions.push(Arc::new(HttpIns::InternalSend(wake_ref.clone())));
             instructions.push(Arc::new(Base::CtrlSleepRef(wake_ref)));
-            instructions.push(Arc::new(HttpIns::Extract(result_map)));
             Ok(instructions)
         })
     });
@@ -182,8 +179,8 @@ pub(self) struct HTTPRequest {
     pub timeout: Option<Duration>,
     pub query: Option<FxHashMap<String, String>>,
 
-    /// Put results from the request here.
-    pub results: Arc<Mutex<OrdMap<ValRef<Val>, ValRef<Val>>>>,
+    /// Put results from the request into this value.
+    pub results: ValRef<Val>,
 
     /// Call wake at the end so that the process resumes with the results.
     pub waker: WakeRef,
@@ -212,40 +209,54 @@ impl HTTPRequest {
                 }
 
                 if let Ok(request) = builder.build() {
-                    let mut results = self.results.lock().await;
                     match client.execute(request).await {
                         Ok(response) => {
-                            results.insert(ValRef::new(Val::Str("status".into())), ValRef::new(Val::Num(Num::Int(response.status().as_u16() as i64))));
-                            results.insert(ValRef::new(Val::Str("ok".into())), ValRef::new(Val::Bool(response.status().is_success())));
+                            let status = response.status();
+                            let headers = response.headers().clone();
+                            let response_body = response.bytes().await;
 
-                            let mut headers = OrdMap::default();
-                            for (k, v) in response.headers() {
-                                if let Ok(val) = v.to_str() {
-                                    headers.insert(ValRef::new(Val::Str(k.as_str().into())), ValRef::new(Val::Str(val.into())));
-                                }
-                            }
-                            results.insert(ValRef::new(Val::Str("headers".into())), ValRef::new(Val::Map(headers)));
-                        
-                            if let Some(ctype) = response.headers().get(CONTENT_TYPE) {
-                                if let Ok(val) = ctype.to_str() {
-                                    results.insert(ValRef::new(Val::Str("content_type".into())), ValRef::new(Val::Str(val.into())));
-                                }
-                            }
+                            let mut results = self.results.write();
+                            match results.deref_mut() {
+                                Val::Map(results) => {
+                                    results.insert(ValRef::new(Val::Str("status".into())), ValRef::new(Val::Num(Num::Int(status.as_u16() as i64))));
+                                    results.insert(ValRef::new(Val::Str("ok".into())), ValRef::new(Val::Bool(status.is_success())));
 
-                            if let Ok(bytes) = response.bytes().await {
-                                // TODO: v0.9 remove "text" and only use the lib body or parse functions
-                                if let Ok(res) = str::from_utf8(&bytes) {
-                                    results.insert(ValRef::new(Val::Str("text".into())), ValRef::new(Val::Str(res.into())));
-                                }
-                                results.insert(ValRef::new(Val::Str("bytes".into())), ValRef::new(Val::Blob(bytes.to_vec())));
+                                    let mut result_headers = OrdMap::default();
+                                    for (k, v) in &headers {
+                                        if let Ok(val) = v.to_str() {
+                                            result_headers.insert(ValRef::new(Val::Str(k.as_str().into())), ValRef::new(Val::Str(val.into())));
+                                        }
+                                    }
+                                    results.insert(ValRef::new(Val::Str("headers".into())), ValRef::new(Val::Map(result_headers)));
+                                
+                                    if let Some(ctype) = headers.get(CONTENT_TYPE) {
+                                        if let Ok(val) = ctype.to_str() {
+                                            results.insert(ValRef::new(Val::Str("content_type".into())), ValRef::new(Val::Str(val.into())));
+                                        }
+                                    }
+
+                                    if let Ok(bytes) = response_body {
+                                        // TODO: v0.9 remove "text" and only use the lib body or parse functions
+                                        if let Ok(res) = str::from_utf8(&bytes) {
+                                            results.insert(ValRef::new(Val::Str("text".into())), ValRef::new(Val::Str(res.into())));
+                                        }
+                                        results.insert(ValRef::new(Val::Str("bytes".into())), ValRef::new(Val::Blob(bytes.to_vec())));
+                                    }
+                                },
+                                _ => {},
                             }
                         },
                         Err(error) => {
-                            results.insert(ValRef::new(Val::Str("error".into())), ValRef::new(Val::Str(error.to_string().into())));
-                        },
+                            let mut results = self.results.write();
+                            match results.deref_mut() {
+                                Val::Map(results) => {
+                                    results.insert(ValRef::new(Val::Str("error".into())), ValRef::new(Val::Str(error.to_string().into())));
+                                },
+                                _ => {},
+                            }
+                        }
                     }
                 }
-
                 wake(&self.waker); // wake the process that is waiting
             });
         } else {
@@ -260,10 +271,7 @@ impl HTTPRequest {
 /// HTTP instructions.
 pub(self) enum HttpIns {
     #[serde(skip)]
-    InternalSend(WakeRef, Arc<Mutex<OrdMap<ValRef<Val>, ValRef<Val>>>>),
-
-    #[serde(skip)]
-    Extract(Arc<Mutex<OrdMap<ValRef<Val>, ValRef<Val>>>>),
+    InternalSend(WakeRef),
 
     /// Parse an HTTP response map into an object context, using the recieved content_type (or STOF/JSON by default..)
     ParseResponse,
@@ -278,13 +286,7 @@ pub(self) enum HttpIns {
 impl Instruction for HttpIns {
     fn exec(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         match self {
-            Self::InternalSend(waker, result_map) => {
-                // Reset the result map and the waker (shouldn't happen, but good redundancy)
-                if reset(waker) {
-                    let mut results = result_map.blocking_lock();
-                    results.clear();
-                }
-
+            Self::InternalSend(waker) => {
                 // create the HTTPRequest and use the sender to send it off to be executed in the background
                 // Http.send(url: str, method: str, body: blob | str, headers: map, timeout: ms, query: map, bearer: str) -> map;
                 let mut url = String::default();
@@ -417,6 +419,7 @@ impl Instruction for HttpIns {
                     }
                 }
 
+                let map = ValRef::new(Val::Map(OrdMap::default()));
                 let request = HTTPRequest {
                     url,
                     method,
@@ -425,15 +428,11 @@ impl Instruction for HttpIns {
                     body,
                     timeout,
                     query,
-                    results: result_map.clone(),
+                    results: map.clone(),
                     waker: waker.clone(),
                 };
+                env.stack.push(Variable::refval(map));
                 request.send(env);
-            },
-            Self::Extract(map) => {
-                let map = map.blocking_lock();
-                let map = map.deref().clone(); // structural sharing makes more efficient
-                env.stack.push(Variable::val(Val::Map(map))); // map return value
             },
             
             // Http.parse(response: map, context: obj = self) -> obj
