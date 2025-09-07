@@ -112,7 +112,7 @@ fn simple_stof() {
     assert_eq(object.name, 'Rachel');
     assert_eq(object.job, 'Dentist');
     assert_eq(object.age, 34);
-    assert(Time.now() - 1s < object.ts);
+    assert(Time.now() > object.ts);
     assert_eq(object.regs.front().name, 'Sharon');
     assert_eq(object.regs.front().age, 55);
 

@@ -48,7 +48,7 @@ Cargo cargo: {
         image: ['dep:image']
         docx: ['dep:docx-rs']
         pdf: ['dep:lopdf', 'image']
-        http: ['dep:reqwest', 'tokio']
+        http: ['dep:reqwest']
         tokio: ['dep:tokio']
         age_encrypt: ['dep:age']
 
@@ -116,6 +116,7 @@ Cargo cargo: {
         reqwest: {
             version: 0.12.23
             optional: true
+            features: ['blocking']
         }
         rustc-hash: 2.1.1
         imbl: {
@@ -213,7 +214,7 @@ github: {
 /// Generate Cargo.toml file.
 /// `stof run project.stof -a cargo`
 async fn generate_cargo_toml() {
-    const out = await Rust.Cargo.generate(self.cargo, 0.8.31, update = false);
+    const out = await Rust.Cargo.generate(self.cargo, 0.8.32, update = false);
     fs.write('Cargo.toml', out);
     pln('Cargo .. ok');
 }
