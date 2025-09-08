@@ -23,6 +23,10 @@ export class Stof {
    */
   call(path: string, args: any): any;
   /**
+   * Insert a JS function as a library function, available in Stof.
+   */
+  js_library_function(func: StofFunc): void;
+  /**
    * Parse Stof into this document, optionally within the specified node (pass null for root node).
    */
   parse(stof: string, node: any): boolean;
@@ -49,16 +53,29 @@ export class Stof {
    */
   binaryExport(format: string, node: any): any;
 }
+/**
+ * JS Library Function.
+ */
+export class StofFunc {
+  free(): void;
+  /**
+   * Create a new Stof function from a JS function.
+   */
+  constructor(library: string, name: string, js_function: any);
+}
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
+  readonly __wbg_stoffunc_free: (a: number, b: number) => void;
+  readonly stoffunc_new: (a: number, b: number, c: number, d: number, e: any) => number;
   readonly start: () => void;
   readonly __wbg_stof_free: (a: number, b: number) => void;
   readonly stof_new: () => number;
   readonly stof_run: (a: number, b: any) => [number, number, number, number];
   readonly stof_call: (a: number, b: number, c: number, d: any) => [number, number, number];
+  readonly stof_js_library_function: (a: number, b: number) => void;
   readonly stof_parse: (a: number, b: number, c: number, d: any) => [number, number, number];
   readonly stof_objImport: (a: number, b: any, c: any) => [number, number, number];
   readonly stof_stringImport: (a: number, b: number, c: number, d: number, e: number, f: any) => [number, number, number];

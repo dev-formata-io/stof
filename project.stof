@@ -54,7 +54,14 @@ Cargo cargo: {
 
         /// wasm/js version of the runtime
         /// should be the only feature enabled when building for the wasm target
-        js: ['stof_std', 'dep:js-sys', 'dep:wasm-bindgen', 'dep:serde-wasm-bindgen', 'dep:getrandom']
+        js: [
+            'stof_std',
+            'dep:js-sys',
+            'dep:wasm-bindgen',
+            'dep:serde-wasm-bindgen',
+            'dep:getrandom',
+            'dep:wasm-bindgen-futures',
+        ]
     }
 
     dependencies: {
@@ -144,12 +151,16 @@ Cargo cargo: {
             version: 0.2.100
             optional: true
         }
+        wasm-bindgen-futures: {
+            version: 0.4.51
+            optional: true
+        }
         serde-wasm-bindgen: {
             version: 0.6.5
             optional: true
         }
         js-sys: {
-            version: 0.3.77
+            version: 0.3.78
             optional: true
         }
         getrandom: {

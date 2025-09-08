@@ -17,6 +17,16 @@
 import { Doc } from '../doc.ts';
 
 const doc = await Doc.new();
+
+// add console libs
+doc.lib('Std', 'pln', (... vars: unknown[]) => console.log(...vars));
+doc.lib('Std', 'err', (... vars: unknown[]) => console.trace(... vars));
+
+// custom
+doc.lib('Custom', 'test', (name: string): string => {
+    return `Hello, ${name} from function`;
+});
+
 doc.parse(`
     value: 42
 
@@ -24,13 +34,17 @@ doc.parse(`
         self.value
     }
 
-    fn meaning() -> int {
-        await self.another_process()
+    #[main]
+    fn main() {
+        let res = await self.another_process();
+        pln('We have liftoff: ', res);
+
+        let message = await async Custom.test('CJ');
+        pln(message);
     }
 `);
 
-const res = doc.stof.call('root.meaning', undefined);
-console.log(res);
+doc.run();
 
 // deno run --allow-all web/examples/run.ts
 // 42

@@ -17,7 +17,7 @@
 use imbl::{OrdMap, OrdSet, Vector};
 use js_sys::{Array, BigInt, Map, Set, Uint8Array};
 use wasm_bindgen::JsValue;
-use crate::{js::Stof, model::{Func, SId}, runtime::{Num, Type, Val, ValRef}};
+use crate::{js::Stof, model::{Func, Graph, SId}, runtime::{Num, Type, Val, ValRef}};
 
 
 impl From<(JsValue, &Stof)> for Val {
@@ -31,6 +31,9 @@ impl From<(JsValue, &mut Stof)> for Val {
     }
 }
 pub fn to_stof_value(js: JsValue, doc: &Stof) -> Val {
+    to_graph_value(js, &doc.graph)
+}
+pub fn to_graph_value(js: JsValue, doc: &Graph) -> Val {
     if js.is_null() { return Val::Null; }
     if js.is_undefined() { return Val::Void; }
     if let Some(val) = js.as_bool() {
@@ -41,11 +44,11 @@ pub fn to_stof_value(js: JsValue, doc: &Stof) -> Val {
     }
     if let Some(val) = js.as_string() {
         let sid = SId::from(&val);
-        if sid.node_exists(&doc.graph) {
+        if sid.node_exists(&doc) {
             return Val::Obj(sid);
         }
-        if sid.data_exists(&doc.graph) {
-            if sid.type_of::<Func>(&doc.graph) {
+        if sid.data_exists(&doc) {
+            if sid.type_of::<Func>(&doc) {
                 return Val::Fn(sid);
             }
             return Val::Data(sid);
@@ -64,7 +67,7 @@ pub fn to_stof_value(js: JsValue, doc: &Stof) -> Val {
         let mut res = Vector::default();
         let array = Array::from(&js);
         for val in array {
-            res.push_back(ValRef::new(to_stof_value(val, doc)));
+            res.push_back(ValRef::new(to_graph_value(val, doc)));
         }
         return Val::List(res);
     }
@@ -81,7 +84,7 @@ pub fn to_stof_value(js: JsValue, doc: &Stof) -> Val {
         let mut stof_set = OrdSet::default();
         for js_val in set.values() {
             if let Ok(js_val) = js_val {
-                stof_set.insert(ValRef::new(to_stof_value(js_val, doc)));
+                stof_set.insert(ValRef::new(to_graph_value(js_val, doc)));
             }
         }
         Val::Set(stof_set)
@@ -94,8 +97,68 @@ pub fn to_stof_value(js: JsValue, doc: &Stof) -> Val {
                 let val = arr.get(1);
 
                 stof_map.insert(
-                    ValRef::new(to_stof_value(key, doc)),
-                    ValRef::new(to_stof_value(val, doc))
+                    ValRef::new(to_graph_value(key, doc)),
+                    ValRef::new(to_graph_value(val, doc))
+                );
+            }
+        }
+        Val::Map(stof_map)
+    } else {
+        // cast to blob type
+        let intarray = Uint8Array::from(js);
+        Val::Blob(intarray.to_vec())
+    }
+}
+
+#[allow(unused)]
+pub fn to_raw_value(js: JsValue) -> Val {
+    if js.is_null() { return Val::Null; }
+    if js.is_undefined() { return Val::Void; }
+    if let Some(val) = js.as_bool() {
+        return Val::Bool(val);
+    }
+    if let Some(val) = js.as_f64() {
+        return Val::Num(Num::Float(val));
+    }
+    if let Some(val) = js.as_string() {
+        return Val::Str(val.into());
+    }
+    if js.is_array() {
+        let mut res = Vector::default();
+        let array = Array::from(&js);
+        for val in array {
+            res.push_back(ValRef::new(to_raw_value(val)));
+        }
+        return Val::List(res);
+    }
+
+    #[allow(irrefutable_let_patterns)]
+    if js.is_bigint() {
+        let bigint = BigInt::from(js);
+        if let Some(val) = bigint.as_f64() {
+            return Val::Num(Num::Float(val));
+        }
+        Val::Null
+    }
+    else if let Ok(set) = Set::try_from(js.clone()) {
+        let mut stof_set = OrdSet::default();
+        for js_val in set.values() {
+            if let Ok(js_val) = js_val {
+                stof_set.insert(ValRef::new(to_raw_value(js_val)));
+            }
+        }
+        Val::Set(stof_set)
+    } else if let Ok(map) = Map::try_from(js.clone()) {
+        let mut stof_map = OrdMap::default();
+        for js_pair in map.entries() {
+            if let Ok(js_val) = js_pair {
+                let arr = Array::from(&js_val);
+                let key = arr.get(0);
+                let val = arr.get(1);
+
+                stof_map.insert(
+                    ValRef::new(to_raw_value(key)),
+                    ValRef::new(to_raw_value(val))
                 );
             }
         }

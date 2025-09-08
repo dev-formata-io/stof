@@ -15,7 +15,7 @@
 //
 
 // @deno-types="./pkg/stof.d.ts"
-import init, { Stof } from './pkg/stof.js';
+import init, { Stof, StofFunc } from './pkg/stof.js';
 // @deno-types="./pkg/stof.d.ts"
 export * from './pkg/stof.js';
 
@@ -62,5 +62,22 @@ export class Doc {
      */
     parse(stof: string, node: string | null = null): boolean {
         return this.stof.parse(stof, node);
+    }
+
+
+    /**
+     * Add JS library function.
+     */
+    // deno-lint-ignore ban-types
+    lib(library: string, name: string, func: Function) {
+        this.stof.js_library_function(new StofFunc(library, name, func));
+    }
+
+
+    /**
+     * Run this document with a given set of attributes.
+     */
+    run(attr: string | string[] = 'main'): string {
+        return this.stof.run(attr);
     }
 }

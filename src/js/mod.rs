@@ -15,13 +15,14 @@
 //
 
 mod value;
+mod func;
 use std::ops::Deref;
 
 use bytes::Bytes;
 use js_sys::Uint8Array;
 use rustc_hash::FxHashSet;
 use wasm_bindgen::prelude::*;
-use crate::{js::value::to_stof_value, model::{import::parse_json_object_value, Graph}, runtime::{Runtime, Val}};
+use crate::{js::{func::StofFunc, value::to_stof_value}, model::{import::parse_json_object_value, Graph}, runtime::{Runtime, Val}};
 
 
 // Workaround for Wasm-Pack Error
@@ -114,6 +115,16 @@ impl Stof {
             Ok(res) => Ok(JsValue::from(res)),
             Err(err) => Err(err.to_string())
         }
+    }
+
+
+    /*****************************************************************************
+     * Interop.
+     *****************************************************************************/
+    
+    /// Insert a JS function as a library function, available in Stof.
+    pub fn js_library_function(&mut self, func: StofFunc) {
+        self.graph.insert_libfunc(func.get_func());
     }
 
 

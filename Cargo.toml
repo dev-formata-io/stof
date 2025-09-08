@@ -48,7 +48,7 @@ version = "6.0.0"
 
 [dependencies.js-sys]
 optional = true
-version = "0.3.77"
+version = "0.3.78"
 
 [dependencies.lopdf]
 features = ["serde"]
@@ -93,6 +93,10 @@ version = "2.5.0"
 optional = true
 version = "0.2.100"
 
+[dependencies.wasm-bindgen-futures]
+optional = true
+version = "0.4.51"
+
 [dependencies.zip]
 optional = true
 version = "4.5.0"
@@ -105,7 +109,7 @@ docx = ["dep:docx-rs"]
 full = ["stof_std", "system", "pkg", "image", "docx", "pdf", "http", "tokio", "age_encrypt"]
 http = ["dep:reqwest"]
 image = ["dep:image"]
-js = ["stof_std", "dep:js-sys", "dep:wasm-bindgen", "dep:serde-wasm-bindgen", "dep:getrandom"]
+js = ["stof_std", "dep:js-sys", "dep:wasm-bindgen", "dep:serde-wasm-bindgen", "dep:getrandom", "dep:wasm-bindgen-futures"]
 pdf = ["dep:lopdf", "image"]
 pkg = ["dep:zip", "dep:regex", "dep:walkdir"]
 stof_std = []
