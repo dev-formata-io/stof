@@ -18,14 +18,9 @@ import { Doc } from '../doc.ts';
 
 const doc = await Doc.new();
 
-// add console libs
 doc.lib('Std', 'pln', (... vars: unknown[]) => console.log(...vars));
-doc.lib('Std', 'err', (... vars: unknown[]) => console.trace(... vars));
-
-// custom
-doc.lib('Custom', 'test', (name: string): string => {
-    return `Hello, ${name} from function`;
-});
+doc.lib('Std', 'err', (... vars: unknown[]) => console.error(... vars));
+doc.lib('Custom', 'test', (name: string): string => `Hello, ${name} from JS function`);
 
 doc.parse(`
     value: 42
@@ -36,15 +31,13 @@ doc.parse(`
 
     #[main]
     fn main() {
-        let res = await self.another_process();
-        pln('We have liftoff: ', res);
-
-        let message = await async Custom.test('CJ');
-        pln(message);
+        pln('Liftoff:', await self.another_process());
+        pln(Custom.test('CJ'));
     }
 `);
 
 doc.run();
 
 // deno run --allow-all web/examples/run.ts
-// 42
+// Liftoff: 42
+// Hello, CJ from JS function

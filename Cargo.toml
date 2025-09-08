@@ -50,6 +50,10 @@ version = "6.0.0"
 optional = true
 version = "0.3.78"
 
+[dependencies.log]
+optional = true
+version = "0.4.28"
+
 [dependencies.lopdf]
 features = ["serde"]
 optional = true
@@ -103,13 +107,14 @@ version = "4.5.0"
 
 [features]
 age_encrypt = ["dep:age"]
-basic = ["stof_std", "system", "pkg"]
+basic = ["stof_std", "system", "pkg", "log"]
 default = ["basic"]
 docx = ["dep:docx-rs"]
-full = ["stof_std", "system", "pkg", "image", "docx", "pdf", "http", "tokio", "age_encrypt"]
+full = ["stof_std", "system", "pkg", "log", "image", "docx", "pdf", "http", "tokio", "age_encrypt"]
 http = ["dep:reqwest"]
 image = ["dep:image"]
 js = ["stof_std", "dep:js-sys", "dep:wasm-bindgen", "dep:serde-wasm-bindgen", "dep:getrandom", "dep:wasm-bindgen-futures"]
+log = ["dep:log"]
 pdf = ["dep:lopdf", "image"]
 pkg = ["dep:zip", "dep:regex", "dep:walkdir"]
 stof_std = []
@@ -131,4 +136,4 @@ keywords = ["schema", "interpreter", "async", "validation", "embedded"]
 license = "Apache-2.0"
 name = "stof"
 repository = "https://github.com/dev-formata-io/stof"
-version = "0.8.33"
+version = "0.8.34"

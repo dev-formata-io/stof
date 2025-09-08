@@ -114,3 +114,128 @@ err("hello, world");
         })
     }
 }
+
+#[cfg(feature = "log")]
+/// Log error function.
+pub fn std_log_error() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "log_error".into(),
+        is_async: false,
+        docs: r#"# Std.log_error(..) -> void
+Logs all arguments as an error using the "log" crate.
+```rust
+log_error("we have a problem");
+```
+"#.into(),
+        params: vector![],
+        return_type: None,
+        unbounded_args: true,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(StdIns::ErrorLog(arg_count)));
+            Ok(instructions)
+        })
+    }
+}
+
+#[cfg(feature = "log")]
+/// Log warn function.
+pub fn std_log_warn() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "log_warn".into(),
+        is_async: false,
+        docs: r#"# Std.log_warn(..) -> void
+Logs all arguments as a warnging using the "log" crate.
+```rust
+log_warn("we encountered something, but are handling it");
+```
+"#.into(),
+        params: vector![],
+        return_type: None,
+        unbounded_args: true,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(StdIns::WarnLog(arg_count)));
+            Ok(instructions)
+        })
+    }
+}
+
+#[cfg(feature = "log")]
+/// Log info function.
+pub fn std_log_info() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "log_info".into(),
+        is_async: false,
+        docs: r#"# Std.log_info(..) -> void
+Logs all arguments as info using the "log" crate.
+```rust
+log_info("we just did something cool");
+```
+"#.into(),
+        params: vector![],
+        return_type: None,
+        unbounded_args: true,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(StdIns::InfoLog(arg_count)));
+            Ok(instructions)
+        })
+    }
+}
+
+#[cfg(feature = "log")]
+/// Log debug function.
+pub fn std_log_debug() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "log_debug".into(),
+        is_async: false,
+        docs: r#"# Std.log_debug(..) -> void
+Logs all arguments as debug info using the "log" crate.
+```rust
+log_debug("this is what just happened, in case you need to debug me");
+```
+"#.into(),
+        params: vector![],
+        return_type: None,
+        unbounded_args: true,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(StdIns::DebugLog(arg_count)));
+            Ok(instructions)
+        })
+    }
+}
+
+#[cfg(feature = "log")]
+/// Log trace function.
+pub fn std_log_trace() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "log_trace".into(),
+        is_async: false,
+        docs: r#"# Std.log_trace(..) -> void
+Logs all arguments as a trace using the "log" crate.
+```rust
+log_trace("we have a problem");
+```
+"#.into(),
+        params: vector![],
+        return_type: None,
+        unbounded_args: true,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(StdIns::TraceLog(arg_count)));
+            Ok(instructions)
+        })
+    }
+}

@@ -22,6 +22,8 @@ use lazy_static::lazy_static;
 use nanoid::nanoid;
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "log")]
+use crate::model::stof_std::print::{std_log_debug, std_log_error, std_log_info, std_log_trace, std_log_warn};
 use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, containers::{std_copy, std_drop, std_funcs, std_list, std_map, std_set, std_shallow_drop, std_swap}, exit::stof_exit, ops::{std_blobify, std_callstack, std_format_content_type, std_formats, std_graph_id, std_has_format, std_has_lib, std_libs, std_max, std_min, std_nanoid, std_parse, std_peek, std_stringify, std_trace, std_tracestack}, print::{dbg, err, pln, string}, sleep::stof_sleep}, Field, Func, Graph, Prototype, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}, Base, DUPLICATE, EXIT}, proc::ProcEnv, Error, Type, Units, Val, ValRef, Variable}};
 
 #[cfg(feature = "system")]
@@ -91,6 +93,17 @@ pub fn stof_std_lib(graph: &mut Graph) {
     graph.insert_libfunc(std_remove_env());
     #[cfg(feature = "system")]
     graph.insert_libfunc(std_env_vars());
+
+    #[cfg(feature = "log")]
+    graph.insert_libfunc(std_log_error());
+    #[cfg(feature = "log")]
+    graph.insert_libfunc(std_log_warn());
+    #[cfg(feature = "log")]
+    graph.insert_libfunc(std_log_info());
+    #[cfg(feature = "log")]
+    graph.insert_libfunc(std_log_debug());
+    #[cfg(feature = "log")]
+    graph.insert_libfunc(std_log_trace());
 }
 
 
@@ -196,6 +209,17 @@ pub enum StdIns {
     RemoveEnv,
     #[cfg(feature = "system")]
     EnvMap,
+
+    #[cfg(feature = "log")]
+    ErrorLog(usize),
+    #[cfg(feature = "log")]
+    WarnLog(usize),
+    #[cfg(feature = "log")]
+    InfoLog(usize),
+    #[cfg(feature = "log")]
+    DebugLog(usize),
+    #[cfg(feature = "log")]
+    TraceLog(usize),
 }
 #[typetag::serde(name = "StdIns")]
 impl Instruction for StdIns {
@@ -1053,6 +1077,122 @@ impl Instruction for StdIns {
                 }
                 env.stack.push(Variable::val(Val::Map(map)));
                 return Ok(None);
+            },
+
+            #[cfg(feature = "log")]
+            Self::ErrorLog(arg_count) => {
+                let mut values = Vec::new();
+                for _ in 0..*arg_count {
+                    if let Some(var) = env.stack.pop() {
+                        values.push(var);
+                    } else {
+                        return Err(Error::StackError);
+                    }
+                }
+                let mut output = Vec::new();
+                let mut seen_str = false;
+                for var in values.into_iter().rev() {
+                    if !seen_str {
+                        if var.gen_type() == Type::Str { seen_str = true; }
+                    }
+                    let out = var.val.read().print(&graph);
+                    output.push(out);
+                }
+                let mut sep = "";
+                if !seen_str { sep = ", " }
+                log::error!("{}", output.join(sep));
+            },
+            #[cfg(feature = "log")]
+            Self::WarnLog(arg_count) => {
+                let mut values = Vec::new();
+                for _ in 0..*arg_count {
+                    if let Some(var) = env.stack.pop() {
+                        values.push(var);
+                    } else {
+                        return Err(Error::StackError);
+                    }
+                }
+                let mut output = Vec::new();
+                let mut seen_str = false;
+                for var in values.into_iter().rev() {
+                    if !seen_str {
+                        if var.gen_type() == Type::Str { seen_str = true; }
+                    }
+                    let out = var.val.read().print(&graph);
+                    output.push(out);
+                }
+                let mut sep = "";
+                if !seen_str { sep = ", " }
+                log::warn!("{}", output.join(sep));
+            },
+            #[cfg(feature = "log")]
+            Self::InfoLog(arg_count) => {
+                let mut values = Vec::new();
+                for _ in 0..*arg_count {
+                    if let Some(var) = env.stack.pop() {
+                        values.push(var);
+                    } else {
+                        return Err(Error::StackError);
+                    }
+                }
+                let mut output = Vec::new();
+                let mut seen_str = false;
+                for var in values.into_iter().rev() {
+                    if !seen_str {
+                        if var.gen_type() == Type::Str { seen_str = true; }
+                    }
+                    let out = var.val.read().print(&graph);
+                    output.push(out);
+                }
+                let mut sep = "";
+                if !seen_str { sep = ", " }
+                log::info!("{}", output.join(sep));
+            },
+            #[cfg(feature = "log")]
+            Self::DebugLog(arg_count) => {
+                let mut values = Vec::new();
+                for _ in 0..*arg_count {
+                    if let Some(var) = env.stack.pop() {
+                        values.push(var);
+                    } else {
+                        return Err(Error::StackError);
+                    }
+                }
+                let mut output = Vec::new();
+                let mut seen_str = false;
+                for var in values.into_iter().rev() {
+                    if !seen_str {
+                        if var.gen_type() == Type::Str { seen_str = true; }
+                    }
+                    let out = var.val.read().print(&graph);
+                    output.push(out);
+                }
+                let mut sep = "";
+                if !seen_str { sep = ", " }
+                log::debug!("{}", output.join(sep));
+            },
+            #[cfg(feature = "log")]
+            Self::TraceLog(arg_count) => {
+                let mut values = Vec::new();
+                for _ in 0..*arg_count {
+                    if let Some(var) = env.stack.pop() {
+                        values.push(var);
+                    } else {
+                        return Err(Error::StackError);
+                    }
+                }
+                let mut output = Vec::new();
+                let mut seen_str = false;
+                for var in values.into_iter().rev() {
+                    if !seen_str {
+                        if var.gen_type() == Type::Str { seen_str = true; }
+                    }
+                    let out = var.val.read().print(&graph);
+                    output.push(out);
+                }
+                let mut sep = "";
+                if !seen_str { sep = ", " }
+                log::trace!("{}", output.join(sep));
             },
         }
         Ok(None)
