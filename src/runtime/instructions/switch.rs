@@ -50,11 +50,11 @@ impl Instruction for SwitchIns {
             table_instructions.append(def);
             default = Some(tag);
         }
-        table_instructions.push(Arc::new(Base::Tag(end_tag)));
+        table_instructions.push(Arc::new(Base::Tag(end_tag.clone())));
 
         if !table.is_empty() || default.is_some() {
             let mut instructions = Instructions::default();
-            instructions.push(Arc::new(Base::CtrlJumpTable(table, default)));
+            instructions.push(Arc::new(Base::CtrlJumpTable(table, default, end_tag)));
             instructions.append(&table_instructions.instructions);
             return Ok(Some(instructions));
         }

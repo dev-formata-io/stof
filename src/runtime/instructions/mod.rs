@@ -141,7 +141,7 @@ pub enum Base {
     CtrlForwardTo(ArcStr), // start next on instruction right after tag
     CtrlForwardToIfTruthy(ArcStr, ConsumeStack), // forward to if a truthy value is on the stack
     CtrlForwardToIfNotTruthy(ArcStr, ConsumeStack), // forward to if a non-truthy value is on the stack
-    CtrlJumpTable(FxHashMap<Val, ArcStr>, Option<ArcStr>), // values to jump tags (switch)
+    CtrlJumpTable(FxHashMap<Val, ArcStr>, Option<ArcStr>, ArcStr), // values to jump tags (switch)
 
     // Return jump
     CtrlFnReturn,

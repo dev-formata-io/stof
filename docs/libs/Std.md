@@ -185,6 +185,41 @@ assert_eq(list(1, 2, 3), [1, 2, 3]);
 ```
 
 
+# Std.log_debug(..) -> void
+Logs all arguments as debug info using the "log" crate.
+```rust
+log_debug("this is what just happened, in case you need to debug me");
+```
+
+
+# Std.log_error(..) -> void
+Logs all arguments as an error using the "log" crate.
+```rust
+log_error("we have a problem");
+```
+
+
+# Std.log_info(..) -> void
+Logs all arguments as info using the "log" crate.
+```rust
+log_info("we just did something cool");
+```
+
+
+# Std.log_trace(..) -> void
+Logs all arguments as a trace using the "log" crate.
+```rust
+log_trace("we have a problem");
+```
+
+
+# Std.log_warn(..) -> void
+Logs all arguments as a warnging using the "log" crate.
+```rust
+log_warn("we encountered something, but are handling it");
+```
+
+
 # Std.map(..) -> map
 Construct a new map with the given arguments (tuples of key & value). Helpful as a way to create an empty map.
 ```rust

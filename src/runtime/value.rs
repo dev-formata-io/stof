@@ -1471,7 +1471,12 @@ impl Val {
                                     existing_value = Some(field.value.clone());
                                 }
                                 if let Some(existing_value) = existing_value {
-                                    let field_type = field_value.spec_type(graph);
+                                    let field_type;
+                                    if let Some(ty) = &field_value.vtype {
+                                        field_type = ty.clone();
+                                    } else {
+                                        field_type = field_value.spec_type(graph);
+                                    }
                                     if existing_value.spec_type(graph) != field_type {
                                         existing_value.cast(&field_type, graph, context.clone())?;
                                     } else if let Some(field_obj) = field_value.try_obj() {

@@ -53,3 +53,15 @@ fn switch_expr() {
     };
     assert_eq(res, 42);
 }
+
+#[test]
+fn not_found() {
+    let res = true;
+    switch ('dne') {
+        case 'a':
+        case 'b': {
+            res = false;
+        }
+    }
+    assert(res);
+}
