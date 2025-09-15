@@ -90,12 +90,7 @@ impl StofPackageFormat {
                 .to_str()
                 .map(str::to_owned)
                 .with_context(|| format!("{name:?} Is a Non UTF-8 Path"))?;
-
-            // Filter whether this file/dir should be included
-            // "stof" dir is a special directory for dependencies
-            if path_as_string.contains("stof") {
-                continue 'entries;
-            }
+            
             if included.len() > 0 {
                 let mut found_match = false;
                 for include in included {
