@@ -319,6 +319,60 @@ Run: {
 
     #[run]
     fn field_func: () => { self.field_functioning = true; }
+
+    RunPrototypes: {
+        #[type]
+        RunProto: {
+            #[run]
+            fn hello() {
+                self.hello = 'hello';
+            }
+        }
+
+        #[test]
+        fn prototype_runs() {
+            const object = new RunProto {};
+            object.run();
+            assert_eq(object.hello, 'hello');
+        }
+
+        #[run({'prototype': 'none'})]
+        RunProto instance: {}
+
+        #[test]
+        fn proto_doesnt_run() {
+            self.instance.run();
+            assert_eq(self.instance.hello, null);
+        }
+
+        #[run({'prototype': 'first'})]
+        RunProto first_instance: {
+            #[run]
+            fn try_override() {
+                self.hello = 'this one works';
+            }
+        }
+
+        #[test]
+        fn prototype_first() {
+            self.first_instance.run();
+            assert_eq(self.first_instance.hello, 'this one works');
+        }
+
+        #[run({'prototype': 'last'})] // is default mode
+        RunProto last_instance: {
+            #[run]
+            fn try_override() {
+                self.hello = 'this one doesnt';
+            }
+        }
+
+        #[test]
+        fn prototype_last() {
+            self.last_instance.run();
+            assert_eq(self.last_instance.hello, 'hello');
+        }
+    }
 }
 
 Schemafy: {
