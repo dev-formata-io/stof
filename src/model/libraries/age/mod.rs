@@ -17,7 +17,6 @@
 use std::{fmt::Debug, ops::Deref, str::FromStr, sync::Arc};
 use age::secrecy::ExposeSecret;
 use arcstr::{literal, ArcStr};
-use bytes::Bytes;
 use imbl::vector;
 use serde::{Deserialize, Serialize};
 use crate::{model::{Field, Graph, LibFunc, Param, SId, SPath, StofData, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error, Type, Val, Variable}};
@@ -222,7 +221,7 @@ impl Instruction for AgeIns {
 
                                         match encrypted_bin_var.val.read().deref() {
                                             Val::Blob(bytes) => {
-                                                if let Err(error) = graph.age_decrypt_import(&format, Bytes::from(bytes.clone()), Some(context), &id) {
+                                                if let Err(error) = graph.age_decrypt_import(&format, bytes.clone(), Some(context), &id) {
                                                     if error == Error::AgeNoMatchingKeys {
                                                         env.stack.push(Variable::val(Val::Bool(false)));
                                                     } else {
@@ -307,7 +306,7 @@ impl Instruction for AgeIns {
 
                             let iter = recipients.iter().map(|r| r as _);
                             let bytes = graph.age_encrypt_export(&format, ctx, iter)?;
-                            env.stack.push(Variable::val(Val::Blob(bytes.to_vec())));
+                            env.stack.push(Variable::val(Val::Blob(bytes)));
                             return Ok(None);
                         }
                     }

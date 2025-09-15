@@ -4,6 +4,13 @@ Functions for working with HTTP calls over a system network connection (async fe
 ## Thread Pool
 This library adds a thread pool in the background for processing HTTP requests, allowing Stof to keep running while requests are executed separately. Asyncronous fetch requests will create a new Stof process, which will wait for the thread pool to execute the request before returning a map with the response data. You can then await this response map when you need it, which significantly increases performance by enabling parallel HTTP requests.
 
+# Http.blob(response: map) -> blob
+Extract the body of this response as bytes.
+```rust
+const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
+const body = Http.blob(resp);
+```
+
 # Http.client_error(response: map) -> bool
 Was the request a client error? Meaning, is the response 'status' between [400, 499]?
 ```rust
@@ -39,5 +46,12 @@ Was the request successful? Meaning, is the response 'status' between [200, 299]
 ```rust
 const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
 assert(Http.success(resp));
+```
+
+# Http.text(response: map) -> str
+Extract a UTF-8 text body from this response map (Equivalent to Http.blob(response) as str).
+```rust
+const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
+const body = Http.text(resp);
 ```
 

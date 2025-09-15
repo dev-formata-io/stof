@@ -145,7 +145,7 @@ pub fn blob_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseEr
             char('|')
         ))
     ).parse(input)?;
-    Ok((input, Arc::new(Base::Literal(Val::Blob(bytes)))))
+    Ok((input, Arc::new(Base::Literal(Val::Blob(bytes.into())))))
 }
 pub fn blob_number(input: &str) -> IResult<&str, u8, StofParseError> {
     let (input, _) = whitespace(input)?;

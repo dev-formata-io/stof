@@ -123,7 +123,7 @@ impl Instruction for FsIns {
                     let path = var.val.read().to_string();
                     match fs::read(path) {
                         Ok(contents) => {
-                            env.stack.push(Variable::val(Val::Blob(contents)));
+                            env.stack.push(Variable::val(Val::Blob(contents.into())));
                         },
                         Err(error) => {
                             return Err(Error::FsReadError(error.to_string()));

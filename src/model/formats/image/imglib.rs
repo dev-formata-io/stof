@@ -927,7 +927,7 @@ impl Instruction for ImageIns {
                 if let Some(var) = env.stack.pop() {
                     if let Some(dref) = var.try_data_or_func() {
                         if let Some(image) = graph.get_stof_data::<Image>(&dref) {
-                            env.stack.push(Variable::val(Val::Blob(image.raw.clone())));
+                            env.stack.push(Variable::val(Val::Blob(image.raw.clone().into())));
                             return Ok(None);
                         }
                     }
@@ -939,7 +939,7 @@ impl Instruction for ImageIns {
                     if let Some(dref) = var.try_data_or_func() {
                         if let Some(image) = graph.get_mut_stof_data::<Image>(&dref) {
                             if let Some(bytes) = image.png_bytes() {
-                                env.stack.push(Variable::val(Val::Blob(bytes)));
+                                env.stack.push(Variable::val(Val::Blob(bytes.into())));
                             } else {
                                 env.stack.push(Variable::val(Val::Null));
                             }
@@ -954,7 +954,7 @@ impl Instruction for ImageIns {
                     if let Some(dref) = var.try_data_or_func() {
                         if let Some(image) = graph.get_mut_stof_data::<Image>(&dref) {
                             if let Some(bytes) = image.jpeg_bytes() {
-                                env.stack.push(Variable::val(Val::Blob(bytes)));
+                                env.stack.push(Variable::val(Val::Blob(bytes.into())));
                             } else {
                                 env.stack.push(Variable::val(Val::Null));
                             }
@@ -969,7 +969,7 @@ impl Instruction for ImageIns {
                     if let Some(dref) = var.try_data_or_func() {
                         if let Some(image) = graph.get_mut_stof_data::<Image>(&dref) {
                             if let Some(bytes) = image.gif_bytes() {
-                                env.stack.push(Variable::val(Val::Blob(bytes)));
+                                env.stack.push(Variable::val(Val::Blob(bytes.into())));
                             } else {
                                 env.stack.push(Variable::val(Val::Null));
                             }
@@ -984,7 +984,7 @@ impl Instruction for ImageIns {
                     if let Some(dref) = var.try_data_or_func() {
                         if let Some(image) = graph.get_mut_stof_data::<Image>(&dref) {
                             if let Some(bytes) = image.webp_bytes() {
-                                env.stack.push(Variable::val(Val::Blob(bytes)));
+                                env.stack.push(Variable::val(Val::Blob(bytes.into())));
                             } else {
                                 env.stack.push(Variable::val(Val::Null));
                             }
@@ -999,7 +999,7 @@ impl Instruction for ImageIns {
                     if let Some(dref) = var.try_data_or_func() {
                         if let Some(image) = graph.get_mut_stof_data::<Image>(&dref) {
                             if let Some(bytes) = image.tiff_bytes() {
-                                env.stack.push(Variable::val(Val::Blob(bytes)));
+                                env.stack.push(Variable::val(Val::Blob(bytes.into())));
                             } else {
                                 env.stack.push(Variable::val(Val::Null));
                             }
@@ -1014,7 +1014,7 @@ impl Instruction for ImageIns {
                     if let Some(dref) = var.try_data_or_func() {
                         if let Some(image) = graph.get_mut_stof_data::<Image>(&dref) {
                             if let Some(bytes) = image.bmp_bytes() {
-                                env.stack.push(Variable::val(Val::Blob(bytes)));
+                                env.stack.push(Variable::val(Val::Blob(bytes.into())));
                             } else {
                                 env.stack.push(Variable::val(Val::Null));
                             }
@@ -1029,7 +1029,7 @@ impl Instruction for ImageIns {
                     if let Some(dref) = var.try_data_or_func() {
                         if let Some(image) = graph.get_mut_stof_data::<Image>(&dref) {
                             if let Some(bytes) = image.ico_bytes() {
-                                env.stack.push(Variable::val(Val::Blob(bytes)));
+                                env.stack.push(Variable::val(Val::Blob(bytes.into())));
                             } else {
                                 env.stack.push(Variable::val(Val::Null));
                             }
@@ -1044,7 +1044,7 @@ impl Instruction for ImageIns {
                 if let Some(var) = env.stack.pop() {
                     match var.val.read().deref() {
                         Val::Blob(blob) => {
-                            match Image::from_bytes(blob.clone()) {
+                            match Image::from_bytes(blob.to_vec()) {
                                 Ok(image) => {
                                     if let Some(dref) = graph.insert_stof_data(&env.self_ptr(), &nanoid!(), Box::new(image), None) {
                                         env.stack.push(Variable::val(Val::Data(dref)));

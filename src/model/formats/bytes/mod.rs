@@ -55,13 +55,13 @@ impl Format for BytesFormat {
                 fvar = Some(field.value.clone());
             }
             if let Some(mut fvar) = fvar {
-                fvar.set(&Variable::val(Val::Blob(bytes.to_vec())), graph, None)?;
+                fvar.set(&Variable::val(Val::Blob(bytes)), graph, None)?;
                 if let Some(field) = graph.get_mut_stof_data::<Field>(&field_ref) {
                     field.value = fvar;
                 }
             }
         } else {
-            graph.insert_stof_data(&parse_node, "bytes", Box::new(Field::new(Variable::val(Val::Blob(bytes.to_vec())), None)), None);
+            graph.insert_stof_data(&parse_node, "bytes", Box::new(Field::new(Variable::val(Val::Blob(bytes)), None)), None);
         }
         Ok(())
     }

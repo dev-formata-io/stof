@@ -16,7 +16,6 @@
 
 use std::{mem::swap, ops::{Deref, DerefMut}, sync::Arc, time::Duration};
 use arcstr::{literal, ArcStr};
-use bytes::Bytes;
 use imbl::{vector, OrdSet, Vector};
 use lazy_static::lazy_static;
 use nanoid::nanoid;
@@ -740,7 +739,7 @@ impl Instruction for StdIns {
                                     return Ok(None);
                                 },
                                 Val::Blob(bytes) => {
-                                    graph.binary_import(&format, Bytes::from(bytes.clone()), Some(context))?;
+                                    graph.binary_import(&format, bytes.clone(), Some(context))?;
                                     env.stack.push(Variable::val(Val::Bool(true)));
                                     return Ok(None);
                                 },
@@ -781,7 +780,7 @@ impl Instruction for StdIns {
                         }
 
                         let bytes = graph.binary_export(&format, ctx)?;
-                        env.stack.push(Variable::val(Val::Blob(bytes.to_vec())));
+                        env.stack.push(Variable::val(Val::Blob(bytes)));
                         return Ok(None);
                     }
                 }

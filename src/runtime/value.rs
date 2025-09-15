@@ -102,7 +102,7 @@ pub enum Val {
     Bool(bool),
     Num(Num),
     Str(ArcStr),
-    Blob(Vec<u8>),
+    Blob(Bytes),
 
     // Semantic Versioning as a value
     Ver(i32, i32, i32, Option<ArcStr>, Option<ArcStr>),
@@ -201,12 +201,17 @@ impl From<bool> for Val {
 }
 impl From<Vec<u8>> for Val {
     fn from(value: Vec<u8>) -> Self {
-        Self::Blob(value)
+        Self::Blob(value.into())
+    }
+}
+impl From<&[u8]> for Val {
+    fn from(value: &[u8]) -> Self {
+        Self::Blob(Bytes::copy_from_slice(value))
     }
 }
 impl From<Bytes> for Val {
     fn from(value: Bytes) -> Self {
-        Self::from(value.to_vec())
+        Self::Blob(value)
     }
 }
 impl<T: Into<Val>> From<(T, Units)> for Val {
@@ -834,12 +839,12 @@ impl Val {
             Self::Void |
             Self::Num(_) |
             Self::Ver(..) |
+            Self::Blob(_) |
             Self::Promise(..) => true,
             
             Self::Tup(_) |
             Self::Map(_) |
             Self::Set(_) |
-            Self::Blob(_) |
             Self::List(_) => false,
         }
     }
@@ -1159,7 +1164,7 @@ impl Val {
                         Ok(())
                     },
                     Type::Str => {
-                        match str::from_utf8(blob.as_slice()) {
+                        match str::from_utf8(&blob) {
                             Ok(val) => {
                                 *self = Self::Str(val.into());
                                 Ok(())
@@ -1192,7 +1197,7 @@ impl Val {
                                 }
                             }
                         }
-                        *self = Self::Blob(blob);
+                        *self = Self::Blob(blob.into());
                         Ok(())
                     },
                     Type::Tup(types) => {
@@ -1307,7 +1312,7 @@ impl Val {
                         Ok(())
                     },
                     Type::Blob => {
-                        *self = Self::Blob(str::as_bytes(&val).to_vec());
+                        *self = Self::Blob(Bytes::copy_from_slice(str::as_bytes(&val)));
                         Ok(())
                     },
                     Type::Bool => {
@@ -1533,7 +1538,6 @@ impl Val {
         if let Some(dref) = self.try_data() {
             if let Some(data) = dref.data(graph) {
                 if !data.core_data() {
-                    // TODO: check that the lib exists
                     return data.tagname().into();
                 }
             }
@@ -1947,8 +1951,9 @@ impl Val {
             },
             Self::Blob(blob) => {
                 match other {
-                    Self::Blob(mut other) => {
-                        blob.append(&mut other);
+                    Self::Blob(other) => {
+                        let vec = blob.iter().chain(other.iter()).copied().collect::<Vec<_>>();
+                        *self = Self::Blob(vec.into());
                         Ok(())
                     },
                     Self::Str(other) => {

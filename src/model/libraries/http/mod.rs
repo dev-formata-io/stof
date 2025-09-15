@@ -101,6 +101,54 @@ catch { /* didn't work out.. */ }
         })
     });
 
+    // Http.text(response: map) -> str
+    graph.insert_libfunc(LibFunc {
+        library: HTTP_LIB.clone(),
+        name: "text".into(),
+        is_async: false,
+        docs: r#"# Http.text(response: map) -> str
+Extract a UTF-8 text body from this response map (Equivalent to Http.blob(response) as str).
+```rust
+const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
+const body = Http.text(resp);
+```"#.into(),
+        params: vector![
+            Param { name: "response".into(), param_type: Type::Map, default: None },
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(move |_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(HttpIns::TextBody));
+            Ok(instructions)
+        })
+    });
+
+    // Http.blob(response: map) -> blob
+    graph.insert_libfunc(LibFunc {
+        library: HTTP_LIB.clone(),
+        name: "blob".into(),
+        is_async: false,
+        docs: r#"# Http.blob(response: map) -> blob
+Extract the body of this response as bytes.
+```rust
+const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
+const body = Http.blob(resp);
+```"#.into(),
+        params: vector![
+            Param { name: "response".into(), param_type: Type::Map, default: None },
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(move |_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(HttpIns::BlobBody));
+            Ok(instructions)
+        })
+    });
+
     // Http.success(response: map) -> bool
     graph.insert_libfunc(LibFunc {
         library: HTTP_LIB.clone(),
@@ -244,11 +292,7 @@ impl HTTPRequest {
                                         }
 
                                         if let Ok(bytes) = response_body {
-                                            // TODO: v0.9 remove "text" and only use the lib body or parse functions
-                                            if let Ok(res) = str::from_utf8(&bytes) {
-                                                results.insert(ValRef::new(Val::Str("text".into())), ValRef::new(Val::Str(res.into())));
-                                            }
-                                            results.insert(ValRef::new(Val::Str("bytes".into())), ValRef::new(Val::Blob(bytes.to_vec())));
+                                            results.insert(ValRef::new(Val::Str("bytes".into())), ValRef::new(Val::Blob(bytes)));
                                         }
                                     },
                                     _ => {},
@@ -314,11 +358,7 @@ impl HTTPRequest {
                                     }
 
                                     if let Ok(bytes) = response_body {
-                                        // TODO: v0.9 remove "text" and only use the lib body or parse functions
-                                        if let Ok(res) = str::from_utf8(&bytes) {
-                                            results.insert(ValRef::new(Val::Str("text".into())), ValRef::new(Val::Str(res.into())));
-                                        }
-                                        results.insert(ValRef::new(Val::Str("bytes".into())), ValRef::new(Val::Blob(bytes.to_vec())));
+                                        results.insert(ValRef::new(Val::Str("bytes".into())), ValRef::new(Val::Blob(bytes)));
                                     }
                                 },
                                 _ => {},
@@ -386,11 +426,7 @@ impl HTTPRequest {
                                 }
 
                                 if let Ok(bytes) = response_body {
-                                    // TODO: v0.9 remove "text" and only use the lib body or parse functions
-                                    if let Ok(res) = str::from_utf8(&bytes) {
-                                        results.insert(ValRef::new(Val::Str("text".into())), ValRef::new(Val::Str(res.into())));
-                                    }
-                                    results.insert(ValRef::new(Val::Str("bytes".into())), ValRef::new(Val::Blob(bytes.to_vec())));
+                                    results.insert(ValRef::new(Val::Str("bytes".into())), ValRef::new(Val::Blob(bytes)));
                                 }
                             },
                             _ => {},
@@ -420,6 +456,10 @@ pub(self) enum HttpIns {
     SendRequest(WakeRef),
     /// Parse an HTTP response map into an object context, using the recieved content_type (or STOF/JSON by default..)
     ParseResponse,
+    /// Extract a text response body.
+    TextBody,
+    /// Extract a blob response body.
+    BlobBody,
     /// Was the response successful (200 <= status <= 299)?
     ResponseSuccess,
     /// Client error response (400 <= status <= 499)?
@@ -599,8 +639,7 @@ impl Instruction for HttpIns {
                             if let Some(body) = response.get(&ValRef::new(Val::Str("bytes".into()))) {
                                 match body.read().deref() {
                                     Val::Blob(bytes) => {
-                                        let bytes = Bytes::from(bytes.clone()); // TODO: v0.9 Blob(vec) -> Blob(Bytes)
-                                        graph.binary_import(&content_type, bytes, Some(context.clone()))?;
+                                        graph.binary_import(&content_type, bytes.clone(), Some(context.clone()))?;
                                         env.stack.push(Variable::val(Val::Obj(context)));
                                     },
                                     _ => {
@@ -613,6 +652,60 @@ impl Instruction for HttpIns {
                         },
                         _ => {
                             return Err(Error::HttpSendError(format!("parse response must be a map")))
+                        }
+                    }
+                }
+            },
+
+            // Http.text(response: map) -> str
+            Self::TextBody => {
+                if let Some(response) = env.stack.pop() {
+                    match response.val.read().deref() {
+                        Val::Map(response) => {
+                            if let Some(body) = response.get(&ValRef::new(Val::Str("bytes".into()))) {
+                                match body.read().deref() {
+                                    Val::Blob(bytes) => {
+                                        if let Ok(res) = str::from_utf8(&bytes) {
+                                            env.stack.push(Variable::val(Val::Str(res.into())));
+                                        } else {
+                                            env.stack.push(Variable::val(Val::Null));
+                                        }
+                                    },
+                                    _ => {
+                                        return Err(Error::HttpSendError(format!("text body response map 'bytes' value must be a blob")));
+                                    }
+                                }
+                            } else {
+                                return Err(Error::HttpSendError(format!("text body must have a 'bytes' key-value blob body")));
+                            }
+                        },
+                        _ => {
+                            return Err(Error::HttpSendError(format!("text body response must be a map")))
+                        }
+                    }
+                }
+            },
+
+            // Http.blob(response: map) -> blob
+            Self::BlobBody => {
+                if let Some(response) = env.stack.pop() {
+                    match response.val.read().deref() {
+                        Val::Map(response) => {
+                            if let Some(body) = response.get(&ValRef::new(Val::Str("bytes".into()))) {
+                                match body.read().deref() {
+                                    Val::Blob(bytes) => {
+                                        env.stack.push(Variable::val(Val::Blob(bytes.clone())));
+                                    },
+                                    _ => {
+                                        return Err(Error::HttpSendError(format!("blob body response map 'bytes' value must be a blob")));
+                                    }
+                                }
+                            } else {
+                                return Err(Error::HttpSendError(format!("blob body must have a 'bytes' key-value blob body")));
+                            }
+                        },
+                        _ => {
+                            return Err(Error::HttpSendError(format!("blob body response must be a map")))
                         }
                     }
                 }

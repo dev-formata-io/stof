@@ -16,6 +16,7 @@
 
 use std::sync::Arc;
 use arcstr::{literal, ArcStr};
+use bytes::Bytes;
 use imbl::{vector, OrdMap};
 use serde::{Deserialize, Serialize};
 use crate::{model::{pdf::pdf::Pdf, Graph, LibFunc, Param}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Type, Val, ValRef, Variable}};
@@ -107,7 +108,7 @@ impl Instruction for PdfIns {
                             for image in pdf.extract_images() {
                                 let mut map = OrdMap::default();
 
-                                map.insert(ValRef::new(Val::Str("content".into())), ValRef::new(Val::Blob(image.content.to_vec())));
+                                map.insert(ValRef::new(Val::Str("content".into())), ValRef::new(Val::Blob(Bytes::copy_from_slice(image.content))));
                                 map.insert(ValRef::new(Val::Str("id".into())), ValRef::new(Val::Tup(vector![ValRef::new(Val::from(image.id.0)), ValRef::new(Val::from(image.id.1))])));
                                 map.insert(ValRef::new(Val::Str("width".into())), ValRef::new(Val::from(image.width)));
                                 map.insert(ValRef::new(Val::Str("height".into())), ValRef::new(Val::from(image.height)));

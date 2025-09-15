@@ -127,7 +127,7 @@ impl Instruction for DataIns {
                     if let Some(dref) = var.try_data_or_func() {
                         if let Some(data) = dref.data(&graph) {
                             if let Ok(bytes) = bincode::serialize(data) {
-                                env.stack.push(Variable::val(Val::Blob(bytes)));
+                                env.stack.push(Variable::val(Val::Blob(bytes.into())));
                                 return Ok(None);
                             }
                         }

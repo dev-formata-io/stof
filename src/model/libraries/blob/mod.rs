@@ -18,6 +18,7 @@ use core::str;
 use std::{ops::Deref, sync::Arc};
 use arcstr::{literal, ArcStr};
 use base64::{engine::general_purpose::{STANDARD, URL_SAFE}, Engine as _};
+use bytes::Bytes;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use crate::{model::{blob::ops::{blob_at, blob_base64, blob_from_base64, blob_from_url_base64, blob_from_utf8, blob_len, blob_size, blob_url_base64, blob_utf8}, Graph}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Num, Units, Val, Variable}};
@@ -124,7 +125,7 @@ impl Instruction for BlobIns {
                 if let Some(var) = env.stack.pop() {
                     match var.val.read().deref() {
                         Val::Blob(blob) => {
-                            if let Ok(res) = str::from_utf8(blob.as_slice()) {
+                            if let Ok(res) = str::from_utf8(&blob) {
                                 env.stack.push(Variable::val(Val::Str(res.into())));
                                 return Ok(None);
                             }
@@ -165,7 +166,7 @@ impl Instruction for BlobIns {
                     match var.val.read().deref() {
                         Val::Str(utf8) => {
                             let blob = str::as_bytes(utf8.as_str());
-                            env.stack.push(Variable::val(Val::Blob(blob.to_vec())));
+                            env.stack.push(Variable::val(Val::Blob(Bytes::copy_from_slice(blob))));
                             return Ok(None);
                         },
                         _ => {}
@@ -178,7 +179,7 @@ impl Instruction for BlobIns {
                     match var.val.read().deref() {
                         Val::Str(base64) => {
                             if let Ok(bytes) = STANDARD.decode(base64.as_str()) {
-                                env.stack.push(Variable::val(Val::Blob(bytes)));
+                                env.stack.push(Variable::val(Val::Blob(bytes.into())));
                                 return Ok(None);
                             }
                         },
@@ -192,7 +193,7 @@ impl Instruction for BlobIns {
                     match var.val.read().deref() {
                         Val::Str(base64) => {
                             if let Ok(bytes) = URL_SAFE.decode(base64.as_str()) {
-                                env.stack.push(Variable::val(Val::Blob(bytes)));
+                                env.stack.push(Variable::val(Val::Blob(bytes.into())));
                                 return Ok(None);
                             }
                         },

@@ -49,7 +49,7 @@ Break: {
         assert_eq(total, 60);
     }
 
-    //#[test] // TODO: at on list library
+    #[test]
     fn break_in_nested() {
         const first = [0, 1, 2];
         const second = [1, 2, 3];
