@@ -72,7 +72,7 @@ import "norse.png" as self.NorseImage;        // Creates a child object with pat
 }
 
 field: 42              // Optionally end field declarations with a comma or semi-colon
-str typed: 'types!'    // Field types for consistency, readability, and reliability
+str typed: "types!"    // Field types for consistency, readability, and reliability
 const bool cool: true; // Constant fields for immutable data (with or without type)
 
 MiB unit-types: OldCrusty.server.RAM; // Unit types for conversions on casts, operations, etc.
@@ -99,7 +99,7 @@ fn hello_world() -> str {
  * Use "?" in front of function calls to return null if the function doesn't exist.
  */
 Api: {
-    import 'api'; // default ".stof" extension if not provided
+    import "api"; // default ".stof" extension if not provided
     str config-name: ?self.modular_apis(OldCrusty); // "Old Crusty"
 }
 
@@ -113,7 +113,7 @@ Api: {
  */
 #[my_attribute]
 #[attribute_with_val(42days)]
-#[metadata_map({'config': true})]
+#[metadata_map({"config": true})]
 #[metadata_obj(new { stof_object: true })]
 #[validation((value: unknown): bool => true)]
 metadata_field: "we have attributes"
@@ -132,7 +132,7 @@ metadata_field: "we have attributes"
  */
 async fn doing_something_concurrently() {
     // "Std" library, an extensible & complete standard library
-    pln('Hello, Stof!');
+    pln("Hello, Stof!");
 
     // Turn any expression into an async expression
     const handle = async 42;
@@ -163,11 +163,11 @@ Config: {
      * Example use with imported OldCrusty TOML data.
      * ```
      * const config = OldCrusty as Config;
-     * assert_eq(config.description(), 'Left to drift & die, but is required somehow');
+     * assert_eq(config.description(), "Left to drift & die, but is required somehow");
      * ```
      */
     fn description() -> str {
-        self.description ?? 'no description'
+        self.description ?? "no description"
     }
 }
 
@@ -190,7 +190,7 @@ Config: {
 fn main() {
     self.doing_something_concurrently();
 
-    const yaml = stringify('yaml', self);
+    const yaml = stringify("yaml", self);
     log_info(yaml);
 }
 ```
