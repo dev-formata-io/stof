@@ -1,0 +1,7 @@
+name = "Old Crusty"
+version = "0.1.4"
+description = "Left to drift & die, but is required somehow"
+
+[server]
+RAM = "32GiB"
+cores = 4

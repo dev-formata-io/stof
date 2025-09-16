@@ -1,0 +1,140 @@
+
+/*
+ * True data interop!
+ * Import/export any format - our goal is to work seamlessly WITH other formats.
+ * Organize data, APIs, configs, connectors, pipelines, AI, etc. with objects & paths, as a graph.
+ */
+import 'old_crusty_config.toml' as OldCrusty; // Creates a new root object named "OldCrusty"
+import 'norse.png' as self.NorseImage;        // Creates a child object with path "root.NorseImage"
+
+
+/*
+ * Define objects and fields in a JSON-like way.
+ */
+{
+    "json-like": "json objects & fields can be parsed by Stof natively",
+    str "just stof": "it's all Stof, so use types, etc."
+}
+
+field: 42              // Optionally end field declarations with a comma or semi-colon
+str typed: 'types!'    // Field types for consistency, readability, and reliability
+const bool cool: true; // Constant fields for immutable data (with or without type)
+
+MiB unit-types: OldCrusty.server.RAM; // Unit types for conversions on casts, operations, etc.
+cm height: 6ft + 1in;                 // Expressions and a full runtime always available
+
+
+/*
+ * Functions & logic as data. Manipulate this document from within.
+ *
+ * - Sandboxed (host defines system access, if any)
+ * - Portable (send and execute over a network)
+ * - Simple (familiar, approachable, and intuative, without looking like a blob of JSON)
+ */
+fn hello_world() -> str {
+    "hello, world"
+}
+
+
+/*
+ * Use objects to organize every type of data, including logic & APIs.
+ * Keyword "self" always refers to the current object.
+ * Keyword "super" always refers to the parent object (if any).
+ * Navigate the graph of data via dot separated paths (both down and up, including other roots).
+ * Use "?" in front of function calls to return null if the function doesn't exist.
+ */
+Api: {
+    import 'api'; // default ".stof" extension if not provided
+    str config-name: ?self.modular_apis(OldCrusty); // "Old Crusty"
+}
+
+
+/*
+ * Attributes for metadata & control (both fields & functions).
+ *
+ * - Used for main, test, and async functions
+ * - Reference objects, functions, and data (validation, access control, schemas, etc.)
+ * - Always available programmatically for metadata access
+ */
+#[my_attribute]
+#[attribute_with_val(42days)]
+#[metadata_map({'config': true})]
+#[metadata_obj(new { stof_object: true })]
+#[validation((value: unknown): bool => true)]
+metadata_field: "we have attributes"
+
+
+/*
+ * Foundational async behavior for modern networking and concurrency.
+ * No threads by default, but host system can implement async as single or multi-threaded.
+ *
+ * Note: "async fn" just adds #[async] as a function attribute.
+ *
+ * - HTTP requests & APIs
+ * - Database connections
+ * - Event driven systems
+ * - Declarative UI + logic
+ */
+async fn doing_something_concurrently() {
+    // "Std" library, an extensible & complete standard library
+    pln('Hello, Stof!');
+
+    // Turn any expression into an async expression
+    const handle = async 42;
+    assert_eq(await handle, 42);
+
+    // Async block expressions (and regular block expressions)
+    const result = await async {
+        let a = 5;
+        let b = 5;
+        return a + b;
+    };
+    assert_eq(result, 10);
+}
+
+
+/*
+ * Prototypes for modern, complex data models & interfaces.
+ * See docs for details.
+ *
+ * - Schemas
+ * - Modular APIs applied to static data
+ * - Pipelines & workflows
+ * - Inheritance via #[extends(obj | str)]
+ */
+#[type]
+Config: {
+    /**
+     * Example use with imported OldCrusty TOML data.
+     * ```
+     * const config = OldCrusty as Config;
+     * assert_eq(config.description(), 'Left to drift & die, but is required somehow');
+     * ```
+     */
+    fn description() -> str {
+        self.description ?? 'no description'
+    }
+}
+
+
+
+#[main]
+/**
+ * Stof CLI uses #[main] attributes by default to tell which functions to run with `stof run`.
+ * Change this with the -a option, allowing you to use attributes instead of multiple scripts.
+ *
+ * Run with CLI via `stof run readme.stof` - you'll see `Hello, Stof!` printed to your console.
+ * Run with `stof -d run readme.stof` - you'll now see YAML output in addition.
+ *
+ * Logging (log_debug, log_trace, log_info, log_warn, log_error) built in:
+ * - `stof run readme.stof` - only log_warn & log_error
+ * - `stof -d run readme.stof` - log_info in addition to warn & error
+ * - `stof -dd run readme.stof` - all logs available
+ * - uses "log" Rust crate for flexibility
+ */
+fn main() {
+    self.doing_something_concurrently();
+
+    const yaml = stringify('yaml', self);
+    log_info(yaml);
+}
