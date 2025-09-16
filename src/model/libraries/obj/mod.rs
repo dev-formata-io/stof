@@ -1099,6 +1099,11 @@ impl Instruction for ObjIns {
                             let prototypes = Prototype::prototype_nodes(&graph, &obj, false);
                             if prototypes.len() > 0 {
                                 let mut mode = literal!("last");
+                                let mut override_ctx = obj.clone();
+                                if let Some(ovr) = &override_context {
+                                    override_ctx = ovr.clone();
+                                }
+
                                 if let Some(node) = obj.node(&graph) {
                                     if let Some(run) = node.attributes.get("run") {
                                         match run {
@@ -1116,6 +1121,7 @@ impl Instruction for ObjIns {
                                         }
                                     }
                                 }
+                                
                                 match mode.as_str() {
                                     "first" => {
                                         let mut lowest_order = -2;
@@ -1123,7 +1129,7 @@ impl Instruction for ObjIns {
                                         for nref in prototypes {
                                             let instructions = vector![
                                                 Arc::new(Base::Literal(Val::Obj(nref))) as Arc<dyn Instruction>,
-                                                Arc::new(Base::Literal(Val::Obj(obj.clone()))), // override context
+                                                Arc::new(Base::Literal(Val::Obj(override_ctx.clone()))),
                                                 RUN.clone()
                                             ];
                                             lowest_order -= 1;
@@ -1140,7 +1146,7 @@ impl Instruction for ObjIns {
                                         for nref in prototypes {
                                             let instructions = vector![
                                                 Arc::new(Base::Literal(Val::Obj(nref))) as Arc<dyn Instruction>,
-                                                Arc::new(Base::Literal(Val::Obj(obj.clone()))), // override context
+                                                Arc::new(Base::Literal(Val::Obj(override_ctx.clone()))),
                                                 RUN.clone()
                                             ];
                                             highest_order += 1;

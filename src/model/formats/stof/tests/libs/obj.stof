@@ -372,6 +372,19 @@ Run: {
             self.last_instance.run();
             assert_eq(self.last_instance.hello, 'hello');
         }
+
+        #[type]
+        #[extends(self.RunProto)]
+        SubRunProto: {
+            
+        }
+
+        #[test]
+        fn run_sub_types() {
+            const subtype = new SubRunProto {};
+            subtype.run();
+            assert_eq(subtype.hello, 'hello');
+        }
     }
 }
 
