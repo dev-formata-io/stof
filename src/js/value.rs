@@ -106,7 +106,7 @@ pub fn to_graph_value(js: JsValue, doc: &Graph) -> Val {
     } else {
         // cast to blob type
         let intarray = Uint8Array::from(js);
-        Val::Blob(intarray.to_vec())
+        Val::Blob(intarray.to_vec().into())
     }
 }
 
@@ -166,7 +166,7 @@ pub fn to_raw_value(js: JsValue) -> Val {
     } else {
         // cast to blob type
         let intarray = Uint8Array::from(js);
-        Val::Blob(intarray.to_vec())
+        Val::Blob(intarray.to_vec().into())
     }
 }
 

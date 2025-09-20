@@ -68,8 +68,6 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly __wbg_stoffunc_free: (a: number, b: number) => void;
-  readonly stoffunc_new: (a: number, b: number, c: number, d: number, e: any) => number;
   readonly start: () => void;
   readonly __wbg_stof_free: (a: number, b: number) => void;
   readonly stof_new: () => number;
@@ -82,6 +80,8 @@ export interface InitOutput {
   readonly stof_binaryImport: (a: number, b: any, c: number, d: number, e: any) => [number, number, number];
   readonly stof_stringExport: (a: number, b: number, c: number, d: any) => [number, number, number, number];
   readonly stof_binaryExport: (a: number, b: number, c: number, d: any) => [number, number, number];
+  readonly __wbg_stoffunc_free: (a: number, b: number) => void;
+  readonly stoffunc_new: (a: number, b: number, c: number, d: number, e: any) => number;
   readonly __wbindgen_exn_store: (a: number) => void;
   readonly __externref_table_alloc: () => number;
   readonly __wbindgen_export_2: WebAssembly.Table;

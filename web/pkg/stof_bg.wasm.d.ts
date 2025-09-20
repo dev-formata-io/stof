@@ -1,8 +1,6 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
-export const __wbg_stoffunc_free: (a: number, b: number) => void;
-export const stoffunc_new: (a: number, b: number, c: number, d: number, e: any) => number;
 export const start: () => void;
 export const __wbg_stof_free: (a: number, b: number) => void;
 export const stof_new: () => number;
@@ -15,6 +13,8 @@ export const stof_stringImport: (a: number, b: number, c: number, d: number, e: 
 export const stof_binaryImport: (a: number, b: any, c: number, d: number, e: any) => [number, number, number];
 export const stof_stringExport: (a: number, b: number, c: number, d: any) => [number, number, number, number];
 export const stof_binaryExport: (a: number, b: number, c: number, d: any) => [number, number, number];
+export const __wbg_stoffunc_free: (a: number, b: number) => void;
+export const stoffunc_new: (a: number, b: number, c: number, d: number, e: any) => number;
 export const __wbindgen_exn_store: (a: number) => void;
 export const __externref_table_alloc: () => number;
 export const __wbindgen_export_2: WebAssembly.Table;

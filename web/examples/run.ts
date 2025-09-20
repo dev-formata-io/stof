@@ -14,15 +14,10 @@
 // limitations under the License.
 //
 
-import { Doc } from '../doc.ts';
+import { StofDoc, stof } from '../doc.ts';
+await StofDoc.initialize();
 
-const doc = await Doc.new();
-
-doc.lib('Std', 'pln', (... vars: unknown[]) => console.log(...vars));
-doc.lib('Std', 'err', (... vars: unknown[]) => console.error(... vars));
-doc.lib('Custom', 'test', (name: string): string => `Hello, ${name} from JS function`);
-
-doc.parse(`
+const doc = stof`
     value: 42
 
     async fn another_process() -> int {
@@ -34,7 +29,11 @@ doc.parse(`
         pln('Liftoff:', await self.another_process());
         pln(Custom.test('CJ'));
     }
-`);
+`;
+
+doc.lib('Std', 'pln', (... vars: unknown[]) => console.log(...vars));
+doc.lib('Std', 'err', (... vars: unknown[]) => console.error(... vars));
+doc.lib('Custom', 'test', (name: string): string => `Hello, ${name} from JS function`);
 
 doc.run();
 

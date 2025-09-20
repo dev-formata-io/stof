@@ -1,0 +1,15 @@
+{
+    "name": "@formata/stof",
+    "version": "0.5.0",
+    "exports": "./doc.ts",
+    "license": "Apache-2.0",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/dev-formata-io/stof"
+    },
+    "homepage": "https://docs.stof.dev",
+    "publish": {
+      "include": ["./**/*"],
+      "exclude": ["./examples/**/*", "./node_modules/**/*"]
+    }
+}

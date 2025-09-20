@@ -19,10 +19,27 @@ import init, { Stof, StofFunc } from './pkg/stof.js';
 // @deno-types="./pkg/stof.d.ts"
 export * from './pkg/stof.js';
 
+
+/**
+ * Template function for a document.
+ * Stof must be initialized before with `await Doc.initialize()`.
+ */
+export function stof(strings: TemplateStringsArray, ...values: unknown[]): StofDoc {
+    const doc = new StofDoc();
+    let result = '';
+    for (let i = 0; i < strings.length; i++) {
+        result += strings[i];
+        if (i < values.length) result += values[i];
+    }
+    doc.parse(result);
+    return doc;
+}
+
+
 /**
  * Stof document.
  */
-export class Doc {
+export class StofDoc {
     /** Initialized? */
     private static initialized?: Promise<void>;
 
@@ -35,7 +52,7 @@ export class Doc {
      */
     static async initialize(data?: unknown): Promise<void> {
         // @ts-ignore this exists
-        return Doc.initialized ?? await (Doc.initialized = init(data));
+        return StofDoc.initialized ?? await (StofDoc.initialized = init(data));
     }
 
 
@@ -43,7 +60,7 @@ export class Doc {
      * Constructor.
      * Make sure to call initalize before using.
      */
-    constructor(stof: Stof) {
+    constructor(stof: Stof = new Stof()) {
         this.stof = stof;
     }
 
@@ -51,9 +68,9 @@ export class Doc {
     /**
      * Create & initialize (if needed).
      */
-    static async new(): Promise<Doc> {
-        await Doc.initialize();
-        return new Doc(new Stof());
+    static async new(): Promise<StofDoc> {
+        await StofDoc.initialize();
+        return new StofDoc();
     }
 
 
@@ -79,5 +96,23 @@ export class Doc {
      */
     run(attr: string | string[] = 'main'): string {
         return this.stof.run(attr);
+    }
+
+
+    /*****************************************************************************
+     * Network.
+     *****************************************************************************/
+
+    /**
+     * Send Stof string body as an HTTP request.
+     */
+    static async send(url: string, stof: string, method: string = 'POST', bearer?: string, headers: Record<string, string> = {} as Record<string, string>): Promise<Response> {
+        headers['Content-Type'] = 'application/stof';
+        if (bearer !== undefined) headers['Authorization'] = `Bearer ${bearer}`;
+        return await fetch(url, {
+            method,
+            headers: headers as HeadersInit,
+            body: stof
+        });
     }
 }
