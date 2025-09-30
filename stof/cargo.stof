@@ -248,28 +248,29 @@ Cargo: {
             try {
                 const resp = await Http.fetch(`https://crates.io/api/v1/crates/${name}`, headers = {
                     'User-Agent': 'Stof cargo template helper (info@stof.dev)'
-                });
-                const object = new {};
-                parse(resp.remove('text'), object, 'json');
+                }, timeout = 10s);
+                if (!Http.success(resp)) throw();
+
+                const object = Http.parse(resp, new {});
                 const max_stable: ver = object.crate.max_stable_version;
                 
                 const existing = self.get(name);
                 if (!existing) {
-                    pln(`Created ${name} and set version to ${max_stable}`);
+                    log_info(`Created ${name} and set version to ${max_stable}`);
                     self.insert(name, max_stable);
                 } else if ('obj' == typeof existing) {
                     if (existing.version != max_stable) {
-                        pln(`Updated ${name} version to ${max_stable}`);
+                        log_info(`Updated ${name} version to ${max_stable}`);
                         existing.insert('version', max_stable);
                     }
                 } else if (existing != max_stable) {
-                    pln(`Set ${name} version to ${max_stable}`);
+                    log_info(`Set ${name} version to ${max_stable}`);
                 }
                 
                 drop(object);
                 true
             } catch {
-                err(`unable to insert max stable Cargo dependency: ${name}`);
+                log_error(`unable to insert max stable Cargo dependency: ${name}`);
                 false
             }
         }

@@ -96,6 +96,14 @@ fn const_fields() {
 }
 
 
+#[test]
+fn dynamic_const_field() {
+    const var = 'hello';
+    self.mydyfield = var;
+    self.mydyfield = 'dude'; // should not error here
+}
+
+
 FieldTypes: {
     bool | int union_field: true
     (str, ver) tup_field: ('hi', 1.0.0)

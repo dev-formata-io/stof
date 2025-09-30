@@ -94,3 +94,12 @@ fn cast_promises() {
     assert_eq(typeof res, 'int');
     assert_eq(res, 100);
 }
+
+#[test]
+fn await_void_handles() {
+    let handles = [];
+    for (const _ in 10) handles.push_back(async {
+        let res = 10 * 10; // just something silly i guess
+    });
+    await handles;
+}

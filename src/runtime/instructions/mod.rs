@@ -687,7 +687,7 @@ impl Instruction for Base {
                 }
             },
             Self::SetVariable(name) => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(mut var) = env.stack.pop() {
                     if !name.contains('.') && env.table.set(name, &var, graph, Some(env.self_ptr()))? {
                         return Ok(None);
                     }
@@ -723,6 +723,7 @@ impl Instruction for Base {
                             let field_name = path.path.pop().unwrap();
                             if path.path.len() < 1 { return Err(Error::AssignSelf); }
                             if let Some(node) = graph.ensure_named_nodes(path, Some(self_ptr.clone()), true, None) {
+                                var.mutable = true;
                                 let field = Field::new(var, None);
                                 graph.insert_stof_data(&node, field_name, Box::new(field), None);
                                 return Ok(None);
@@ -765,6 +766,7 @@ impl Instruction for Base {
                         let field_name = path.path.pop().unwrap();
                         if path.path.len() > 0 {
                             if let Some(node) = graph.ensure_named_nodes(path, context, true, None) {
+                                var.mutable = true;
                                 let field = Field::new(var, None);
                                 graph.insert_stof_data(&node, field_name, Box::new(field), None);
                                 return Ok(None);
@@ -772,6 +774,7 @@ impl Instruction for Base {
                                 return Err(Error::AssignSelf);
                             }
                         } else if let Some(node) = context {
+                            var.mutable = true;
                             let field = Field::new(var, None);
                             graph.insert_stof_data(&node, field_name, Box::new(field), None);
                             return Ok(None);
