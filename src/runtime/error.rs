@@ -17,7 +17,7 @@
 use std::fmt::Display;
 use arcstr::ArcStr;
 use serde::{Deserialize, Serialize};
-use crate::{parser::doc::StofParseError, runtime::Val};
+use crate::{parser::doc::StofParseError, runtime::{Type, Val}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -438,7 +438,7 @@ pub enum Error {
     NewStackError,
     CallStackError,
     CastStackError,
-    CastVal,
+    CastVal(Type, Type),
 
     // Function calling errors
     FuncDne,

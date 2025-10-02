@@ -308,6 +308,7 @@ impl Runtime {
                         to_run.push(id.clone());
                     } else if let Some(error_proc) = self.errored.remove(wait_id) {
                         // Propagate the error back to the awaiting process, so that it can optionally handle it itself
+                        println!("{} {}{}{}{}{}\n{}", "await error".red().bold(), "(".dimmed(), waiting_proc.env.pid.as_ref().dimmed().purple(), " waiting on ".dimmed(), error_proc.env.pid.as_ref().dimmed().cyan(), ")".dimmed(), error_proc.trace(&graph, 20));
                         if let Some(error) = error_proc.error {
                             waiting_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Error::AwaitError(Box::new(error)))));
                         }

@@ -1126,7 +1126,7 @@ impl Val {
             }
             return Ok(false);
         }
-        Err(Error::CastVal)
+        Err(Error::CastVal(Type::Null, Type::Null))
     }
 
     /// Cast this value to a different type.
@@ -1146,11 +1146,11 @@ impl Val {
                         Err(_) => {}
                     }
                 }
-                return Err(Error::CastVal);
+                return Err(Error::CastVal(self.spec_type(graph), target.clone()));
             },
             Type::NotNull(t) => {
                 if self.null() {
-                    return Err(Error::CastVal);
+                    return Err(Error::CastVal(self.spec_type(graph), target.clone()));
                 }
                 return self.cast(t.deref(), graph, context);
             },
@@ -1190,10 +1190,10 @@ impl Val {
                                 match val.read().deref() {
                                     Self::Num(num) => {
                                         let res: Result<u8, _> = num.int().try_into();
-                                        if res.is_err() { return Err(Error::CastVal); }
+                                        if res.is_err() { return Err(Error::CastVal(self.spec_type(graph), target.clone())); }
                                         blob.push(res.unwrap());
                                     },
-                                    _ => return Err(Error::CastVal)
+                                    _ => return Err(Error::CastVal(self.spec_type(graph), target.clone()))
                                 }
                             }
                         }
@@ -1213,7 +1213,7 @@ impl Val {
                             *self = Self::Tup(values.clone());
                             return Ok(());
                         }
-                        Err(Error::CastVal)
+                        Err(Error::CastVal(self.spec_type(graph), target.clone()))
                     },
                     _ => Err(Error::NotImplemented)
                 }
@@ -1258,10 +1258,10 @@ impl Val {
                             if tagname == &dtn {
                                 Ok(())
                             } else {
-                                Err(Error::CastVal)
+                                Err(Error::CastVal(self.spec_type(graph), target.clone()))
                             }
                         } else {
-                            Err(Error::CastVal)
+                            Err(Error::CastVal(self.spec_type(graph), target.clone()))
                         }
                     },
                     Type::Fn => {
@@ -1269,7 +1269,7 @@ impl Val {
                             *self = Self::Fn(dref.clone());
                             Ok(())
                         } else {
-                            Err(Error::CastVal)
+                            Err(Error::CastVal(self.spec_type(graph), target.clone()))
                         }
                     },
                     _ => Err(Error::NotImplemented)
@@ -1324,7 +1324,7 @@ impl Val {
                             *self = ver;
                             Ok(())
                         } else {
-                            Err(Error::CastVal)
+                            Err(Error::CastVal(self.spec_type(graph), target.clone()))
                         }
                     },
                     Type::Num(_) => {
@@ -1334,7 +1334,7 @@ impl Val {
                                 *self = res;
                                 Ok(())
                             },
-                            Err(_) => Err(Error::CastVal)
+                            Err(_) => Err(Error::CastVal(self.spec_type(graph), target.clone()))
                         }
                     },
                     _ => Err(Error::NotImplemented)
@@ -1359,7 +1359,7 @@ impl Val {
                             }
                             return Ok(());
                         }
-                        Err(Error::CastVal)
+                        Err(Error::CastVal(self.spec_type(graph), target.clone()))
                     },
                     _ => Err(Error::NotImplemented)
                 }
@@ -1403,22 +1403,22 @@ impl Val {
             Type::Union(types) => {
                 let mut objects = Vec::new();
                 let mut seen_unknown = false;
-                for cast_type in types {
+                for cast_type in &types {
                     match cast_type {
                         Type::Obj(proto_id) => {
                             if self.instance_of(&proto_id, graph)? {
                                 return Ok(());
                             } else {
-                                objects.push(Type::Obj(proto_id));
+                                objects.push(Type::Obj(proto_id.clone()));
                             }
                         },
                         Type::NotNull(t) => {
-                            match *t {
+                            match &**t {
                                 Type::Obj(proto_id) => {
                                     if self.instance_of(&proto_id, graph)? {
                                         return Ok(());
                                     } else {
-                                        objects.push(Type::Obj(proto_id));
+                                        objects.push(Type::Obj(proto_id.clone()));
                                     }
                                 },
                                 Type::Unknown => {
@@ -1442,7 +1442,7 @@ impl Val {
                 if seen_unknown {
                     return Ok(());
                 }
-                Err(Error::CastVal)
+                Err(Error::CastVal(self.spec_type(graph), Type::Union(types)))
             },
             Type::Obj(proto_id) => {
                 if proto_id == SId::from(&OBJ) {
@@ -1522,14 +1522,14 @@ impl Val {
             },
             Type::NotNull(t) => {
                 if self.null() {
-                    return Err(Error::CastVal);
+                    return Err(Error::CastVal(self.spec_type(graph), Type::NotNull(t.clone())));
                 }
                 self.cast_object(t.deref(), graph, context)
             },
             Type::Unknown => {
                 Ok(())
             },
-            _ => Err(Error::CastVal)
+            _ => Err(Error::CastVal(self.spec_type(graph), target.clone()))
         }
     }
 
