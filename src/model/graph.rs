@@ -53,8 +53,15 @@ pub const ROOT_NODE_NAME: SId = SId(Bytes::from_static(b"root"));
 pub struct Graph {
     pub id: SId,
     pub roots: FxHashSet<NodeRef>,
+
+    #[serde(deserialize_with = "deserialize_nodes")]
+    #[serde(serialize_with = "serialize_nodes")]
     pub nodes: FxHashMap<NodeRef, Node>,
+
+    #[serde(deserialize_with = "deserialize_data")]
+    #[serde(serialize_with = "serialize_data")]
     pub data: FxHashMap<DataRef, Data>,
+
     pub typemap: FxHashMap<String, FxHashSet<NodeRef>>,
 
     #[serde(skip)]
@@ -1312,6 +1319,56 @@ impl Graph {
     pub fn docs(&self, path: &str, node: Option<NodeRef>) -> Result<(), Error> {
         self.file_export("docs", path, node)
     }
+}
+
+
+/// Custom serialize for graph data.
+fn serialize_data<S>(data: &FxHashMap<DataRef, Data>, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
+    let mut serialized = Vec::new();
+    for (_, data) in data {
+        if let Ok(bytes) = bincode::serialize(data) {
+            serialized.push(bytes);
+        }
+    }
+    serialized.serialize(serializer)
+}
+
+
+/// Custom deserialize for graph data.
+fn deserialize_data<'de, D>(deserializer: D) -> Result<FxHashMap<DataRef, Data>, D::Error> where D: serde::Deserializer<'de> {
+    let data: Vec<Vec<u8>> = Deserialize::deserialize(deserializer)?;
+    let mut deserialized = FxHashMap::default();
+    for bytes in data {
+        if let Ok(data) = bincode::deserialize::<Data>(&bytes) {
+            deserialized.insert(data.id.clone(), data);
+        }
+    }
+    Ok(deserialized)
+}
+
+
+/// Custom serialize for graph nodes.
+fn serialize_nodes<S>(nodes: &FxHashMap<NodeRef, Node>, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
+    let mut serialized = Vec::new();
+    for (_, node) in nodes {
+        if let Ok(bytes) = bincode::serialize(node) {
+            serialized.push(bytes);
+        }
+    }
+    serialized.serialize(serializer)
+}
+
+
+/// Custom deserialize for graph nodes.
+fn deserialize_nodes<'de, D>(deserializer: D) -> Result<FxHashMap<NodeRef, Node>, D::Error> where D: serde::Deserializer<'de> {
+    let data: Vec<Vec<u8>> = Deserialize::deserialize(deserializer)?;
+    let mut deserialized = FxHashMap::default();
+    for bytes in data {
+        if let Ok(node) = bincode::deserialize::<Node>(&bytes) {
+            deserialized.insert(node.id.clone(), node);
+        }
+    }
+    Ok(deserialized)
 }
 
 
