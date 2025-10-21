@@ -84,3 +84,12 @@ fn ternary() {
     y = x > 5 ? true : false;
     assert_not(y);
 }
+
+#[test]
+fn not_order() {
+    let dev = false;
+    let sub = true;
+    if (!dev && !sub) assert(false);
+    assert(!dev);
+    assert(!!sub);
+}
