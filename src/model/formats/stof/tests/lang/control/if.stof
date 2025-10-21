@@ -92,4 +92,10 @@ fn not_order() {
     if (!dev && !sub) assert(false);
     assert(!dev);
     assert(!!sub);
+    assert_eq(str(!!!!56), 'true');
+}
+
+#[test]
+fn not_negative_literal() {
+    if (!-45) assert(false);
 }

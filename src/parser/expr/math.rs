@@ -15,8 +15,8 @@
 //
 
 use std::sync::Arc;
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, space0}, combinator::map, multi::many0, sequence::preceded, IResult, Parser};
-use crate::{parser::{doc::StofParseError, expr::{async_expr, await_expr, block_expr, fmt_str::formatted_string_expr, graph::graph_expr, list_expr, literal::literal_expr, map_expr, set_expr, switch_expr, tup_expr, typename_expr, typeof_expr, wrapped_expr}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, ops::{Op, OpIns}, Base, NOOP, NOT_TRUTHY}, Num, Val}};
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, space0}, combinator::map, multi::{many0, many0_count}, sequence::preceded, IResult, Parser};
+use crate::{parser::{doc::StofParseError, expr::{async_expr, await_expr, block_expr, fmt_str::formatted_string_expr, graph::graph_expr, list_expr, literal::literal_expr, map_expr, set_expr, switch_expr, tup_expr, typename_expr, typeof_expr, wrapped_expr}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, ops::{Op, OpIns}, Base, NOOP, NOT_TRUTHY, TRUTHY}, Num, Val}};
 
 
 /// Parse a math expr.
@@ -158,14 +158,26 @@ pub(self) fn bitwise(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofPar
 /// Primary element in a math expr.
 fn primary(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = space0(input)?;
+
+    let (input, not_count) = many0_count(char('!')).parse(input)?;
+    if not_count > 0 {
+        let (input, ins) = atom.parse(input)?;
+        
+        let mut block = Block::default();
+        block.ins.push_back(ins);
+        
+        if not_count % 2 == 0 {
+            block.ins.push_back(TRUTHY.clone());
+        } else {
+            block.ins.push_back(NOT_TRUTHY.clone());
+        }
+
+        let (input, _) = space0(input)?;
+        return Ok((input, Arc::new(block)));
+    }
+
     let (input, ins) = alt((
         atom,
-        map(preceded(char('!'), atom), |ins| {
-            let mut block = Block::default();
-            block.ins.push_back(ins);
-            block.ins.push_back(NOT_TRUTHY.clone());
-            Arc::new(block) as Arc<dyn Instruction>
-        }),
         map(preceded(char('-'), atom), |ins| {
             Arc::new(OpIns { lhs: Arc::new(Base::Literal(Val::Num(Num::Int(-1)))), op: Op::Mul, rhs: ins }) as Arc<dyn Instruction>
         })
