@@ -41,6 +41,13 @@ const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
 assert_not(Http.server_error(resp));
 ```
 
+# Http.size(response: map) -> bytes
+Extract the response body size in bytes.
+```rust
+const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
+const mib_body_size = Http.size(resp) as MiB;
+```
+
 # Http.success(response: map) -> bool
 Was the request successful? Meaning, is the response 'status' between [200, 299]?
 ```rust

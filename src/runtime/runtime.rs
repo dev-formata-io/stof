@@ -675,7 +675,7 @@ impl Runtime {
     /// Call a singular function with this runtime.
     pub fn call_func(graph: &mut Graph, func: &DataRef, args: Vec<Val>) -> Result<Val, Error> {
         if !func.type_of::<Func>(&graph) {
-            return Err(Error::FuncDne);
+            return Err(Error::FuncDne(format!("Data Ptr not Func")));
         }
         let mut arguments: Vector<Arc<dyn Instruction>> = Vector::default();
         for arg in args { arguments.push_back(Arc::new(Base::Literal(arg))); }

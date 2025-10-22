@@ -23,6 +23,9 @@ fn get_request() {
         assert_not(Http.client_error(resp));
         assert_not(Http.server_error(resp));
 
+        const size = Http.size(resp) as KiB;
+        assert(size > 100KiB);
+
         const body = Http.parse(resp, new {});
         for (const country in body.field) {
             //pln(country.name.common);

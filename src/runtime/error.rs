@@ -441,7 +441,7 @@ pub enum Error {
     CastVal(Type, Type),
 
     // Function calling errors
-    FuncDne,
+    FuncDne(String),
     FuncDefaultArg(Box<Self>),
     FuncArgs,
     FuncInvalidReturn,

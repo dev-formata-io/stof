@@ -61,7 +61,7 @@ impl FuncCall {
             let path = search.replace('?', "");
             return self.search_func(&path, env, graph);
         }
-        Err(Error::FuncDne)
+        Err(Error::FuncDne("No Func or Search".into()))
     }
 
     /// Search for a function to call using a path.
@@ -98,7 +98,7 @@ impl FuncCall {
                     return Ok(CallContext { lib: Some(libname), stack_arg: Some(Arc::new(Base::Variable(var))), prototype_self: None, func: SId::from(split_path[0]) });
                 }
             }
-            return Err(Error::FuncDne);
+            return Err(Error::FuncDne("Stack Search Failed".into()));
         }
 
         // In this case, we are calling into the standard library functions (or a variable function)
@@ -161,7 +161,7 @@ impl FuncCall {
                 let libname = var.lib_name(&graph);
                 return Ok(CallContext { lib: Some(libname), stack_arg: Some(Arc::new(Base::Variable(var))), prototype_self: None, func: SId::from(func_name) });
             }
-            return Err(Error::FuncDne);
+            return Err(Error::FuncDne(path.into()));
         }
 
         let context_path = split_path.join(".");
@@ -178,7 +178,7 @@ impl FuncCall {
             return Ok(CallContext { lib: Some(libname), stack_arg: Some(Arc::new(Base::Variable(Variable::refval(context)))), prototype_self: None, func: SId::from(split_path[0]) });
         }
 
-        Err(Error::FuncDne)
+        Err(Error::FuncDne(path.into()))
     }
 
     /// Use the remaining path to find a function at the path starting at an object.
@@ -322,7 +322,7 @@ impl FuncCall {
             }
         }
 
-        Err(Error::FuncDne)
+        Err(Error::FuncDne(path.into()))
     }
 
     /// Call library function.
@@ -481,7 +481,7 @@ impl Instruction for FuncCall {
                 instructions.push(Arc::new(Base::Literal(Val::Null)));
                 return Ok(Some(instructions));
             }
-            return Err(Error::FuncDne);
+            return Err(Error::FuncDne(format!("{libname}.{name}")));
         }
 
         let func = func_context.func;
@@ -506,7 +506,7 @@ impl Instruction for FuncCall {
                 instructions.push(Arc::new(Base::Literal(Val::Null)));
                 return Ok(Some(instructions));
             }
-            return Err(Error::FuncDne);
+            return Err(Error::FuncDne(format!("Data Ptr not Func")));
         }
 
         // Add return tag to the end of the func statements

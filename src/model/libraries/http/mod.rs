@@ -125,6 +125,30 @@ const body = Http.text(resp);
         })
     });
 
+    // Http.size(response: map) -> bytes
+    graph.insert_libfunc(LibFunc {
+        library: HTTP_LIB.clone(),
+        name: "size".into(),
+        is_async: false,
+        docs: r#"# Http.size(response: map) -> bytes
+Extract the response body size in bytes.
+```rust
+const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
+const mib_body_size = Http.size(resp) as MiB;
+```"#.into(),
+        params: vector![
+            Param { name: "response".into(), param_type: Type::Map, default: None },
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(move |_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(HttpIns::BodySize));
+            Ok(instructions)
+        })
+    });
+
     // Http.blob(response: map) -> blob
     graph.insert_libfunc(LibFunc {
         library: HTTP_LIB.clone(),
@@ -458,6 +482,8 @@ pub(self) enum HttpIns {
     ParseResponse,
     /// Extract a text response body.
     TextBody,
+    /// Extract the size of the blob response body in bytes.
+    BodySize,
     /// Extract a blob response body.
     BlobBody,
     /// Was the response successful (200 <= status <= 299)?
@@ -681,6 +707,31 @@ impl Instruction for HttpIns {
                         },
                         _ => {
                             return Err(Error::HttpSendError(format!("text body response must be a map")))
+                        }
+                    }
+                }
+            },
+
+            // Http.size(response: map) -> bytes
+            Self::BodySize => {
+                if let Some(response) = env.stack.pop() {
+                    match response.val.read().deref() {
+                        Val::Map(response) => {
+                            if let Some(body) = response.get(&ValRef::new(Val::Str("bytes".into()))) {
+                                match body.read().deref() {
+                                    Val::Blob(bytes) => {
+                                        env.stack.push(Variable::val(Val::Num(Num::Units(bytes.len() as f64, Units::Bytes))));
+                                    },
+                                    _ => {
+                                        return Err(Error::HttpSendError(format!("blob body size response map 'bytes' value must be a blob")));
+                                    }
+                                }
+                            } else {
+                                return Err(Error::HttpSendError(format!("blob body size must have a 'bytes' key-value blob body")));
+                            }
+                        },
+                        _ => {
+                            return Err(Error::HttpSendError(format!("blob body size response must be a map")))
                         }
                     }
                 }
