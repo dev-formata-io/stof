@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use imbl::vector;
-use crate::{model::{stof_std::{StdIns, STD_LIB}, LibFunc}, runtime::{instruction::Instructions}};
+use crate::{model::{stof_std::{StdIns, STD_LIB, XMLTAG}, LibFunc, Param}, runtime::{instruction::Instructions, Type}};
 
 
 /// Standard printline function.
@@ -62,6 +62,33 @@ assert_eq(str("hello, world"), "hello, world");
         func: Arc::new(|_as_ref, arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(Arc::new(StdIns::String(arg_count)));
+            Ok(instructions)
+        })
+    }
+}
+
+/// Create a string that has XML tags.
+pub fn xmltag() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "xml".into(),
+        is_async: false,
+        docs: r#"# Std.xml(text: str, tag: str) -> str
+A helper function to create an XML-tagged string.
+```rust
+assert_eq(xml("hello, world", "msg"), "<msg>hello, world</msg>");
+```
+"#.into(),
+        params: vector![
+            Param { name: "text".into(), param_type: Type::Str, default: None },
+            Param { name: "tag".into(), param_type: Type::Str, default: None }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(XMLTAG.clone());
             Ok(instructions)
         })
     }

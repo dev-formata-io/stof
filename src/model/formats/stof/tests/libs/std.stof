@@ -33,6 +33,13 @@ fn functions() {
 }
 
 
+#[test]
+fn xmltags() {
+    const tagged = xml('hello, world', 'msg');
+    assert_eq(tagged, '<msg>hello, world</msg>');
+}
+
+
 Throw: {
     #[test]
     #[errors]
