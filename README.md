@@ -15,14 +15,14 @@
 
 <br/>
 
-**A smart, declarative runtime for data workflows**
+### A declarative runtime & data format for modern workflows
 - [Docs](https://docs.stof.dev)
 - [GitHub](https://github.com/dev-formata-io/stof)
 - [Discord](https://discord.gg/Up5kxdeXZt)
 - [Install](https://docs.stof.dev/book/installation)
 
-## What is Stof?
-Stof works **with** other data formats to bridge the gap between static data and programmable documents. It is a lightweight, embeddable, and portable data logic format & platform for AI, infra-as-code, and config-heavy workflows. It's built to support:
+
+Stof is a unified data format that works seamlessly **with** other formats to bridge the gap between static data and programmable documents. It is a lightweight, embeddable, and portable data logic format & platform for AI, infra-as-code, and config-heavy workflows. It's built to support:
 
 - Data-Mesh, Integration, & Orchestration **glue-layer**
 - Universal LLM & AI workflows, tools, & **intersystem data**
@@ -30,6 +30,16 @@ Stof works **with** other data formats to bridge the gap between static data and
 - Asynchronous **validation & transformation**
 
 > Think of Stof as a foundation for building robust and declarative data flows, config systems, or backend models.
+
+## Core Stof principle: Everything as Data
+Using data in whatever form it is defined should not be difficult. Stof is the glue-layer & interface for working with any type of data as a singular, portable, and embeddable document.
+
+Instead of parsing data into an application & modeling the same data multiple times with loads of dependencies, a Stof document is turned into an embedded runtime. You parse logic & data into the Stof document and tell it to manipulate itself with limited & controlled access to the host application (Code as Data). This makes the entire environment more secure, portable, and much easier to work with.
+
+- Code as data - functions are data components like all others (and can be manipulated as such)
+- Fields - data components that map to fields in other formats like JSON, TOML, YAML, etc.
+- Data Components - whether its a PDF, WASM binary, an image, or anything else, Stof organizes it neatly and provides an interface to work with all of its data at once
+- Modular - as a general graph of data containers, Stof can be chopped up, partially saved, moved between servers, etc.
 
 ## When to use Stof?
 Modern software (especially AI/ML, infra, cloud, CI/CD, and workflows) increasingly relies on structured data that needs to be:
@@ -42,7 +52,7 @@ Modern software (especially AI/ML, infra, cloud, CI/CD, and workflows) increasin
 - Versioned and inspectable
 
 But the tools we have for this are *primitive and fragmented*:
-- JSON/YAML/TOML carry structure, but rely on other tools for behavior, units, schemas, or validations.
+- JSON/YAML/TOML carry structure, but rely on other tools for behavior, types, units, schemas, or validations.
 - External tools create complexity between systems and often require additional configuration & maintenence.
 - Configs drift and break across environments.
 - Runtime logic is scattered across codebases, devops scripts, and data definitions.
