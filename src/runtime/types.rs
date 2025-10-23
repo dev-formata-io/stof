@@ -35,6 +35,7 @@ pub(super) const DATA: ArcStr = literal!("data");
 pub(super) const OBJ: ArcStr = literal!("obj");
 const VER: ArcStr = literal!("ver");
 const STR: ArcStr = literal!("str");
+const PROMPT: ArcStr = literal!("prompt");
 const INT: ArcStr = literal!("int");
 const FLOAT: ArcStr = literal!("float");
 
@@ -55,6 +56,7 @@ pub enum Type {
     Num(NumT),
     Str,
     Ver,
+    Prompt,
 
     Obj(SId), // Prototypes
     Fn,
@@ -144,6 +146,12 @@ impl PartialEq for Type {
                 match other {
                     Self::Num(ot) => t.eq(ot),
                     _ => false,
+                }
+            },
+            Self::Prompt => {
+                match other {
+                    Self::Prompt => true,
+                    _ =>  false,
                 }
             },
             Self::Str => {
@@ -320,6 +328,7 @@ impl Type {
             Self::Num(num) => num.type_of(),
             Self::Ver => VER,
             Self::Str => STR,
+            Self::Prompt => PROMPT,
             Self::Tup(vals) => {
                 let mut res = "(".to_string();
                 for i in 0..vals.len() {
@@ -372,6 +381,7 @@ impl Type {
             Self::Num(num) => num.type_of(),
             Self::Ver => VER,
             Self::Str => STR,
+            Self::Prompt => PROMPT,
             Self::Tup(vals) => {
                 let mut res = "(".to_string();
                 for i in 0..vals.len() {
@@ -426,6 +436,7 @@ impl Type {
             Self::Num(_) => literal!("Num"),
             Self::Data(_) => literal!("Data"),
             Self::Str => literal!("Str"),
+            Self::Prompt => literal!("Prompt"),
             Self::Obj(_) => literal!("Obj"),
             Self::Promise(_) => literal!("Promise"),
             Self::Ver => literal!("Ver"),

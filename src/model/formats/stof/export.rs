@@ -178,6 +178,7 @@ impl StofExportContext {
             Val::Null => self.stof.push_str("null"),
             Val::Bool(_) => self.stof.push_str(&val.to_string()),
             Val::Str(str) => self.stof.push_str(&format!("r#\"{str}\"#")),
+            Val::Prompt(v) => self.stof.push_str(&format!("r#\"{}\"#", v.to_string())),
             Val::Num(v) => self.stof.push_str(&v.to_string()),
             Val::Blob(blob) => {
                 let str = format!("{blob:?}");

@@ -23,7 +23,7 @@ use arcstr::{literal, ArcStr};
 use bytes::Bytes;
 use imbl::{vector, OrdMap, OrdSet, Vector};
 use serde::{Deserialize, Serialize};
-use crate::{model::{export::json_value_from_node, Data, DataRef, Field, Func, Graph, Node, NodeRef, Prototype, SId}, parser::{number::number, semver::parse_semver_alone}, runtime::{Error, Num, NumT, Type, Units, DATA, OBJ}};
+use crate::{model::{export::json_value_from_node, Data, DataRef, Field, Func, Graph, Node, NodeRef, Prototype, SId}, parser::{number::number, semver::parse_semver_alone}, runtime::{Error, Num, NumT, Prompt, Type, Units, DATA, OBJ}};
 
 
 /// Value reference (value, by reference?).
@@ -103,6 +103,7 @@ pub enum Val {
     Num(Num),
     Str(ArcStr),
     Blob(Bytes),
+    Prompt(Prompt),
 
     // Semantic Versioning as a value
     Ver(i32, i32, i32, Option<ArcStr>, Option<ArcStr>),
@@ -269,12 +270,23 @@ impl Ord for Val {
                     _ => Ordering::Less,
                 }
             },
+            Self::Prompt(prompt) => {
+                match other {
+                    Self::Prompt(oval) => prompt.text.cmp(&oval.text),
+                    Self::Void |
+                    Self::Bool(_) |
+                    Self::Num(_) |
+                    Self::Str(_) => Ordering::Greater,
+                    _ => Ordering::Less,
+                }
+            },
             Self::Obj(nref) => {
                 match other {
                     Self::Obj(oref) => nref.cmp(oref),
                     Self::Void |
                     Self::Bool(_) |
                     Self::Num(_) |
+                    Self::Prompt(_) |
                     Self::Str(_) => Ordering::Greater,
                     _ => Ordering::Less,
                 }
@@ -286,6 +298,7 @@ impl Ord for Val {
                     Self::Bool(_) |
                     Self::Num(_) |
                     Self::Str(_) |
+                    Self::Prompt(_) |
                     Self::Obj(_) => Ordering::Greater,
                     _ => Ordering::Less,
                 }
@@ -297,6 +310,7 @@ impl Ord for Val {
                     Self::Bool(_) |
                     Self::Num(_) |
                     Self::Str(_) |
+                    Self::Prompt(_) |
                     Self::Obj(_) |
                     Self::Fn(_) => Ordering::Greater,
                     _ => Ordering::Less,
@@ -309,6 +323,7 @@ impl Ord for Val {
                     Self::Bool(_) |
                     Self::Num(_) |
                     Self::Str(_) |
+                    Self::Prompt(_) |
                     Self::Obj(_) |
                     Self::Fn(_) |
                     Self::List(_) => Ordering::Greater,
@@ -322,6 +337,7 @@ impl Ord for Val {
                     Self::Bool(_) |
                     Self::Num(_) |
                     Self::Str(_) |
+                    Self::Prompt(_) |
                     Self::Obj(_) |
                     Self::Fn(_) |
                     Self::List(_) |
@@ -336,6 +352,7 @@ impl Ord for Val {
                     Self::Bool(_) |
                     Self::Num(_) |
                     Self::Str(_) |
+                    Self::Prompt(_) |
                     Self::Obj(_) |
                     Self::Fn(_) |
                     Self::List(_) |
@@ -351,6 +368,7 @@ impl Ord for Val {
                     Self::Bool(_) |
                     Self::Num(_) |
                     Self::Str(_) |
+                    Self::Prompt(_) |
                     Self::Obj(_) |
                     Self::Fn(_) |
                     Self::List(_) |
@@ -367,6 +385,7 @@ impl Ord for Val {
                     Self::Bool(_) |
                     Self::Num(_) |
                     Self::Str(_) |
+                    Self::Prompt(_) |
                     Self::Obj(_) |
                     Self::Fn(_) |
                     Self::List(_) |
@@ -399,6 +418,7 @@ impl Ord for Val {
                     Self::Bool(_) |
                     Self::Num(_) |
                     Self::Str(_) |
+                    Self::Prompt(_) |
                     Self::Obj(_) |
                     Self::Fn(_) |
                     Self::List(_) |
@@ -417,6 +437,7 @@ impl Ord for Val {
                     Self::Bool(_) |
                     Self::Num(_) |
                     Self::Str(_) |
+                    Self::Prompt(_) |
                     Self::Obj(_) |
                     Self::Fn(_) |
                     Self::List(_) |
@@ -488,6 +509,12 @@ impl PartialEq for Val {
                     _ => false,
                 }
             },
+            Self::Prompt(val) => {
+                match other {
+                    Self::Prompt(oval) => val.to_string() == oval.to_string(),
+                    _ => false,
+                }
+            },
             Self::List(vals) => {
                 match other {
                     Self::List(ovals) => vals == ovals,
@@ -550,6 +577,7 @@ impl ToString for Val {
             Self::Null => "null".to_owned(),
             Self::Void => "void".to_owned(),
             Self::Str(val) => val.to_string(),
+            Self::Prompt(prompt) => prompt.to_string(),
             Self::Bool(val) => val.to_string(),
             Self::Num(val) => val.to_string(),
             Self::List(val) => format!("{val:?}"),
@@ -675,6 +703,15 @@ impl Val {
     pub fn str(&self) -> bool {
         match self {
             Self::Str(_) => true,
+            _ => false,
+        }
+    }
+
+    #[inline(always)]
+    /// Is prompt value?
+    pub fn prompt(&self) -> bool {
+        match self {
+            Self::Prompt(_) => true,
             _ => false,
         }
     }
@@ -845,6 +882,7 @@ impl Val {
             Self::Tup(_) |
             Self::Map(_) |
             Self::Set(_) |
+            Self::Prompt(_) | // treat prompts like collections
             Self::List(_) => false,
         }
     }
@@ -1061,6 +1099,7 @@ impl Val {
             Self::Null => Type::Null,
             Self::Num(num) => Type::Num(num.ntype()),
             Self::Str(_) => Type::Str,
+            Self::Prompt(_) => Type::Prompt,
             Self::Blob(_) => Type::Blob,
             Self::Data(_) => Type::Data(DATA),
             Self::Obj(_) => Type::Obj(SId::from(&OBJ)),
@@ -1167,6 +1206,15 @@ impl Val {
                         match str::from_utf8(&blob) {
                             Ok(val) => {
                                 *self = Self::Str(val.into());
+                                Ok(())
+                            },
+                            Err(_) => Err(Error::NotImplemented)
+                        }
+                    },
+                    Type::Prompt => {
+                        match str::from_utf8(&blob) {
+                            Ok(val) => {
+                                *self = Self::Prompt(val.into());
                                 Ok(())
                             },
                             Err(_) => Err(Error::NotImplemented)
@@ -1329,6 +1377,61 @@ impl Val {
                     },
                     Type::Num(_) => {
                         match number(&val) {
+                            Ok((_, mut res)) => {
+                                res.cast(target, graph, context)?; // get the number into the right type, no matter the string
+                                *self = res;
+                                Ok(())
+                            },
+                            Err(_) => Err(Error::CastVal(self.spec_type(graph), target.clone()))
+                        }
+                    },
+                    Type::Prompt => {
+                        *self = Self::Prompt(Prompt::from(&*val));
+                        Ok(())
+                    },
+                    _ => Err(Error::NotImplemented)
+                }
+            },
+            Self::Prompt(prompt) => {
+                match target {
+                    Type::Str => {
+                        *self = Self::Str(prompt.to_string().into());
+                        Ok(())
+                    },
+                    Type::List => {
+                        let mut list = Vector::new();
+                        for char in prompt.to_string().as_str().chars() {
+                            list.push_back(ValRef::new(Self::Str(char.to_string().into())));
+                        }
+                        *self = Self::List(list);
+                        Ok(())
+                    },
+                    Type::Set => {
+                        let mut set = OrdSet::new();
+                        for char in prompt.to_string().as_str().chars() {
+                            set.insert(ValRef::new(Self::Str(char.to_string().into())));
+                        }
+                        *self = Self::Set(set);
+                        Ok(())
+                    },
+                    Type::Blob => {
+                        *self = Self::Blob(Bytes::copy_from_slice(str::as_bytes(&prompt.to_string())));
+                        Ok(())
+                    },
+                    Type::Bool => {
+                        *self = Self::Bool(prompt.to_string().len() > 0);
+                        Ok(())
+                    },
+                    Type::Ver => {
+                        if let Some(ver) = parse_semver_alone(&prompt.to_string()) {
+                            *self = ver;
+                            Ok(())
+                        } else {
+                            Err(Error::CastVal(self.spec_type(graph), target.clone()))
+                        }
+                    },
+                    Type::Num(_) => {
+                        match number(&prompt.to_string()) {
                             Ok((_, mut res)) => {
                                 res.cast(target, graph, context)?; // get the number into the right type, no matter the string
                                 *self = res;
@@ -1575,6 +1678,7 @@ impl Val {
             Self::Fn(_) |
             Self::Data(_) |
             Self::Str(_) |
+            Self::Prompt(_) |
             Self::Ver(..) |
             Self::Promise(..) |
             Self::Bool(_) => {
@@ -1756,6 +1860,12 @@ impl Val {
                     _ => Ok(Self::Bool(false)),
                 }
             },
+            Self::Prompt(val) => {
+                match other {
+                    Self::Prompt(oval) => Ok(Self::Bool(val.to_string() > oval.to_string())),
+                    _ => Ok(Self::Bool(false)),
+                }
+            },
             Self::Map(map) => {
                 match other {
                     Self::Map(omap) => Ok(Self::Bool(map.len() > omap.len())),
@@ -1858,6 +1968,12 @@ impl Val {
             Self::Str(val) => {
                 match other {
                     Self::Str(oval) => Ok(Self::Bool(val < oval)),
+                    _ => Ok(Self::Bool(false)),
+                }
+            },
+            Self::Prompt(val) => {
+                match other {
+                    Self::Prompt(oval) => Ok(Self::Bool(val.to_string() < oval.to_string())),
                     _ => Ok(Self::Bool(false)),
                 }
             },
@@ -1996,6 +2112,19 @@ impl Val {
                         *self = Self::Str(format!("{val}{}", other.print(&graph)).into());
                         Ok(())
                     }
+                }
+            },
+            Self::Prompt(prompt) => {
+                match other {
+                    Self::Prompt(other) => {
+                        prompt.prompts.push_back(other);
+                        Ok(())
+                    },
+                    Self::Str(other) => {
+                        prompt.prompts.push_back(Prompt::from(other));
+                        Ok(())
+                    },
+                    _ => Err(Error::NotImplemented)
                 }
             },
             Self::Num(val) => {
@@ -2584,6 +2713,7 @@ impl Val {
             Self::Void |
             Self::Null |
             Self::Str(_) |
+            Self::Prompt(_) |
             Self::Bool(_) |
             Self::Ver(..) |
             Self::Fn(_) |

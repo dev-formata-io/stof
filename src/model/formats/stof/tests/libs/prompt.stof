@@ -1,0 +1,69 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+#[test]
+fn empty_prompt() {
+    const p = prompt();
+    assert_eq(typeof p, 'prompt');
+    assert_eq(p as str, '');
+}
+
+#[test]
+fn prompt_from_str() {
+    const p: prompt = 'hello';
+    assert_eq(typeof p, 'prompt');
+    assert_eq(p as str, 'hello');
+}
+
+#[test]
+fn tagged_prompt() {
+    const p = prompt('hello', 'greet');
+    assert_eq(p as str, '<greet>hello</greet>');
+}
+
+#[test]
+fn combined_prompt() {
+    let p = prompt(tag = 'outer');
+    p += prompt('do a thing', 'sub');
+    p += prompt('another', 'sub');
+    assert_eq(p as str, '<outer><sub>do a thing</sub><sub>another</sub></outer>');
+}
+
+#[test]
+fn inner_combined_prompt() {
+    const p = prompt('', 'outer',
+        prompt('do a thing', 'sub'),
+        prompt('another', 'sub',
+            prompt('inner', 'inner')
+        ),
+        'just a string'
+    );
+    assert_eq(p as str,
+        '<outer><sub>do a thing</sub><sub>another<inner>inner</inner></sub>just a string</outer>'
+    );
+}
+
+#[test]
+/// prompt type is not a value type, and is treated like a collection (passed by ref)
+fn prompts_as_refs_default() {
+    let add_hi = (p: prompt) => {
+        p += 'hello, world';
+    };
+    let p = prompt(tag = 'msg');
+    add_hi(p);
+    assert_eq(p as str, '<msg>hello, world</msg>');
+}

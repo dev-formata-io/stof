@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use imbl::vector;
-use crate::{model::{stof_std::{StdIns, STD_LIB, XMLTAG}, LibFunc, Param}, runtime::{instruction::Instructions, Type}};
+use crate::{model::{stof_std::{StdIns, STD_LIB, XMLTAG}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Type, Val}};
 
 
 /// Standard printline function.
@@ -89,6 +89,36 @@ assert_eq(xml("hello, world", "msg"), "<msg>hello, world</msg>");
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(XMLTAG.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// Create a new prompt.
+pub fn prompt() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "prompt".into(),
+        is_async: false,
+        docs: r#"# Std.prompt(text: str = '', tag?: str) -> prompt
+A helper function to create a prompt.
+```rust
+const prompt = prompt(tag = 'instruction');
+prompt += prompt('do a thing', 'sub');
+prompt += prompt('another thing', 'sub');
+assert_eq(prompt as str, '<instruction><sub>do a thing</sub><sub>another thing</sub></instruction>');
+```
+"#.into(),
+        params: vector![
+            Param { name: "text".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Str("".into())))) },
+            Param { name: "tag".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))) }
+        ],
+        return_type: None,
+        unbounded_args: true,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(StdIns::Prompt(arg_count)));
             Ok(instructions)
         })
     }

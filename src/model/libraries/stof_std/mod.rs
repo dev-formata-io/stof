@@ -23,7 +23,7 @@ use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "log")]
 use crate::model::stof_std::print::{std_log_debug, std_log_error, std_log_info, std_log_trace, std_log_warn};
-use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, containers::{std_copy, std_drop, std_funcs, std_list, std_map, std_set, std_shallow_drop, std_swap}, exit::stof_exit, ops::{std_blobify, std_callstack, std_format_content_type, std_formats, std_graph_id, std_has_format, std_has_lib, std_libs, std_max, std_min, std_nanoid, std_parse, std_peek, std_stringify, std_trace, std_tracestack}, print::{dbg, err, pln, string, xmltag}, sleep::stof_sleep}, Field, Func, Graph, Prototype, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}, Base, DUPLICATE, EXIT}, proc::ProcEnv, Error, Type, Units, Val, ValRef, Variable}};
+use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, containers::{std_copy, std_drop, std_funcs, std_list, std_map, std_set, std_shallow_drop, std_swap}, exit::stof_exit, ops::{std_blobify, std_callstack, std_format_content_type, std_formats, std_graph_id, std_has_format, std_has_lib, std_libs, std_max, std_min, std_nanoid, std_parse, std_peek, std_stringify, std_trace, std_tracestack}, print::{dbg, err, pln, prompt, string, xmltag}, sleep::stof_sleep}, Field, Func, Graph, Prototype, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}, Base, DUPLICATE, EXIT}, proc::ProcEnv, Error, Prompt, Type, Units, Val, ValRef, Variable}};
 
 #[cfg(feature = "system")]
 use crate::model::stof_std::ops::{std_env, std_set_env, std_remove_env, std_env_vars};
@@ -40,6 +40,7 @@ mod ops;
 pub fn stof_std_lib(graph: &mut Graph) {
     graph.insert_libfunc(string());
     graph.insert_libfunc(xmltag());
+    graph.insert_libfunc(prompt());
     graph.insert_libfunc(pln());
     graph.insert_libfunc(dbg());
     graph.insert_libfunc(err());
@@ -160,6 +161,9 @@ pub enum StdIns {
     /// xml(text: str, tag: str) -> str</br>
     /// xml('hello', 'msg') -> '\<msg>hello\</msg>'
     XmlTag,
+
+    /// prompt(text: str, tag?: str) -> prompt
+    Prompt(usize),
 
     Throw,
     Sleep,
@@ -328,6 +332,41 @@ impl Instruction for StdIns {
                         let tag = tag_var.val.read().print(&graph);
                         let text = text_var.val.read().print(&graph);
                         env.stack.push(Variable::val(Val::Str(format!("<{tag}>{text}</{tag}>").into())));
+                    }
+                }
+            },
+            Self::Prompt(arg_count) => {
+                let mut additional_prompts = Vector::default();
+                if *arg_count > 2 {
+                    for _ in 0..(*arg_count - 2) {
+                        if let Some(var) = env.stack.pop() {
+                            match var.val.read().deref() {
+                                Val::Prompt(prompt) => {
+                                    additional_prompts.push_front(prompt.clone());
+                                },
+                                val => {
+                                    additional_prompts.push_front(Prompt::from(val.print(&graph)));
+                                }
+                            }
+                        }
+                    }
+                }
+                if let Some(tag_var) = env.stack.pop() {
+                    if let Some(text_var) = env.stack.pop() {
+                        match tag_var.val.read().deref() {
+                            Val::Str(tag) => {
+                                env.stack.push(Variable::val(Val::Prompt(Prompt {
+                                    text: text_var.val.read().print(&graph).into(),
+                                    tag: Some(tag.clone()),
+                                    prompts: additional_prompts,
+                                })));
+                            },
+                            _ => {
+                                let mut prompt = Prompt::from(text_var.val.read().print(&graph));
+                                prompt.prompts = additional_prompts;
+                                env.stack.push(Variable::val(Val::Prompt(prompt)));
+                            }
+                        }
                     }
                 }
             },

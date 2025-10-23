@@ -32,6 +32,9 @@ pub use value::*;
 pub mod num;
 pub use num::*;
 
+pub mod prompt;
+pub use prompt::*;
+
 pub mod types;
 pub use types::*;
 

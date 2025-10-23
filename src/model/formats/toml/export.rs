@@ -52,6 +52,7 @@ pub(super) fn toml_value(graph: &Graph, val: Val) -> Option<Value> {
         Val::Promise(..) => None,
         Val::Bool(v) => Some(Value::Boolean(v)),
         Val::Str(v) => Some(Value::String(v.to_string())),
+        Val::Prompt(v) => Some(Value::String(v.to_string())),
         Val::Num(v) => {
             match v {
                 Num::Int(v) => Some(Value::Integer(v)),

@@ -50,6 +50,7 @@ fn json_value(graph: &Graph, val: Val) -> Value {
         Val::Promise(..) => Value::Null,
         Val::Bool(v) => Value::Bool(v),
         Val::Str(v) => Value::String(v.to_string()),
+        Val::Prompt(v) => Value::String(v.to_string()),
         Val::Num(v) => Value::Number(Number::from(v)),
         Val::Blob(blob) => Value::from_iter(blob.into_iter()),
         Val::Fn(_dref) => Value::Null,
