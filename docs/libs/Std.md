@@ -271,6 +271,16 @@ pln("hello, world");
 ```
 
 
+# Std.prompt(text: str = '', tag?: str) -> prompt
+A helper function to create a prompt.
+```rust
+const prompt = prompt(tag = 'instruction');
+prompt += prompt('do a thing', 'sub');
+prompt += prompt('another thing', 'sub');
+assert_eq(prompt as str, '<instruction><sub>do a thing</sub><sub>another thing</sub></instruction>');
+```
+
+
 # Std.remove_env(var: str) -> void
 Remove an environment variable by name. Requires the "system" feature flag.
 ```rust
@@ -347,6 +357,13 @@ Trace this location within your code execution. Will print out your arguments pl
 ```rust
 trace("Getting here"); // will print "Getting here", then output a trace of the current process info and last 10 executed instructions
 trace(70); // last 70 executed instructions (most recent on bottom and numbered)
+```
+
+
+# Std.xml(text: str, tag: str) -> str
+A helper function to create an XML-tagged string.
+```rust
+assert_eq(xml("hello, world", "msg"), "<msg>hello, world</msg>");
 ```
 
 

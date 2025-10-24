@@ -23,6 +23,7 @@ pub fn insert_lib_documentation(graph: &mut Graph) {
     std_lib(graph);
     num_lib(graph);
     str_lib(graph);
+    prompt_lib(graph);
     ver_lib(graph);
     blob_lib(graph);
     fn_lib(graph);
@@ -88,6 +89,23 @@ Library for manipulating strings, automatically linked to the 'str' type.
 #[main]
 fn main() {
     assert_eq("hello, world".split(", "), ['hello', 'world']);
+}
+```
+"#.into());
+}
+
+/// Prompt.
+fn prompt_lib(graph: &mut Graph) {
+    graph.insert_libdoc(literal!("Prompt"), 
+r#"# Prompt Library (Prompt)
+Library for the prompt type, which is a tree of strings that is helpful when working with AI workflows.
+
+## Example Usage
+```rust
+#[main]
+fn main() {
+    const p = prompt("hello, world", "msg");
+    assert_eq(p as str, "<msg>hello, world</msg>");
 }
 ```
 "#.into());

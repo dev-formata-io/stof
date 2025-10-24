@@ -46,6 +46,7 @@ pub mod tup;
 pub mod blob;
 pub mod data;
 pub mod obj;
+pub mod prompt;
 
 
 #[derive(Clone)]

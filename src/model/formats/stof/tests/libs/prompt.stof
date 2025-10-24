@@ -67,3 +67,175 @@ fn prompts_as_refs_default() {
     add_hi(p);
     assert_eq(p as str, '<msg>hello, world</msg>');
 }
+
+Example: {
+    #[type]
+    Person: {
+        str first: ''
+        str last: ''
+        int age: 0
+
+        fn prompt() -> prompt {
+            prompt('', 'person',
+                prompt(self.first, 'first'),
+                prompt(self.last, 'last'),
+                prompt(self.age, 'age')
+            )
+        }
+    }
+
+    #[test]
+    fn real_life() {
+        const people = [
+            new Person { first: 'Bob', last: 'Smith', age: 42 },
+            new Person { first: 'Amy', last: 'Other', age: 22 },
+        ];
+        const p = prompt(tag = 'people');
+        for (const person in people) p.push(person.prompt());
+        assert_eq(p as str,
+            '<people><person><first>Bob</first><last>Smith</last><age>42</age></person><person><first>Amy</first><last>Other</last><age>22</age></person></people>'
+        );
+    }
+}
+
+LibFuncs: {
+    #[test]
+    fn get_str() {
+        const p = prompt('hello', 'greet');
+        assert_eq(p.str(), '<greet>hello</greet>');
+    }
+
+    #[test]
+    fn get_text() {
+        const p = prompt('hello', 'greet');
+        assert_eq(p.text(), 'hello');
+    }
+
+    #[test]
+    fn get_tag() {
+        const p = prompt('hello', 'greet');
+        assert_eq(p.tag(), 'greet');
+    }
+
+    #[test]
+    fn get_prompts() {
+        const p = prompt('', tag = 'outer',
+            'hello',
+            'this is',
+            'sub-prompting'
+        );
+        const prompts = p.prompts();
+        assert_eq(prompts, [prompt('hello'), prompt('this is'), prompt('sub-prompting')]);
+    }
+
+    #[test]
+    fn set_text() {
+        const p = prompt('hello', 'msg');
+        p.set_text('wow!');
+        assert_eq(p.str(), '<msg>wow!</msg>');
+    }
+
+    #[test]
+    fn set_tag() {
+        const p = prompt('hello', 'msg');
+        p.set_tag('greet');
+        assert_eq(p as str, '<greet>hello</greet>');
+    }
+
+    #[test]
+    fn length() {
+        const p = prompt('', 'outer',
+            prompt('Info', 'name'),
+            prompt('info@stof.dev', 'email')
+        );
+        assert_eq(p.len(), 2);
+        assert_eq(p as str, '<outer><name>Info</name><email>info@stof.dev</email></outer>');
+    }
+
+    #[test]
+    fn index() {
+        const p = prompt('', 'outer',
+            prompt('Info', 'name'),
+            prompt('info@stof.dev', 'email')
+        );
+        const name = p[0];
+        const email = p[1];
+        assert_eq(name as str, '<name>Info</name>');
+        assert_eq(email as str, '<email>info@stof.dev</email>');
+    }
+
+    #[test]
+    fn has_any() {
+        const p = prompt('', 'outer',
+            prompt('Info', 'name'),
+            prompt('info@stof.dev', 'email')
+        );
+        assert(p.any());
+        assert(!p.empty());
+    }
+
+    #[test]
+    fn is_empty() {
+        const p = prompt();
+        assert(p.empty());
+        assert(!p.any());
+    }
+
+    #[test]
+    fn push() {
+        const p = prompt('hello', 'greet');
+        p.push(', world');
+        assert_eq(p as str, '<greet>hello, world</greet>');
+    }
+
+    #[test]
+    fn pop() {
+        const p = prompt('hello', 'greet');
+        p.push(', world');
+        assert_eq(p.pop(), prompt(', world'));
+        assert_eq(p as str, '<greet>hello</greet>');
+    }
+
+    #[test]
+    fn clear() {
+        const p = prompt(tag = 'msg');
+        p.push('hello');
+        p.push(', world');
+        p.clear();
+        assert_eq(p as str, '<msg></msg>');
+    }
+
+    #[test]
+    fn reverse() {
+        const p = prompt(tag = "msg");
+        p.push(', world');
+        p.push('hello');
+        p.reverse();
+        assert_eq(p as str, '<msg>hello, world</msg>');
+    }
+
+    #[test]
+    fn remove() {
+        const p = prompt(tag = 'greet');
+        p.push('hello');
+        p.push(', world');
+        p.remove(1);
+        assert_eq(p as str, '<greet>hello</greet>');
+    }
+
+    #[test]
+    fn insert() {
+        const p = prompt(tag = 'greet');
+        p.push('hello');
+        p.insert(1, ', world');
+        assert_eq(p as str, '<greet>hello, world</greet>');
+    }
+
+    #[test]
+    fn replace() {
+        const p = prompt(tag = 'greet');
+        p.push('hello');
+        p.replace(0, 'yo');
+        assert_eq(p as str, '<greet>yo</greet>');
+    }
+}

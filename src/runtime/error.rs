@@ -163,6 +163,27 @@ pub enum Error {
     StrSubstring,
 
     /*****************************************************************************
+     * Prompt Lib Errors.
+     *****************************************************************************/
+    PromptStr,
+    PromptText,
+    PromptTag,
+    PromptPrompts,
+    PromptSetText,
+    PromptSetTag,
+    PromptLen,
+    PromptAt,
+    PromptEmpty,
+    PromptAny,
+    PromptPush,
+    PromptPop,
+    PromptClear,
+    PromptReverse,
+    PromptRemove,
+    PromptInsert,
+    PromptReplace,
+
+    /*****************************************************************************
      * Number Lib Errors.
      *****************************************************************************/
     NumAbs,
