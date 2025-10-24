@@ -75,7 +75,7 @@ metadata_field: "we have attributes"
  * - Event driven systems
  * - Declarative UI + logic
  */
-async fn doing_something_concurrently() {
+async fn doing_something_async() {
     // "Std" library, an extensible & complete standard library
     pln('Hello, Stof!');
 
@@ -117,6 +117,40 @@ Config: {
 }
 
 
+/**
+ * Prompt primitive type for AI workflows.
+ * - Trees of optionally structured prompts (strings with optional XML tags)
+ * - Acts like a collection when you need it and a string when you don't
+ * - A better, more maintainable way to create modern AI apps & agents
+ */
+fn create_prompt() -> prompt {
+    const llm_prompt = prompt();
+
+    // newlines just for the example...
+    const add_to_llm = (pmt: prompt, llm: prompt) => {
+        llm.push(pmt);
+        llm.push("\n");
+    };
+
+    const data = prompt(tag="data");
+    data.push("seamless str <-> prompt casting");
+    add_to_llm(data, llm_prompt);
+
+    const format = prompt(tag="format");
+    format.push("1. first thing. ");
+    format.push("2. second thing.");
+    add_to_llm(format, llm_prompt);
+
+    const instructions = prompt(
+        text="LLMs are good at textual data, humans are not. Stof helps.",
+        tag="instructions"
+    );
+    add_to_llm(instructions, llm_prompt);
+    llm_prompt.pop(); // pop final newline prompt (yes, there's a lib)
+
+    llm_prompt
+}
+
 
 #[main]
 /**
@@ -133,8 +167,11 @@ Config: {
  * - uses "log" Rust crate for flexibility
  */
 fn main() {
-    self.doing_something_concurrently();
+    self.doing_something_async();
 
     const yaml = stringify('yaml', self);
-    log_info(yaml);
+    log_info(yaml); // use -d
+
+    const prompt = self.create_prompt();
+    log_debug(prompt as str); // use -dd
 }

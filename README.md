@@ -32,14 +32,13 @@ Stof is a unified data format that works seamlessly **with** other formats to br
 > Think of Stof as a foundation for building robust and declarative data flows, config systems, or backend models.
 
 ## Core Stof principle: Everything as Data
-Using data in whatever form it is defined should not be difficult. Stof is the glue-layer & interface for working with any type of data as a singular, portable, and embeddable document.
+Using data in whatever form it is defined should not be difficult. Stof is the glue-layer & interface for working with any type of data as a singular unified, portable, and embeddable document.
 
-Instead of parsing data into an application & modeling the same data multiple times with loads of dependencies, a Stof document is turned into an embedded runtime. You parse logic & data into the Stof document and tell it to manipulate itself with limited & controlled access to the host application (Code as Data). This makes the entire environment more secure, portable, and much easier to work with.
+Stof accomplishes this by treating every piece of data as a component in a general graph (document) of containers. Whether it's functions, fields, PDFs, binaries, or anything else, Stof organizes it neatly and provides an interface for it.
 
-- Code as data - functions are data components like all others (and can be manipulated as such)
-- Fields - data components that map to fields in other formats like JSON, TOML, YAML, etc.
-- Data Components - whether its a PDF, WASM binary, an image, or anything else, Stof organizes it neatly and provides an interface to work with all of its data at once
-- Modular - as a general graph of data containers, Stof can be chopped up, partially saved, moved between servers, etc.
+The Stof runtime is a thin, embeddable runtime that allows a Stof document to manipulate itself through calling the functions it contains. Functions are just pieces of data like a field, so they can even operate on themselves.
+
+Libraries are the only way a Stof function can operate outside of the document (Ex. HTTP, filesystem, etc.), which are not saved with the document and are controlled by the host system. This sandboxed behavior is advantageous for sending logic + data over networks or in any untrusted environments.
 
 ## When to use Stof?
 Modern software (especially AI/ML, infra, cloud, CI/CD, and workflows) increasingly relies on structured data that needs to be:
@@ -140,7 +139,7 @@ metadata_field: "we have attributes"
  * - Event driven systems
  * - Declarative UI + logic
  */
-async fn doing_something_concurrently() {
+async fn doing_something_async() {
     // "Std" library, an extensible & complete standard library
     pln("Hello, Stof!");
 
@@ -182,6 +181,40 @@ Config: {
 }
 
 
+/**
+ * Prompt primitive type for AI workflows.
+ * - Trees of optionally structured prompts (strings with optional XML tags)
+ * - Acts like a collection when you need it and a string when you don't
+ * - A better, more maintainable way to create modern AI apps & agents
+ */
+fn create_prompt() -> prompt {
+    const llm_prompt = prompt();
+
+    // newlines just for the example...
+    const add_to_llm = (pmt: prompt, llm: prompt) => {
+        llm.push(pmt);
+        llm.push("\n");
+    };
+
+    const data = prompt(tag="data");
+    data.push("seamless str <-> prompt casting");
+    add_to_llm(data, llm_prompt);
+
+    const format = prompt(tag="format");
+    format.push("1. first thing. ");
+    format.push("2. second thing.");
+    add_to_llm(format, llm_prompt);
+
+    const instructions = prompt(
+        text="LLMs are good at textual data, humans are not. Stof helps.",
+        tag="instructions"
+    );
+    add_to_llm(instructions, llm_prompt);
+    llm_prompt.pop(); // pop final newline prompt (yes, there's a lib)
+
+    llm_prompt
+}
+
 
 #[main]
 /**
@@ -198,10 +231,13 @@ Config: {
  * - uses "log" Rust crate for flexibility
  */
 fn main() {
-    self.doing_something_concurrently();
+    self.doing_something_async();
 
-    const yaml = stringify("yaml", self);
-    log_info(yaml);
+    const yaml = stringify('yaml', self);
+    log_info(yaml); // use -d
+
+    const prompt = self.create_prompt();
+    log_debug(prompt as str); // use -dd
 }
 ```
 ``` bash
