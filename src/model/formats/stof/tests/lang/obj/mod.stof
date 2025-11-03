@@ -14,8 +14,8 @@
 // limitations under the License.
 //
 
-
 import './types' as self.Types;
+import './subtypes' as self.SubTypes;
 
 
 #[test]

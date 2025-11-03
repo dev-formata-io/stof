@@ -826,13 +826,13 @@ impl Graph {
     pub fn flush_node_deadpool(&mut self) -> Vec<Node> {
         let mut nodes = Vec::with_capacity(self.node_deadpool.len());
         for (_, node) in self.node_deadpool.drain() { nodes.push(node); }
+        self.node_deadpool.shrink_to_fit();
         nodes
     }
 
-    /// Clear the node deadpool.
-    /// This is a flush, but without the vector allocation.
+    /// Clear the node deadpool and release its memory.
     pub fn clear_node_deadpool(&mut self) {
-        self.node_deadpool.clear();
+        self.node_deadpool = FxHashMap::default();
     }
 
     /// Flush data deadpool.
@@ -841,13 +841,13 @@ impl Graph {
     pub fn flush_data_deadpool(&mut self) -> Vec<Data> {
         let mut datas = Vec::with_capacity(self.data_deadpool.len());
         for (_, data) in self.data_deadpool.drain() { datas.push(data); }
+        self.data_deadpool.shrink_to_fit();
         datas
     }
 
-    /// Clear data deadpool.
-    /// This is a flush, but without the vector allocation.
+    /// Clear data deadpool and release its memory.
     pub fn clear_data_deadpool(&mut self) {
-        self.data_deadpool.clear();
+        self.data_deadpool = FxHashMap::default();
     }
 
     /// Collects dirty nodes for validation as a group.
