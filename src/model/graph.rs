@@ -65,6 +65,8 @@ pub struct Graph {
     pub typemap: FxHashMap<String, FxHashSet<NodeRef>>,
 
     #[serde(skip)]
+    pub deadpools_enabled: bool,
+    #[serde(skip)]
     pub node_deadpool: FxHashMap<NodeRef, Node>,
     #[serde(skip)]
     pub data_deadpool: FxHashMap<DataRef, Data>,
@@ -85,6 +87,7 @@ impl Default for Graph {
             nodes: Default::default(),
             data: Default::default(),
             typemap: Default::default(),
+            deadpools_enabled: true,
             node_deadpool: Default::default(),
             data_deadpool: Default::default(),
             formats: Default::default(),
@@ -140,6 +143,30 @@ impl Graph {
             nref
         } else {
             self.insert_root(ROOT_NODE_NAME)
+        }
+    }
+
+    /// Enable/disable the deadpools of this Stof graph.
+    /// When a node or data component is removed, it will by default be inserted into
+    /// a deadpool map for optional handling later on. For some use cases, this
+    /// behavior is not desireable.
+    pub fn set_deadpools_enabled(&mut self, enabled: bool) {
+        self.deadpools_enabled = enabled;
+    }
+
+    #[inline(always)]
+    /// Insert node deadpool.
+    pub fn insert_node_deadpool(&mut self, node: Node) {
+        if self.deadpools_enabled {
+            self.node_deadpool.insert(node.id.clone(), node);
+        }
+    }
+
+    #[inline(always)]
+    /// Insert data deadpool.
+    pub fn insert_data_deadpool(&mut self, data: Data) {
+        if self.deadpools_enabled {
+            self.data_deadpool.insert(data.id.clone(), data);
         }
     }
 
@@ -422,7 +449,7 @@ impl Graph {
                 }
                 if remove_all {
                     if let Some(data) = self.data.remove(&dref) {
-                        self.data_deadpool.insert(dref.clone(), data);
+                        self.insert_data_deadpool(data);
                     }
                 }
             }
@@ -459,7 +486,7 @@ impl Graph {
 
             // Insert into the deadpool and remove types
             self.remove_type(&node.id);
-            self.node_deadpool.insert(node.id.clone(), node);
+            self.insert_node_deadpool(node);
 
             return true;
         }
@@ -626,7 +653,7 @@ impl Graph {
             }
             if remove_all {
                 if let Some(data) = self.data.remove(&old) {
-                    self.data_deadpool.insert(data.id.clone(), data);
+                    self.insert_data_deadpool(data);
                 }
             }
         }
@@ -662,7 +689,7 @@ impl Graph {
             }
             if remove_all {
                 if let Some(data) = self.data.remove(&old) {
-                    self.data_deadpool.insert(data.id.clone(), data);
+                    self.insert_data_deadpool(data);
                 }
             }
         }
@@ -707,7 +734,7 @@ impl Graph {
 
             if let Some(data) = self.data.remove(data) {
                 res = true;
-                self.data_deadpool.insert(data.id.clone(), data);
+                self.insert_data_deadpool(data);
             } else {
                 res = false;
             }
@@ -748,7 +775,7 @@ impl Graph {
                 }
                 if remove_all {
                     if let Some(data) = self.data.remove(&old) {
-                        self.data_deadpool.insert(data.id.clone(), data);
+                        self.insert_data_deadpool(data);
                     }
                 }
             }
@@ -827,12 +854,14 @@ impl Graph {
         let mut nodes = Vec::with_capacity(self.node_deadpool.len());
         for (_, node) in self.node_deadpool.drain() { nodes.push(node); }
         self.node_deadpool.shrink_to_fit();
+        self.nodes.shrink_to_fit();
         nodes
     }
 
     /// Clear the node deadpool and release its memory.
     pub fn clear_node_deadpool(&mut self) {
         self.node_deadpool = FxHashMap::default();
+        self.nodes.shrink_to_fit();
     }
 
     /// Flush data deadpool.
@@ -842,12 +871,14 @@ impl Graph {
         let mut datas = Vec::with_capacity(self.data_deadpool.len());
         for (_, data) in self.data_deadpool.drain() { datas.push(data); }
         self.data_deadpool.shrink_to_fit();
+        self.data.shrink_to_fit();
         datas
     }
 
     /// Clear data deadpool and release its memory.
     pub fn clear_data_deadpool(&mut self) {
         self.data_deadpool = FxHashMap::default();
+        self.data.shrink_to_fit();
     }
 
     /// Collects dirty nodes for validation as a group.

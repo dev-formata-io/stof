@@ -65,3 +65,19 @@ fn not_found() {
     }
     assert(res);
 }
+
+#[test]
+fn mixed_switch() {
+    let result = 0;
+    let array = [true, 42, null, 'hello', null];
+    for (const value in array) {
+        switch (value) {
+            case null: result -= 10;
+            case true: result += 10;
+            case 42: result += 22;
+            case 'hello': result += 5;
+            default: result -= 100;
+        }
+    }
+    assert_eq(result, 17);
+}

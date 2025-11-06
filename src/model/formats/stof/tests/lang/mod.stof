@@ -29,3 +29,28 @@ import './async/mod' as self.Async;
 import './types/mod' as self.Types;
 import './units/mod' as self.Units;
 import './blobs/mod' as self.Blobs;
+
+
+#[test]
+fn declarations() {
+    let a;
+    assert_eq(a, null);
+
+    let b: obj;
+    assert_eq(b, null);
+
+    const c = null;
+    assert_eq(c, null);
+
+    const d: int = 33;
+    assert_eq(d, 33);
+
+    let e: int = 42;
+    assert_eq(e, 42);
+
+    let f: float = 33;
+    assert_eq(f, 33);
+
+    let g: obj = null;
+    assert_eq(g, null);
+}
