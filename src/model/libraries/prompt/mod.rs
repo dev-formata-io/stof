@@ -260,23 +260,39 @@ impl Instruction for PromptIns {
             },
 
             Self::Push => {
-                if let Some(to_push_var) = env.stack.pop() {
-                    if let Some(prompt_var) = env.stack.pop() {
-                        match prompt_var.val.write().deref_mut() {
-                            Val::Prompt(prompt) => {
-                                match to_push_var.val.read().deref() {
-                                    Val::Prompt(push_prompt) => {
-                                        prompt.prompts.push_back(push_prompt.clone());
-                                        return Ok(None);
-                                    },
-                                    Val::Str(push_str) => {
-                                        prompt.prompts.push_back(Prompt::from(push_str));
-                                        return Ok(None);
-                                    },
-                                    _ => {}
-                                }
-                            },
-                            _ => {},
+                if let Some(tag_var) = env.stack.pop() {
+                    if let Some(to_push_var) = env.stack.pop() {
+                        if let Some(prompt_var) = env.stack.pop() {
+                            match prompt_var.val.write().deref_mut() {
+                                Val::Prompt(prompt) => {
+                                    match to_push_var.val.read().deref() {
+                                        Val::Prompt(push_prompt) => {
+                                            let mut to_push = push_prompt.clone();
+                                            match tag_var.val.read().deref() {
+                                                Val::Str(tag) => {
+                                                    to_push.tag = Some(tag.clone());
+                                                },
+                                                _ => {}
+                                            }
+                                            prompt.prompts.push_back(to_push);
+                                            return Ok(None);
+                                        },
+                                        Val::Str(push_str) => {
+                                            match tag_var.val.read().deref() {
+                                                Val::Str(tag) => {
+                                                    prompt.prompts.push_back(Prompt::from((push_str, tag)));
+                                                },
+                                                _ => {
+                                                    prompt.prompts.push_back(Prompt::from(push_str));
+                                                }
+                                            }
+                                            return Ok(None);
+                                        },
+                                        _ => {}
+                                    }
+                                },
+                                _ => {},
+                            }
                         }
                     }
                 }

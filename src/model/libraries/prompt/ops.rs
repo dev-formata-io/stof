@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use imbl::vector;
-use crate::{model::{prompt::{PROMPT_ANY, PROMPT_AT, PROMPT_CLEAR, PROMPT_EMPTY, PROMPT_INSERT, PROMPT_LEN, PROMPT_LIB, PROMPT_POP, PROMPT_PROMPTS, PROMPT_PUSH, PROMPT_REMOVE, PROMPT_REPLACE, PROMPT_REVERSE, PROMPT_SET_TAG, PROMPT_SET_TEXT, PROMPT_STR, PROMPT_TAG, PROMPT_TEXT}, LibFunc, Param}, runtime::{instruction::Instructions, NumT, Type}};
+use crate::{model::{LibFunc, Param, prompt::{PROMPT_ANY, PROMPT_AT, PROMPT_CLEAR, PROMPT_EMPTY, PROMPT_INSERT, PROMPT_LEN, PROMPT_LIB, PROMPT_POP, PROMPT_PROMPTS, PROMPT_PUSH, PROMPT_REMOVE, PROMPT_REPLACE, PROMPT_REVERSE, PROMPT_SET_TAG, PROMPT_SET_TEXT, PROMPT_STR, PROMPT_TAG, PROMPT_TEXT}}, runtime::{NumT, Type, Val, instruction::Instructions, instructions::Base}};
 
 
 pub fn prompt_str() -> LibFunc {
@@ -290,7 +290,8 @@ assert_eq(p as str, '<greet>hello, world</greet>');
 ```"#.into(),
         params: vector![
             Param { name: "prompt".into(), param_type: Type::Prompt, default: None },
-            Param { name: "other".into(), param_type: Type::Union(vector![Type::Str, Type::Prompt]), default: None }
+            Param { name: "other".into(), param_type: Type::Union(vector![Type::Str, Type::Prompt]), default: None },
+            Param { name: "tag".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))) },
         ],
         return_type: None,
         unbounded_args: false,

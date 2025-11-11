@@ -182,10 +182,25 @@ LibFuncs: {
     }
 
     #[test]
-    fn push() {
+    fn push_string() {
         const p = prompt('hello', 'greet');
         p.push(', world');
         assert_eq(p as str, '<greet>hello, world</greet>');
+    }
+
+    #[test]
+    fn push_string_tag() {
+        const p = prompt(tag="info");
+        p.push('message', 'msg');
+        assert_eq(p as str, '<info><msg>message</msg></info>');
+    }
+
+    #[test]
+    fn push_prompt_tag() {
+        const p = prompt(tag='outer');
+        const inner = prompt('inner', 'inside');
+        p.push(inner, 'inner');
+        assert_eq(p as str, '<outer><inner>inner</inner></outer>');
     }
 
     #[test]
