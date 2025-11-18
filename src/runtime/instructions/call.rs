@@ -47,7 +47,7 @@ pub struct FuncCall {
     pub args: Vector<Arc<dyn Instruction>>,
 
     /// Override self for this function call?
-    pub oself: Option<NodeRef>,
+    pub oself: Option<Arc<dyn Instruction>>,
 }
 impl FuncCall {
     /// Find function (Or library name & function).
@@ -597,7 +597,7 @@ impl Instruction for FuncCall {
             instructions.push(PUSH_SELF.clone());
             pushed_self = true;
         } else if let Some(oself) = &self.oself {
-            instructions.push(Arc::new(Base::Literal(Val::Obj(oself.clone()))));
+            instructions.push(oself.clone());
             instructions.push(PUSH_SELF.clone());
             pushed_self = true;
         } else if !unself {

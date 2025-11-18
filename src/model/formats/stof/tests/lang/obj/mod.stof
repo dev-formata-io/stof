@@ -157,3 +157,13 @@ root MyOtherRoot { (custom_root_id)
         assert_eq(self.id(), 'custom_root_id');
     }
 }
+
+#[type]
+StaticFieldType: {
+    field: 'hello, this is static'
+}
+#[test]
+fn get_static_information() {
+    const field = <StaticFieldType>.field;
+    assert_eq(field, 'hello, this is static');
+}

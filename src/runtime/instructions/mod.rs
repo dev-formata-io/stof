@@ -662,23 +662,22 @@ impl Instruction for Base {
                         attrs.insert("constructor".to_string());
                         let attrs = Some(attrs);
 
-                        let mut names = FxHashSet::default();
-                        for obj in Prototype::prototype_nodes(&graph, &obj, true) {
+                        let mut constructors = Vec::new();
+                        for obj in Prototype::prototype_nodes(&graph, &obj, true).into_iter().rev() {
                             let funcs = Func::functions(&graph, &obj, &attrs, false);
                             for func in funcs {
-                                names.insert(func.data_name(graph).unwrap());
+                                constructors.push(func);
                             }
                         }
-                        for name in names {
-                            instructions.push(DUPLICATE.clone());
+                        for func in constructors {
                             instructions.push(Arc::new(FuncCall {
-                                func: None,
-                                search: Some(name.as_ref().into()),
-                                stack: true,
+                                func: Some(func),
+                                search: None,
+                                stack: false,
                                 as_ref: false,
                                 cnull: false,
                                 args: vector![], // no args for a constructor,
-                                oself: None,
+                                oself: Some(DUPLICATE.clone()), // self is the newly constructed obj
                             }));
                         }
                     }

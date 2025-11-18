@@ -908,9 +908,13 @@ impl Instruction for ObjIns {
                                                         _ => {}
                                                     }
                                                 }
+                                                let mut oself = None;
+                                                if let Some(context) = &override_context {
+                                                    oself = Some(Arc::new(Base::Literal(Val::Obj(context.clone()))) as Arc<dyn Instruction>);
+                                                }
                                                 let instructions = vector![
                                                     Arc::new(EmptyIns {
-                                                        ins: Arc::new(FuncCall { func: Some(dref.clone()), search: None, stack: false, as_ref: false, cnull: false, args: arguments, oself: override_context.clone() })
+                                                        ins: Arc::new(FuncCall { func: Some(dref.clone()), search: None, stack: false, as_ref: false, cnull: false, args: arguments, oself })
                                                     }) as Arc<dyn Instruction>
                                                 ];
                                                 run_instructions.push((order, instructions));
@@ -938,8 +942,12 @@ impl Instruction for ObjIns {
                                                             instructions.push_back(RUN.clone());
                                                         },
                                                         Val::Fn(dref) => {
+                                                            let mut oself = None;
+                                                            if let Some(context) = &override_context {
+                                                                oself = Some(Arc::new(Base::Literal(Val::Obj(context.clone()))) as Arc<dyn Instruction>);
+                                                            }
                                                             instructions.push_back(Arc::new(EmptyIns {
-                                                                    ins: Arc::new(FuncCall { func: Some(dref.clone()), search: None, stack: false, as_ref: false, cnull: false, args: arguments.clone(), oself: override_context.clone() })
+                                                                    ins: Arc::new(FuncCall { func: Some(dref.clone()), search: None, stack: false, as_ref: false, cnull: false, args: arguments.clone(), oself })
                                                                 }) as Arc<dyn Instruction>);
                                                         },
                                                         _ => {}
@@ -970,8 +978,12 @@ impl Instruction for ObjIns {
                                                             instructions.push_back(RUN.clone());
                                                         },
                                                         Val::Fn(dref) => {
+                                                            let mut oself = None;
+                                                            if let Some(context) = &override_context {
+                                                                oself = Some(Arc::new(Base::Literal(Val::Obj(context.clone()))) as Arc<dyn Instruction>);
+                                                            }
                                                             instructions.push_back(Arc::new(EmptyIns {
-                                                                    ins: Arc::new(FuncCall { func: Some(dref.clone()), search: None, stack: false, as_ref: false, cnull: false, args: arguments.clone(), oself: override_context.clone() })
+                                                                    ins: Arc::new(FuncCall { func: Some(dref.clone()), search: None, stack: false, as_ref: false, cnull: false, args: arguments.clone(), oself })
                                                                 }) as Arc<dyn Instruction>);
                                                         },
                                                         _ => {}
@@ -1002,8 +1014,12 @@ impl Instruction for ObjIns {
                                                             instructions.push_back(RUN.clone());
                                                         },
                                                         Val::Fn(dref) => {
+                                                            let mut oself = None;
+                                                            if let Some(context) = &override_context {
+                                                                oself = Some(Arc::new(Base::Literal(Val::Obj(context.clone()))) as Arc<dyn Instruction>);
+                                                            }
                                                             instructions.push_back(Arc::new(EmptyIns {
-                                                                    ins: Arc::new(FuncCall { func: Some(dref.clone()), search: None, stack: false, as_ref: false, cnull: false, args: arguments.clone(), oself: override_context.clone() })
+                                                                    ins: Arc::new(FuncCall { func: Some(dref.clone()), search: None, stack: false, as_ref: false, cnull: false, args: arguments.clone(), oself })
                                                                 }) as Arc<dyn Instruction>);
                                                         },
                                                         _ => {}
@@ -1034,8 +1050,12 @@ impl Instruction for ObjIns {
                                                             instructions.push_back(RUN.clone());
                                                         },
                                                         Val::Fn(dref) => {
+                                                            let mut oself = None;
+                                                            if let Some(context) = &override_context {
+                                                                oself = Some(Arc::new(Base::Literal(Val::Obj(context.clone()))) as Arc<dyn Instruction>);
+                                                            }
                                                             instructions.push_back(Arc::new(EmptyIns {
-                                                                    ins: Arc::new(FuncCall { func: Some(dref.clone()), search: None, stack: false, as_ref: false, cnull: false, args: arguments.clone(), oself: override_context.clone() })
+                                                                    ins: Arc::new(FuncCall { func: Some(dref.clone()), search: None, stack: false, as_ref: false, cnull: false, args: arguments.clone(), oself })
                                                                 }) as Arc<dyn Instruction>);
                                                         },
                                                         _ => {}
@@ -1085,10 +1105,14 @@ impl Instruction for ObjIns {
                                                 _ => {}
                                             }
                                         }
-
+                                        
+                                        let mut oself = None;
+                                        if let Some(context) = &override_context {
+                                            oself = Some(Arc::new(Base::Literal(Val::Obj(context.clone()))) as Arc<dyn Instruction>);
+                                        }
                                         let instructions = vector![
                                             Arc::new(EmptyIns {
-                                                ins: Arc::new(FuncCall { func: Some(func_ref), search: None, stack: false, as_ref: false, cnull: false, args: arguments, oself: override_context.clone() })
+                                                ins: Arc::new(FuncCall { func: Some(func_ref), search: None, stack: false, as_ref: false, cnull: false, args: arguments, oself })
                                             }) as Arc<dyn Instruction>
                                         ];
                                         run_instructions.push((order, instructions));

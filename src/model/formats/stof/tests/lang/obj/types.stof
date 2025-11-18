@@ -181,3 +181,39 @@ GoodPoint: {
         assert_eq(res.y, 4);
     }
 }
+
+
+ConstructorOrder: {
+    #[type]
+    ConsOrderFirst: {
+        #[constructor]
+        fn constructor() {
+            self.seen_first = true;
+            self.order = 1;
+        }
+    }
+
+    #[type]
+    #[extends(self.ConsOrderFirst)]
+    ConsOrderSecond: {
+        #[constructor]
+        fn constructor() {
+            assert(self.seen_first);
+            self.seen_second = true;
+            self.order = 2;
+        }
+    }
+
+    #[test]
+    fn base_first() {
+        const first = new ConsOrderFirst {};
+        const second = new ConsOrderSecond {};
+        
+        assert(first.seen_first);
+        assert_eq(first.order, 1);
+
+        assert(second.seen_first);
+        assert(second.seen_second);
+        assert_eq(second.order, 2);
+    }
+}
