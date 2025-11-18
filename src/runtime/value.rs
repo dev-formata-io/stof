@@ -1154,6 +1154,7 @@ impl Val {
     /// Is this value an instance of a prototype?
     pub fn instance_of(&self, other: &NodeRef, graph: &Graph) -> Result<bool, Error> {
         if let Some(obj) = self.try_obj() {
+            if &obj == other { return Ok(true); }
             let proto_nrefs = Prototype::prototype_nodes(graph, &obj, false);
             for nref in &proto_nrefs { if nref == other { return Ok(true); } }
             for nref in proto_nrefs {

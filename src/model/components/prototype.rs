@@ -15,6 +15,7 @@
 //
 
 use arcstr::{literal, ArcStr};
+use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 use crate::model::{DataRef, Graph, NodeRef, SPath, StofData};
 
@@ -65,14 +66,23 @@ impl Prototype {
 
     /// Prototype nodes referenced by a node.
     pub fn prototype_nodes(graph: &Graph, node: &NodeRef, recursive: bool) -> Vec<NodeRef> {
+        let mut seen = FxHashSet::default();
+        Self::internal_prototype_nodes(graph, node, recursive, &mut seen)
+    }
+
+    /// Prototype nodes referenced by a node.
+    fn internal_prototype_nodes(graph: &Graph, node: &NodeRef, recursive: bool, seen: &mut FxHashSet<NodeRef>) -> Vec<NodeRef> {
         let mut protos = Vec::new();
         if let Some(node) = node.node(graph) {
             for (_, dref) in &node.data {
                 if let Some(proto) = graph.get_stof_data::<Self>(dref) {
-                    protos.push(proto.node.clone());
+                    if !seen.contains(&proto.node) {
+                        seen.insert(proto.node.clone());
+                        protos.push(proto.node.clone());
 
-                    if recursive {
-                        protos.append(&mut Self::prototype_nodes(graph, &proto.node, true));
+                        if recursive {
+                            protos.append(&mut Self::internal_prototype_nodes(graph, &proto.node, true, seen));
+                        }
                     }
                 }
             }
