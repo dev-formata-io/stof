@@ -20,15 +20,15 @@ use bytes::Bytes;
 use colored::Colorize;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{blob::insert_blob_lib, prompt::insert_prompt_lib, libraries::{data::insert_data_lib, function::insert_fn_lib}, libs::insert_lib_documentation, list::insert_list_lib, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, tup::insert_tup_lib, ver::insert_semver_lib, BstfFormat, BytesFormat, Data, DataRef, Format, JsonFormat, LibFunc, MdDocsFormat, MdFormat, Node, NodeRef, SId, SPath, StofData, StofFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, INVALID_NODE_NEW}, parser::context::ParseContext, runtime::{table::SymbolTable, Error, Runtime, Val}};
+use crate::{model::{blob::insert_blob_lib, time::insert_time_lib, prompt::insert_prompt_lib, libraries::{data::insert_data_lib, function::insert_fn_lib}, libs::insert_lib_documentation, list::insert_list_lib, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, tup::insert_tup_lib, ver::insert_semver_lib, BstfFormat, BytesFormat, Data, DataRef, Format, JsonFormat, LibFunc, MdDocsFormat, MdFormat, Node, NodeRef, SId, SPath, StofData, StofFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, INVALID_NODE_NEW}, parser::context::ParseContext, runtime::{table::SymbolTable, Error, Runtime, Val}};
 
 #[cfg(feature = "system")]
-use crate::model::{time::insert_time_lib, filesys::fs_library};
+use crate::model::{filesys::fs_library};
 
 #[cfg(feature = "pkg")]
 use crate::model::StofPackageFormat;
 
-#[cfg(feature = "http")]
+#[cfg(any(feature = "js", feature = "http"))]
 use crate::model::http::insert_http_lib;
 
 #[cfg(feature = "pdf")]
@@ -245,15 +245,14 @@ impl Graph {
             insert_tup_lib(self);
             insert_prompt_lib(self);
             insert_md_lib(self);
+            insert_time_lib(self);
         }
         
         // System libs
         #[cfg(feature = "system")]
-        insert_time_lib(self);
-        #[cfg(feature = "system")]
         fs_library(self);
 
-        #[cfg(feature = "http")]
+        #[cfg(any(feature = "js", feature = "http"))]
         insert_http_lib(self);
 
         // Data libs

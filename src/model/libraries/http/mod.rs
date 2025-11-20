@@ -15,22 +15,39 @@
 //
 
 use core::str;
-use std::{ops::{Deref, DerefMut}, str::FromStr, sync::Arc, time::Duration};
-use arcstr::{literal, ArcStr};
-use bytes::Bytes;
-use imbl::{vector, OrdMap};
-use lazy_static::lazy_static;
-use reqwest::{header::{HeaderMap, HeaderName, CONTENT_TYPE}, Method};
-use rustc_hash::FxHashMap;
-use serde::{Deserialize, Serialize};
-use crate::{model::{Graph, LibFunc, Param}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, wake, Error, Num, NumT, Type, Units, Val, ValRef, Variable, WakeRef}};
+use std::{ops::Deref, sync::Arc};
 
-#[cfg(feature = "tokio")]
+#[cfg(feature = "http")]
+use web_time::Duration;
+#[cfg(feature = "http")]
+use std::str::FromStr;
+#[cfg(feature = "http")]
+use std::ops::DerefMut;
+#[cfg(feature = "http")]
+use bytes::Bytes;
+#[cfg(feature = "http")]
+use imbl::OrdMap;
+#[cfg(feature = "http")]
+use lazy_static::lazy_static;
+#[cfg(feature = "http")]
+use reqwest::{header::{HeaderMap, HeaderName, CONTENT_TYPE}, Method};
+#[cfg(feature = "http")]
+use rustc_hash::FxHashMap;
+#[cfg(feature = "http")]
+use crate::runtime::{wake, WakeRef, NumT};
+
+use arcstr::{literal, ArcStr};
+use imbl::vector;
+use serde::{Deserialize, Serialize};
+use crate::{model::{Graph, LibFunc, Param}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error, Num, Type, Units, Val, ValRef, Variable}};
+
+#[cfg(all(feature = "http", feature = "tokio"))]
 use reqwest::Client;
 
-#[cfg(not(feature = "tokio"))]
+#[cfg(all(feature = "http", not(feature = "tokio")))]
 use reqwest::blocking::Client;
 
+#[cfg(feature = "http")]
 lazy_static! {
     static ref HTTP_CLIENT: Arc<Client> = Arc::new(Client::new());
 }
@@ -42,6 +59,7 @@ pub(self) const HTTP_LIB: ArcStr = literal!("Http");
 
 /// Insert the Http library into a graph.
 pub fn insert_http_lib(graph: &mut Graph) {
+    #[cfg(feature = "http")]
     // Http.fetch(url: str, method: str, body: blob | str, headers: map, timeout: s, query: map, bearer: str) -> map;
     graph.insert_libfunc(LibFunc {
         library: HTTP_LIB.clone(),
@@ -246,7 +264,7 @@ assert_not(Http.server_error(resp));
     });
 }
 
-
+#[cfg(feature = "http")]
 pub(self) struct HTTPRequest {
     pub url: String,
     pub method: Method,
@@ -262,6 +280,7 @@ pub(self) struct HTTPRequest {
     /// Call wake at the end so that the process resumes with the results.
     pub waker: WakeRef,
 }
+#[cfg(feature = "http")]
 impl HTTPRequest {
     #[allow(unused)]
     /// Send this http request with the given process env (potentially blocking).
@@ -476,6 +495,7 @@ impl HTTPRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// HTTP instructions.
 pub(self) enum HttpIns {
+    #[cfg(feature = "http")]
     /// Send an HTTP request, creating a map on the stack with results.
     SendRequest(WakeRef),
     /// Parse an HTTP response map into an object context, using the recieved content_type (or STOF/JSON by default..)
@@ -497,6 +517,7 @@ pub(self) enum HttpIns {
 impl Instruction for HttpIns {
     fn exec(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         match self {
+            #[cfg(feature = "http")]
             // Http.fetch(..) -> map
             Self::SendRequest(waker) => {
                 // create the HTTPRequest and use the sender to send it off to be executed in the background

@@ -86,16 +86,16 @@ export class StofDoc {
      * Add JS library function.
      */
     // deno-lint-ignore ban-types
-    lib(library: string, name: string, func: Function) {
-        this.stof.js_library_function(new StofFunc(library, name, func));
+    lib(library: string, name: string, func: Function, is_async: boolean = false) {
+        this.stof.js_library_function(new StofFunc(library, name, func, is_async));
     }
 
 
     /**
      * Run this document with a given set of attributes.
      */
-    run(attr: string | string[] = 'main'): string {
-        return this.stof.run(attr);
+    async run(attr: string | string[] = 'main'): Promise<string> {
+        return await this.stof.run(attr);
     }
 
 

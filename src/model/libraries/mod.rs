@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 
+pub mod time;
 use std::{fmt::{Debug, Display}, sync::Arc};
 use arcstr::{literal, ArcStr};
 use imbl::Vector;
@@ -25,10 +26,7 @@ pub mod filesys;
 /// FS library name.
 pub const FS_LIB: ArcStr = literal!("fs");
 
-#[cfg(feature = "system")]
-pub mod time;
-
-#[cfg(feature = "http")]
+#[cfg(any(feature = "http", feature = "js"))]
 pub mod http;
 
 #[cfg(feature = "age_encrypt")]

@@ -37,6 +37,7 @@ fn start() {
     // stof::data::field::_::__ctor::h5fcded453a464929: Read a negative address value from the stack. Did we run out of memory?
     #[cfg(target_family = "wasm")]
     unsafe { wasm_workaround::__wasm_call_ctors() };
+    console_error_panic_hook::set_once();
 }
 
 
@@ -66,7 +67,7 @@ impl Stof {
     
     /// Run functions with the given attribute(s) in this document.
     /// Attributes defaults to #[main] functions if null or undefined.
-    pub fn run(&mut self, attributes: JsValue) -> Result<String, String> {
+    pub async fn run(&mut self, attributes: JsValue) -> Result<String, String> {
         let mut attrs = FxHashSet::default();
         match to_stof_value(attributes, &self) {
             Val::Str(attribute) => {
@@ -92,13 +93,13 @@ impl Stof {
                 attrs.insert("main".into());
             }
         }
-        Runtime::run_attribute_functions(&mut self.graph, None, &Some(attrs), true)
+        Runtime::async_run_attribute_functions(&mut self.graph, None, &Some(attrs), true).await
     }
 
     /// Call a singular function in the document (by path).
     /// If no arguments, pass undefined as args.
     /// Otherwise, pass an array of arguments as args.
-    pub fn call(&mut self, path: &str, args: JsValue) -> Result<JsValue, String> {
+    pub async fn call(&mut self, path: &str, args: JsValue) -> Result<JsValue, String> {
         let mut arguments = vec![];
         match to_stof_value(args, &self) {
             Val::List(vals) => {
@@ -111,7 +112,7 @@ impl Stof {
                 arguments.push(val);
             }
         }
-        match Runtime::call(&mut self.graph, path, arguments) {
+        match Runtime::async_call(&mut self.graph, path, arguments).await {
             Ok(res) => Ok(JsValue::from(res)),
             Err(err) => Err(err.to_string())
         }

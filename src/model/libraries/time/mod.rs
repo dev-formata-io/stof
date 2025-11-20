@@ -14,13 +14,13 @@
 // limitations under the License.
 //
 
-use std::{ops::Deref, sync::Arc, time::{Duration, SystemTime, UNIX_EPOCH}};
+use std::{ops::Deref, sync::Arc};
+use web_time::{Duration, SystemTime, UNIX_EPOCH};
 use arcstr::{literal, ArcStr};
 use chrono::{DateTime, Utc};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use crate::{model::{time::ops::{time_diff, time_diff_ns, time_from_rfc2822, time_from_rfc3339, time_now, time_now_ns, time_now_rfc2822, time_now_rfc3339, time_sleep, time_to_rfc2822, time_to_rfc3339}, Graph}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error, Num, Units, Val, Variable}};
-
 mod ops;
 
 
@@ -140,12 +140,12 @@ impl Instruction for TimeIns {
                 return Ok(Some(instructions));
             },
             Self::NowRFC3339 => {
-                let now: DateTime<Utc> = DateTime::from(SystemTime::now());
+                let now: DateTime<Utc> = DateTime::from_timestamp_millis(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as i64).unwrap();
                 env.stack.push(Variable::val(Val::Str(now.to_rfc3339().into())));
                 Ok(None)
             },
             Self::NowRFC2822 => {
-                let now: DateTime<Utc> = DateTime::from(SystemTime::now());
+                let now: DateTime<Utc> = DateTime::from_timestamp_millis(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as i64).unwrap();
                 env.stack.push(Variable::val(Val::Str(now.to_rfc2822().into())));
                 Ok(None)
             },

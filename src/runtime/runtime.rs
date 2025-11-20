@@ -14,7 +14,8 @@
 // limitations under the License.
 //
 
-use std::{sync::Arc, time::{SystemTime, UNIX_EPOCH}};
+use std::sync::Arc;
+use web_time::{SystemTime, UNIX_EPOCH};
 use colored::Colorize;
 use imbl::Vector;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -366,6 +367,327 @@ impl Runtime {
 
 
     /*****************************************************************************
+     * Singular & asynchronous.
+     *****************************************************************************/
+    
+    /// Run a single step of this runtime.
+    /// Returns true if there is another step to run.
+    /// N.B: Do not alter this function - change run_to_complete and copy changes here.
+    /// Make sure the limit is greater than 0 so that the step yields before complete if only one proc.
+    pub fn run_single_step(&mut self, graph: &mut Graph) -> bool {
+        let mut to_done = Vec::new();
+        let mut to_wait = Vec::new();
+        let mut to_err = Vec::new();
+        let mut to_run = Vec::new();
+        let mut to_spawn = Vec::new();
+        let mut to_sleep = Vec::new();
+        let mut to_exit = Vec::new();
+        if !self.running.is_empty() || !self.sleeping.is_empty() {
+            // Check to see if any sleeping processes need to be woken up first
+            if !self.sleeping.is_empty() {
+                let mut to_wake = Vec::new();
+                let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+                self.wakers.retain(|waker| {
+                    let woken = waker.woken(&now);
+                    if woken { to_wake.push(waker.pid.clone()); }
+                    !woken
+                });
+                for id in to_wake {
+                    if let Some(proc) = self.sleeping.remove(&id) {
+                        self.running.push(proc);
+                    }
+                }
+            }
+
+            // any limit < 1 will progress the process as much as possible per process
+            let mut limit: i32 = 10;
+            if !self.sleeping.is_empty() || self.running.len() > 1 {
+                let len = (self.sleeping.len() + self.running.len()) as i32;
+                limit = i32::max(10, 500 / len);
+            }
+
+            for proc in self.running.iter_mut() {
+
+                #[cfg(feature = "tokio")]
+                {
+                    // make sure each process has a handle to the correct runtime if needed
+                    if self.tokio_runtime.is_some() {
+                        proc.env.tokio_runtime = self.tokio_runtime.clone();
+                    } else {
+                        proc.env.tokio_runtime = None;
+                    }
+                }
+
+                match proc.progress(graph, limit) {
+                    Ok(state) => {
+                        match state {
+                            ProcRes::Exit(pid) => {
+                                if let Some(pid) = pid {
+                                    to_exit.push(pid);
+                                } else {
+                                    to_exit.push(proc.env.pid.clone());
+                                }
+                            },
+                            ProcRes::Wait(pid) => {
+                                proc.waiting = Some(pid);
+                                to_wait.push(proc.env.pid.clone());
+                            },
+                            ProcRes::Sleep(wref) => {
+                                to_sleep.push((proc.env.pid.clone(), proc.waker_ref(wref)));
+                            },
+                            ProcRes::SleepFor(dur) => {
+                                let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+                                to_sleep.push((proc.env.pid.clone(), proc.waker_time(now + dur)));
+                            },
+                            ProcRes::Trace(n) => {
+                                let trace = proc.trace(&graph, n);
+                                println!("{trace}");
+                            },
+                            ProcRes::Peek(n) => {
+                                let trace = proc.peek(&graph, n);
+                                println!("{trace}");
+                            },
+                            ProcRes::More => {
+                                if let Some(spawn) = proc.env.spawn.take() {
+                                    // this is only set via the Spawn instruction, which creates a new PID each time
+                                    // therefore, don't have to worry about collisions here
+                                    to_spawn.push(spawn);
+                                }
+                            },
+                            ProcRes::Done => {
+                                if let Some(var) = proc.env.stack.pop() {
+                                    proc.result = Some(var);
+                                }
+                                to_done.push(proc.env.pid.clone());
+                            },
+                        }
+                    },
+                    Err(error) => {
+                        proc.error = Some(error);
+                        to_err.push(proc.env.pid.clone());
+                    }
+                }
+            }
+
+            if !to_done.is_empty() {
+                for id in to_done.drain(..) {
+                    self.move_running_to_done(&graph, &id);
+                }
+            }
+
+            if !to_wait.is_empty() {
+                for id in to_wait.drain(..) {
+                    self.move_running_to_waiting(&id);
+                }
+            }
+
+            if !to_err.is_empty() {
+                for id in to_err.drain(..) {
+                    self.move_running_to_error(&graph, &id);
+                }
+            }
+
+            if !to_spawn.is_empty() {
+                for proc in to_spawn.drain(..) {
+                    self.push_running_proc(*proc, graph);
+                }
+            }
+
+            if !to_sleep.is_empty() {
+                for (id, waker) in to_sleep.drain(..) {
+                    self.move_running_to_sleeping(&id);
+                    self.wakers.push(waker);
+                }
+            }
+
+            for (id, waiting_proc) in &mut self.waiting {
+                if let Some(wait_id) = &waiting_proc.waiting {
+                    if let Some(done_proc) = self.done.remove(wait_id) {
+                        // If the completed process has a result, push that to the waiting processes stack
+                        if let Some(res) = done_proc.result {
+                            waiting_proc.env.stack.push(res);
+                        }
+                        to_run.push(id.clone());
+                    } else if let Some(error_proc) = self.errored.remove(wait_id) {
+                        // Propagate the error back to the awaiting process, so that it can optionally handle it itself
+                        println!("{} {}{}{}{}{}\n{}", "await error".red().bold(), "(".dimmed(), waiting_proc.env.pid.as_ref().dimmed().purple(), " waiting on ".dimmed(), error_proc.env.pid.as_ref().dimmed().cyan(), ")".dimmed(), error_proc.trace(&graph, 20));
+                        if let Some(error) = error_proc.error {
+                            waiting_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Error::AwaitError(Box::new(error)))));
+                        }
+                        to_run.push(id.clone());
+                    }
+                }
+            }
+
+            if !to_run.is_empty() {
+                for id in to_run.drain(..) {
+                    if let Some(mut proc) = self.waiting.remove(&id) {
+                        proc.waiting = None;
+                        self.running.push(proc);
+                    }
+                }
+            }
+
+            if !to_exit.is_empty() {
+                for id in to_exit.drain(..) {
+                    if let Some(proc) = self.waiting.remove(&id) {
+                        if let Some(cb) = &mut self.done_callback {
+                            if cb(graph, &proc) {
+                                self.done.insert(id, proc);
+                            } else {
+                                self.errored.insert(id, proc);
+                            }
+                        } else {
+                            self.done.insert(id, proc);
+                        }
+                    } else if let Some(proc) = self.sleeping.remove(&id) {
+                        if let Some(cb) = &mut self.done_callback {
+                            if cb(graph, &proc) {
+                                self.done.insert(id, proc);
+                            } else {
+                                self.errored.insert(id, proc);
+                            }
+                        } else {
+                            self.done.insert(id, proc);
+                        }
+                    } else {
+                        self.move_running_to_done(graph, &id);
+                    }
+                }
+            }
+        }
+
+        !self.running.is_empty() || !self.sleeping.is_empty()
+    }
+
+    #[cfg(any(feature = "js", feature = "tokio"))]
+    /// Single step async.
+    pub async fn async_single_step(&mut self, graph: &mut Graph) -> bool {
+        let res = self.run_single_step(graph);
+
+        #[cfg(feature = "js")]
+        {
+            let promise = js_sys::Promise::new(&mut |resolve, _reject| {
+                let window = web_sys::window().unwrap();
+                window.set_timeout_with_callback_and_timeout_and_arguments_0(
+                    &resolve,
+                    0  // 0ms timeout - yields to macrotask queue (instead of just microtasks)
+                ).unwrap();
+            });
+            wasm_bindgen_futures::JsFuture::from(promise).await.unwrap();
+        }
+        res
+    }
+
+    #[cfg(any(feature = "js", feature = "tokio"))]
+    /// Run every #[main] function within this graph.
+    /// If throw is false, this will only return Ok.
+    pub async fn async_run(graph: &mut Graph, context: Option<String>, throw: bool) -> Result<String, String> {
+        Self::async_run_functions(graph, context, Func::main_functions(graph), throw).await
+    }
+
+    #[cfg(any(feature = "js", feature = "tokio"))]
+    /// Run functions with the given attributes in this graph.
+    pub async fn async_run_attribute_functions(graph: &mut Graph, context: Option<String>, attributes: &Option<FxHashSet<String>>, throw: bool) -> Result<String, String> {
+        Self::async_run_functions(graph, context, Func::all_functions(graph, attributes), throw).await
+    }
+
+    #[cfg(any(feature = "js", feature = "tokio"))]
+    /// Run all given functions.
+    pub async fn async_run_functions(graph: &mut Graph, context: Option<String>, functions: FxHashSet<DataRef>, throw: bool) -> Result<String, String> {
+        let mut rt = Self::default();
+        for func_ref in functions {
+            if let Some(context) = &context {
+                for node in func_ref.data_nodes(&graph) {
+                    if let Some(node_path) = node.node_path(&graph, true) {
+                        let path = node_path.join(".");
+                        if path.contains(context) {
+                            let instruction = Arc::new(FuncCall {
+                                as_ref: false,
+                                cnull: false,
+                                stack: false,
+                                func: Some(func_ref),
+                                search: None,
+                                args: Default::default(),
+                                oself: None,
+                            }) as Arc<dyn Instruction>;
+                            let proc = Process::from(instruction);
+                            rt.push_running_proc(proc, graph);
+                            break;
+                        }
+                    }
+                }
+            } else {
+                let instruction = Arc::new(FuncCall {
+                    as_ref: false,
+                    cnull: false,
+                    stack: false,
+                    func: Some(func_ref),
+                    search: None,
+                    args: Default::default(),
+                    oself: None,
+                }) as Arc<dyn Instruction>;
+                let proc = Process::from(instruction);
+                rt.push_running_proc(proc, graph);
+            }
+        }
+
+        while rt.async_single_step(graph).await {
+            // loop continues as long as there is work to be done, yeilding control back to JS/Tokio each step
+        }
+
+        let mut output = String::from("");
+        for (_, success) in &rt.done {
+            if success.env.call_stack.len() < 1 && success.instructions.executed.len() > 0 {
+                let func = success.instructions.executed[0].clone();
+                if let Some(func) = func.as_dyn_any().downcast_ref::<Base>() {
+                    match func {
+                        Base::Literal(val) => {
+                            if let Some(func_ref) = val.try_func() {
+                                if let Some(name) = func_ref.data_name(graph) {
+                                    let mut func_path = String::from("<unknown>");
+                                    for node in func_ref.data_nodes(graph) {
+                                        func_path = node.node_path(graph, true).unwrap().join(".");
+                                    }
+                                    // Only print something if there's a result
+                                    if let Some(res) = &success.result {
+                                        let suc_str = res.val.read().print(&graph);
+                                        let msg = format!("{} {} {} {} {}\n", "main".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), suc_str.bold().bright_cyan());
+                                        if output.len() < 1 { output.push('\n'); }
+                                        output.push_str(&msg);
+                                    }
+                                }
+                            }
+                        },
+                        _ => {}
+                    }
+                }
+            }
+        }
+        for (_, errored) in &rt.errored {
+            if errored.env.call_stack.len() > 0 {
+                let func_ref = errored.env.call_stack.first().unwrap();
+                if let Some(name) = func_ref.data_name(graph) {
+                    let mut func_path = String::from("<unknown>");
+                    for node in func_ref.data_nodes(graph) {
+                        func_path = node.node_path(graph, true).unwrap().join(".");
+                    }
+                    let err_str = errored.trace(graph, 10);
+                    let msg = format!("{} {} {} {} {} {}\n{}\n", "main".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "failed".bold().red(), "@".dimmed(), err_str.bold().bright_cyan());
+                    output.push_str(&msg);
+                }
+            }
+        }
+
+        if throw && rt.errored.len() > 0 {
+            Err(output)
+        } else {
+            Ok(output)
+        }
+    }
+
+
+    /*****************************************************************************
      * Run.
      *****************************************************************************/
     
@@ -671,6 +993,23 @@ impl Runtime {
         });
         Self::eval(graph, instruction)
     }
+
+    #[cfg(any(feature = "js", feature = "tokio"))]
+    /// Call a singular function with this runtime.
+    pub async fn async_call(graph: &mut Graph, search: &str, args: Vec<Val>) -> Result<Val, Error> {
+        let mut arguments: Vector<Arc<dyn Instruction>> = Vector::default();
+        for arg in args { arguments.push_back(Arc::new(Base::Literal(arg))); }
+        let instruction = Arc::new(FuncCall {
+            as_ref: false,
+            cnull: false,
+            stack: false,
+            func: None,
+            search: Some(search.into()),
+            args: arguments,
+            oself: None,
+        });
+        Self::async_eval(graph, instruction).await
+    }
     
     /// Call a singular function with this runtime.
     pub fn call_func(graph: &mut Graph, func: &DataRef, args: Vec<Val>) -> Result<Val, Error> {
@@ -701,6 +1040,37 @@ impl Runtime {
         
         runtime.push_running_proc(proc, graph);
         runtime.run_to_complete(graph);
+
+        if let Some(proc) = runtime.done.remove(&pid) {
+            if let Some(res) = proc.result {
+                Ok(res.get())
+            } else {
+                Ok(Val::Void)
+            }
+        } else if let Some(proc) = runtime.errored.remove(&pid) {
+            if let Some(err) = proc.error {
+                Err(err)
+            } else {
+                Err(Error::NotImplemented)
+            }
+        } else {
+            Err(Error::NotImplemented)
+        }
+    }
+
+    #[cfg(any(feature = "js", feature = "tokio"))]
+    /// Evaluate a single instruction.
+    /// Creates a new runtime and process just for this (lightweight).
+    /// Use this while parsing if needed.
+    pub async fn async_eval(graph: &mut Graph, instruction: Arc<dyn Instruction>) -> Result<Val, Error> {
+        let mut runtime = Self::default();
+        let proc = Process::from(instruction);
+        let pid = proc.env.pid.clone();
+        
+        runtime.push_running_proc(proc, graph);
+        while runtime.async_single_step(graph).await {
+            // loop continues as long as there is work to be done, yeilding control back to JS/Tokio each step
+        }
 
         if let Some(proc) = runtime.done.remove(&pid) {
             if let Some(res) = proc.result {

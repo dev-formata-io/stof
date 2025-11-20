@@ -16,7 +16,7 @@
 
 use imbl::{OrdMap, OrdSet, Vector};
 use js_sys::{Array, BigInt, Map, Set, Uint8Array};
-use wasm_bindgen::JsValue;
+use wasm_bindgen::{JsCast, JsValue};
 use crate::{js::Stof, model::{Func, Graph, SId}, runtime::{Num, Type, Val, ValRef}};
 
 
@@ -80,30 +80,40 @@ pub fn to_graph_value(js: JsValue, doc: &Graph) -> Val {
         }
         Val::Null
     }
-    else if let Ok(set) = Set::try_from(js.clone()) {
-        let mut stof_set = OrdSet::default();
-        for js_val in set.values() {
-            if let Ok(js_val) = js_val {
-                stof_set.insert(ValRef::new(to_graph_value(js_val, doc)));
-            }
-        }
-        Val::Set(stof_set)
-    } else if let Ok(map) = Map::try_from(js.clone()) {
-        let mut stof_map = OrdMap::default();
-        for js_pair in map.entries() {
-            if let Ok(js_val) = js_pair {
-                let arr = Array::from(&js_val);
-                let key = arr.get(0);
-                let val = arr.get(1);
+    else if js.is_instance_of::<Map>() {
+        if let Ok(map) = Map::try_from(js.clone()) {
+            let mut stof_map = OrdMap::default();
+            for js_pair in map.entries() {
+                if let Ok(js_val) = js_pair {
+                    let arr = Array::from(&js_val);
+                    let key = arr.get(0);
+                    let val = arr.get(1);
 
-                stof_map.insert(
-                    ValRef::new(to_graph_value(key, doc)),
-                    ValRef::new(to_graph_value(val, doc))
-                );
+                    stof_map.insert(
+                        ValRef::new(to_graph_value(key, doc)),
+                        ValRef::new(to_graph_value(val, doc))
+                    );
+                }
             }
+            Val::Map(stof_map)
+        } else {
+            Val::Null
         }
-        Val::Map(stof_map)
-    } else {
+    }
+    else if js.is_instance_of::<Set>() {
+        if let Ok(set) = Set::try_from(js.clone()) {
+            let mut stof_set = OrdSet::default();
+            for js_val in set.values() {
+                if let Ok(js_val) = js_val {
+                    stof_set.insert(ValRef::new(to_graph_value(js_val, doc)));
+                }
+            }
+            Val::Set(stof_set)
+        } else {
+            Val::Null
+        }
+    }
+    else {
         // cast to blob type
         let intarray = Uint8Array::from(js);
         Val::Blob(intarray.to_vec().into())
@@ -140,30 +150,40 @@ pub fn to_raw_value(js: JsValue) -> Val {
         }
         Val::Null
     }
-    else if let Ok(set) = Set::try_from(js.clone()) {
-        let mut stof_set = OrdSet::default();
-        for js_val in set.values() {
-            if let Ok(js_val) = js_val {
-                stof_set.insert(ValRef::new(to_raw_value(js_val)));
-            }
-        }
-        Val::Set(stof_set)
-    } else if let Ok(map) = Map::try_from(js.clone()) {
-        let mut stof_map = OrdMap::default();
-        for js_pair in map.entries() {
-            if let Ok(js_val) = js_pair {
-                let arr = Array::from(&js_val);
-                let key = arr.get(0);
-                let val = arr.get(1);
+    else if js.is_instance_of::<Map>() {
+        if let Ok(map) = Map::try_from(js.clone()) {
+            let mut stof_map = OrdMap::default();
+            for js_pair in map.entries() {
+                if let Ok(js_val) = js_pair {
+                    let arr = Array::from(&js_val);
+                    let key = arr.get(0);
+                    let val = arr.get(1);
 
-                stof_map.insert(
-                    ValRef::new(to_raw_value(key)),
-                    ValRef::new(to_raw_value(val))
-                );
+                    stof_map.insert(
+                        ValRef::new(to_raw_value(key)),
+                        ValRef::new(to_raw_value(val))
+                    );
+                }
             }
+            Val::Map(stof_map)
+        } else {
+            Val::Null
         }
-        Val::Map(stof_map)
-    } else {
+    }
+    else if js.is_instance_of::<Set>() {
+        if let Ok(set) = Set::try_from(js.clone()) {
+            let mut stof_set = OrdSet::default();
+            for js_val in set.values() {
+                if let Ok(js_val) = js_val {
+                    stof_set.insert(ValRef::new(to_raw_value(js_val)));
+                }
+            }
+            Val::Set(stof_set)
+        } else {
+            Val::Null
+        }
+    }
+    else {
         // cast to blob type
         let intarray = Uint8Array::from(js);
         Val::Blob(intarray.to_vec().into())
@@ -182,6 +202,7 @@ impl From<Val> for JsValue {
             },
             Val::Bool(val) => Self::from_bool(val),
             Val::Str(val) => Self::from_str(&val),
+            Val::Prompt(prompt) => Self::from_str(&prompt.to_string()),
             Val::Ver(..) => Self::from_str(&value.to_string()),
             Val::Num(num) => {
                 match num {

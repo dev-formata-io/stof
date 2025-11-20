@@ -26,16 +26,45 @@ const doc = stof`
 
     #[main]
     fn main() {
-        pln('Liftoff:', await self.another_process());
-        pln(Custom.test('CJ'));
+        //pln('Liftoff:', await self.another_process());
+        //pln(await Custom.test('CJ'));
+
+        const response = await Http.fetch('https://restcountries.com/v3.1/region/europe');
+        pln(response);
+        pln(Http.success(response));
+        pln(Http.text(response));
     }
 `;
 
 doc.lib('Std', 'pln', (... vars: unknown[]) => console.log(...vars));
 doc.lib('Std', 'err', (... vars: unknown[]) => console.error(... vars));
-doc.lib('Custom', 'test', (name: string): string => `Hello, ${name} from JS function`);
+doc.lib('Http', 'fetch', async (
+    url: string,
+    method: string = 'GET',
+    body: Uint8Array | null = null,
+    headers: Map<string, string> = new Map()): Promise<Map<string, unknown>> => {
+    const response = await fetch(url, {
+        method,
+        body: body ?? undefined,
+        headers,
+    });
+    const result = new Map<string, unknown>();
+    result.set('status', response.status);
+    result.set('ok', response.ok);
+    result.set('headers', new Map(response.headers));
+    result.set('content_type', response.headers.get('content-type') ?? response.headers.get('Content-Type') ?? 'text/plain');
+    result.set('bytes', await response.bytes());
+    return result;
+}, true);
 
-doc.run();
+doc.lib('Custom', 'test',
+    async function(name: string): Promise<string> {
+        const func = async (): Promise<string> => 'this is nested';
+        return `Hello, ${name}, ${await func()}`;
+    }, true);
+
+const res = await doc.run();
+console.log(res);
 
 // deno run --allow-all web/examples/run.ts
 // Liftoff: 42

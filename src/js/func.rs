@@ -16,10 +16,11 @@
 
 use std::{cell::RefCell, collections::BTreeMap, sync::Arc};
 use imbl::vector;
-use js_sys::Function;
+use js_sys::{Function, Promise};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
-use crate::{js::value::to_graph_value, model::{stof_std::THROW, Graph, LibFunc}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error, Val, Variable}};
+use wasm_bindgen_futures::JsFuture;
+use crate::{js::value::{to_graph_value, to_raw_value}, model::{Graph, LibFunc, stof_std::THROW}, runtime::{Error, Val, ValRef, Variable, WakeRef, instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, wake}};
 
 
 thread_local! {
@@ -53,7 +54,7 @@ impl StofFunc {
 impl StofFunc {
     #[wasm_bindgen(constructor)]
     /// Create a new Stof function from a JS function.
-    pub fn new(library: &str, name: &str, js_function: JsValue) -> Self {
+    pub fn new(library: &str, name: &str, js_function: JsValue, is_async: bool) -> Self {
         let js_function = Function::from(js_function);
         Self::set_js_func(library, name, js_function);
 
@@ -62,7 +63,7 @@ impl StofFunc {
         let func = LibFunc {
             library: library.into(),
             name: name.into(),
-            is_async: false,
+            is_async,
             docs: String::default(),
             params: vector![],
             unbounded_args: true,
@@ -182,7 +183,38 @@ impl Instruction for JsLibFuncIns {
                 });
                 match res {
                     Ok(result) => {
-                        env.stack.push(Variable::val(to_graph_value(result, &graph)));
+                        // if the result is a promise, do the async things
+                        if result.is_instance_of::<Promise>() {
+                            let promise = Promise::from(result);
+                            
+                            let wake_ref = WakeRef::default(); // when to return
+                            let placeholder = ValRef::new(Val::Null); // the return value
+
+                            // start the JS promise in the background
+                            let wake_clone = wake_ref.clone();
+                            let ret_val = placeholder.clone();
+                            wasm_bindgen_futures::spawn_local(async move {
+                                match JsFuture::from(promise).await {
+                                    Ok(result) => {
+                                        let mut ret = ret_val.write();
+                                        *ret = to_raw_value(result);
+                                    },
+                                    Err(error) => {
+                                        let mut ret = ret_val.write();
+                                        *ret = to_raw_value(error);
+                                    }
+                                }
+                                //web_sys::console::log_1(&"calling wake".into());
+                                wake(&wake_clone); // wake the Stof process after complete
+                            });
+
+                            let mut instructions = Instructions::default();
+                            instructions.push(Arc::new(Base::Variable(Variable::refval(placeholder.clone()))));
+                            instructions.push(Arc::new(Base::CtrlSleepRef(wake_ref)));
+                            return Ok(Some(instructions));
+                        } else {
+                            env.stack.push(Variable::val(to_graph_value(result, &graph)));
+                        }
                     },
                     Err(error) => {
                         let mut instructions = Instructions::default();

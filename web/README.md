@@ -15,14 +15,14 @@
 
 <br/>
 
-**A smart, declarative runtime for data workflows**
+### A declarative runtime & data format for modern workflows
 - [Docs](https://docs.stof.dev)
 - [GitHub](https://github.com/dev-formata-io/stof)
 - [Discord](https://discord.gg/Up5kxdeXZt)
 - [Install](https://docs.stof.dev/book/installation)
 
-## What is Stof?
-Stof works **with** other data formats to bridge the gap between static data and programmable documents. It is a lightweight, embeddable, and portable data logic format & platform for AI, infra-as-code, and config-heavy workflows. It's built to support:
+
+Stof is a unified data format that works seamlessly **with** other formats to bridge the gap between static data and programmable documents. It is a lightweight, embeddable, and portable data logic format & platform for AI, infra-as-code, and config-heavy workflows. It's built to support:
 
 - Data-Mesh, Integration, & Orchestration **glue-layer**
 - Universal LLM & AI workflows, tools, & **intersystem data**
@@ -30,6 +30,15 @@ Stof works **with** other data formats to bridge the gap between static data and
 - Asynchronous **validation & transformation**
 
 > Think of Stof as a foundation for building robust and declarative data flows, config systems, or backend models.
+
+## Core Stof principle: Everything as Data
+Using data in whatever form it is defined should not be difficult. Stof is the glue-layer & interface for working with any type of data as a singular unified, portable, and embeddable document.
+
+Stof accomplishes this by treating every piece of data as a component in a general graph (document) of containers. Whether it's functions, fields, PDFs, binaries, or anything else, Stof organizes it neatly and provides an interface for it.
+
+The Stof runtime is a thin, embeddable runtime that allows a Stof document to manipulate itself through calling the functions it contains. Functions are just pieces of data like a field, so they can even operate on themselves.
+
+Libraries are the only way a Stof function can operate outside of the document (Ex. HTTP, filesystem, etc.), which are not saved with the document and are controlled by the host system. This sandboxed behavior is advantageous for sending logic + data over networks or in any untrusted environments.
 
 ## When to use Stof?
 Modern software (especially AI/ML, infra, cloud, CI/CD, and workflows) increasingly relies on structured data that needs to be:
@@ -42,7 +51,7 @@ Modern software (especially AI/ML, infra, cloud, CI/CD, and workflows) increasin
 - Versioned and inspectable
 
 But the tools we have for this are *primitive and fragmented*:
-- JSON/YAML/TOML carry structure, but rely on other tools for behavior, units, schemas, or validations.
+- JSON/YAML/TOML carry structure, but rely on other tools for behavior, types, units, schemas, or validations.
 - External tools create complexity between systems and often require additional configuration & maintenence.
 - Configs drift and break across environments.
 - Runtime logic is scattered across codebases, devops scripts, and data definitions.
@@ -130,7 +139,7 @@ metadata_field: "we have attributes"
  * - Event driven systems
  * - Declarative UI + logic
  */
-async fn doing_something_concurrently() {
+async fn doing_something_async() {
     // "Std" library, an extensible & complete standard library
     pln("Hello, Stof!");
 
@@ -172,6 +181,40 @@ Config: {
 }
 
 
+/**
+ * Prompt primitive type for AI workflows.
+ * - Trees of optionally structured prompts (strings with optional XML tags)
+ * - Acts like a collection when you need it and a string when you don't
+ * - A better, more maintainable way to create modern AI apps & agents
+ */
+fn create_prompt() -> prompt {
+    const llm_prompt = prompt();
+
+    // newlines just for the example...
+    const add_to_llm = (pmt: prompt, llm: prompt) => {
+        llm.push(pmt);
+        llm.push("\n");
+    };
+
+    const data = prompt(tag="data");
+    data.push("seamless str <-> prompt casting");
+    add_to_llm(data, llm_prompt);
+
+    const format = prompt(tag="format");
+    format.push("1. first thing. ");
+    format.push("2. second thing.");
+    add_to_llm(format, llm_prompt);
+
+    const instructions = prompt(
+        text="LLMs are good at textual data, humans are not. Stof helps.",
+        tag="instructions"
+    );
+    add_to_llm(instructions, llm_prompt);
+    llm_prompt.pop(); // pop final newline prompt (yes, there's a lib)
+
+    llm_prompt
+}
+
 
 #[main]
 /**
@@ -188,10 +231,13 @@ Config: {
  * - uses "log" Rust crate for flexibility
  */
 fn main() {
-    self.doing_something_concurrently();
+    self.doing_something_async();
 
-    const yaml = stringify("yaml", self);
-    log_info(yaml);
+    const yaml = stringify('yaml', self);
+    log_info(yaml); // use -d
+
+    const prompt = self.create_prompt();
+    log_debug(prompt as str); // use -dd
 }
 ```
 ``` bash
