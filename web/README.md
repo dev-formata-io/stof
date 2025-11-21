@@ -60,6 +60,39 @@ But the tools we have for this are *primitive and fragmented*:
 
 *Note: if you're doing simple config loading or small and static data modeling, learning Stof might feel like overkill. You can replicate most of what Stof does using JSON + code + libraries; it just takes more effort and lacks formality, organization, single-file simplicity, unification, etc. (also a big pain for cross-boundary systems, like APIs, teams, and services).*
 
+## JSR Example
+``` typescript
+import { StofDoc } from 'jsr:@formata/stof';
+const doc = await StofDoc.new();
+
+// Stof Std pln function mapped to console.log
+doc.lib('Std', 'pln', (... vars: unknown[]) => console.log(...vars));
+
+// My example nested function that is async, mapped to an async Stof lib fn
+doc.lib('Example', 'nested', async (): Promise<Map<string, string>> => {
+    const res = new Map();
+    res.set('msg', 'hello, there');
+    res.set('nested', await (async (): Promise<string> => 'this is a nested async JS fn (like fetch)')());
+    return res;
+}, true);
+
+// Add some Stof
+doc.parse(`
+    fn main() {
+        const res = await Example.nested();
+        pln(res);
+    }
+`);
+await doc.call('main');
+
+/* OUTPUT
+Map(2) {
+  "msg" => "hello, there",
+  "nested" => "this is a nested async JS fn (like fetch)"
+}
+*/
+```
+
 ## Example/Tour
 > Located in `examples/readme` for you to try yourself.
 ``` rust

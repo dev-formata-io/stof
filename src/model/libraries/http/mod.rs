@@ -47,9 +47,19 @@ use reqwest::Client;
 #[cfg(all(feature = "http", not(feature = "tokio")))]
 use reqwest::blocking::Client;
 
+#[cfg(feature = "tokio")]
+use tokio::sync::Semaphore;
+
+
 #[cfg(feature = "http")]
 lazy_static! {
     static ref HTTP_CLIENT: Arc<Client> = Arc::new(Client::new());
+}
+
+
+#[cfg(feature = "tokio")]
+lazy_static! {
+    static ref HTTP_BACKPRESSURE_SEMAPHORE: Arc<Semaphore> = Arc::new(Semaphore::new(100));
 }
 
 
@@ -290,6 +300,7 @@ impl HTTPRequest {
         {
             if let Some(handle) = &env.tokio_runtime {
                 handle.spawn(async move {
+                    let _permit = HTTP_BACKPRESSURE_SEMAPHORE.acquire().await;
                     let client = &HTTP_CLIENT;
                     let mut builder = client.request(self.method, self.url);
                     builder = builder.headers(self.headers);

@@ -455,9 +455,12 @@ pub enum Error {
     AssignExistingRoot,
 
     StackError,
+    ExecutionTimeout,
+    StackOverflow,
     SelfStackError,
     NewStackError,
     CallStackError,
+    CallStackOverflow,
     CastStackError,
     CastVal(Type, Type),
 

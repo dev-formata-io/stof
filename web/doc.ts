@@ -92,10 +92,19 @@ export class StofDoc {
 
 
     /**
-     * Run this document with a given set of attributes.
+     * Run this document with a given set of Stof attributes.
      */
     async run(attr: string | string[] = 'main'): Promise<string> {
         return await this.stof.run(attr);
+    }
+
+
+    /**
+     * Call a specific Stof function by path.
+     */
+    async call(path: string, ...args: unknown[]): Promise<unknown> {
+        if (!path.includes('.')) path = 'root.' + path; // assume root node if not specified
+        return await this.stof.call(path, args);
     }
 
 

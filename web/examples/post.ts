@@ -15,10 +15,20 @@ doc.lib('Example', 'nested', async (): Promise<Map<string, string>> => {
 
 // Add some Stof
 doc.parse(`
-    #[my_main]
-    fn main() {
+    field: 42
+    fn main() -> int {
         const res = await Example.nested();
         pln(res);
+        self.field
     }
 `);
-await doc.run('my_main'); // default is 'main'
+const field = await doc.call('main');
+console.log(field);
+
+/* OUTPUT
+Map(2) {                                                                                                                                                                                                                       
+  "msg" => "hello, there",
+  "nested" => "this is a nested async JS fn (like fetch)"
+}
+42
+*/

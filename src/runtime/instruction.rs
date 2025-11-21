@@ -168,6 +168,9 @@ impl Instructions {
     /// Execute one instruction, in order.
     /// This will pop the first instruction, leaving the next ready to be consumed later.
     pub fn exec(&mut self, env: &mut ProcEnv, graph: &mut Graph, mut limit: i32) -> Result<ProcRes, Error> {
+        if env.start_time.is_none() {
+            env.start_time = Some(web_time::Instant::now());
+        }
         let keep_count = limit > 0;
         'exec_loop: loop {
             if keep_count {
@@ -179,6 +182,23 @@ impl Instructions {
                     }
                 }
                 limit -= 1;
+            }
+
+            // enforce max execution time
+            if let Some(max) = &env.max_execution_time {
+                if let Some(start) = &env.start_time {
+                    if &start.elapsed() > max {
+                        return Err(Error::ExecutionTimeout);
+                    }
+                }
+            }
+
+            // enforce max stack sizes
+            if env.stack.len() > env.max_stack_size {
+                return Err(Error::StackOverflow);
+            }
+            if env.call_stack.len() > env.max_call_stack_depth {
+                return Err(Error::CallStackOverflow);
             }
 
             if let Some(ins) = self.instructions.pop_front() {

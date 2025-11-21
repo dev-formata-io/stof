@@ -34,13 +34,17 @@ pub enum ProcRes {
 }
 
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 /// Process Env.
 pub struct ProcEnv {
     pub pid: SId,
+    pub start_time: Option<web_time::Instant>,
+    pub max_execution_time: Option<web_time::Duration>,
     pub self_stack: Vec<NodeRef>,
+    pub max_call_stack_depth: usize,
     pub call_stack: Vec<DataRef>,
     pub new_stack: Vec<NodeRef>,
+    pub max_stack_size: usize,
     pub stack: Vec<Variable>,
     pub table: Box<SymbolTable>,
     pub loop_stack: Vec<ArcStr>,
@@ -53,6 +57,30 @@ pub struct ProcEnv {
 
     #[cfg(feature = "tokio")]
     pub tokio_runtime: Option<tokio::runtime::Handle>,
+}
+impl Default for ProcEnv {
+    fn default() -> Self {
+        Self {
+            pid: Default::default(),
+            start_time: None,
+            max_execution_time: Some(Duration::from_secs(120)),
+            self_stack: Default::default(),
+            max_call_stack_depth: 10_000,
+            call_stack: Default::default(),
+            new_stack: Default::default(),
+            max_stack_size: 100_000,
+            stack: Default::default(),
+            table: Default::default(),
+            loop_stack: Default::default(),
+            return_stack: Default::default(),
+            ret_valid_stack: Default::default(),
+            try_stack: Default::default(),
+            spawn: None,
+
+            #[cfg(feature = "tokio")]
+            tokio_runtime: None,
+        }
+    }
 }
 impl ProcEnv {
     // Get the current self ptr.

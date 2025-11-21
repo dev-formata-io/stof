@@ -314,6 +314,28 @@ impl Runtime {
                             waiting_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Error::AwaitError(Box::new(error)))));
                         }
                         to_run.push(id.clone());
+                    } else if let Some(max) = &waiting_proc.env.max_execution_time {
+                        if let Some(start) = &waiting_proc.env.start_time {
+                            if &start.elapsed() > max {
+                                // If the waiting process has outlived its ttl, then error
+                                println!("{} {}{}{}{}{}", "await timeout error".red().bold(), "(".dimmed(), waiting_proc.env.pid.as_ref().dimmed().purple(), " waiting on ".dimmed(), wait_id.as_ref().dimmed().cyan(), ")".dimmed());
+                                waiting_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Error::ExecutionTimeout)));
+                                to_run.push(id.clone());
+                            }
+                        }
+                    }
+                }
+            }
+
+            for (id, sleeping_proc) in &mut self.sleeping {
+                if let Some(max) = &sleeping_proc.env.max_execution_time {
+                    if let Some(start) = &sleeping_proc.env.start_time {
+                        if &start.elapsed() > max {
+                            // If the sleeping process has outlived its ttl, then error
+                            println!("{} {}{}{}", "sleep timeout error".red().bold(), "(".dimmed(), sleeping_proc.env.pid.as_ref().dimmed().purple(), ")".dimmed());
+                            sleeping_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Error::ExecutionTimeout)));
+                            to_run.push(id.clone());
+                        }
                     }
                 }
             }
@@ -321,6 +343,9 @@ impl Runtime {
             if !to_run.is_empty() {
                 for id in to_run.drain(..) {
                     if let Some(mut proc) = self.waiting.remove(&id) {
+                        proc.waiting = None;
+                        self.running.push(proc);
+                    } else if let Some(mut proc) = self.sleeping.remove(&id) {
                         proc.waiting = None;
                         self.running.push(proc);
                     }
@@ -515,6 +540,28 @@ impl Runtime {
                             waiting_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Error::AwaitError(Box::new(error)))));
                         }
                         to_run.push(id.clone());
+                    } else if let Some(max) = &waiting_proc.env.max_execution_time {
+                        if let Some(start) = &waiting_proc.env.start_time {
+                            if &start.elapsed() > max {
+                                // If the waiting process has outlived its ttl, then error
+                                println!("{} {}{}{}{}{}", "await timeout error".red().bold(), "(".dimmed(), waiting_proc.env.pid.as_ref().dimmed().purple(), " waiting on ".dimmed(), wait_id.as_ref().dimmed().cyan(), ")".dimmed());
+                                waiting_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Error::ExecutionTimeout)));
+                                to_run.push(id.clone());
+                            }
+                        }
+                    }
+                }
+            }
+
+            for (id, sleeping_proc) in &mut self.sleeping {
+                if let Some(max) = &sleeping_proc.env.max_execution_time {
+                    if let Some(start) = &sleeping_proc.env.start_time {
+                        if &start.elapsed() > max {
+                            // If the sleeping process has outlived its ttl, then error
+                            println!("{} {}{}{}", "sleep timeout error".red().bold(), "(".dimmed(), sleeping_proc.env.pid.as_ref().dimmed().purple(), ")".dimmed());
+                            sleeping_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Error::ExecutionTimeout)));
+                            to_run.push(id.clone());
+                        }
                     }
                 }
             }
@@ -522,6 +569,9 @@ impl Runtime {
             if !to_run.is_empty() {
                 for id in to_run.drain(..) {
                     if let Some(mut proc) = self.waiting.remove(&id) {
+                        proc.waiting = None;
+                        self.running.push(proc);
+                    } else if let Some(mut proc) = self.sleeping.remove(&id) {
                         proc.waiting = None;
                         self.running.push(proc);
                     }

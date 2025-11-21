@@ -799,8 +799,16 @@ function __wbg_get_imports() {
         const ret = arg0.node;
         return ret;
     };
+    imports.wbg.__wbg_now_2c95c9de01293173 = function(arg0) {
+        const ret = arg0.now();
+        return ret;
+    };
     imports.wbg.__wbg_now_793306c526e2e3b6 = function() {
         const ret = Date.now();
+        return ret;
+    };
+    imports.wbg.__wbg_performance_7a3ffd0b17f663ad = function(arg0) {
+        const ret = arg0.performance;
         return ret;
     };
     imports.wbg.__wbg_process_5c1d670bc53614b8 = function(arg0) {
@@ -897,6 +905,11 @@ function __wbg_get_imports() {
         const ret = BigInt.asUintN(64, arg0);
         return ret;
     };
+    imports.wbg.__wbindgen_cast_6ef6f714b718baac = function(arg0, arg1) {
+        // Cast intrinsic for `Closure(Closure { dtor_idx: 6679, function: Function { arguments: [Externref], shim_idx: 6680, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+        const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h1b5a700f8d9cbaa0, wasm_bindgen__convert__closures_____invoke__hb412c638671832f9);
+        return ret;
+    };
     imports.wbg.__wbindgen_cast_9ae0607507abb057 = function(arg0) {
         // Cast intrinsic for `I64 -> Externref`.
         const ret = arg0;
@@ -910,11 +923,6 @@ function __wbg_get_imports() {
     imports.wbg.__wbindgen_cast_d6cd19b81560fd6e = function(arg0) {
         // Cast intrinsic for `F64 -> Externref`.
         const ret = arg0;
-        return ret;
-    };
-    imports.wbg.__wbindgen_cast_e16ac1ad8118eaf8 = function(arg0, arg1) {
-        // Cast intrinsic for `Closure(Closure { dtor_idx: 6655, function: Function { arguments: [Externref], shim_idx: 6656, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-        const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h1b5a700f8d9cbaa0, wasm_bindgen__convert__closures_____invoke__hb412c638671832f9);
         return ret;
     };
     imports.wbg.__wbindgen_init_externref_table = function() {

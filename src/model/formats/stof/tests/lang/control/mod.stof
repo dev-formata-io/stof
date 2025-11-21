@@ -26,3 +26,10 @@ import './for' as self.For;
 import './switch' as self.Switch;
 import './nullcheck' as self.Nullcheck;
 import './try' as self.Try;
+
+
+//#[test]
+#[errors]
+fn call_stack_overflow() {
+    (() => this())();
+}
