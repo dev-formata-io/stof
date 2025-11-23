@@ -108,6 +108,25 @@ export class StofDoc {
     }
 
 
+    /**
+     * Get a value from this graph by path and an optional starting object ID.
+     */
+    get(path: string, start_obj_id: string | null = null): unknown {
+        if (!path.includes('.')) path = 'self.' + path;
+        return this.stof.get(path, start_obj_id);
+    }
+
+
+    /**
+     * Set a value on this graph by path.
+     * Returns true if successfully set.
+     */
+    set(path: string, value: unknown, start_obj_id: string | null = null): boolean {
+        if (!path.includes('.')) path = 'self.' + path;
+        return this.stof.set(path, value, start_obj_id);
+    }
+
+
     /*****************************************************************************
      * Network.
      *****************************************************************************/

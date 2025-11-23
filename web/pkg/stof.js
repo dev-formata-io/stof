@@ -267,6 +267,31 @@ export class Stof {
         return this;
     }
     /**
+     * Get a value from this graph using the Stof runtime (all language features supported).
+     * @param {string} path
+     * @param {any} start
+     * @returns {any}
+     */
+    get(path, start) {
+        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.stof_get(this.__wbg_ptr, ptr0, len0, start);
+        return ret;
+    }
+    /**
+     * Set a value onto this graph using the Stof runtime.
+     * @param {string} path
+     * @param {any} value
+     * @param {any} start
+     * @returns {boolean}
+     */
+    set(path, value, start) {
+        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.stof_set(this.__wbg_ptr, ptr0, len0, value, start);
+        return ret !== 0;
+    }
+    /**
      * Run functions with the given attribute(s) in this document.
      * Attributes defaults to #[main] functions if null or undefined.
      * @param {any} attributes
@@ -900,14 +925,14 @@ function __wbg_get_imports() {
         const ret = getStringFromWasm0(arg0, arg1);
         return ret;
     };
+    imports.wbg.__wbindgen_cast_375a3d866a334b06 = function(arg0, arg1) {
+        // Cast intrinsic for `Closure(Closure { dtor_idx: 6724, function: Function { arguments: [Externref], shim_idx: 6725, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+        const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h1b5a700f8d9cbaa0, wasm_bindgen__convert__closures_____invoke__hb412c638671832f9);
+        return ret;
+    };
     imports.wbg.__wbindgen_cast_4625c577ab2ec9ee = function(arg0) {
         // Cast intrinsic for `U64 -> Externref`.
         const ret = BigInt.asUintN(64, arg0);
-        return ret;
-    };
-    imports.wbg.__wbindgen_cast_6ef6f714b718baac = function(arg0, arg1) {
-        // Cast intrinsic for `Closure(Closure { dtor_idx: 6679, function: Function { arguments: [Externref], shim_idx: 6680, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-        const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h1b5a700f8d9cbaa0, wasm_bindgen__convert__closures_____invoke__hb412c638671832f9);
         return ret;
     };
     imports.wbg.__wbindgen_cast_9ae0607507abb057 = function(arg0) {

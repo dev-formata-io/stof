@@ -13,6 +13,14 @@ export class Stof {
    */
   constructor();
   /**
+   * Get a value from this graph using the Stof runtime (all language features supported).
+   */
+  get(path: string, start: any): any;
+  /**
+   * Set a value onto this graph using the Stof runtime.
+   */
+  set(path: string, value: any, start: any): boolean;
+  /**
    * Run functions with the given attribute(s) in this document.
    * Attributes defaults to #[main] functions if null or undefined.
    */
@@ -70,9 +78,13 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
+  readonly __wbg_stoffunc_free: (a: number, b: number) => void;
+  readonly stoffunc_new: (a: number, b: number, c: number, d: number, e: any, f: number) => number;
   readonly start: () => void;
   readonly __wbg_stof_free: (a: number, b: number) => void;
   readonly stof_new: () => number;
+  readonly stof_get: (a: number, b: number, c: number, d: any) => any;
+  readonly stof_set: (a: number, b: number, c: number, d: any, e: any) => number;
   readonly stof_run: (a: number, b: any) => any;
   readonly stof_call: (a: number, b: number, c: number, d: any) => any;
   readonly stof_js_library_function: (a: number, b: number) => void;
@@ -82,8 +94,6 @@ export interface InitOutput {
   readonly stof_binaryImport: (a: number, b: any, c: number, d: number, e: any) => [number, number, number];
   readonly stof_stringExport: (a: number, b: number, c: number, d: any) => [number, number, number, number];
   readonly stof_binaryExport: (a: number, b: number, c: number, d: any) => [number, number, number];
-  readonly __wbg_stoffunc_free: (a: number, b: number) => void;
-  readonly stoffunc_new: (a: number, b: number, c: number, d: number, e: any, f: number) => number;
   readonly wasm_bindgen__convert__closures_____invoke__hb412c638671832f9: (a: number, b: number, c: any) => void;
   readonly wasm_bindgen__closure__destroy__h1b5a700f8d9cbaa0: (a: number, b: number) => void;
   readonly wasm_bindgen__convert__closures_____invoke__hea9610c163cbdb60: (a: number, b: number, c: any, d: any) => void;

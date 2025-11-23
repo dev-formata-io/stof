@@ -16,13 +16,13 @@
 
 mod value;
 mod func;
-use std::ops::Deref;
+use std::{ops::Deref, sync::Arc};
 
 use bytes::Bytes;
 use js_sys::Uint8Array;
 use rustc_hash::FxHashSet;
 use wasm_bindgen::prelude::*;
-use crate::{js::{func::StofFunc, value::to_stof_value}, model::{import::parse_json_object_value, Graph}, runtime::{Runtime, Val}};
+use crate::{js::{func::StofFunc, value::to_stof_value}, model::{Graph, import::parse_json_object_value}, runtime::{Runtime, Val, Variable, instruction::Instruction, instructions::Base, proc::ProcEnv}};
 
 
 // Workaround for Wasm-Pack Error
@@ -58,6 +58,47 @@ impl Stof {
     /// Construct a new document.
     pub fn new() -> Self {
         Self { graph: Graph::default() }
+    }
+
+    /// Get a value from this graph using the Stof runtime (all language features supported).
+    pub fn get(&mut self, path: &str, start: JsValue) -> JsValue {
+        let instruction: Arc<dyn Instruction> = Arc::new(Base::LoadVariable(path.into(), false, false));
+        let mut proc_env = ProcEnv::default();
+        if let Some(main) = self.graph.main_root() {
+            proc_env.self_stack.push(main);
+        }
+        match to_stof_value(start, &self) {
+            Val::Obj(start) => {
+                proc_env.self_stack.push(start);
+            },
+            _ => {}
+        }
+        let _ = instruction.exec(&mut proc_env, &mut self.graph); // don't care about res
+        if let Some(var) = proc_env.stack.pop() {
+            JsValue::from(var.val.read().clone())
+        } else {
+            JsValue::NULL
+        }
+    }
+
+    /// Set a value onto this graph using the Stof runtime.
+    pub fn set(&mut self, path: &str, value: JsValue, start: JsValue) -> bool {
+        let mut proc_env = ProcEnv::default();
+        if let Some(main) = self.graph.main_root() {
+            proc_env.self_stack.push(main);
+        }
+        match to_stof_value(start, &self) {
+            Val::Obj(start) => {
+                proc_env.self_stack.push(start);
+            },
+            _ => {}
+        }
+        proc_env.stack.push(Variable::val(to_stof_value(value, &self)));
+        let instruction: Arc<dyn Instruction> = Arc::new(Base::SetVariable(path.into()));
+        match instruction.exec(&mut proc_env, &mut self.graph) {
+            Ok(_res) => true,
+            Err(_err) => false
+        }
     }
 
 

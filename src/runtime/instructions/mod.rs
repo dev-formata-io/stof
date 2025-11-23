@@ -736,7 +736,34 @@ impl Instruction for Base {
 
                         // Look for an object variable as context
                         let mut context = None;
-                        if let Some(var) = env.table.get(path.path[0].as_ref()) {
+                        if path.path[0].as_ref().starts_with('<') && name.contains('>') {
+                            // "static" syntax case Ex. <Location.MyType>.field
+                            let end_index = name.find('>').unwrap();
+                            let (mut first, mut last) = name.split_at(end_index);
+                            first = first.trim_start_matches('<');
+                            last = last.trim_start_matches('>').trim_start_matches('.');
+                            
+                            if last.len() > 0 {
+                                path.path = last.split('.').map(|id| id.into()).collect::<Vec<_>>();
+                            } else {
+                                path.path = vec![];
+                            }
+
+                            let mut obj_type = Type::Obj(first.into());
+                            obj_type.obj_to_proto(graph, Some(env.self_ptr()));
+                            match obj_type {
+                                Type::Obj(proto_id) => {
+                                    if proto_id.node_exists(&graph) {
+                                        context = Some(proto_id);
+                                    } else {
+                                        return Err(Error::AssignSelf);
+                                    }
+                                },
+                                _ => {
+                                    return Err(Error::AssignSelf);
+                                }
+                            }
+                        } else if let Some(var) = env.table.get(path.path[0].as_ref()) {
                             if let Some(var_obj) = var.try_obj() {
                                 context = Some(var_obj);
                                 path.path.remove(0);
