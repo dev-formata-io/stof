@@ -11,5 +11,4 @@
     },
     "rust-analyzer.showUnlinkedFileNotification": false,
     "deno.enablePaths": ["web"],
-    "deno.enable": false
 }

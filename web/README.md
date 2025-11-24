@@ -15,8 +15,9 @@
 
 <br/>
 
-### A declarative runtime & data format for modern workflows
+### Standard Transformation and Organization Format
 - [Docs](https://docs.stof.dev)
+- [Playground](https://play.stof.dev)
 - [GitHub](https://github.com/dev-formata-io/stof)
 - [Discord](https://discord.gg/Up5kxdeXZt)
 - [Install](https://docs.stof.dev/book/installation)
@@ -30,15 +31,6 @@ Stof is a unified data format that works seamlessly **with** other formats to br
 - Asynchronous **validation & transformation**
 
 > Think of Stof as a foundation for building robust and declarative data flows, config systems, or backend models.
-
-## Core Stof principle: Everything as Data
-Using data in whatever form it is defined should not be difficult. Stof is the glue-layer & interface for working with any type of data as a singular unified, portable, and embeddable document.
-
-Stof accomplishes this by treating every piece of data as a component in a general graph (document) of containers. Whether it's functions, fields, PDFs, binaries, or anything else, Stof organizes it neatly and provides an interface for it.
-
-The Stof runtime is a thin, embeddable runtime that allows a Stof document to manipulate itself through calling the functions it contains. Functions are just pieces of data like a field, so they can even operate on themselves.
-
-Libraries are the only way a Stof function can operate outside of the document (Ex. HTTP, filesystem, etc.), which are not saved with the document and are controlled by the host system. This sandboxed behavior is advantageous for sending logic + data over networks or in any untrusted environments.
 
 ## When to use Stof?
 Modern software (especially AI/ML, infra, cloud, CI/CD, and workflows) increasingly relies on structured data that needs to be:
@@ -59,39 +51,6 @@ But the tools we have for this are *primitive and fragmented*:
 > Stof unifies **structure + validation + behavior** into one **coherent, inspectable, portable artifact**.
 
 *Note: if you're doing simple config loading or small and static data modeling, learning Stof might feel like overkill. You can replicate most of what Stof does using JSON + code + libraries; it just takes more effort and lacks formality, organization, single-file simplicity, unification, etc. (also a big pain for cross-boundary systems, like APIs, teams, and services).*
-
-## JSR Example
-``` typescript
-import { StofDoc } from 'jsr:@formata/stof';
-const doc = await StofDoc.new();
-
-// Stof Std pln function mapped to console.log
-doc.lib('Std', 'pln', (... vars: unknown[]) => console.log(...vars));
-
-// My example nested function that is async, mapped to an async Stof lib fn
-doc.lib('Example', 'nested', async (): Promise<Map<string, string>> => {
-    const res = new Map();
-    res.set('msg', 'hello, there');
-    res.set('nested', await (async (): Promise<string> => 'this is a nested async JS fn (like fetch)')());
-    return res;
-}, true);
-
-// Add some Stof
-doc.parse(`
-    fn main() {
-        const res = await Example.nested();
-        pln(res);
-    }
-`);
-await doc.call('main');
-
-/* OUTPUT
-Map(2) {
-  "msg" => "hello, there",
-  "nested" => "this is a nested async JS fn (like fetch)"
-}
-*/
-```
 
 ## Example/Tour
 > Located in `examples/readme` for you to try yourself.
@@ -215,10 +174,10 @@ Config: {
 
 
 /**
- * Prompt primitive type for AI workflows.
+ * Maintain prompts as functions for AI workflows.
  * - Trees of optionally structured prompts (strings with optional XML tags)
  * - Acts like a collection when you need it and a string when you don't
- * - A better, more maintainable way to create modern AI apps & agents
+ * - A better, more maintainable way to create AI apps & agents
  */
 fn create_prompt() -> prompt {
     const llm_prompt = prompt();

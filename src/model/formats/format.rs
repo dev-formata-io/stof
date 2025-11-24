@@ -37,7 +37,53 @@ pub trait Format: std::fmt::Debug + Send + Sync {
     /// File import.
     #[allow(unused)]
     fn file_import(&self, graph: &mut Graph, format: &str, path: &str, node: Option<NodeRef>) -> Result<(), Error> {
-        if let Some(_lib) = graph.libfunc(&FS_LIB, "read") {
+        if let Some(_lib) = graph.libfunc(&FS_LIB, "read_string") {
+            #[cfg(not(feature = "system"))]
+            {
+                use imbl::vector;
+                use std::sync::Arc;
+                use crate::{runtime::{Val, instruction::Instruction, instructions::{Base, call::FuncCall}}};
+
+                let mut context = ParseContext::new(graph);
+                let ins: Arc<dyn Instruction> = Arc::new(FuncCall {
+                    func: None,
+                    search: Some("fs.read_string".into()),
+                    stack: false,
+                    as_ref: false,
+                    cnull: false,
+                    args: vector![Arc::new(Base::Literal(Val::Str(path.into()))) as Arc<dyn Instruction>],
+                    oself: None,
+                });
+                match context.eval(ins) {
+                    Ok(res) => {
+                        match res {
+                            Val::Str(src) => {
+                                if !src.is_empty() {
+                                    return self.string_import(&mut context.graph, format, &src, node);
+                                }
+                                return Ok(());
+                            },
+                            _ => {
+                                // Try FS
+                            }
+                        }
+                    },
+                    Err(_error) => {
+                        // Try FS
+                    }
+                }
+            }
+
+            // Only allow reads if the FS library function is available
+            match fs::read(path) {
+                Ok(content) => {
+                    return self.binary_import(graph, format, Bytes::from(content), node);
+                },
+                Err(error) => {
+                    return Err(Error::FormatFileImportFsError(format!("{}: {}", error.to_string(), path)));
+                }
+            }
+        } else if let Some(_lib) = graph.libfunc(&FS_LIB, "read") {
             // Only allow reads if the FS library function is available
             match fs::read(path) {
                 Ok(content) => {

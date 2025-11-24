@@ -16,7 +16,7 @@
 
 use std::fs;
 use rustc_hash::FxHashSet;
-use crate::{model::{stof::export::StofExportContext, Format, Graph, NodeRef, FS_LIB}, parser::{context::ParseContext, doc::document}, runtime::Error};
+use crate::{model::{FS_LIB, Format, Graph, NodeRef, stof::export::StofExportContext}, parser::{context::ParseContext, doc::document}, runtime::Error};
 mod export;
 
 
@@ -44,7 +44,61 @@ impl Format for StofFormat {
         context.parse_from_file(format, path, node)
     }
     fn parser_import(&self, _format: &str, path: &str, context: &mut ParseContext) -> Result<(), Error> {
-        if let Some(_lib) = context.graph.libfunc(&FS_LIB, "read") {
+        if let Some(_lib) = context.graph.libfunc(&FS_LIB, "read_string") {
+            #[cfg(not(feature = "system"))]
+            {
+                use imbl::vector;
+                use std::sync::Arc;
+                use crate::{runtime::{Val, instruction::Instruction, instructions::{Base, call::FuncCall}}};
+
+                let ins: Arc<dyn Instruction> = Arc::new(FuncCall {
+                    func: None,
+                    search: Some("fs.read_string".into()),
+                    stack: false,
+                    as_ref: false,
+                    cnull: false,
+                    args: vector![Arc::new(Base::Literal(Val::Str(path.into()))) as Arc<dyn Instruction>],
+                    oself: None,
+                });
+                match context.eval(ins) {
+                    Ok(res) => {
+                        match res {
+                            Val::Str(src) => {
+                                if !src.is_empty() {
+                                    document(&src, context)?;
+                                }
+                                return Ok(());
+                            },
+                            _ => {
+                                // Try FS
+                            }
+                        }
+                    },
+                    Err(_error) => {
+                        // Try FS
+                    }
+                }
+            }
+
+            match fs::read(path) {
+                Ok(content) => {
+                    match std::str::from_utf8(&content) {
+                        Ok(src) => {
+                            if !src.is_empty() {
+                                document(src, context)?;
+                            }
+                            return Ok(());
+                        },
+                        Err(_error) => {
+                            return Err(Error::FormatBinaryImportUtf8Error);
+                        }
+                    }
+                },
+                Err(error) => {
+                    return Err(Error::FormatFileImportFsError(format!("{}: {}", error.to_string(), path)));
+                }
+            }
+        } else if let Some(_lib) = context.graph.libfunc(&FS_LIB, "read") {
             match fs::read(path) {
                 Ok(content) => {
                     match std::str::from_utf8(&content) {
