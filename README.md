@@ -15,8 +15,9 @@
 
 <br/>
 
-### A declarative runtime & data format for modern workflows
+### Standard Transformation and Organization Format
 - [Docs](https://docs.stof.dev)
+- [Playground](https://play.stof.dev)
 - [GitHub](https://github.com/dev-formata-io/stof)
 - [Discord](https://discord.gg/Up5kxdeXZt)
 - [Install](https://docs.stof.dev/book/installation)
@@ -30,15 +31,6 @@ Stof is a unified data format that works seamlessly **with** other formats to br
 - Asynchronous **validation & transformation**
 
 > Think of Stof as a foundation for building robust and declarative data flows, config systems, or backend models.
-
-## Core Stof principle: Everything as Data
-Using data in whatever form it is defined should not be difficult. Stof is the glue-layer & interface for working with any type of data as a singular unified, portable, and embeddable document.
-
-Stof accomplishes this by treating every piece of data as a component in a general graph (document) of containers. Whether it's functions, fields, PDFs, binaries, or anything else, Stof organizes it neatly and provides an interface for it.
-
-The Stof runtime is a thin, embeddable runtime that allows a Stof document to manipulate itself through calling the functions it contains. Functions are just pieces of data like a field, so they can even operate on themselves.
-
-Libraries are the only way a Stof function can operate outside of the document (Ex. HTTP, filesystem, etc.), which are not saved with the document and are controlled by the host system. This sandboxed behavior is advantageous for sending logic + data over networks or in any untrusted environments.
 
 ## When to use Stof?
 Modern software (especially AI/ML, infra, cloud, CI/CD, and workflows) increasingly relies on structured data that needs to be:
@@ -182,10 +174,10 @@ Config: {
 
 
 /**
- * Prompt primitive type for AI workflows.
+ * Maintain prompts as functions for AI workflows.
  * - Trees of optionally structured prompts (strings with optional XML tags)
  * - Acts like a collection when you need it and a string when you don't
- * - A better, more maintainable way to create modern AI apps & agents
+ * - A better, more maintainable way to create AI apps & agents
  */
 fn create_prompt() -> prompt {
     const llm_prompt = prompt();
