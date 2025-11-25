@@ -425,7 +425,7 @@ impl Runtime {
             }
 
             // any limit < 1 will progress the process as much as possible per process
-            let mut limit: i32 = 10;
+            let mut limit: i32 = 100;
             if !self.sleeping.is_empty() || self.running.len() > 1 {
                 let len = (self.sleeping.len() + self.running.len()) as i32;
                 limit = i32::max(10, 500 / len);
@@ -612,19 +612,21 @@ impl Runtime {
 
     #[cfg(any(feature = "js", feature = "tokio"))]
     /// Single step async.
-    pub async fn async_single_step(&mut self, graph: &mut Graph) -> bool {
+    pub async fn async_single_step(&mut self, graph: &mut Graph, yield_to_outer: bool) -> bool {
         let res = self.run_single_step(graph);
 
         #[cfg(feature = "js")]
         {
-            let promise = js_sys::Promise::new(&mut |resolve, _reject| {
-                let window = web_sys::window().unwrap();
-                window.set_timeout_with_callback_and_timeout_and_arguments_0(
-                    &resolve,
-                    0  // 0ms timeout - yields to macrotask queue (instead of just microtasks)
-                ).unwrap();
-            });
-            wasm_bindgen_futures::JsFuture::from(promise).await.unwrap();
+            if yield_to_outer {
+                let promise = js_sys::Promise::new(&mut |resolve, _reject| {
+                    let window = web_sys::window().unwrap();
+                    window.set_timeout_with_callback_and_timeout_and_arguments_0(
+                        &resolve,
+                        0  // 0ms timeout - yields to macrotask queue (instead of just microtasks)
+                    ).unwrap();
+                });
+                wasm_bindgen_futures::JsFuture::from(promise).await.unwrap();
+            }
         }
         res
     }
@@ -682,8 +684,15 @@ impl Runtime {
             }
         }
 
-        while rt.async_single_step(graph).await {
-            // loop continues as long as there is work to be done, yeilding control back to JS/Tokio each step
+        const YIELD_INTERVAL_MS: u64 = 20;
+        let mut yield_to_outer = false;
+        let mut last_yield = web_time::Instant::now();
+        while rt.async_single_step(graph, yield_to_outer).await {
+            yield_to_outer = false;
+            if last_yield.elapsed().as_millis() as u64 >= YIELD_INTERVAL_MS {
+                yield_to_outer = true;
+                last_yield = web_time::Instant::now();
+            }
         }
 
         let mut output = String::from("");
@@ -1118,8 +1127,16 @@ impl Runtime {
         let pid = proc.env.pid.clone();
         
         runtime.push_running_proc(proc, graph);
-        while runtime.async_single_step(graph).await {
-            // loop continues as long as there is work to be done, yeilding control back to JS/Tokio each step
+        
+        const YIELD_INTERVAL_MS: u64 = 20;
+        let mut yield_to_outer = false;
+        let mut last_yield = web_time::Instant::now();
+        while runtime.async_single_step(graph, yield_to_outer).await {
+            yield_to_outer = false;
+            if last_yield.elapsed().as_millis() as u64 >= YIELD_INTERVAL_MS {
+                yield_to_outer = true;
+                last_yield = web_time::Instant::now();
+            }
         }
 
         if let Some(proc) = runtime.done.remove(&pid) {

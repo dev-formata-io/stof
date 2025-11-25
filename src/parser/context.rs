@@ -121,7 +121,8 @@ impl<'ctx> ParseContext<'ctx> {
             path = format!("{}/{}", prefix_path.unwrap(), path.trim_start_matches("/").trim_end_matches("/"));
         }
 
-        if format == "stof" && !path.ends_with(".stof") {
+        // stof format can parse JSON too...
+        if format == "stof" && !path.ends_with(".stof") && !path.ends_with(".json") {
             path.push_str(".stof");
         }
 
