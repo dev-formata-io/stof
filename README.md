@@ -24,7 +24,7 @@
 ## Overview
 Stof is a unified data format that works seamlessly with other formats to bridge the gap between static data and programmable documents.
 
-It is based on an "Everything as Data" model, in which fields, functions, PDFs, images, binaries, or any other type of data is neatly organized and combined, while keeping single-document simplicity and portability.
+It is based on an "Everything as Data" model, in which fields, functions, PDFs, images, binaries, or any other type of data are neatly combined, while keeping single-document simplicity and portability.
 
 This provides many benefits:
 - Write data once, use it everywhere, in any format
@@ -80,7 +80,7 @@ fn do_something() {
     }
 
     // partial I/O with any format
-    pln(stringify('toml', self.stats));
+    pln(stringify("toml", self.stats));
 }
 
 /**
