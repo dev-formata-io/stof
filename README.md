@@ -11,6 +11,8 @@
 </p>
 
 ### Standard Transformation and Organization Format
+> Executable Data for Distributed Systems, AI/ML workflows, Smart Configs, & Pipelines.
+
 - [Docs](https://docs.stof.dev)
 - [Playground](https://play.stof.dev)
 - [GitHub](https://github.com/dev-formata-io/stof)
@@ -22,16 +24,16 @@
 ![Alt](https://repobeats.axiom.co/api/embed/efbc3324d289ccfb6d7825c840491d10ea1d5260.svg "Repobeats analytics image")
 
 ## Overview
-Stof is a unified data format that works seamlessly with other formats to bridge the gap between static data and programmable documents.
+A unified data-logic format that works seamlessly with other formats to bridge the gap between static data and programmable documents.
 
-It is based on an "Everything as Data" model, in which fields, functions, PDFs, images, binaries, or any other type of data are neatly combined, while keeping single-document simplicity and portability.
+Based on an "Everything as Data" approach, in which fields, functions, PDFs, images, binaries, or any other type of data are neatly combined, while keeping single-document simplicity and portability.
 
 This provides many benefits:
 - Write data once, use it everywhere, in any format
 - Sandboxed logic + execution in your data (as data)
 - Send functions over APIs
 - Doesn't need a large ecosystem to work
-- Format-agnostic (JSON, YAML, TOML, PDF, binary, etc.)
+- Format-agnostic (works with JSON, YAML, TOML, PDF, binaries, etc.)
 
 ### Example Use-Cases
 - Smart configs with validation and logic
@@ -97,9 +99,9 @@ fn self_destruction() -> bool {
 See [installation docs](https://docs.stof.dev/book/installation) for CLI instructions and more information.
 
 ## Embedded Stof
-Stof is written in Rust, but is meant to be used wherever you work.
+Stof is written in Rust, and is meant to be used wherever you work.
 
-Python bindings are planned. Message on Discord and get involved (seeking contributors).
+Python & other language bindings are planned. Join the Discord to get involved.
 
 ### Rust
 ``` toml
