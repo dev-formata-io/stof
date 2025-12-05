@@ -94,9 +94,9 @@ export interface InitOutput {
   readonly stof_binaryImport: (a: number, b: any, c: number, d: number, e: any) => [number, number, number];
   readonly stof_stringExport: (a: number, b: number, c: number, d: any) => [number, number, number, number];
   readonly stof_binaryExport: (a: number, b: number, c: number, d: any) => [number, number, number];
-  readonly wasm_bindgen__convert__closures_____invoke__hb412c638671832f9: (a: number, b: number, c: any) => void;
-  readonly wasm_bindgen__closure__destroy__h1b5a700f8d9cbaa0: (a: number, b: number) => void;
-  readonly wasm_bindgen__convert__closures_____invoke__hea9610c163cbdb60: (a: number, b: number, c: any, d: any) => void;
+  readonly wasm_bindgen__convert__closures_____invoke__h5cc354a922c53cd4: (a: number, b: number, c: any) => void;
+  readonly wasm_bindgen__closure__destroy__h6908298c6a085bb3: (a: number, b: number) => void;
+  readonly wasm_bindgen__convert__closures_____invoke__h0aea42334d1eb547: (a: number, b: number, c: any, d: any) => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_exn_store: (a: number) => void;

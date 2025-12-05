@@ -28,15 +28,23 @@ A unified data-logic format that works seamlessly with other formats to bridge t
 
 Based on an "Everything as Data" approach, in which fields, functions, PDFs, images, binaries, or any other type of data are neatly combined, while keeping single-document simplicity and portability.
 
-This provides many benefits:
+### Benefits
 - Write data once, use it everywhere, in any format
 - Sandboxed logic + execution in your data (as data)
 - Send functions over APIs
 - Doesn't need a large ecosystem to work
 - Format-agnostic (works with JSON, YAML, TOML, PDF, binaries, etc.)
 
+### Exploration
+- Practical code mobility at scale with modern type systems
+- Security models for distributed computation-as-data
+- Performance characteristics of serializable computation vs traditional RPC
+- Formal semantics for "code as data" in distributed systems
+- Edge computing, data pipelines, and collaborative systems
+
 ### Example Use-Cases
 - Smart configs with validation and logic
+- Data interchange with sandboxed execution
 - Prompts as human readable & maintainable data + code
 - AI/LLM workflows and model configs
 - Data pipelines with built-in processing

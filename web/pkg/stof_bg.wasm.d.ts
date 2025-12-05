@@ -17,9 +17,9 @@ export const stof_stringImport: (a: number, b: number, c: number, d: number, e: 
 export const stof_binaryImport: (a: number, b: any, c: number, d: number, e: any) => [number, number, number];
 export const stof_stringExport: (a: number, b: number, c: number, d: any) => [number, number, number, number];
 export const stof_binaryExport: (a: number, b: number, c: number, d: any) => [number, number, number];
-export const wasm_bindgen__convert__closures_____invoke__hb412c638671832f9: (a: number, b: number, c: any) => void;
-export const wasm_bindgen__closure__destroy__h1b5a700f8d9cbaa0: (a: number, b: number) => void;
-export const wasm_bindgen__convert__closures_____invoke__hea9610c163cbdb60: (a: number, b: number, c: any, d: any) => void;
+export const wasm_bindgen__convert__closures_____invoke__h5cc354a922c53cd4: (a: number, b: number, c: any) => void;
+export const wasm_bindgen__closure__destroy__h6908298c6a085bb3: (a: number, b: number) => void;
+export const wasm_bindgen__convert__closures_____invoke__h0aea42334d1eb547: (a: number, b: number, c: any, d: any) => void;
 export const __wbindgen_malloc: (a: number, b: number) => number;
 export const __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
 export const __wbindgen_exn_store: (a: number) => void;

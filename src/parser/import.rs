@@ -16,12 +16,63 @@
 
 use colored::Colorize;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, recognize}, multi::separated_list1, sequence::{delimited, preceded}, IResult, Parser};
-use crate::{model::{SELF_KEYWORD, SUPER_KEYWORD}, parser::{context::ParseContext, doc::StofParseError, ident::ident, string::{double_string, single_string}, whitespace::whitespace}};
+use crate::{model::{SELF_KEYWORD, SUPER_KEYWORD}, parser::{context::ParseContext, doc::StofParseError, ident::ident, parse_attributes, string::{double_string, single_string}, whitespace::whitespace}, runtime::Val};
 
 
 /// Parse an import statement into a graph.
 pub fn import<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, (), StofParseError> {
+    // Conditional imports via attributes
+    let mut do_import = true;
+    let (input, attrs) = parse_attributes(input, context)?;
+    for (k, v) in attrs {
+        match k.as_str() {
+            "if" => {
+                do_import = v.truthy();
+            },
+            "not" => {
+                do_import = !v.truthy();
+            },
+            "any" => {
+                match v {
+                    Val::List(vals) => {
+                        for v in vals {
+                            if v.read().truthy() {
+                                do_import = true;
+                                break;
+                            }
+                        }
+                    },
+                    Val::Set(set) => {
+                        for v in set {
+                            if v.read().truthy() {
+                                do_import = true;
+                                break;
+                            }
+                        }
+                    },
+                    Val::Tup(vals) => {
+                        for v in vals {
+                            if v.read().truthy() {
+                                do_import = true;
+                                break;
+                            }
+                        }
+                    },
+                    v => {
+                        do_import = v.truthy();
+                    }
+                }
+            },
+            _ => {
+                // Nada..
+            }
+        }
+    }
+
     let (input, (format, path, scope)) = parse_import(input)?;
+    if !do_import {
+        return Ok((input, ()));
+    }
 
     let mut start = None;
     if scope.starts_with(SELF_KEYWORD.as_ref()) || scope.starts_with(SUPER_KEYWORD.as_ref()) {

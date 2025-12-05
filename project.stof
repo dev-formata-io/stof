@@ -57,6 +57,7 @@ Cargo cargo: {
         /// should be the only feature enabled when building for the wasm target
         js: [
             'stof_std',
+            'age_encrypt',
             'dep:js-sys',
             'dep:wasm-bindgen',
             'dep:serde-wasm-bindgen',
@@ -145,6 +146,7 @@ Cargo cargo: {
         age: {
             version: 0.11.1
             optional: true
+            features: ['web-sys'] // use web_sys::SystemTime when wasm target
         }
         log: {
             version: 0.4.28
@@ -245,7 +247,7 @@ github: {
 /// Generate Cargo.toml file.
 /// `stof run project.stof -a cargo`
 async fn generate_cargo_toml() {
-    const out = await Rust.Cargo.generate(self.cargo, 0.8.59, update = false);
+    const out = await Rust.Cargo.generate(self.cargo, 0.8.60, update = false);
     fs.write('Cargo.toml', out);
     pln('Cargo .. ok');
 }

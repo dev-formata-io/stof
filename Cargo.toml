@@ -17,6 +17,7 @@ typetag = "0.2.20"
 urlencoding = "2.1.3"
 
 [dependencies.age]
+features = ["web-sys"]
 optional = true
 version = "0.11.1"
 
@@ -126,7 +127,7 @@ docx = ["dep:docx-rs"]
 full = ["stof_std", "system", "pkg", "log", "image", "docx", "pdf", "http", "tokio", "age_encrypt"]
 http = ["dep:reqwest"]
 image = ["dep:image"]
-js = ["stof_std", "dep:js-sys", "dep:wasm-bindgen", "dep:serde-wasm-bindgen", "dep:getrandom", "dep:wasm-bindgen-futures", "dep:web-sys", "dep:console_error_panic_hook"]
+js = ["stof_std", "age_encrypt", "dep:js-sys", "dep:wasm-bindgen", "dep:serde-wasm-bindgen", "dep:getrandom", "dep:wasm-bindgen-futures", "dep:web-sys", "dep:console_error_panic_hook"]
 log = ["dep:log"]
 pdf = ["dep:lopdf", "image"]
 pkg = ["dep:zip", "dep:regex", "dep:walkdir"]
@@ -149,4 +150,4 @@ keywords = ["format", "runtime", "async", "validation", "embedded"]
 license = "Apache-2.0"
 name = "stof"
 repository = "https://github.com/dev-formata-io/stof"
-version = "0.8.59"
+version = "0.8.60"

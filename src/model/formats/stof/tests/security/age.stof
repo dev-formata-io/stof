@@ -1,0 +1,76 @@
+//
+// Copyright 2024 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+/*!
+ * Practical example of distributed & embedded Age encryption for sensitive data.
+ *
+ * This technique is useful when you have a portion of a Stof document that you want to encrypt
+ * before sending to someone else.
+ *
+ * The result of Age.blobify is a normal blob (Uint8Array | Vec<u8>) that can be sent either stand alone
+ * or within another format (Stof, TOML, JSON, YAML, etc.). However, it is encrypted using the recipients
+ * public Age key(s), so only they can decrypt the blob for further use.
+ *
+ * Reminder: Std.blobify for string formats results in a UTF-8 encoded blob. This blob would then be encrypted
+ * with Age in Age.blobify.
+ *
+ * What's cool, is that this entire process & API can be contained within Stof documents, which can be embedded
+ * and used for new open protocols and numerous applications.
+ */
+
+
+/// Receiver in real life will most likely be a distributed system.
+/// Public keys could come from DB, HTTP, etc.
+///
+/// N.B: Distributed requests in 'bstf' format could contain the entire Age component.
+/// Although there is no lib way to get the private key, you can avoid this by only constructing
+/// payloads with public keys when requesting an embedded encrypted response.
+Receiver: {
+    #[private]
+    passport: Age.generate()
+
+    fn key() -> str {
+        self.passport.public()
+    }
+
+    fn receive(encrypted: blob) -> str {
+        const dest = new {};
+        Age.parse(self.passport, encrypted, dest, 'bstf');
+        ?dest.speak();
+        dest.message ?? 'none'
+    }
+}
+
+
+#[test]
+fn sending_sensitive() {
+    // Create a binary blob of encrypted data that only the receiver can use
+    const encrypted: blob = {
+        // Create the payload, including Stof functions/APIs
+        const payload = new { message: 'hey there, this is secret' };
+        parse(r#"fn speak() { pln('Speaking: ', self.message); }"#, payload, 'stof');
+
+        // Can use one or more receivers Data<Age> or str public keys (list for multiple)
+        const res = Age.blobify(self.Receiver.key(), 'bstf', payload);
+        drop(payload);
+        res
+    };
+
+    // Now have the receiver do what it wants with it
+    const msg = self.Receiver.receive(encrypted);
+    assert_eq(msg, 'hey there, this is secret');
+}
