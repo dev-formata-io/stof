@@ -33,44 +33,84 @@
  */
 
 
-/// Receiver in real life will most likely be a distributed system.
-/// Public keys could come from DB, HTTP, etc.
-///
-/// N.B: Distributed requests in 'bstf' format could contain the entire Age component.
-/// Although there is no lib way to get the private key, you can avoid this by only constructing
-/// payloads with public keys when requesting an embedded encrypted response.
-Receiver: {
-    #[private]
-    passport: Age.generate()
+/**
+ * Passphrase based encryption using scrypt and age.
+ * Keep in mind the ~1s KDF function for both encrypt and decrypt.
+ *
+ * Recipient-based encryption is preferred.
+ */
+Passphrase: {
+    /// secret passphrase for encrypt/decrypt
+    const str passphrase: 'stof is pretty darn cool'
 
-    fn key() -> str {
-        self.passport.public()
+    #[test]
+    fn send_encrypted() {
+        // Create a binary blob of encrypted data
+        const encrypted: blob = {
+            // Create the payload, including Stof functions/APIs
+            const payload = new { message: 'hey there, this is secret' };
+            parse(r#"fn speak() { pln('Speaking: ', self.message); }"#, payload, 'stof');
+
+            // Encrypt with a passphrase
+            const res = Age.pass_blobify(self.passphrase, 'bstf', payload);
+            drop(payload);
+            res
+        };
+
+        // Now have the receiver do what it wants with it
+        const msg = self.receive(encrypted);
+        assert_eq(msg, 'hey there, this is secret');
     }
 
     fn receive(encrypted: blob) -> str {
         const dest = new {};
-        Age.parse(self.passport, encrypted, dest, 'bstf');
+        Age.pass_parse(self.passphrase, encrypted, dest, 'bstf');
         ?dest.speak();
         dest.message ?? 'none'
     }
 }
 
 
-#[test]
-fn sending_sensitive() {
-    // Create a binary blob of encrypted data that only the receiver can use
-    const encrypted: blob = {
-        // Create the payload, including Stof functions/APIs
-        const payload = new { message: 'hey there, this is secret' };
-        parse(r#"fn speak() { pln('Speaking: ', self.message); }"#, payload, 'stof');
+PublicPrivateRecipient: {
+    /// Receiver in real life will most likely be a distributed system.
+    /// Public keys could come from DB, HTTP, etc.
+    ///
+    /// N.B: Distributed requests in 'bstf' format could contain the entire Age component.
+    /// Although there is no lib way to get the private key, you can avoid this by only constructing
+    /// payloads with public keys when requesting an embedded encrypted response.
+    Receiver: {
+        #[private]
+        passport: Age.generate()
 
-        // Can use one or more receivers Data<Age> or str public keys (list for multiple)
-        const res = Age.blobify(self.Receiver.key(), 'bstf', payload);
-        drop(payload);
-        res
-    };
+        fn key() -> str {
+            self.passport.public()
+        }
 
-    // Now have the receiver do what it wants with it
-    const msg = self.Receiver.receive(encrypted);
-    assert_eq(msg, 'hey there, this is secret');
+        fn receive(encrypted: blob) -> str {
+            const dest = new {};
+            Age.parse(self.passport, encrypted, dest, 'bstf');
+            ?dest.speak();
+            dest.message ?? 'none'
+        }
+    }
+
+
+    #[test]
+    fn sending_sensitive() {
+        // Create a binary blob of encrypted data that only the receiver can use
+        const encrypted: blob = {
+            // Create the payload, including Stof functions/APIs
+            const payload = new { message: 'hey there, this is secret' };
+            parse(r#"fn speak() { pln('Speaking: ', self.message); }"#, payload, 'stof');
+
+            // Can use one or more receivers Data<Age> or str public keys (list for multiple)
+            const res = Age.blobify(self.Receiver.key(), 'bstf', payload);
+            drop(payload);
+            res
+        };
+
+        // Now have the receiver do what it wants with it
+        const msg = self.Receiver.receive(encrypted);
+        assert_eq(msg, 'hey there, this is secret');
+    }
 }
