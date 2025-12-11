@@ -9,9 +9,7 @@ lazy_static = "1.5.0"
 nanoid = "0.4.0"
 nom = "8.0.0"
 rustc-hash = "2.1.1"
-serde_json = "1.0.145"
 serde_yaml = "0.9.34"
-toml = "0.9.8"
 typetag = "0.2.21"
 urlencoding = "2.1.3"
 
@@ -92,10 +90,18 @@ version = "1.0.228"
 optional = true
 version = "0.6.5"
 
+[dependencies.serde_json]
+features = ["preserve_order"]
+version = "1.0.145"
+
 [dependencies.tokio]
 features = ["full"]
 optional = true
 version = "1.48.0"
+
+[dependencies.toml]
+features = ["preserve_order"]
+version = "0.9.8"
 
 [dependencies.walkdir]
 optional = true

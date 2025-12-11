@@ -120,7 +120,7 @@ Prototypes: {
 Index: {
     const object: {
         first: 'a'
-        ordered: true
+        ordered: { sub: true }
         second: 'b'
         third: 'c'
         fourth: 'd'
@@ -135,11 +135,12 @@ Index: {
     #[test]
     fn iter() {
         let res = '';
+        assert_eq(self.object.len(), 5);
         for (const field in self.object) {
             if (first) res += str(field);
             else res += str(', ', field);
         }
-        assert_eq(res, '("first", "a"), ("ordered", true), ("second", "b"), ("third", "c"), ("fourth", "d")');
+        assert_eq(res, '("first", "a"), ("ordered", {"sub":true}), ("second", "b"), ("third", "c"), ("fourth", "d")');
     }
 
     const obj_for_ref: {

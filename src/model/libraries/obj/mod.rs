@@ -417,8 +417,8 @@ impl Instruction for ObjIns {
             Self::Len => {
                 if let Some(var) = env.stack.pop() {
                     if let Some(obj) = var.try_obj() {
-                        let fields = Field::fields(graph, &obj);
-                        env.stack.push(Variable::val(Val::Num(Num::Int(fields.len() as i64))));
+                        let len = Field::fields_len(&graph, &obj);
+                        env.stack.push(Variable::val(Val::Num(Num::Int(len))));
                         return Ok(None);
                     }
                 }
