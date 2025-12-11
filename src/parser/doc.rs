@@ -311,7 +311,7 @@ mod tests {
     fn basic_doc() {
         let mut graph = Graph::default();
         {
-            let mut context = ParseContext::new(&mut graph, Profile::debug());
+            let mut context = ParseContext::new(&mut graph, Profile::docs(true));
             document(r#"
 
             {

@@ -792,7 +792,8 @@ impl Instruction for StdIns {
                                 let profile = match profile_var.val.read().to_string().as_str() {
                                     "test" => Profile::test(),
                                     "prod" => Profile::prod(),
-                                    "debug" => Profile::debug(),
+                                    "prod_docs" => Profile::docs(false),
+                                    "docs" => Profile::docs(true),
                                     _ => Profile::default(),
                                 };
 

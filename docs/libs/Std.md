@@ -271,6 +271,14 @@ pln("hello, world");
 ```
 
 
+# Std.prof(name: str) -> bool
+Is/was this graph parsed last with the given profile name?
+```rust
+// is the current profile named "test"?
+const test = prof('test');
+```
+
+
 # Std.prompt(text: str = '', tag?: str) -> prompt
 A helper function to create a prompt.
 ```rust

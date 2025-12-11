@@ -50,14 +50,14 @@ impl Profile {
         }
     }
 
-    /// Debug profile.
-    /// Prod, but with debug info & docs.
-    pub fn debug() -> Self {
+    /// Docs profile.
+    /// No debug info, optional tests, but include docs.
+    pub fn docs(tests: bool) -> Self {
         let mut exclude_attributes = FxHashSet::default();
-        exclude_attributes.insert("test".into());
+        if !tests { exclude_attributes.insert("test".into()); }
         Self {
-            name: "debug".to_string(),
-            debug_info: true,
+            name: "docs".to_string(),
+            debug_info: false,
             docs: true,
             exclude_attributes,
         }

@@ -256,7 +256,7 @@ mod tests {
     fn basic_field() {
         let mut graph = Graph::default();
         {
-            let mut context = ParseContext::new(&mut graph, Profile::debug());
+            let mut context = ParseContext::new(&mut graph, Profile::docs(true));
             let (_input, ()) = parse_field(r#"
     
             // This is an ignored comment

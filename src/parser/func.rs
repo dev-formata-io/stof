@@ -137,7 +137,7 @@ mod tests {
     fn basic_func() {
         let mut graph = Graph::default();
         {
-            let mut context = ParseContext::new(&mut graph, Profile::debug());
+            let mut context = ParseContext::new(&mut graph, Profile::docs(true));
             let (_input, ()) = parse_function(r#"
     
             // This is an ignored comment
