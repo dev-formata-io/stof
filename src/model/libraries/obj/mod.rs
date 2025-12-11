@@ -431,7 +431,7 @@ impl Instruction for ObjIns {
                             match index_var.val.read().deref() {
                                 Val::Num(num) => {
                                     let index = num.int() as usize;
-                                    if let Some((name, field_ref)) = Field::fields(graph, &obj).into_iter().nth(index) {
+                                    if let Some((name, field_ref)) = Field::fields_at(graph, &obj, index) {
                                         if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
                                             env.stack.push(Variable::val(Val::Tup(vector![ValRef::new(Val::Str(name.into())), field.value.val.duplicate(false)])));
                                         } else {
@@ -456,7 +456,7 @@ impl Instruction for ObjIns {
                             match index_var.val.read().deref() {
                                 Val::Num(num) => {
                                     let index = num.int() as usize;
-                                    if let Some((name, field_ref)) = Field::fields(graph, &obj).into_iter().nth(index) {
+                                    if let Some((name, field_ref)) = Field::fields_at(graph, &obj, index) {
                                         if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
                                             env.stack.push(Variable::val(Val::Tup(vector![ValRef::new(Val::Str(name.into())), field.value.val.duplicate(true)])));
                                         } else {

@@ -240,6 +240,51 @@ impl Field {
         }
         len
     }
+
+    /// Fields at index.
+    pub fn fields_at(graph: &mut Graph, node: &NodeRef, index: usize) -> Option<(String, DataRef)> {
+        let mut current = 0;
+        let mut seen_names = FxHashSet::default();
+        let mut to_create = Vec::new();
+
+        if let Some(node) = node.node(&graph) {
+            for (name, dref) in &node.data {
+                if let Some(field) = graph.get_stof_data::<Self>(dref) {
+                    if !field.value.dangling_obj(graph) {
+                        if current == index {
+                            return Some((name.clone(), dref.clone()));
+                        }
+                        current += 1;
+                        seen_names.insert(name.as_str());
+                    }
+                }
+            }
+
+            for child in &node.children {
+                if let Some(child) = child.node(&graph) {
+                    if child.is_field() && !seen_names.contains(child.name.as_ref()) {
+                        let mut attrs = child.attributes.clone();
+                        attrs.insert(NOEXPORT_FIELD_ATTR.to_string(), Val::Null); // don't export these lazily created fields
+                        let var = Variable::new(graph, true, Val::Obj(child.id.clone()), false);
+                        to_create.push((child.name.clone(), Self::new(var, Some(attrs))));
+                    }
+                }
+            }
+        }
+
+        let mut res = None;
+        for (name, field) in to_create {
+            if let Some(dref) = graph.insert_stof_data(node, name.clone(), Box::new(field), None) {
+                if current == index {
+                    if res.is_none() { res = Some((name.to_string(), dref)); }
+                } else {
+                    current += 1;
+                }
+            }
+        }
+        
+        res
+    }
     
     /// Get all fields on a node.
     /// Will create object fields as needed.
