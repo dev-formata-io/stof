@@ -14,8 +14,8 @@
 // limitations under the License.
 //
 
-use std::collections::BTreeMap;
 use arcstr::{literal, ArcStr};
+use indexmap::IndexMap;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use crate::{model::{DataRef, Graph, NodeRef, SPath, StofData, SELF_KEYWORD, SUPER_KEYWORD}, runtime::{Val, Variable}};
@@ -217,8 +217,8 @@ impl Field {
 
     /// Get all fields on a node.
     /// Will create object fields as needed.
-    pub fn fields(graph: &mut Graph, node: &NodeRef) -> BTreeMap<String, DataRef> {
-        let mut fields = BTreeMap::default();
+    pub fn fields(graph: &mut Graph, node: &NodeRef) -> IndexMap<String, DataRef> {
+        let mut fields = IndexMap::default();
         let mut to_create = Vec::new();
 
         if let Some(node) = node.node(&graph) {

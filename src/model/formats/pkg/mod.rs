@@ -15,12 +15,11 @@
 //
 
 use std::{collections::HashSet, fs::{self, File}, io::{self, Read, Seek, Write}, path::{Path, PathBuf}};
-use anyhow::Context;
 use bytes::Bytes;
 use nanoid::nanoid;
 use regex::Regex;
 use walkdir::{DirEntry, WalkDir};
-use zip::write::SimpleFileOptions;
+use zip::{result::ZipResult, write::SimpleFileOptions};
 use crate::{model::{Field, Format, Graph, NodeRef, SELF_KEYWORD, SUPER_KEYWORD}, parser::context::ParseContext, runtime::{Error, Val}};
 
 
@@ -77,7 +76,7 @@ impl StofPackageFormat {
     }
 
     /// Zip the directory into an output file.
-    fn zip_directory<T: Write + Seek>(iter: &mut dyn Iterator<Item = DirEntry>, prefix: &str, writer: T, method: zip::CompressionMethod, included: &HashSet<String>, excluded: &HashSet<String>) -> anyhow::Result<()> {
+    fn zip_directory<T: Write + Seek>(iter: &mut dyn Iterator<Item = DirEntry>, prefix: &str, writer: T, method: zip::CompressionMethod, included: &HashSet<String>, excluded: &HashSet<String>) -> ZipResult<()> {
         let mut zip = zip::ZipWriter::new(writer);
         let options = SimpleFileOptions::default().compression_method(method).unix_permissions(0o755);
 
@@ -89,7 +88,7 @@ impl StofPackageFormat {
             let path_as_string = name
                 .to_str()
                 .map(str::to_owned)
-                .with_context(|| format!("{name:?} Is a Non UTF-8 Path"))?;
+                .unwrap();
             
             if included.len() > 0 {
                 let mut found_match = false;

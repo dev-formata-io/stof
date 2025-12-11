@@ -1,25 +1,24 @@
 # AUTO-GENERATED WITH STOF.
 # RUN "stof run project.stof" TO REGENERATE.
 [dependencies]
-anyhow = "1.0.99"
 base64 = "0.22.1"
 bincode = "1.3.3"
-chrono = "0.4.41"
+chrono = "0.4.42"
 colored = "3.0.0"
 lazy_static = "1.5.0"
 nanoid = "0.4.0"
 nom = "8.0.0"
 rustc-hash = "2.1.1"
-serde_json = "1.0.143"
+serde_json = "1.0.145"
 serde_yaml = "0.9.34"
-toml = "0.9.5"
-typetag = "0.2.20"
+toml = "0.9.8"
+typetag = "0.2.21"
 urlencoding = "2.1.3"
 
 [dependencies.age]
 features = ["web-sys"]
 optional = true
-version = "0.11.1"
+version = "0.11.2"
 
 [dependencies.arcstr]
 features = ["serde"]
@@ -27,11 +26,11 @@ version = "1.2.0"
 
 [dependencies.bytes]
 features = ["serde"]
-version = "1.10.1"
+version = "1.11.0"
 
 [dependencies.console_error_panic_hook]
 optional = true
-version = "0.1.2"
+version = "0.1.7"
 
 [dependencies.docx-rs]
 optional = true
@@ -49,15 +48,19 @@ version = "0.25.6"
 
 [dependencies.imbl]
 features = ["serde", "triomphe"]
-version = "6.0.0"
+version = "6.1.0"
+
+[dependencies.indexmap]
+features = ["serde"]
+version = "2.12.1"
 
 [dependencies.js-sys]
 optional = true
-version = "0.3.78"
+version = "0.3.83"
 
 [dependencies.log]
 optional = true
-version = "0.4.28"
+version = "0.4.29"
 
 [dependencies.lopdf]
 features = ["serde"]
@@ -70,20 +73,20 @@ version = "1.0.0"
 
 [dependencies.parking_lot]
 features = ["serde"]
-version = "0.12.4"
+version = "0.12.5"
 
 [dependencies.regex]
 optional = true
-version = "1.11.2"
+version = "1.12.2"
 
 [dependencies.reqwest]
 features = ["blocking"]
 optional = true
-version = "0.12.23"
+version = "0.12.25"
 
 [dependencies.serde]
 features = ["derive", "rc"]
-version = "1.0.219"
+version = "1.0.228"
 
 [dependencies.serde-wasm-bindgen]
 optional = true
@@ -92,7 +95,7 @@ version = "0.6.5"
 [dependencies.tokio]
 features = ["full"]
 optional = true
-version = "1.47.1"
+version = "1.48.0"
 
 [dependencies.walkdir]
 optional = true
@@ -100,16 +103,16 @@ version = "2.5.0"
 
 [dependencies.wasm-bindgen]
 optional = true
-version = "0.2.100"
+version = "0.2.106"
 
 [dependencies.wasm-bindgen-futures]
 optional = true
-version = "0.4.51"
+version = "0.4.56"
 
 [dependencies.web-sys]
 features = ["console", "Window"]
 optional = true
-version = "0.3.82"
+version = "0.3.83"
 
 [dependencies.web-time]
 features = ["serde"]
@@ -150,4 +153,4 @@ keywords = ["format", "runtime", "async", "validation", "embedded"]
 license = "Apache-2.0"
 name = "stof"
 repository = "https://github.com/dev-formata-io/stof"
-version = "0.8.62"
+version = "0.9.0"

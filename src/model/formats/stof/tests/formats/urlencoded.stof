@@ -36,7 +36,7 @@ fn stringify_nested() {
         msg: 'hi'
     };
     const encoded = stringify('urlencoded', object);
-    assert_eq(encoded, 'msg=hi&sub%5Bval%5D=42');
+    assert_eq(encoded, 'sub%5Bval%5D=42&msg=hi');
     drop(object);
 }
 

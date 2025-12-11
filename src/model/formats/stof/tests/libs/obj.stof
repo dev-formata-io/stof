@@ -120,6 +120,7 @@ Prototypes: {
 Index: {
     const object: {
         first: 'a'
+        ordered: true
         second: 'b'
         third: 'c'
         fourth: 'd'
@@ -138,7 +139,7 @@ Index: {
             if (first) res += str(field);
             else res += str(', ', field);
         }
-        assert_eq(res, '("first", "a"), ("fourth", "d"), ("second", "b"), ("third", "c")');
+        assert_eq(res, '("first", "a"), ("ordered", true), ("second", "b"), ("third", "c"), ("fourth", "d")');
     }
 
     const obj_for_ref: {

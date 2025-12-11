@@ -610,6 +610,7 @@ impl Runtime {
         !self.running.is_empty() || !self.sleeping.is_empty()
     }
 
+    #[allow(unused)]
     #[cfg(any(feature = "js", feature = "tokio"))]
     /// Single step async.
     pub async fn async_single_step(&mut self, graph: &mut Graph, yield_to_outer: bool) -> bool {

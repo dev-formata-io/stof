@@ -101,7 +101,7 @@ Std.blobify, but with age public-key recipients. The resulting blob can only be 
         library: AGE_LIB.clone(),
         name: "pass_blobify".into(),
         is_async: false,
-        docs: r#"# Age.blobify(passphrase: str, format: str = 'stof', context?: obj) -> blob
+        docs: r#"# Age.pass_blobify(passphrase: str, format: str = 'stof', context?: obj) -> blob
 Std.blobify, but with an age passphrase recipient. The resulting blob can only be parsed with the provided passphrase.
 "#.into(),
         params: vector![

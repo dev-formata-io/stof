@@ -758,11 +758,13 @@ impl Graph {
         for nref in nodes {
             let mut replaced = None;
             if let Some(node) = nref.node_mut(self) {
-                node.data.remove(old_name.as_ref());
-                if let Some(old) = node.add_data(new_name.to_string(), data.clone()) {
-                    if &old != data {
-                        replaced = Some(old);
+                if let Some(index) = node.data.get_index_of(old_name.as_ref()) {
+                    if let Some(replaced_val) = node.data.shift_remove(new_name.as_ref()) {
+                        if &replaced_val != data {
+                            replaced = Some(replaced_val);
+                        }
                     }
+                    let _ = node.data.replace_index(index, new_name.to_string());
                 }
             }
             if let Some(old) = replaced {
