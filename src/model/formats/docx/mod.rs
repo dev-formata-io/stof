@@ -16,7 +16,7 @@
 
 use bytes::Bytes;
 use docx_rs::read_docx;
-use crate::{model::{import::parse_json_object_value, Format, Graph, NodeRef}, runtime::Error};
+use crate::{model::{Format, Graph, NodeRef, Profile, import::parse_json_object_value}, runtime::Error};
 
 
 #[derive(Debug)]
@@ -28,7 +28,7 @@ impl Format for DocxFormat {
     fn content_type(&self) -> String {
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document".to_string()
     }
-    fn binary_import(&self, graph: &mut Graph, _format: &str, bytes: Bytes, node: Option<NodeRef>) -> Result<(), Error> {
+    fn binary_import(&self, graph: &mut Graph, _format: &str, bytes: Bytes, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
         match read_docx(&bytes) {
             Ok(doc) => {
                 match serde_json::to_value(doc) {
@@ -58,7 +58,7 @@ impl Format for DocxFormat {
                                 }
                             }
 
-                        "#, Some(parse_node))?;
+                        "#, Some(parse_node), profile)?;
 
                         Ok(())
                     },

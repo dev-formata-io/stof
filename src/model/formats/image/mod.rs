@@ -15,7 +15,7 @@
 //
 
 use std::{ops::Deref, sync::Arc};
-use crate::{model::{Field, Format, Graph, NodeRef}, runtime::{Error, Val, Variable}};
+use crate::{model::{Field, Format, Graph, NodeRef, Profile}, runtime::{Error, Val, Variable}};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 
 mod image;
@@ -38,7 +38,7 @@ pub fn load_image_formats(graph: &mut Graph) {
 
 
 trait ImageFormat {
-    fn img_binary_import(&self, graph: &mut Graph, _format: &str, bytes: bytes::Bytes, node: Option<NodeRef>) -> Result<(), Error> {
+    fn img_binary_import(&self, graph: &mut Graph, _format: &str, bytes: bytes::Bytes, node: Option<NodeRef>, _profile: &Profile) -> Result<(), Error> {
         match Image::from_bytes(bytes.to_vec()) {
             Ok(image) => {
                 let mut parse_node = graph.ensure_main_root();
@@ -103,10 +103,10 @@ trait ImageFormat {
         Ok(STANDARD.encode(&bytes))
     }
 
-    fn img_string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
+    fn img_string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
         match STANDARD.decode(src) {
             Ok(bytes) => {
-                self.img_binary_import(graph, format, bytes::Bytes::from(bytes), node)
+                self.img_binary_import(graph, format, bytes::Bytes::from(bytes), node, profile)
             },
             Err(error) => {
                 Err(Error::ImageImport(error.to_string()))
@@ -125,14 +125,14 @@ impl Format for PngFormat {
     fn content_type(&self) -> String {
         "image/png".into()
     }
-    fn binary_import(&self, graph: &mut Graph, format: &str, bytes: bytes::Bytes, node: Option<NodeRef>) -> Result<(), Error> {
-       self.img_binary_import(graph, format, bytes, node)
+    fn binary_import(&self, graph: &mut Graph, format: &str, bytes: bytes::Bytes, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
+       self.img_binary_import(graph, format, bytes, node, profile)
     }
     fn binary_export(&self, graph: &Graph, format: &str, node: Option<NodeRef>) -> Result<bytes::Bytes, Error> {
         self.img_binary_export(graph, format, node)
     }
-    fn string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
-        self.img_string_import(graph, format, src, node)
+    fn string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
+        self.img_string_import(graph, format, src, node, profile)
     }
     fn string_export(&self, graph: &Graph, format: &str, node: Option<NodeRef>) -> Result<String, Error> {
         self.img_string_export(graph, format, node)
@@ -149,14 +149,14 @@ impl Format for JpegFormat {
     fn content_type(&self) -> String {
         "image/jpeg".into()
     }
-    fn binary_import(&self, graph: &mut Graph, format: &str, bytes: bytes::Bytes, node: Option<NodeRef>) -> Result<(), Error> {
-       self.img_binary_import(graph, format, bytes, node)
+    fn binary_import(&self, graph: &mut Graph, format: &str, bytes: bytes::Bytes, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
+       self.img_binary_import(graph, format, bytes, node, profile)
     }
     fn binary_export(&self, graph: &Graph, format: &str, node: Option<NodeRef>) -> Result<bytes::Bytes, Error> {
         self.img_binary_export(graph, format, node)
     }
-    fn string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
-        self.img_string_import(graph, format, src, node)
+    fn string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
+        self.img_string_import(graph, format, src, node, profile)
     }
     fn string_export(&self, graph: &Graph, format: &str, node: Option<NodeRef>) -> Result<String, Error> {
         self.img_string_export(graph, format, node)
@@ -173,14 +173,14 @@ impl Format for GifFormat {
     fn content_type(&self) -> String {
         "image/gif".into()
     }
-    fn binary_import(&self, graph: &mut Graph, format: &str, bytes: bytes::Bytes, node: Option<NodeRef>) -> Result<(), Error> {
-       self.img_binary_import(graph, format, bytes, node)
+    fn binary_import(&self, graph: &mut Graph, format: &str, bytes: bytes::Bytes, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
+       self.img_binary_import(graph, format, bytes, node, profile)
     }
     fn binary_export(&self, graph: &Graph, format: &str, node: Option<NodeRef>) -> Result<bytes::Bytes, Error> {
         self.img_binary_export(graph, format, node)
     }
-    fn string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
-        self.img_string_import(graph, format, src, node)
+    fn string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
+        self.img_string_import(graph, format, src, node, profile)
     }
     fn string_export(&self, graph: &Graph, format: &str, node: Option<NodeRef>) -> Result<String, Error> {
         self.img_string_export(graph, format, node)
@@ -197,14 +197,14 @@ impl Format for WebpFormat {
     fn content_type(&self) -> String {
         "image/webp".into()
     }
-    fn binary_import(&self, graph: &mut Graph, format: &str, bytes: bytes::Bytes, node: Option<NodeRef>) -> Result<(), Error> {
-       self.img_binary_import(graph, format, bytes, node)
+    fn binary_import(&self, graph: &mut Graph, format: &str, bytes: bytes::Bytes, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
+       self.img_binary_import(graph, format, bytes, node, profile)
     }
     fn binary_export(&self, graph: &Graph, format: &str, node: Option<NodeRef>) -> Result<bytes::Bytes, Error> {
         self.img_binary_export(graph, format, node)
     }
-    fn string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
-        self.img_string_import(graph, format, src, node)
+    fn string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
+        self.img_string_import(graph, format, src, node, profile)
     }
     fn string_export(&self, graph: &Graph, format: &str, node: Option<NodeRef>) -> Result<String, Error> {
         self.img_string_export(graph, format, node)
@@ -221,14 +221,14 @@ impl Format for TiffFormat {
     fn content_type(&self) -> String {
         "image/tiff".into()
     }
-    fn binary_import(&self, graph: &mut Graph, format: &str, bytes: bytes::Bytes, node: Option<NodeRef>) -> Result<(), Error> {
-       self.img_binary_import(graph, format, bytes, node)
+    fn binary_import(&self, graph: &mut Graph, format: &str, bytes: bytes::Bytes, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
+       self.img_binary_import(graph, format, bytes, node, profile)
     }
     fn binary_export(&self, graph: &Graph, format: &str, node: Option<NodeRef>) -> Result<bytes::Bytes, Error> {
         self.img_binary_export(graph, format, node)
     }
-    fn string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
-        self.img_string_import(graph, format, src, node)
+    fn string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
+        self.img_string_import(graph, format, src, node, profile)
     }
     fn string_export(&self, graph: &Graph, format: &str, node: Option<NodeRef>) -> Result<String, Error> {
         self.img_string_export(graph, format, node)
@@ -245,14 +245,14 @@ impl Format for BmpFormat {
     fn content_type(&self) -> String {
         "image/bmp".into()
     }
-    fn binary_import(&self, graph: &mut Graph, format: &str, bytes: bytes::Bytes, node: Option<NodeRef>) -> Result<(), Error> {
-       self.img_binary_import(graph, format, bytes, node)
+    fn binary_import(&self, graph: &mut Graph, format: &str, bytes: bytes::Bytes, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
+       self.img_binary_import(graph, format, bytes, node, profile)
     }
     fn binary_export(&self, graph: &Graph, format: &str, node: Option<NodeRef>) -> Result<bytes::Bytes, Error> {
         self.img_binary_export(graph, format, node)
     }
-    fn string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
-        self.img_string_import(graph, format, src, node)
+    fn string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
+        self.img_string_import(graph, format, src, node, profile)
     }
     fn string_export(&self, graph: &Graph, format: &str, node: Option<NodeRef>) -> Result<String, Error> {
         self.img_string_export(graph, format, node)
@@ -269,14 +269,14 @@ impl Format for IcoFormat {
     fn content_type(&self) -> String {
         "image/vnd.microsoft.icon".into()
     }
-    fn binary_import(&self, graph: &mut Graph, format: &str, bytes: bytes::Bytes, node: Option<NodeRef>) -> Result<(), Error> {
-       self.img_binary_import(graph, format, bytes, node)
+    fn binary_import(&self, graph: &mut Graph, format: &str, bytes: bytes::Bytes, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
+       self.img_binary_import(graph, format, bytes, node, profile)
     }
     fn binary_export(&self, graph: &Graph, format: &str, node: Option<NodeRef>) -> Result<bytes::Bytes, Error> {
         self.img_binary_export(graph, format, node)
     }
-    fn string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
-        self.img_string_import(graph, format, src, node)
+    fn string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
+        self.img_string_import(graph, format, src, node, profile)
     }
     fn string_export(&self, graph: &Graph, format: &str, node: Option<NodeRef>) -> Result<String, Error> {
         self.img_string_export(graph, format, node)

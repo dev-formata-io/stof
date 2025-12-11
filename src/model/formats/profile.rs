@@ -14,5 +14,65 @@
 // limitations under the License.
 //
 
+use rustc_hash::FxHashSet;
+use serde::{Deserialize, Serialize};
 
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Profile.
+pub struct Profile {
+    /// The name of this profile.
+    pub name: String,
+
+    /// Debug information? TODO
+    pub debug_info: bool,
+
+    /// Import with doc info (if supported)?
+    pub docs: bool,
+
+    /// Excluded attributes (both functions and fields).
+    pub exclude_attributes: FxHashSet<String>,
+}
+impl Default for Profile {
+    fn default() -> Self {
+        Self::prod()
+    }
+}
+impl Profile {
+    /// Test profile.
+    /// All attributes are included.
+    pub fn test() -> Self {
+        Self {
+            name: "test".to_string(),
+            debug_info: true,
+            docs: false,
+            exclude_attributes: Default::default(),
+        }
+    }
+
+    /// Debug profile.
+    /// Prod, but with debug info & docs.
+    pub fn debug() -> Self {
+        let mut exclude_attributes = FxHashSet::default();
+        exclude_attributes.insert("test".into());
+        Self {
+            name: "debug".to_string(),
+            debug_info: true,
+            docs: true,
+            exclude_attributes,
+        }
+    }
+
+    /// Prod profile.
+    /// Test attributes are excluded.
+    pub fn prod() -> Self {
+        let mut exclude_attributes = FxHashSet::default();
+        exclude_attributes.insert("test".into());
+        Self {
+            name: "prod".to_string(),
+            debug_info: false,
+            docs: false,
+            exclude_attributes,
+        }
+    }
+}

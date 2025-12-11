@@ -16,7 +16,7 @@
 
 use std::{fs, path::PathBuf};
 use bytes::Bytes;
-use crate::{model::{FS_LIB, Graph, NodeRef}, parser::context::ParseContext, runtime::Error};
+use crate::{model::{FS_LIB, Graph, NodeRef, Profile}, parser::context::ParseContext, runtime::Error};
 
 
 /// Format.
@@ -30,13 +30,13 @@ pub trait Format: std::fmt::Debug + Send + Sync {
 
     /// String import.
     #[allow(unused)]
-    fn string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
+    fn string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
         Err(Error::FormatStringImportNotImplemented(format.into()))
     }
 
     /// File import.
     #[allow(unused)]
-    fn file_import(&self, graph: &mut Graph, format: &str, path: &str, node: Option<NodeRef>) -> Result<(), Error> {
+    fn file_import(&self, graph: &mut Graph, format: &str, path: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
         if let Some(_lib) = graph.libfunc(&FS_LIB, "read_string") {
             #[cfg(not(feature = "system"))]
             {
@@ -59,7 +59,7 @@ pub trait Format: std::fmt::Debug + Send + Sync {
                         match res {
                             Val::Str(src) => {
                                 if !src.is_empty() {
-                                    return self.string_import(&mut context.graph, format, &src, node);
+                                    return self.string_import(&mut context.graph, format, &src, node, profile);
                                 }
                                 return Ok(());
                             },
@@ -77,7 +77,7 @@ pub trait Format: std::fmt::Debug + Send + Sync {
             // Only allow reads if the FS library function is available
             match fs::read(path) {
                 Ok(content) => {
-                    return self.binary_import(graph, format, Bytes::from(content), node);
+                    return self.binary_import(graph, format, Bytes::from(content), node, profile);
                 },
                 Err(error) => {
                     return Err(Error::FormatFileImportFsError(format!("{}: {}", error.to_string(), path)));
@@ -87,7 +87,7 @@ pub trait Format: std::fmt::Debug + Send + Sync {
             // Only allow reads if the FS library function is available
             match fs::read(path) {
                 Ok(content) => {
-                    return self.binary_import(graph, format, Bytes::from(content), node);
+                    return self.binary_import(graph, format, Bytes::from(content), node, profile);
                 },
                 Err(error) => {
                     return Err(Error::FormatFileImportFsError(format!("{}: {}", error.to_string(), path)));
@@ -142,10 +142,10 @@ pub trait Format: std::fmt::Debug + Send + Sync {
     /// Binary import.
     /// By default attempts to get bytes as UTF-8 string and uses string import.
     #[allow(unused)]
-    fn binary_import(&self, graph: &mut Graph, format: &str, bytes: Bytes, node: Option<NodeRef>) -> Result<(), Error> {
+    fn binary_import(&self, graph: &mut Graph, format: &str, bytes: Bytes, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
         match std::str::from_utf8(bytes.as_ref()) {
             Ok(src) => {
-                self.string_import(graph, format, src, node)
+                self.string_import(graph, format, src, node, profile)
             },
             Err(_error) => {
                 Err(Error::FormatBinaryImportUtf8Error)
@@ -176,6 +176,6 @@ pub trait Format: std::fmt::Debug + Send + Sync {
     /// Parser import.
     fn parser_import(&self, format: &str, path: &str, context: &mut ParseContext) -> Result<(), Error> {
         let node = context.self_ptr();
-        self.file_import(&mut context.graph, format, path, Some(node))
+        self.file_import(&mut context.graph, format, path, Some(node), &context.profile)
     }
 }

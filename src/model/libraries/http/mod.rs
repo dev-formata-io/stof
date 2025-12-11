@@ -39,7 +39,7 @@ use crate::runtime::{wake, WakeRef, NumT};
 use arcstr::{literal, ArcStr};
 use imbl::vector;
 use serde::{Deserialize, Serialize};
-use crate::{model::{Graph, LibFunc, Param}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error, Num, Type, Units, Val, ValRef, Variable}};
+use crate::{model::{Graph, LibFunc, Param, Profile}, runtime::{Error, Num, Type, Units, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv}};
 
 #[cfg(all(feature = "http", feature = "tokio"))]
 use reqwest::Client;
@@ -697,7 +697,7 @@ impl Instruction for HttpIns {
                             if let Some(body) = response.get(&ValRef::new(Val::Str("bytes".into()))) {
                                 match body.read().deref() {
                                     Val::Blob(bytes) => {
-                                        graph.binary_import(&content_type, bytes.clone(), Some(context.clone()))?;
+                                        graph.binary_import(&content_type, bytes.clone(), Some(context.clone()), &Profile::default())?;
                                         env.stack.push(Variable::val(Val::Obj(context)));
                                     },
                                     _ => {

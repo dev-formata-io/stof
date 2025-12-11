@@ -20,7 +20,7 @@ use bytes::Bytes;
 use colored::Colorize;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{blob::insert_blob_lib, time::insert_time_lib, prompt::insert_prompt_lib, libraries::{data::insert_data_lib, function::insert_fn_lib}, libs::insert_lib_documentation, list::insert_list_lib, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, tup::insert_tup_lib, ver::insert_semver_lib, BstfFormat, BytesFormat, Data, DataRef, Format, JsonFormat, LibFunc, MdDocsFormat, MdFormat, Node, NodeRef, SId, SPath, StofData, StofFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, INVALID_NODE_NEW}, parser::context::ParseContext, runtime::{table::SymbolTable, Error, Runtime, Val}};
+use crate::{model::{BstfFormat, BytesFormat, Data, DataRef, Format, INVALID_NODE_NEW, JsonFormat, LibFunc, MdDocsFormat, MdFormat, Node, NodeRef, Profile, SId, SPath, StofData, StofFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, blob::insert_blob_lib, libraries::{data::insert_data_lib, function::insert_fn_lib}, libs::insert_lib_documentation, list::insert_list_lib, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, prompt::insert_prompt_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, time::insert_time_lib, tup::insert_tup_lib, ver::insert_semver_lib}, parser::context::ParseContext, runtime::{Error, Runtime, Val, table::SymbolTable}};
 
 #[cfg(feature = "system")]
 use crate::model::{filesys::fs_library};
@@ -231,6 +231,8 @@ impl Graph {
         // Std libs
         #[cfg(feature = "stof_std")]
         {
+            use crate::model::prof::insert_profile_lib;
+
             stof_std_lib(self);
             insert_number_lib(self);
             insert_string_lib(self);
@@ -246,6 +248,7 @@ impl Graph {
             insert_prompt_lib(self);
             insert_md_lib(self);
             insert_time_lib(self);
+            insert_profile_lib(self, &Profile::default());
         }
         
         // System libs
@@ -1194,38 +1197,38 @@ impl Graph {
     }
 
     /// Binary import into this graph, using a loaded format.
-    pub fn binary_import(&mut self, format: &str, bytes: Bytes, node: Option<NodeRef>) -> Result<(), Error> {
+    pub fn binary_import(&mut self, format: &str, bytes: Bytes, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
         let id = format;
         if let Some(format) = self.get_format(id) {
-            format.binary_import(self, id, bytes, node)
+            format.binary_import(self, id, bytes, node, profile)
         } else if let Some(format) = self.get_format_by_content_type(id) {
-            format.binary_import(self, id, bytes, node)
+            format.binary_import(self, id, bytes, node, profile)
         } else if let Some(format) = self.get_format("bytes") {
-            format.binary_import(self, id, bytes, node)
+            format.binary_import(self, id, bytes, node, profile)
         } else {
             Err(Error::GraphFormatNotFound)
         }
     }
 
     /// Import a string into this graph, using a loaded format.
-    pub fn string_import(&mut self, format: &str, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
+    pub fn string_import(&mut self, format: &str, src: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
         let id = format;
         if let Some(format) = self.get_format(id) {
-            format.string_import(self, id, src, node)
+            format.string_import(self, id, src, node, profile)
         } else if let Some(format) = self.get_format_by_content_type(id) {
-            format.string_import(self, id, src, node)
+            format.string_import(self, id, src, node, profile)
         } else if let Some(format) = self.get_format("text") {
-            format.string_import(self, id, src, node)
+            format.string_import(self, id, src, node, profile)
         } else {
             Err(Error::GraphFormatNotFound)
         }
     }
 
     /// File import into this graph, using a loaded format.
-    pub fn file_import(&mut self, format: &str, path: &str, node: Option<NodeRef>) -> Result<(), Error> {
+    pub fn file_import(&mut self, format: &str, path: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
         let id = format;
         if let Some(format) = self.get_format(id) {
-            format.file_import(self, id, path, node)
+            format.file_import(self, id, path, node, profile)
         } else {
             Err(Error::GraphFormatNotFound)
         }
@@ -1273,14 +1276,14 @@ impl Graph {
 
     #[cfg(feature = "age_encrypt")]
     /// Age decription binary import.
-    pub fn age_decrypt_import<'a>(&mut self, format: &str, bytes: Bytes, node: Option<NodeRef>, identity: &'a dyn age::Identity) -> Result<(), Error> {
+    pub fn age_decrypt_import<'a>(&mut self, format: &str, bytes: Bytes, node: Option<NodeRef>, identity: &'a dyn age::Identity, profile: Option<Profile>) -> Result<(), Error> {
         use std::io::Read;
 
         let decryptor = age::Decryptor::new(bytes.as_ref()).expect("age could not create decryptor");
         let mut decrypted = vec![];
         if let Ok(mut reader) = decryptor.decrypt(std::iter::once(identity)) {
             reader.read_to_end(&mut decrypted).expect("age read decrypted error");
-            self.binary_import(format, Bytes::from(decrypted), node)
+            self.binary_import(format, Bytes::from(decrypted), node, &profile.unwrap_or_default())
         } else {
             Err(Error::AgeNoMatchingKeys)
         }
@@ -1304,16 +1307,15 @@ impl Graph {
     #[inline]
     /// Parse stof into this graph, optionally into a specific node.
     /// Use file_import for files...
-    pub fn parse_stof_src(&mut self, stof: &str, node: Option<NodeRef>) -> Result<(), Error> {
+    pub fn parse_stof_src(&mut self, stof: &str, node: Option<NodeRef>, profile: Profile) -> Result<(), Error> {
         // stof format creates a new context
-        self.string_import("stof", stof, node)
+        self.string_import("stof", stof, node, &profile)
     }
 
     /// Parse a stof file into this graph, optionally into a specific node.
     /// This serves as an entrypoint for parsing Stof into a graph.
-    pub fn parse_stof_file(&mut self, format: &str, path: &str, node: Option<NodeRef>, docs: bool) -> Result<(), Error> {
-        let mut context = ParseContext::new(self);
-        context.docs = docs;
+    pub fn parse_stof_file(&mut self, format: &str, path: &str, node: Option<NodeRef>, profile: Profile) -> Result<(), Error> {
+        let mut context = ParseContext::new(self, profile);
         context.parse_from_file(format, path, node)
     }
 
@@ -1610,6 +1612,8 @@ mod tests {
     #[test]
     #[cfg(feature = "age_encrypt")]
     fn age_encryption() {
+        use crate::model::Profile;
+
         let key = age::x25519::Identity::generate();
         let pubkey = key.to_public();
 
@@ -1620,12 +1624,12 @@ mod tests {
         let _ = graph.parse_stof_src(r#"
             field: 42
             #[main] fn main() { pln('hi'); }
-        "#, None);
+        "#, None, Profile::default());
 
         let bytes = graph.age_encrypt_export("stof", None, std::iter::once(&pubkey as _)).unwrap();
         
         let mut other = Graph::default();
-        let _ = other.age_decrypt_import("stof", bytes, None, &key);
+        let _ = other.age_decrypt_import("stof", bytes, None, &key, None);
         other.dump(true);
     }
 }

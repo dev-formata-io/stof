@@ -28,7 +28,7 @@ pub fn std_parse() -> LibFunc {
         library: STD_LIB.clone(),
         name: "parse".into(),
         is_async: false,
-        docs: r#"# Std.parse(source: str | blob, context: str | obj = self, format: str = "stof") -> bool
+        docs: r#"# Std.parse(source: str | blob, context: str | obj = self, format: str = "stof", profile: str = "prod") -> bool
 Parse data into this document/graph at the given location (default context is the calling object), using the given format (default is Stof). Formats are extensible and replaceable in Stof, so use whichever formats you have loaded (json, stof, images, pdfs, docx, etc.).
 ```rust
 parse("fn hello() -> str { \"hello\" }");
@@ -39,6 +39,7 @@ assert_eq(self.hello(), "hello"); // can now call it
             Param { name: "source".into(), param_type: Type::Void, default: None, },
             Param { name: "context".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))), },
             Param { name: "format".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))), }, // default is stof
+            Param { name: "profile".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Str("prod".into())))), },
         ],
         return_type: None,
         unbounded_args: false,

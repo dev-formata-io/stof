@@ -248,7 +248,7 @@ assert_neq(nanoid(), nanoid(33));
 ```
 
 
-# Std.parse(source: str | blob, context: str | obj = self, format: str = "stof") -> bool
+# Std.parse(source: str | blob, context: str | obj = self, format: str = "stof", profile: str = "prod") -> bool
 Parse data into this document/graph at the given location (default context is the calling object), using the given format (default is Stof). Formats are extensible and replaceable in Stof, so use whichever formats you have loaded (json, stof, images, pdfs, docx, etc.).
 ```rust
 parse("fn hello() -> str { \"hello\" }");

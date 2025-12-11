@@ -16,7 +16,7 @@
 
 use std::fs;
 use rustc_hash::FxHashSet;
-use crate::{model::{FS_LIB, Format, Graph, NodeRef, stof::export::StofExportContext}, parser::{context::ParseContext, doc::document}, runtime::Error};
+use crate::{model::{FS_LIB, Format, Graph, NodeRef, Profile, stof::export::StofExportContext}, parser::{context::ParseContext, doc::document}, runtime::Error};
 mod export;
 
 
@@ -30,17 +30,17 @@ impl Format for StofFormat {
     fn content_type(&self) -> String {
         "application/stof".into()
     }
-    fn string_import(&self, graph: &mut Graph, _format: &str, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
+    fn string_import(&self, graph: &mut Graph, _format: &str, src: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
         if src.is_empty() { return Ok(()); }
-        let mut context = ParseContext::new(graph);
+        let mut context = ParseContext::new(graph, profile.clone());
         if let Some(node) = node {
             context.push_self_node(node);
         }
         document(src, &mut context)?;
         Ok(())
     }
-    fn file_import(&self, graph: &mut Graph, format: &str, path: &str, node: Option<NodeRef>) -> Result<(), Error> {
-        let mut context = ParseContext::new(graph);
+    fn file_import(&self, graph: &mut Graph, format: &str, path: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
+        let mut context = ParseContext::new(graph, profile.clone());
         context.parse_from_file(format, path, node)
     }
     fn parser_import(&self, _format: &str, path: &str, context: &mut ParseContext) -> Result<(), Error> {
@@ -170,7 +170,7 @@ impl Format for BstfFormat {
             }
         }
     }
-    fn binary_import(&self, graph: &mut Graph, _format: &str, bytes: bytes::Bytes, node: Option<NodeRef>) -> Result<(), Error> {
+    fn binary_import(&self, graph: &mut Graph, _format: &str, bytes: bytes::Bytes, node: Option<NodeRef>, _profile: &Profile) -> Result<(), Error> {
         if bytes.is_empty() { return Ok(()); }
         match bincode::deserialize::<Graph>(bytes.as_ref()) {
             Ok(mut imported) => {
@@ -211,12 +211,12 @@ impl Format for BstfFormat {
 #[cfg(test)]
 mod tests {
     use colored::Colorize;
-    use crate::{model::Graph};
+    use crate::model::{Graph, Profile};
 
     #[test]
     fn stof_suite() {
         let mut graph = Graph::default();
-        match graph.parse_stof_file("stof", "src/model/formats/stof/tests/tests.stof", None, false) {
+        match graph.parse_stof_file("stof", "src/model/formats/stof/tests/tests.stof", None, Profile::test()) {
             Ok(_) => {},
             Err(error) => {
                 panic!("{} @ {}", "Stof Suite Parse Error".red(), error);
