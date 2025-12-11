@@ -21,3 +21,14 @@ pub mod parser;
 
 #[cfg(feature = "js")]
 pub mod js;
+
+// Re-export public API dependencies
+pub use typetag;
+pub use bytes;
+pub use serde;
+pub use imbl;
+pub use arcstr;
+pub use rustc_hash;
+
+#[cfg(feature = "tokio")]
+pub use tokio;
