@@ -20,7 +20,7 @@ use bytes::Bytes;
 use colored::Colorize;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{BstfFormat, BytesFormat, Data, DataRef, Format, INVALID_NODE_NEW, JsonFormat, LibFunc, MdDocsFormat, MdFormat, Node, NodeRef, Profile, SId, SPath, StofData, StofFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, blob::insert_blob_lib, libraries::{data::insert_data_lib, function::insert_fn_lib}, libs::insert_lib_documentation, list::insert_list_lib, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, prompt::insert_prompt_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, time::insert_time_lib, tup::insert_tup_lib, ver::insert_semver_lib}, parser::context::ParseContext, runtime::{Error, Runtime, Val, table::SymbolTable}};
+use crate::{model::{BstfFormat, BytesFormat, Data, DataRef, Field, Format, INVALID_NODE_NEW, JsonFormat, LibFunc, MdDocsFormat, MdFormat, Node, NodeRef, Profile, SId, SPath, StofData, StofFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, blob::insert_blob_lib, libraries::{data::insert_data_lib, function::insert_fn_lib}, libs::insert_lib_documentation, list::insert_list_lib, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, prompt::insert_prompt_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, time::insert_time_lib, tup::insert_tup_lib, ver::insert_semver_lib}, parser::context::ParseContext, runtime::{Error, Runtime, Val, Variable, table::SymbolTable}};
 
 #[cfg(feature = "system")]
 use crate::model::{filesys::fs_library};
@@ -1301,6 +1301,70 @@ impl Graph {
 
 
     /*****************************************************************************
+     * Field interface.
+     *****************************************************************************/
+    
+    /// Get a field value by path.
+    /// If no starting root, adds "root." in front.
+    /// Helper for manually getting field values from a graph.
+    pub fn field_value(&mut self, path: &str, start: Option<NodeRef>) -> Option<Val> {
+        let pth;
+        if start.is_none() && !path.contains('.') { pth = format!("root.{path}"); }
+        else { pth = path.to_string(); }
+
+        if let Some(dref) = Field::field_from_path(self, &pth, start) {
+            if let Some(field) = self.get_stof_data::<Field>(&dref) {
+                return Some(field.value.get());
+            }
+        }
+        None
+    }
+
+    /// Get a field object nref by path.
+    /// Helper for manually getting field values from a graph.
+    pub fn field_obj(&mut self, path: &str, start: Option<NodeRef>) -> Option<NodeRef> {
+        if let Some(val) = self.field_value(path, start) {
+            if let Some(nref) = val.try_obj() {
+                return Some(nref);
+            }
+        }
+        None
+    }
+
+    /// Set a field value by path.
+    /// Meant to be a quick helper - does not create nodes, fields, etc.
+    pub fn set_field(&mut self, var: Variable, path: &str, start: Option<NodeRef>) -> bool {
+        let pth;
+        if start.is_none() && !path.contains('.') { pth = format!("root.{path}"); }
+        else { pth = path.to_string(); }
+
+        if let Some(field_ref) = Field::field_from_path(self, &pth, start.clone()) {
+            let mut fvar = None;
+            if let Some(field) = self.get_stof_data::<Field>(&field_ref) {
+                if !field.can_set() { return false; }
+                fvar = Some(field.value.clone());
+            }
+            if let Some(mut fvar) = fvar {
+                let context;
+                if start.is_some() { context = start; }
+                else { context = Some(self.ensure_main_root()); }
+                let res = fvar.set(&var, self, context);
+                if res.is_err() { return false; } // const field
+
+                if let Some(field) = self.get_mut_stof_data::<Field>(&field_ref) {
+                    field.value = fvar;
+                }
+            }
+            if let Some(field) = field_ref.data_mut(self) {
+                field.invalidate_value();
+            }
+            return true;
+        }
+        false
+    }
+
+
+    /*****************************************************************************
      * Stof Language.
      *****************************************************************************/
     
@@ -1409,7 +1473,7 @@ fn deserialize_nodes<'de, D>(deserializer: D) -> Result<FxHashMap<NodeRef, Node>
 
 #[cfg(test)]
 mod tests {
-    use crate::model::{Data, Graph, SPath, StofData, ROOT_NODE_NAME};
+    use crate::{model::{Data, Graph, ROOT_NODE_NAME, SPath, StofData}, runtime::Variable};
 
     #[test]
     fn new_with_id() {
@@ -1631,5 +1695,31 @@ mod tests {
         let mut other = Graph::default();
         let _ = other.age_decrypt_import("stof", bytes, None, &key, None);
         other.dump(true);
+    }
+
+    #[test]
+    fn doc_field_interface() {
+        let mut graph = Graph::default();
+        graph.parse_stof_src(r#"
+        
+        field: 42
+        sub: {
+            field: 42
+            msg: 'hello, world'
+            sub: {
+                valid: true
+            }
+        }
+
+        "#, None, Default::default()).unwrap();
+
+        graph.set_field(Variable::val(100.into()), "field", None);
+        let field = graph.field_value("field", None).unwrap();
+        assert_eq!(field, 100.into());
+        
+        let sub = graph.field_obj("sub", None).unwrap();
+        graph.set_field(Variable::val("reset".into()), "msg", Some(sub.clone()));
+        let msg = graph.field_value("msg", Some(sub)).unwrap();
+        assert_eq!(msg, "reset".into());
     }
 }
