@@ -173,15 +173,30 @@ export class StofDoc {
      *****************************************************************************/
 
     /**
-     * Send Stof string body as an HTTP request.
+     * Send Stof doc string body as an HTTP request.
      */
-    static async send(url: string, stof: string, method: string = 'POST', bearer?: string, headers: Record<string, string> = {} as Record<string, string>): Promise<Response> {
+    static async send(url: string, stof: string, method: string = 'POST', bearer?: string, headers: Record<string, string> = {}): Promise<Response> {
         headers['Content-Type'] = 'application/stof';
         if (bearer !== undefined) headers['Authorization'] = `Bearer ${bearer}`;
         return await fetch(url, {
             method,
             headers: headers as HeadersInit,
             body: stof
+        });
+    }
+
+
+    /**
+     * Send this document ('bstf' format) as an HTTP request.
+     */
+    async send(url: string, method: string = 'POST', bearer?: string, headers: Record<string, string> = {}): Promise<Response> {
+        headers['Content-Type'] = 'application/bstf';
+        if (bearer !== undefined) headers['Authorization'] = `Bearer ${bearer}`;
+        const body = this.stof.binaryExport('bstf', null); // Uint8Array
+        return await fetch(url, {
+            method,
+            headers: headers as HeadersInit,
+            body
         });
     }
 }
