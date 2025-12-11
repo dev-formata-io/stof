@@ -44,7 +44,7 @@ pub trait Format: std::fmt::Debug + Send + Sync {
                 use std::sync::Arc;
                 use crate::{runtime::{Val, instruction::Instruction, instructions::{Base, call::FuncCall}}};
 
-                let mut context = ParseContext::new(graph);
+                let mut context = ParseContext::new(graph, profile.clone());
                 let ins: Arc<dyn Instruction> = Arc::new(FuncCall {
                     func: None,
                     search: Some("fs.read_string".into()),

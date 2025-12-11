@@ -13,7 +13,7 @@ export class Stof {
    * Binary import (Uint8Array), using a format of choice.
    * Format can also be a content type (for HTTP-like situations).
    */
-  binaryImport(bytes: any, format: string, node: any): boolean;
+  binaryImport(bytes: any, format: string, node: any, profile: string): boolean;
   /**
    * Import a JS object value.
    */
@@ -25,7 +25,7 @@ export class Stof {
   /**
    * String import, using a format of choice (including stof).
    */
-  stringImport(src: string, format: string, node: any): boolean;
+  stringImport(src: string, format: string, node: any, profile: string): boolean;
   /**
    * Insert a JS function as a library function, available in Stof.
    */
@@ -56,7 +56,7 @@ export class Stof {
   /**
    * Parse Stof into this document, optionally within the specified node (pass null for root node).
    */
-  parse(stof: string, node: any): boolean;
+  parse(stof: string, node: any, profile: string): boolean;
 }
 
 export class StofFunc {
@@ -74,22 +74,22 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly __wbg_stoffunc_free: (a: number, b: number) => void;
-  readonly stoffunc_new: (a: number, b: number, c: number, d: number, e: any, f: number) => number;
   readonly __wbg_stof_free: (a: number, b: number) => void;
   readonly start: () => void;
   readonly stof_binaryExport: (a: number, b: number, c: number, d: any) => [number, number, number];
-  readonly stof_binaryImport: (a: number, b: any, c: number, d: number, e: any) => [number, number, number];
+  readonly stof_binaryImport: (a: number, b: any, c: number, d: number, e: any, f: number, g: number) => [number, number, number];
   readonly stof_call: (a: number, b: number, c: number, d: any) => any;
   readonly stof_get: (a: number, b: number, c: number, d: any) => any;
   readonly stof_js_library_function: (a: number, b: number) => void;
   readonly stof_new: () => number;
   readonly stof_objImport: (a: number, b: any, c: any) => [number, number, number];
-  readonly stof_parse: (a: number, b: number, c: number, d: any) => [number, number, number];
+  readonly stof_parse: (a: number, b: number, c: number, d: any, e: number, f: number) => [number, number, number];
   readonly stof_run: (a: number, b: any) => any;
   readonly stof_set: (a: number, b: number, c: number, d: any, e: any) => number;
   readonly stof_stringExport: (a: number, b: number, c: number, d: any) => [number, number, number, number];
-  readonly stof_stringImport: (a: number, b: number, c: number, d: number, e: number, f: any) => [number, number, number];
+  readonly stof_stringImport: (a: number, b: number, c: number, d: number, e: number, f: any, g: number, h: number) => [number, number, number];
+  readonly __wbg_stoffunc_free: (a: number, b: number) => void;
+  readonly stoffunc_new: (a: number, b: number, c: number, d: number, e: any, f: number) => number;
   readonly wasm_bindgen__convert__closures_____invoke__h461033f0be0f35ba: (a: number, b: number, c: any) => void;
   readonly wasm_bindgen__closure__destroy__hc80e35caaf79143c: (a: number, b: number) => void;
   readonly wasm_bindgen__convert__closures_____invoke__h28d10798a4bc3b3a: (a: number, b: number, c: any, d: any) => void;

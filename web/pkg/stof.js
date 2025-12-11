@@ -273,12 +273,15 @@ export class Stof {
      * @param {any} bytes
      * @param {string} format
      * @param {any} node
+     * @param {string} profile
      * @returns {boolean}
      */
-    binaryImport(bytes, format, node) {
+    binaryImport(bytes, format, node, profile) {
         const ptr0 = passStringToWasm0(format, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.stof_binaryImport(this.__wbg_ptr, bytes, ptr0, len0, node);
+        const ptr1 = passStringToWasm0(profile, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.stof_binaryImport(this.__wbg_ptr, bytes, ptr0, len0, node, ptr1, len1);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -328,14 +331,17 @@ export class Stof {
      * @param {string} src
      * @param {string} format
      * @param {any} node
+     * @param {string} profile
      * @returns {boolean}
      */
-    stringImport(src, format, node) {
+    stringImport(src, format, node, profile) {
         const ptr0 = passStringToWasm0(src, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ptr1 = passStringToWasm0(format, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len1 = WASM_VECTOR_LEN;
-        const ret = wasm.stof_stringImport(this.__wbg_ptr, ptr0, len0, ptr1, len1, node);
+        const ptr2 = passStringToWasm0(profile, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.stof_stringImport(this.__wbg_ptr, ptr0, len0, ptr1, len1, node, ptr2, len2);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -412,12 +418,15 @@ export class Stof {
      * Parse Stof into this document, optionally within the specified node (pass null for root node).
      * @param {string} stof
      * @param {any} node
+     * @param {string} profile
      * @returns {boolean}
      */
-    parse(stof, node) {
+    parse(stof, node, profile) {
         const ptr0 = passStringToWasm0(stof, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.stof_parse(this.__wbg_ptr, ptr0, len0, node);
+        const ptr1 = passStringToWasm0(profile, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.stof_parse(this.__wbg_ptr, ptr0, len0, node, ptr1, len1);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -928,6 +937,11 @@ function __wbg_get_imports() {
         const ret = BigInt.asUintN(64, arg0);
         return ret;
     };
+    imports.wbg.__wbindgen_cast_876dc327ef155b37 = function(arg0, arg1) {
+        // Cast intrinsic for `Closure(Closure { dtor_idx: 7125, function: Function { arguments: [Externref], shim_idx: 7126, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+        const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hc80e35caaf79143c, wasm_bindgen__convert__closures_____invoke__h461033f0be0f35ba);
+        return ret;
+    };
     imports.wbg.__wbindgen_cast_9ae0607507abb057 = function(arg0) {
         // Cast intrinsic for `I64 -> Externref`.
         const ret = arg0;
@@ -941,11 +955,6 @@ function __wbg_get_imports() {
     imports.wbg.__wbindgen_cast_d6cd19b81560fd6e = function(arg0) {
         // Cast intrinsic for `F64 -> Externref`.
         const ret = arg0;
-        return ret;
-    };
-    imports.wbg.__wbindgen_cast_f9fffea6ec093b04 = function(arg0, arg1) {
-        // Cast intrinsic for `Closure(Closure { dtor_idx: 6972, function: Function { arguments: [Externref], shim_idx: 6973, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-        const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hc80e35caaf79143c, wasm_bindgen__convert__closures_____invoke__h461033f0be0f35ba);
         return ret;
     };
     imports.wbg.__wbindgen_init_externref_table = function() {

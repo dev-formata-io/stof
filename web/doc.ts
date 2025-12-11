@@ -75,10 +75,34 @@ export class StofDoc {
 
 
     /**
-     * Parse Stof source.
+     * Parse a JS object into a StofDoc.
      */
-    parse(stof: string, node: string | null = null): boolean {
-        return this.stof.parse(stof, node);
+    static async parse(obj: Record<string, unknown>): Promise<StofDoc> {
+        const doc = await StofDoc.new();
+        doc.stof.objImport(obj, null);
+        return doc;
+    }
+
+
+    /**
+     * Sync parse a JS object into a StofDoc.
+     * Note: make sure initialize has been called on the wasm.
+     */
+    static sync_parse(obj: Record<string, unknown>): StofDoc {
+        const doc = new StofDoc();
+        doc.stof.objImport(obj, null);
+        return doc;
+    }
+
+
+    /**
+     * Parse string source or a JS record.
+     */
+    parse(src: string | Record<string, unknown>, format: string = "stof", node: string | null = null, profile: 'prod' | 'test' = 'prod'): boolean {
+        if (typeof src === 'string') {
+            return this.stof.stringImport(src, format, node, profile);
+        }
+        return this.stof.objImport(src, node);
     }
 
 
@@ -93,6 +117,7 @@ export class StofDoc {
 
     /**
      * Run this document with a given set of Stof attributes.
+     * Will run all #[main] functions by default.
      */
     async run(attr: string | string[] = 'main'): Promise<string> {
         return await this.stof.run(attr);
@@ -100,7 +125,7 @@ export class StofDoc {
 
 
     /**
-     * Call a specific Stof function by path.
+     * Call a specific Stof function by path/name.
      */
     async call(path: string, ...args: unknown[]): Promise<unknown> {
         if (!path.includes('.')) path = 'root.' + path; // assume root node if not specified
@@ -124,6 +149,22 @@ export class StofDoc {
     set(path: string, value: unknown, start_obj_id: string | null = null): boolean {
         if (!path.includes('.')) path = 'self.' + path;
         return this.stof.set(path, value, start_obj_id);
+    }
+
+
+    /**
+     * Stringify this doc into a format (JSON by default).
+     */
+    stringify(format: string = "json", node: string | null = null): string {
+        return this.stof.stringExport(format, node);
+    }
+
+
+    /**
+     * To JS record.
+     */
+    record(node: string | null = null): Record<string, unknown> {
+        return JSON.parse(this.stringify('json', node));
     }
 
 
