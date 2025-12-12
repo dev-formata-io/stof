@@ -20,7 +20,11 @@
  * This object contains all of the stof tests for the Stof libraries, language, and formats.
  */
 
+#[test]
 import './lang/mod' as self.Lang;
+#[test]
 import './libs/mod' as self.Libs;
+#[test]
 import './formats/mod' as self.Formats;
+#[test]
 import './security/mod' as self.Security;

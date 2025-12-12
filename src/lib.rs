@@ -19,6 +19,9 @@ pub mod model;
 pub mod runtime;
 pub mod parser;
 
+#[cfg(feature = "py")]
+pub mod py;
+
 #[cfg(feature = "js")]
 pub mod js;
 

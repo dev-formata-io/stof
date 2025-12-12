@@ -35,6 +35,12 @@ Cargo cargo: {
         crate-type: ['cdylib', 'lib']
         bench: false
         doctest: false
+
+        #[init]
+        fn init_name() {
+            // Set the lib name to "pystof" when building for python (default features contains "py" feature).
+            if (super.features.default.contains('py')) self.name = 'pystof';
+        }
     }
 
     features: {
@@ -52,6 +58,13 @@ Cargo cargo: {
         http: ['dep:reqwest']
         tokio: ['dep:tokio']
         age_encrypt: ['dep:age']
+
+        /// python bindings for stof with full functionality (TODO min/sandboxing)
+        /// when building for python, set this as the only "default" feature
+        py: [
+            'full',
+            'dep:pyo3',
+        ]
 
         /// wasm/js version of the runtime
         /// should be the only feature enabled when building for the wasm target
@@ -164,6 +177,23 @@ Cargo cargo: {
         web-time: {
             version: 1.1.0
             features: ['serde']
+        }
+
+        /*****************************************************************************
+         * Python features.
+         *****************************************************************************/
+        pyo3: {
+            version: 0.27.2
+            optional: true
+            features: [
+                'macros',
+                'chrono',
+                'chrono-tz',
+                'hashbrown',
+                'indexmap',
+                'generate-import-lib',
+                'extension-module',
+            ]
         }
 
         /*****************************************************************************
