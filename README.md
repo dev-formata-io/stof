@@ -1,4 +1,4 @@
-<p align="center"><img src="./content/stof.png" height="150"></p>
+<p align="center" style="font-size: 40px; font-weight: 600; font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', 'Liberation Mono', Menlo, Monaco, Consolas, 'Courier New', monospace;">Stof: Data that carries its own logic</p>
 
 ----
 
@@ -23,8 +23,6 @@
 ![Alt](https://repobeats.axiom.co/api/embed/efbc3324d289ccfb6d7825c840491d10ea1d5260.svg "Repobeats analytics image")
 
 ## Overview
-Data that carries its own logic.
-
 Send functions + data over APIs, write configs that validate themselves, build data pipelines where transformations travel with the data, store logic + data in a database, etc.
 
 > Works with JSON, YAML, TOML, etc. - no migration needed.
@@ -105,10 +103,19 @@ fn self_destruction() -> bool {
 ## CLI
 See [installation docs](https://docs.stof.dev/book/installation) for CLI instructions and more information.
 
-## Embedded Stof
-Stof is written in Rust, and is meant to be used wherever you work.
+```rust
+#[main]
+fn say_hi() {
+    pln("Hello, world!");
+}
+```
+```
+> stof run example.stof
+Hello, world!
+```
 
-Python & other language bindings are planned. Join the Discord to get involved.
+## Embedded Stof
+Stof is written in Rust, and is meant to be used wherever you work. Join the project [Discord](https://discord.gg/Up5kxdeXZt) to get involved.
 
 ### Rust
 ``` toml
@@ -133,6 +140,36 @@ fn main() {
         Err(err) => panic!("{err}"),
     }
 }
+```
+
+### Python
+Stof is available on [PyPi](https://pypi.org/project/stof).
+
+```python
+from pystof import Doc
+
+STOF = """
+#[main]
+fn main() {
+    const name = Example.name('Stof,', 'with Python');
+    pln(`Hello, ${name}!!`)
+}
+"""
+
+def name(first, last):
+    return first + ' ' + last
+
+def main():
+    doc = Doc()
+    doc.lib('Example', 'name', name)
+    doc.parse(STOF)
+    doc.run()
+
+if __name__ == "__main__":
+    main()
+
+# Output:
+# Hello, Stof, with Python!!
 ```
 
 ### JavaScript/TypeScript

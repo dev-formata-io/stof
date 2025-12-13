@@ -282,25 +282,78 @@ github: {
     }
 }
 
-#[cargo]
+
+/// pyproject.toml definition.
+pyproject: {
+    project: {
+        name: 'stof'
+        description: 'Data that carries its own logic.'
+        license: 'Apache-2.0'
+        authors: [
+            {
+                name: 'CJ Cummings'
+                email: 'cj@stof.dev'
+            }
+        ]
+        readme: 'README.md'
+        requires-python: '>=3.7'
+        classifiers: [
+            "Programming Language :: Rust",
+            "Programming Language :: Python :: Implementation :: CPython",
+            "Programming Language :: Python :: Implementation :: PyPy",
+        ]
+        keywords: [
+            'format',
+            'runtime',
+            'validation',
+            'embedded',
+        ]
+        urls: {
+            Documentation: 'https://docs.stof.dev'
+            Playground: 'https://play.stof.dev'
+            Repository: 'https://github.com/dev-formata-io/stof'
+        }
+    }
+
+    build-system: {
+        requires: ['maturin>=1,<2']
+        build-backend: 'maturin'
+    }
+}
+
+
+/*****************************************************************************
+ * Generate functions.
+ *****************************************************************************/
+
 /// Generate Cargo.toml file.
-/// `stof run project.stof -a cargo`
 async fn generate_cargo_toml() {
-    const out = await Rust.Cargo.generate(self.cargo, 0.9.0-rc.2, update = false);
+    const out = await Rust.Cargo.generate(self.cargo, 0.9.1, update = false);
     fs.write('Cargo.toml', out);
     pln('Cargo .. ok');
 }
 
-#[github]
+
+/// Generate python project toml.
+async fn generate_pyproject_toml() {
+    const out = stringify('toml', self.pyproject);
+    fs.write('pyproject.toml', out);
+    pln('pyproject .. ok');
+}
+
+
 /// Generate GitHub configurations.
-/// `stof run project.stof -a github`
 async fn generate_github() {
     self.github.run();
     pln('GitHub .. ok');
 }
 
+
+/*****************************************************************************
+ * Main functions.
+ *****************************************************************************/
+
 #[main]
-/// Run everything.
 /// `stof run project.stof`
 fn main() {
     await [
@@ -308,4 +361,34 @@ fn main() {
         self.generate_github(),
     ];
     pln('done');
+}
+
+
+#[javascript]
+/// `stof run project.stof -a javascript`
+fn javascript_main() {
+    // set js features
+    self.cargo.features.default = ['js'];
+
+    await [
+        self.generate_cargo_toml(),
+        self.generate_github(),
+    ];
+    pln('javascript config done');
+}
+
+
+#[python]
+/// `stof run project.stof -a python`
+fn python_main() {
+    // set py features and name
+    self.cargo.features.default = ['py'];
+    self.cargo.lib.name = 'pystof';
+
+    await [
+        self.generate_cargo_toml(),
+        self.generate_github(),
+        self.generate_pyproject_toml(),
+    ];
+    pln('python config done');
 }

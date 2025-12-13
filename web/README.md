@@ -1,4 +1,4 @@
-<p align="center"><img src="./content/stof.png" height="150"></p>
+<p align="center" style="font-size: 40px; font-weight: 600; font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', 'Liberation Mono', Menlo, Monaco, Consolas, 'Courier New', monospace;">Stof: Data that carries its own logic</p>
 
 ----
 
@@ -11,7 +11,6 @@
 </p>
 
 ### Standard Transformation and Organization Format
-> Executable Data for Distributed Systems, AI/ML workflows, Smart Configs, & Pipelines.
 
 - [Docs](https://docs.stof.dev)
 - [Playground](https://play.stof.dev)
@@ -24,28 +23,25 @@
 ![Alt](https://repobeats.axiom.co/api/embed/efbc3324d289ccfb6d7825c840491d10ea1d5260.svg "Repobeats analytics image")
 
 ## Overview
-A unified data-logic format that works seamlessly with other formats to bridge the gap between static data and programmable documents.
+Send functions + data over APIs, write configs that validate themselves, build data pipelines where transformations travel with the data, store logic + data in a database, etc.
 
-Based on an "Everything as Data" approach, in which fields, functions, PDFs, images, binaries, or any other type of data are neatly combined, while keeping single-document simplicity and portability.
+> Works with JSON, YAML, TOML, etc. - no migration needed.
+
+> Add/import logic only where required.
+
+Treats everything uniformly - fields, functions, PDFs, images, binaries, etc. - as data that can be combined in a single portable document.
 
 ### Benefits
-- Write data once, use it everywhere, in any format
+- Write data + logic once, use it everywhere (JS, Rust, Python, anywhere your app lives)
+- Format-agnostic I/O (works with JSON, YAML, TOML, PDF, binaries, etc.)
 - Sandboxed logic + execution in your data (as data)
 - Send functions over APIs
 - Doesn't need a large ecosystem to work
-- Format-agnostic (works with JSON, YAML, TOML, PDF, binaries, etc.)
-
-### Exploration
-- Practical code mobility at scale with modern type systems
-- Security models for distributed computation-as-data
-- Performance characteristics of serializable computation vs traditional RPC
-- Formal semantics for "code as data" in distributed systems
-- Edge computing, data pipelines, and collaborative systems
 
 ### Example Use-Cases
 - Smart configs with validation and logic
 - Data interchange with sandboxed execution
-- Prompts as human readable & maintainable data + code
+- Prompts as human-readable & maintainable data + code
 - AI/LLM workflows and model configs
 - Data pipelines with built-in processing
 - Integration glue between systems
@@ -70,7 +66,8 @@ stats: {
     
     // Units as types with conversions & casting
     cm height: 6ft + 2in
-    MiB ram: 2TB + 50GiB - 5GB
+    MiB memory: 2MB + 50GiB - 5GB + 1TB
+    ms ttl: 300s
 }
 
 #[main]
@@ -106,10 +103,19 @@ fn self_destruction() -> bool {
 ## CLI
 See [installation docs](https://docs.stof.dev/book/installation) for CLI instructions and more information.
 
-## Embedded Stof
-Stof is written in Rust, and is meant to be used wherever you work.
+```rust
+#[main]
+fn say_hi() {
+    pln("Hello, world!");
+}
+```
+```
+> stof run example.stof
+Hello, world!
+```
 
-Python & other language bindings are planned. Join the Discord to get involved.
+## Embedded Stof
+Stof is written in Rust, and is meant to be used wherever you work. Join the project [Discord](https://discord.gg/Up5kxdeXZt) to get involved.
 
 ### Rust
 ``` toml
@@ -134,6 +140,36 @@ fn main() {
         Err(err) => panic!("{err}"),
     }
 }
+```
+
+### Python
+Stof is available on [PyPi](https://pypi.org/project/stof).
+
+```python
+from pystof import Doc
+
+STOF = """
+#[main]
+fn main() {
+    const name = Example.name('Stof,', 'with Python');
+    pln(`Hello, ${name}!!`)
+}
+"""
+
+def name(first, last):
+    return first + ' ' + last
+
+def main():
+    doc = Doc()
+    doc.lib('Example', 'name', name)
+    doc.parse(STOF)
+    doc.run()
+
+if __name__ == "__main__":
+    main()
+
+# Output:
+# Hello, Stof, with Python!!
 ```
 
 ### JavaScript/TypeScript
@@ -170,6 +206,15 @@ Map(2) {
 42
 */
 ```
+
+## Research & Exploration
+Stof explores several research areas:
+
+- Practical code mobility at scale with modern type systems
+- Security models for distributed computation-as-data
+- Performance characteristics of serializable computation vs traditional RPC
+- Formal semantics for "code as data" in distributed systems
+- Edge computing, data pipelines, and collaborative systems
 
 ## License
 Apache 2.0. See LICENSE for details.
