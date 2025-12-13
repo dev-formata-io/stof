@@ -9,7 +9,7 @@ repository = "https://github.com/dev-formata-io/stof"
 homepage = "https://docs.stof.dev"
 keywords = ["format", "runtime", "async", "validation", "embedded"]
 categories = ["compilers", "data-structures", "development-tools", "template-engine", "asynchronous"]
-version = "0.9.1"
+version = "0.9.2"
 edition = "2024"
 
 [lib]
