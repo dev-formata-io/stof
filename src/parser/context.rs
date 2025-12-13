@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Formata, Inc. All rights reserved.
+// Copyright 2025 Formata, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ use imbl::vector;
 use lazy_static::lazy_static;
 use nanoid::nanoid;
 use rustc_hash::{FxHashMap, FxHashSet};
-use crate::{model::{DataRef, Graph, NodeRef, SId, PROTOTYPE_EXTENDS_ATTR, PROTOTYPE_TYPE_ATTR}, runtime::{instruction::Instruction, instructions::call::FuncCall, proc::Process, Error, Runtime, Type, Val, Variable}};
+use crate::{model::{DataRef, Graph, NodeRef, PROTOTYPE_EXTENDS_ATTR, PROTOTYPE_TYPE_ATTR, Profile, SId, libraries::prof::insert_profile_lib}, runtime::{Error, Runtime, Type, Val, Variable, instruction::Instruction, instructions::call::FuncCall, proc::Process}};
 
 
 lazy_static! {
@@ -32,7 +32,7 @@ lazy_static! {
 pub struct ParseContext<'ctx> {
     pub graph: &'ctx mut Graph,
     pub runtime: Runtime,
-    pub docs: bool,
+    pub profile: Profile,
     pub init_funcs: Vec<DataRef>,
     
     relative_import_stack: Vec<PathBuf>,
@@ -40,7 +40,7 @@ pub struct ParseContext<'ctx> {
 }
 impl<'ctx> ParseContext<'ctx> {
     /// Create a new parse context with a default config.
-    pub fn new(graph: &'ctx mut Graph) -> Self {
+    pub fn new(graph: &'ctx mut Graph, profile: Profile) -> Self {
         let mut runtime = Runtime::default();
         
         // Stage the process for eval in done
@@ -48,10 +48,13 @@ impl<'ctx> ParseContext<'ctx> {
         process.env.pid = PARSE_ID.clone();
         runtime.done.insert(process.env.pid.clone(), process);
 
+        // Insert the updated profile lib into the graph with this context (assume we use the context)
+        insert_profile_lib(graph, &profile);
+
         Self {
             graph,
             runtime,
-            docs: false,
+            profile,
             init_funcs: Default::default(),
             relative_import_stack: Default::default(),
             seen_import_paths: Default::default(),
@@ -328,7 +331,7 @@ impl<'ctx> ParseContext<'ctx> {
 impl<'ctx> Drop for ParseContext<'ctx> {
     fn drop(&mut self) {
         // If we parsed docs, instruct the graph to insert library documentation
-        if self.docs {
+        if self.profile.docs {
             self.graph.insert_lib_docs();
         }
 

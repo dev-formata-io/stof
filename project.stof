@@ -35,6 +35,12 @@ Cargo cargo: {
         crate-type: ['cdylib', 'lib']
         bench: false
         doctest: false
+
+        #[init]
+        fn init_name() {
+            // Set the lib name to "pystof" when building for python (default features contains "py" feature).
+            if (super.features.default.contains('py')) self.name = 'pystof';
+        }
     }
 
     features: {
@@ -53,6 +59,13 @@ Cargo cargo: {
         tokio: ['dep:tokio']
         age_encrypt: ['dep:age']
 
+        /// python bindings for stof with full functionality (TODO min/sandboxing)
+        /// when building for python, set this as the only "default" feature
+        py: [
+            'full',
+            'dep:pyo3',
+        ]
+
         /// wasm/js version of the runtime
         /// should be the only feature enabled when building for the wasm target
         js: [
@@ -69,11 +82,14 @@ Cargo cargo: {
     }
 
     dependencies: {
-        anyhow: 1.0.99
         base64: 0.22.1
         bincode: 1.3.3
+        indexmap: {
+            version: 2.12.1
+            features: ['serde']
+        }
         bytes: {
-            version: 1.10.1
+            version: 1.11.0
             features: ['serde']
         }
         colored: 3.0.0
@@ -98,17 +114,23 @@ Cargo cargo: {
             optional: true
         }
         regex: {
-            version: 1.11.2
+            version: 1.12.2
             optional: true
         }
         serde: {
-            version: 1.0.219
+            version: 1.0.228
             features: ['derive', 'rc']
         }
-        serde_json: 1.0.143
+        serde_json: {
+            version: 1.0.145
+            features: ['preserve_order']
+        }
         serde_yaml: 0.9.34
-        toml: 0.9.5
-        typetag: 0.2.20
+        toml: {
+            version: 0.9.8
+            features: ['preserve_order']
+        }
+        typetag: 0.2.21
         urlencoding: 2.1.3
         walkdir: {
             version: 2.5.0
@@ -118,20 +140,20 @@ Cargo cargo: {
             version: 4.5.0
             optional: true
         }
-        chrono: 0.4.41
+        chrono: 0.4.42
         tokio: {
-            version: 1.47.1
+            version: 1.48.0
             features: ['full']
             optional: true
         }
         reqwest: {
-            version: 0.12.23
+            version: 0.12.25
             optional: true
             features: ['blocking']
         }
         rustc-hash: 2.1.1
         imbl: {
-            version: 6.0.0
+            version: 6.1.0
             features: ['serde', 'triomphe']
         }
         arcstr: {
@@ -140,16 +162,16 @@ Cargo cargo: {
         }
         nom: 8.0.0
         parking_lot: {
-            version: 0.12.4
+            version: 0.12.5
             features: ['serde']
         }
         age: {
-            version: 0.11.1
+            version: 0.11.2
             optional: true
             features: ['web-sys'] // use web_sys::SystemTime when wasm target
         }
         log: {
-            version: 0.4.28
+            version: 0.4.29
             optional: true
         }
         web-time: {
@@ -158,14 +180,31 @@ Cargo cargo: {
         }
 
         /*****************************************************************************
+         * Python features.
+         *****************************************************************************/
+        pyo3: {
+            version: 0.27.2
+            optional: true
+            features: [
+                'macros',
+                'chrono',
+                'chrono-tz',
+                'hashbrown',
+                'indexmap',
+                'generate-import-lib',
+                'extension-module',
+            ]
+        }
+
+        /*****************************************************************************
          * JS features.
          *****************************************************************************/
         wasm-bindgen: {
-            version: 0.2.100
+            version: 0.2.106
             optional: true
         }
         wasm-bindgen-futures: {
-            version: 0.4.51
+            version: 0.4.56
             optional: true
         }
         serde-wasm-bindgen: {
@@ -173,7 +212,7 @@ Cargo cargo: {
             optional: true
         }
         js-sys: {
-            version: 0.3.78
+            version: 0.3.83
             optional: true
         }
         getrandom: {
@@ -182,12 +221,12 @@ Cargo cargo: {
             features: ['js']
         }
         web-sys: {
-            version: 0.3.82
+            version: 0.3.83
             optional: true
             features: ['console', 'Window']
         }
         console_error_panic_hook: {
-            version: 0.1.2
+            version: 0.1.7
             optional: true
         }
     }
@@ -243,25 +282,78 @@ github: {
     }
 }
 
-#[cargo]
+
+/// pyproject.toml definition.
+pyproject: {
+    project: {
+        name: 'stof'
+        description: 'Data that carries its own logic.'
+        license: 'Apache-2.0'
+        authors: [
+            {
+                name: 'CJ Cummings'
+                email: 'cj@stof.dev'
+            }
+        ]
+        readme: 'README.md'
+        requires-python: '>=3.7'
+        classifiers: [
+            "Programming Language :: Rust",
+            "Programming Language :: Python :: Implementation :: CPython",
+            "Programming Language :: Python :: Implementation :: PyPy",
+        ]
+        keywords: [
+            'format',
+            'runtime',
+            'validation',
+            'embedded',
+        ]
+        urls: {
+            Documentation: 'https://docs.stof.dev'
+            Playground: 'https://play.stof.dev'
+            Repository: 'https://github.com/dev-formata-io/stof'
+        }
+    }
+
+    build-system: {
+        requires: ['maturin>=1,<2']
+        build-backend: 'maturin'
+    }
+}
+
+
+/*****************************************************************************
+ * Generate functions.
+ *****************************************************************************/
+
 /// Generate Cargo.toml file.
-/// `stof run project.stof -a cargo`
 async fn generate_cargo_toml() {
-    const out = await Rust.Cargo.generate(self.cargo, 0.8.62, update = false);
+    const out = await Rust.Cargo.generate(self.cargo, 0.9.2, update = false);
     fs.write('Cargo.toml', out);
     pln('Cargo .. ok');
 }
 
-#[github]
+
+/// Generate python project toml.
+async fn generate_pyproject_toml() {
+    const out = stringify('toml', self.pyproject);
+    fs.write('pyproject.toml', out);
+    pln('pyproject .. ok');
+}
+
+
 /// Generate GitHub configurations.
-/// `stof run project.stof -a github`
 async fn generate_github() {
     self.github.run();
     pln('GitHub .. ok');
 }
 
+
+/*****************************************************************************
+ * Main functions.
+ *****************************************************************************/
+
 #[main]
-/// Run everything.
 /// `stof run project.stof`
 fn main() {
     await [
@@ -269,4 +361,34 @@ fn main() {
         self.generate_github(),
     ];
     pln('done');
+}
+
+
+#[javascript]
+/// `stof run project.stof -a javascript`
+fn javascript_main() {
+    // set js features
+    self.cargo.features.default = ['js'];
+
+    await [
+        self.generate_cargo_toml(),
+        self.generate_github(),
+    ];
+    pln('javascript config done');
+}
+
+
+#[python]
+/// `stof run project.stof -a python`
+fn python_main() {
+    // set py features and name
+    self.cargo.features.default = ['py'];
+    self.cargo.lib.name = 'pystof';
+
+    await [
+        self.generate_cargo_toml(),
+        self.generate_github(),
+        self.generate_pyproject_toml(),
+    ];
+    pln('python config done');
 }

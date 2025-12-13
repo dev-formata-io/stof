@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Formata, Inc. All rights reserved.
+// Copyright 2025 Formata, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,11 @@
  * This object contains all of the stof tests for the Stof libraries, language, and formats.
  */
 
+#[test]
 import './lang/mod' as self.Lang;
+#[test]
 import './libs/mod' as self.Libs;
+#[test]
 import './formats/mod' as self.Formats;
+#[test]
 import './security/mod' as self.Security;

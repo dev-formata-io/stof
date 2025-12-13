@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Formata, Inc. All rights reserved.
+// Copyright 2025 Formata, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 //
 
 use std::ops::Deref;
-use crate::{model::{Field, Format, Graph, NodeRef}, runtime::{Error, Val, Variable}};
+use crate::{model::{Field, Format, Graph, NodeRef, Profile}, runtime::{Error, Val, Variable}};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 
 mod pdf;
@@ -35,7 +35,7 @@ impl Format for PdfFormat {
     fn content_type(&self) -> String {
         "application/pdf".into()
     }
-    fn binary_import(&self, graph: &mut Graph, _format: &str, bytes: bytes::Bytes, node: Option<NodeRef>) -> Result<(), Error> {
+    fn binary_import(&self, graph: &mut Graph, _format: &str, bytes: bytes::Bytes, node: Option<NodeRef>, _profile: &Profile) -> Result<(), Error> {
         match Pdf::from_bytes(bytes.to_vec()) {
             Ok(pdf) => {
                 let mut parse_node = graph.ensure_main_root();
@@ -100,10 +100,10 @@ impl Format for PdfFormat {
         let bytes = self.binary_export(graph, format, node)?;
         Ok(STANDARD.encode(&bytes))
     }
-    fn string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
+    fn string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
         match STANDARD.decode(src) {
             Ok(bytes) => {
-                self.binary_import(graph, format, bytes::Bytes::from(bytes), node)
+                self.binary_import(graph, format, bytes::Bytes::from(bytes), node, profile)
             },
             Err(error) => {
                 Err(Error::PDFImport(error.to_string()))

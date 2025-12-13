@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Formata, Inc. All rights reserved.
+// Copyright 2025 Formata, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ pub mod data;
 
 
 /// Parse attributes.
-pub(self) fn parse_attributes<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, FxHashMap<String, Val>, StofParseError> {
+pub(self) fn parse_attributes<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, (FxHashMap<String, Val>, bool), StofParseError> {
     let mut map = FxHashMap::default();
     let mut input = input;
     loop {
@@ -64,7 +64,57 @@ pub(self) fn parse_attributes<'a>(input: &'a str, context: &mut ParseContext) ->
             }
         }
     }
-    Ok((input, map))
+    
+    let mut do_action = true;
+    if !map.is_empty() {
+        for (k, v) in &map {
+            match k.as_str() {
+                "if" => {
+                    do_action = v.truthy();
+                },
+                "not" => {
+                    do_action = !v.truthy();
+                },
+                "any" => {
+                    match v {
+                        Val::List(vals) => {
+                            for v in vals {
+                                if v.read().truthy() {
+                                    do_action = true;
+                                    break;
+                                }
+                            }
+                        },
+                        Val::Set(set) => {
+                            for v in set {
+                                if v.read().truthy() {
+                                    do_action = true;
+                                    break;
+                                }
+                            }
+                        },
+                        Val::Tup(vals) => {
+                            for v in vals {
+                                if v.read().truthy() {
+                                    do_action = true;
+                                    break;
+                                }
+                            }
+                        },
+                        v => {
+                            do_action = v.truthy();
+                        }
+                    }
+                },
+                attr => {
+                    if context.profile.exclude_attributes.contains(attr) {
+                        do_action = false;
+                    }
+                }
+            }
+        }
+    }
+    Ok((input, (map, do_action)))
 }
 
 

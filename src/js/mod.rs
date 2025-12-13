@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Formata, Inc. All rights reserved.
+// Copyright 2025 Formata, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ use bytes::Bytes;
 use js_sys::Uint8Array;
 use rustc_hash::FxHashSet;
 use wasm_bindgen::prelude::*;
-use crate::{js::{func::StofFunc, value::to_stof_value}, model::{Graph, import::parse_json_object_value}, runtime::{Runtime, Val, Variable, instruction::Instruction, instructions::Base, proc::ProcEnv}};
+use crate::{js::{func::StofFunc, value::to_stof_value}, model::{Graph, Profile, import::parse_json_object_value}, runtime::{Runtime, Val, Variable, instruction::Instruction, instructions::Base, proc::ProcEnv}};
 
 
 // Workaround for Wasm-Pack Error
@@ -175,8 +175,8 @@ impl Stof {
      *****************************************************************************/
     
     /// Parse Stof into this document, optionally within the specified node (pass null for root node).
-    pub fn parse(&mut self, stof: &str, node: JsValue) -> Result<bool, String> {
-        self.string_import(stof, "stof", node)
+    pub fn parse(&mut self, stof: &str, node: JsValue, profile: &str) -> Result<bool, String> {
+        self.string_import(stof, "stof", node, profile)
     }
 
     #[wasm_bindgen(js_name = objImport)]
@@ -207,7 +207,7 @@ impl Stof {
 
     #[wasm_bindgen(js_name = stringImport)]
     /// String import, using a format of choice (including stof).
-    pub fn string_import(&mut self, src: &str, format: &str, node: JsValue) -> Result<bool, String> {
+    pub fn string_import(&mut self, src: &str, format: &str, node: JsValue, profile: &str) -> Result<bool, String> {
         let val = to_stof_value(node, &self);
         let mut parse_node = self.graph.ensure_main_root();
         match val {
@@ -224,7 +224,16 @@ impl Stof {
                 return Ok(false);
             }
         }
-        match self.graph.string_import(format, src, Some(parse_node)) {
+
+        let profile = match profile {
+            "prod" => Profile::prod(),
+            "test" => Profile::test(),
+            "prod_docs" => Profile::docs(false),
+            "docs" => Profile::docs(true),
+            _ => Profile::default(),
+        };
+
+        match self.graph.string_import(format, src, Some(parse_node), &profile) {
             Ok(_) => Ok(true),
             Err(err) => Err(err.to_string())
         }
@@ -233,7 +242,7 @@ impl Stof {
     #[wasm_bindgen(js_name = binaryImport)]
     /// Binary import (Uint8Array), using a format of choice.
     /// Format can also be a content type (for HTTP-like situations).
-    pub fn binary_import(&mut self, bytes: JsValue, format: &str, node: JsValue) -> Result<bool, String> {
+    pub fn binary_import(&mut self, bytes: JsValue, format: &str, node: JsValue, profile: &str) -> Result<bool, String> {
         let val = to_stof_value(node, &self);
         let mut parse_node = self.graph.ensure_main_root();
         match val {
@@ -252,7 +261,14 @@ impl Stof {
         }
         let array = Uint8Array::from(bytes);
         let bytes = Bytes::from(array.to_vec());
-        match self.graph.binary_import(format, bytes, Some(parse_node)) {
+        let profile = match profile {
+            "prod" => Profile::prod(),
+            "test" => Profile::test(),
+            "prod_docs" => Profile::docs(false),
+            "docs" => Profile::docs(true),
+            _ => Profile::default(),
+        };
+        match self.graph.binary_import(format, bytes, Some(parse_node), &profile) {
             Ok(_) => Ok(true),
             Err(err) => Err(err.to_string())
         }

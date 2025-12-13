@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Formata, Inc. All rights reserved.
+// Copyright 2025 Formata, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -417,8 +417,8 @@ impl Instruction for ObjIns {
             Self::Len => {
                 if let Some(var) = env.stack.pop() {
                     if let Some(obj) = var.try_obj() {
-                        let fields = Field::fields(graph, &obj);
-                        env.stack.push(Variable::val(Val::Num(Num::Int(fields.len() as i64))));
+                        let len = Field::fields_len(&graph, &obj);
+                        env.stack.push(Variable::val(Val::Num(Num::Int(len))));
                         return Ok(None);
                     }
                 }
@@ -431,7 +431,7 @@ impl Instruction for ObjIns {
                             match index_var.val.read().deref() {
                                 Val::Num(num) => {
                                     let index = num.int() as usize;
-                                    if let Some((name, field_ref)) = Field::fields(graph, &obj).into_iter().nth(index) {
+                                    if let Some((name, field_ref)) = Field::fields_at(graph, &obj, index) {
                                         if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
                                             env.stack.push(Variable::val(Val::Tup(vector![ValRef::new(Val::Str(name.into())), field.value.val.duplicate(false)])));
                                         } else {
@@ -456,7 +456,7 @@ impl Instruction for ObjIns {
                             match index_var.val.read().deref() {
                                 Val::Num(num) => {
                                     let index = num.int() as usize;
-                                    if let Some((name, field_ref)) = Field::fields(graph, &obj).into_iter().nth(index) {
+                                    if let Some((name, field_ref)) = Field::fields_at(graph, &obj, index) {
                                         if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
                                             env.stack.push(Variable::val(Val::Tup(vector![ValRef::new(Val::Str(name.into())), field.value.val.duplicate(true)])));
                                         } else {

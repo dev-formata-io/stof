@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Formata, Inc. All rights reserved.
+// Copyright 2025 Formata, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 //
 
 use serde_json::Value;
-use crate::{model::{export::json_value_from_node, import::parse_json_object_value, Format, Graph, NodeRef}, runtime::Error};
+use crate::{model::{Format, Graph, NodeRef, Profile, export::json_value_from_node, import::parse_json_object_value}, runtime::Error};
 
 
 #[derive(Debug)]
@@ -27,7 +27,7 @@ impl Format for YamlFormat {
     fn content_type(&self) -> String {
         "application/yaml".into()
     }
-    fn string_import(&self, graph: &mut Graph, _format: &str, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
+    fn string_import(&self, graph: &mut Graph, _format: &str, src: &str, node: Option<NodeRef>, _profile: &Profile) -> Result<(), Error> {
         if src.is_empty() { return Ok(()); }
         match serde_yaml::from_str::<Value>(src) {
             Ok(value) => {

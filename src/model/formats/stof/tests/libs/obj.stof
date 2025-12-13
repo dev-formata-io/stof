@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Formata, Inc. All rights reserved.
+// Copyright 2025 Formata, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -120,6 +120,7 @@ Prototypes: {
 Index: {
     const object: {
         first: 'a'
+        ordered: { sub: true }
         second: 'b'
         third: 'c'
         fourth: 'd'
@@ -134,11 +135,12 @@ Index: {
     #[test]
     fn iter() {
         let res = '';
+        assert_eq(self.object.len(), 5);
         for (const field in self.object) {
             if (first) res += str(field);
             else res += str(', ', field);
         }
-        assert_eq(res, '("first", "a"), ("fourth", "d"), ("second", "b"), ("third", "c")');
+        assert_eq(res, '("first", "a"), ("ordered", {"sub":true}), ("second", "b"), ("third", "c"), ("fourth", "d")');
     }
 
     const obj_for_ref: {

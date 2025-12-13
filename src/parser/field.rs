@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Formata, Inc. All rights reserved.
+// Copyright 2025 Formata, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,15 +28,18 @@ pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
     // Doc comments & whitespace before a field definition
     let (input, mut comments) = doc_comment(input)?;
 
+    let mut do_insert_field;
     let mut attributes = FxHashMap::default();
-    let (input, attrs) = parse_attributes(input, context)?;
+    let (input, (attrs, do_add_field)) = parse_attributes(input, context)?;
     for (k, v) in attrs { attributes.insert(k, v); }
+    do_insert_field = do_add_field;
 
     let (input, more_comments) = doc_comment(input)?;
     if more_comments.len() > 0 { if comments.len() > 0 { comments.push('\n'); }  comments.push_str(&more_comments); }
 
-    let (input, attrs) = parse_attributes(input, context)?;
+    let (input, (attrs, do_add_field)) = parse_attributes(input, context)?;
     for (k, v) in attrs { attributes.insert(k, v); }
+    do_insert_field = do_insert_field && do_add_field;
     let (input, _) = whitespace(input)?; // clean up anything more before signature...
 
     // Optionally a const field
@@ -76,6 +79,21 @@ pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
     // Optionally end the field declaration with a semicolon or a comma
     let (input, _) = opt(preceded(multispace0, alt((char(';'), char(','))))).parse(input).map_err(err_fail)?;
 
+    // Check the do_insert_field, which will check attributes and profile for ignored fields and such after parsing
+    if !do_insert_field {
+        // If we just created an object, remove the entire thing from the graph!
+        match value.val.read().deref() {
+            Val::Obj(nref) => {
+                let self_ptr = context.self_ptr();
+                if nref.child_of(&context.graph, &self_ptr) && nref != &self_ptr {
+                    context.graph.remove_node(nref, false);
+                }
+            },
+            _ => {}
+        }
+        return Ok((input, ()));
+    }
+
     // check for #[no-field] on an object value, which only creates the object, not a field in addition
     // this is typically done within/for the stof export
     if value.try_obj().is_some() && attributes.contains_key(NOFIELD_FIELD_ATTR.as_str()) {
@@ -88,7 +106,7 @@ pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
     let field_ref = context.graph.insert_stof_data(&self_ptr, &name, Box::new(field), None).expect("failed to insert a parsed field into this context");
 
     // Insert the field doc comments also if requested
-    if context.docs && comments.len() > 0 {
+    if context.profile.docs && comments.len() > 0 {
         context.graph.insert_stof_data(&self_ptr, &format!("{name}_field_docs"), Box::new(FieldDoc {
             docs: comments,
             field: field_ref
@@ -232,15 +250,13 @@ fn object_value<'a>(input: &'a str, name: &str, context: &mut ParseContext, attr
 
 #[cfg(test)]
 mod tests {
-    use crate::{model::Graph, parser::{context::ParseContext, field::parse_field}};
+    use crate::{model::{Graph, Profile}, parser::{context::ParseContext, field::parse_field}};
 
     #[test]
     fn basic_field() {
         let mut graph = Graph::default();
         {
-            let mut context = ParseContext::new(&mut graph);
-            context.docs = true;
-
+            let mut context = ParseContext::new(&mut graph, Profile::docs(true));
             let (_input, ()) = parse_field(r#"
     
             // This is an ignored comment

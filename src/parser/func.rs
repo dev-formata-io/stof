@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Formata, Inc. All rights reserved.
+// Copyright 2025 Formata, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,14 +26,17 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
     // Doc comments & whitespace before a function definition
     let (input, mut comments) = doc_comment(input)?;
 
-    let (input, attrs) = parse_attributes(input, context)?;
+    let mut do_create_func;
+    let (input, (attrs, do_insert)) = parse_attributes(input, context)?;
     for (k, v) in attrs { func.attributes.insert(k, v); }
+    do_create_func = do_insert;
 
     let (input, more_comments) = doc_comment(input)?;
     if more_comments.len() > 0 { if comments.len() > 0 { comments.push('\n'); }  comments.push_str(&more_comments); }
 
-    let (input, attrs) = parse_attributes(input, context)?;
+    let (input, (attrs, do_insert)) = parse_attributes(input, context)?;
     for (k, v) in attrs { func.attributes.insert(k, v); }
+    do_create_func = do_create_func && do_insert;
     let (input, _) = whitespace(input)?; // clean up anything more before signature...
 
     let (input, async_fn) = opt(terminated(tag("async"), multispace0)).parse(input)?;
@@ -46,6 +49,11 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
     let (input, params) = delimited(char('('), separated_list0(char(','), alt((parameter, opt_parameter))), char(')')).parse(input).map_err(err_fail)?;
     let (input, return_type) = opt(preceded(delimited(multispace0, tag("->"), multispace0), parse_type)).parse(input).map_err(err_fail)?;
     let (input, instructions) = block(input).map_err(err_fail)?;
+
+    // Check do_create_func now after parse
+    if !do_create_func {
+        return Ok((input, ()));
+    }
 
     for param in params { func.params.push_back(param); }
     func.return_type = return_type.unwrap_or_default(); // default is void
@@ -67,7 +75,7 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
     }
 
     // Insert the function doc comments also if requested
-    if context.docs && comments.len() > 0 {
+    if context.profile.docs && comments.len() > 0 {
         context.graph.insert_stof_data(&self_ptr, &format!("{name}_docs"), Box::new(FuncDoc {
             docs: comments,
             func: func_ref,
@@ -123,15 +131,13 @@ pub fn opt_parameter(input: &str) -> IResult<&str, Param, StofParseError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{model::Graph, parser::{context::ParseContext, func::parse_function}, runtime::{Runtime, Val}};
+    use crate::{model::{Graph, Profile}, parser::{context::ParseContext, func::parse_function}, runtime::{Runtime, Val}};
 
     #[test]
     fn basic_func() {
         let mut graph = Graph::default();
         {
-            let mut context = ParseContext::new(&mut graph);
-            context.docs = true;
-
+            let mut context = ParseContext::new(&mut graph, Profile::docs(true));
             let (_input, ()) = parse_function(r#"
     
             // This is an ignored comment

@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Formata, Inc. All rights reserved.
+// Copyright 2025 Formata, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,5 +19,19 @@ pub mod model;
 pub mod runtime;
 pub mod parser;
 
+#[cfg(feature = "py")]
+pub mod py;
+
 #[cfg(feature = "js")]
 pub mod js;
+
+// Re-export public API dependencies
+pub use typetag;
+pub use bytes;
+pub use serde;
+pub use imbl;
+pub use arcstr;
+pub use rustc_hash;
+
+#[cfg(feature = "tokio")]
+pub use tokio;

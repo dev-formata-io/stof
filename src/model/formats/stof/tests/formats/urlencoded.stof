@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Formata, Inc. All rights reserved.
+// Copyright 2025 Formata, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ fn stringify_nested() {
         msg: 'hi'
     };
     const encoded = stringify('urlencoded', object);
-    assert_eq(encoded, 'msg=hi&sub%5Bval%5D=42');
+    assert_eq(encoded, 'sub%5Bval%5D=42&msg=hi');
     drop(object);
 }
 

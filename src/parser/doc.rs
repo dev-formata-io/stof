@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Formata, Inc. All rights reserved.
+// Copyright 2025 Formata, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -228,7 +228,7 @@ pub fn document_statement<'a>(input: &'a str, context: &mut ParseContext) -> IRe
 
     // Inner comment?
     if let Ok((input, docs)) = parse_inner_doc_comment(input) {
-        if context.docs {
+        if context.profile.docs {
             let self_ptr = context.self_ptr();
             context.graph.insert_stof_data(&self_ptr, &nanoid!(15), Box::new(InnerDoc { docs }), None);
         }
@@ -305,15 +305,13 @@ fn json_statements<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
 
 #[cfg(test)]
 mod tests {
-    use crate::{model::Graph, parser::{context::ParseContext, doc::document}, runtime::{Runtime, Val}};
+    use crate::{model::{Graph, Profile}, parser::{context::ParseContext, doc::document}, runtime::{Runtime, Val}};
 
     #[test]
     fn basic_doc() {
         let mut graph = Graph::default();
         {
-            let mut context = ParseContext::new(&mut graph);
-            context.docs = true;
-
+            let mut context = ParseContext::new(&mut graph, Profile::docs(true));
             document(r#"
 
             {

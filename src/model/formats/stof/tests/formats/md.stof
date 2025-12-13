@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Formata, Inc. All rights reserved.
+// Copyright 2025 Formata, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -63,6 +63,6 @@ Json: {
     fn markdown_to_json() {
         const md = "# Title\nList.\n- one\n- two";
         const json = Md.json(md);
-        assert_eq(json, "{\"children\":[{\"children\":[{\"type\":\"text\",\"value\":\"Title\"}],\"depth\":1,\"type\":\"heading\"},{\"children\":[{\"type\":\"text\",\"value\":\"List.\"}],\"type\":\"paragraph\"},{\"children\":[{\"children\":[{\"children\":[{\"type\":\"text\",\"value\":\"one\"}],\"type\":\"paragraph\"}],\"spread\":false,\"type\":\"listItem\"},{\"children\":[{\"children\":[{\"type\":\"text\",\"value\":\"two\"}],\"type\":\"paragraph\"}],\"spread\":false,\"type\":\"listItem\"}],\"ordered\":false,\"spread\":false,\"type\":\"list\"}],\"type\":\"root\"}");
+        assert_eq(json, "{\"type\":\"root\",\"children\":[{\"type\":\"heading\",\"children\":[{\"type\":\"text\",\"value\":\"Title\"}],\"depth\":1},{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"List.\"}]},{\"type\":\"list\",\"children\":[{\"type\":\"listItem\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"one\"}]}],\"spread\":false},{\"type\":\"listItem\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"two\"}]}],\"spread\":false}],\"spread\":false,\"ordered\":false}]}");
     }
 }

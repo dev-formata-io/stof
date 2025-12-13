@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Formata, Inc. All rights reserved.
+// Copyright 2025 Formata, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,13 +15,12 @@
 //
 
 use std::{collections::HashSet, fs::{self, File}, io::{self, Read, Seek, Write}, path::{Path, PathBuf}};
-use anyhow::Context;
 use bytes::Bytes;
 use nanoid::nanoid;
 use regex::Regex;
 use walkdir::{DirEntry, WalkDir};
-use zip::write::SimpleFileOptions;
-use crate::{model::{Field, Format, Graph, NodeRef, SELF_KEYWORD, SUPER_KEYWORD}, parser::context::ParseContext, runtime::{Error, Val}};
+use zip::{result::ZipResult, write::SimpleFileOptions};
+use crate::{model::{Field, Format, Graph, NodeRef, Profile, SELF_KEYWORD, SUPER_KEYWORD}, parser::context::ParseContext, runtime::{Error, Val}};
 
 
 #[derive(Debug, Clone)]
@@ -77,7 +76,7 @@ impl StofPackageFormat {
     }
 
     /// Zip the directory into an output file.
-    fn zip_directory<T: Write + Seek>(iter: &mut dyn Iterator<Item = DirEntry>, prefix: &str, writer: T, method: zip::CompressionMethod, included: &HashSet<String>, excluded: &HashSet<String>) -> anyhow::Result<()> {
+    fn zip_directory<T: Write + Seek>(iter: &mut dyn Iterator<Item = DirEntry>, prefix: &str, writer: T, method: zip::CompressionMethod, included: &HashSet<String>, excluded: &HashSet<String>) -> ZipResult<()> {
         let mut zip = zip::ZipWriter::new(writer);
         let options = SimpleFileOptions::default().compression_method(method).unix_permissions(0o755);
 
@@ -89,7 +88,7 @@ impl StofPackageFormat {
             let path_as_string = name
                 .to_str()
                 .map(str::to_owned)
-                .with_context(|| format!("{name:?} Is a Non UTF-8 Path"))?;
+                .unwrap();
             
             if included.len() > 0 {
                 let mut found_match = false;
@@ -201,9 +200,9 @@ impl Format for StofPackageFormat {
     fn content_type(&self) -> String {
         "application/octet-stream+pkg".into()
     }
-    fn binary_import(&self, graph: &mut Graph, format: &str, bytes: Bytes, node: Option<NodeRef>) -> Result<(), Error> {
+    fn binary_import(&self, graph: &mut Graph, format: &str, bytes: Bytes, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
         if let Some(path) = self.unzip_bytes_to_temp(&bytes) {
-            let res = self.file_import(graph, format, &path, node);
+            let res = self.file_import(graph, format, &path, node, profile);
             let _ = fs::remove_dir_all(&path);
             res
         } else {
@@ -236,7 +235,7 @@ impl Format for StofPackageFormat {
         };
 
         let mut pkg_graph = Graph::default();
-        let res = pkg_graph.parse_stof_file("stof", &package_path, None, false);
+        let res = pkg_graph.parse_stof_file("stof", &package_path, None, context.profile.clone());
         if res.is_err() {
             cleanup();
             return res;
@@ -261,7 +260,7 @@ impl Format for StofPackageFormat {
         cleanup();
         Ok(())
     }
-    fn file_import(&self, graph: &mut Graph, _format: &str, path: &str, node: Option<NodeRef>) -> Result<(), Error> {
+    fn file_import(&self, graph: &mut Graph, _format: &str, path: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
         let mut package_path = path.to_string();
         let mut cleanup_dir = None;
 
@@ -287,7 +286,7 @@ impl Format for StofPackageFormat {
         };
 
         let mut pkg_graph = Graph::default();
-        let res = pkg_graph.parse_stof_file("stof", &package_path, None, false);
+        let res = pkg_graph.parse_stof_file("stof", &package_path, None, profile.clone());
         if res.is_err() {
             cleanup();
             return res;
@@ -299,7 +298,7 @@ impl Format for StofPackageFormat {
                 import_value = Some(import_field.value.val.read().clone());
             }
             if let Some(import_val) = import_value {
-                let mut context = ParseContext::new(graph);
+                let mut context = ParseContext::new(graph, profile.clone());
                 if let Some(node) = node {
                     context.push_self_node(node);
                 }

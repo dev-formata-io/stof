@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Formata, Inc. All rights reserved.
+// Copyright 2025 Formata, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 use core::str;
 use std::ops::Deref;
 use bytes::Bytes;
-use crate::{model::{Field, Format, Graph, NodeRef}, runtime::{Error, Val, Variable}};
+use crate::{model::{Field, Format, Graph, NodeRef, Profile}, runtime::{Error, Val, Variable}};
 
 
 #[derive(Debug)]
@@ -29,8 +29,8 @@ impl Format for BytesFormat {
     fn content_type(&self) -> String {
         "application/octet-stream".into()
     }
-    fn string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
-        self.binary_import(graph, format, Bytes::from(src.to_string()), node)
+    fn string_import(&self, graph: &mut Graph, format: &str, src: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
+        self.binary_import(graph, format, Bytes::from(src.to_string()), node, profile)
     }
     fn string_export(&self, graph: &Graph, format: &str, node: Option<NodeRef>) -> Result<String, Error> {
         let bytes = self.binary_export(graph, format, node)?;
@@ -43,7 +43,7 @@ impl Format for BytesFormat {
             }
         }
     }
-    fn binary_import(&self, graph: &mut Graph, _format: &str, bytes: Bytes, node: Option<NodeRef>) -> Result<(), Error> {
+    fn binary_import(&self, graph: &mut Graph, _format: &str, bytes: Bytes, node: Option<NodeRef>, _profile: &Profile) -> Result<(), Error> {
         if bytes.is_empty() { return Ok(()); }
         let mut parse_node = graph.ensure_main_root();
         if let Some(nd) = node {

@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Formata, Inc. All rights reserved.
+// Copyright 2025 Formata, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,13 +19,13 @@ use age::secrecy::{ExposeSecret, SecretString};
 use arcstr::{literal, ArcStr};
 use imbl::vector;
 use serde::{Deserialize, Serialize};
-use crate::{model::{Field, Graph, LibFunc, Param, SId, SPath, StofData, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error, Type, Val, Variable}};
+use crate::{model::{Field, Graph, LibFunc, Param, Profile, SELF_STR_KEYWORD, SId, SPath, SUPER_STR_KEYWORD, StofData}, runtime::{Error, Type, Val, Variable, instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv}};
 
 
 /// Library name.
 pub(self) const AGE_LIB: ArcStr = literal!("Age");
 pub fn insert_age_encrypt_library(graph: &mut Graph) {
-    // Age.parse(age: Data<Age>, bin: blob, context: obj = self, format: str = "stof") -> bool
+    // Age.parse(age: Data<Age>, bin: blob, context: obj = self, format: str = "stof", profile: str = "prod") -> bool
     graph.insert_libfunc(LibFunc {
         library: AGE_LIB.clone(),
         name: "parse".into(),
@@ -38,6 +38,7 @@ Parse an age-encrypted binary. Similar to Std.parse, but requires an Age identit
             Param { name: "bin".into(), param_type: Type::Blob, default: None, },
             Param { name: "context".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))), },
             Param { name: "format".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))), },
+            Param { name: "profile".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Str("prod".into())))), },
         ],
         unbounded_args: false,
         return_type: None,
@@ -49,7 +50,7 @@ Parse an age-encrypted binary. Similar to Std.parse, but requires an Age identit
         })
     });
 
-    // Age.pass_parse(passphrase: str, bin: blob, context: obj = self, format: str = "stof") -> bool
+    // Age.pass_parse(passphrase: str, bin: blob, context: obj = self, format: str = "stof", profile: str = "prod") -> bool
     graph.insert_libfunc(LibFunc {
         library: AGE_LIB.clone(),
         name: "pass_parse".into(),
@@ -62,6 +63,7 @@ Parse an age-encrypted binary with a passphrase. Similar to Std.parse, but requi
             Param { name: "bin".into(), param_type: Type::Blob, default: None, },
             Param { name: "context".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))), },
             Param { name: "format".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))), },
+            Param { name: "profile".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Str("prod".into())))), },
         ],
         unbounded_args: false,
         return_type: None,
@@ -101,7 +103,7 @@ Std.blobify, but with age public-key recipients. The resulting blob can only be 
         library: AGE_LIB.clone(),
         name: "pass_blobify".into(),
         is_async: false,
-        docs: r#"# Age.blobify(passphrase: str, format: str = 'stof', context?: obj) -> blob
+        docs: r#"# Age.pass_blobify(passphrase: str, format: str = 'stof', context?: obj) -> blob
 Std.blobify, but with an age passphrase recipient. The resulting blob can only be parsed with the provided passphrase.
 "#.into(),
         params: vector![
@@ -216,75 +218,85 @@ impl Instruction for AgeIns {
     fn exec(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         match self {
             Self::Parse => {
-                // Age.parse(age_identity: Data<Age>, bin: blob, context: obj = self, format: str = "stof") -> bool
-                if let Some(format_var) = env.stack.pop() {
-                    if let Some(context_var) = env.stack.pop() {
-                        if let Some(encrypted_bin_var) = env.stack.pop() {
-                            if let Some(age_data_var) = env.stack.pop() {
-                                if let Some(dref) = age_data_var.try_data_or_func() {
-                                    let mut id = None;
-                                    if let Some(age_identity) = graph.get_stof_data::<AgeIdentity>(&dref) {
-                                        id = Some(age_identity.id.clone());
-                                    }
-                                    if let Some(id) = id {
-                                        let mut context = env.self_ptr();
-                                        match context_var.val.read().deref() {
-                                            Val::Str(path) => {
-                                                let mut ctx = None;
-                                                if path.starts_with(SELF_STR_KEYWORD.as_str()) || path.starts_with(SUPER_STR_KEYWORD.as_str()) {
-                                                    ctx = Some(env.self_ptr());
-                                                }
-                                                if let Some(field_ref) = Field::field_from_path(graph, path.as_str(), ctx.clone()) {
-                                                    if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
-                                                        if let Some(obj) = field.value.try_obj() {
-                                                            context = obj;
-                                                        } else {
-                                                            // Context was not an object
-                                                            env.stack.push(Variable::val(Val::Bool(false)));
-                                                            return Ok(None);
+                // Age.parse(age_identity: Data<Age>, bin: blob, context: obj = self, format: str = "stof", profile: str = "prod") -> bool
+                if let Some(profile_var) = env.stack.pop() {
+                    if let Some(format_var) = env.stack.pop() {
+                        if let Some(context_var) = env.stack.pop() {
+                            if let Some(encrypted_bin_var) = env.stack.pop() {
+                                if let Some(age_data_var) = env.stack.pop() {
+                                    if let Some(dref) = age_data_var.try_data_or_func() {
+                                        let mut id = None;
+                                        if let Some(age_identity) = graph.get_stof_data::<AgeIdentity>(&dref) {
+                                            id = Some(age_identity.id.clone());
+                                        }
+                                        if let Some(id) = id {
+                                            let mut context = env.self_ptr();
+                                            match context_var.val.read().deref() {
+                                                Val::Str(path) => {
+                                                    let mut ctx = None;
+                                                    if path.starts_with(SELF_STR_KEYWORD.as_str()) || path.starts_with(SUPER_STR_KEYWORD.as_str()) {
+                                                        ctx = Some(env.self_ptr());
+                                                    }
+                                                    if let Some(field_ref) = Field::field_from_path(graph, path.as_str(), ctx.clone()) {
+                                                        if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
+                                                            if let Some(obj) = field.value.try_obj() {
+                                                                context = obj;
+                                                            } else {
+                                                                // Context was not an object
+                                                                env.stack.push(Variable::val(Val::Bool(false)));
+                                                                return Ok(None);
+                                                            }
                                                         }
-                                                    }
-                                                } else if let Some(node) = SPath::node(&graph, path.as_str(), ctx) {
-                                                    context = node;
-                                                } else {
-                                                    // context given, but not found (return false)
-                                                    env.stack.push(Variable::val(Val::Bool(false)));
-                                                    return Ok(None);
-                                                }
-                                            },
-                                            Val::Obj(nref) => {
-                                                context = nref.clone();
-                                            },
-                                            _ => {}
-                                        }
-                                        
-                                        let mut format = "stof".to_string();
-                                        match format_var.val.read().deref() {
-                                            Val::Str(fmt) => {
-                                                format = fmt.to_string();
-                                            },
-                                            Val::Void |
-                                            Val::Null => {}, // keep as stof
-                                            _ => {
-                                                return Err(Error::StdParse("format must be a string content type or stof format identifier".to_string()));
-                                            }
-                                        }
-
-                                        match encrypted_bin_var.val.read().deref() {
-                                            Val::Blob(bytes) => {
-                                                if let Err(error) = graph.age_decrypt_import(&format, bytes.clone(), Some(context), &id) {
-                                                    if error == Error::AgeNoMatchingKeys {
-                                                        env.stack.push(Variable::val(Val::Bool(false)));
+                                                    } else if let Some(node) = SPath::node(&graph, path.as_str(), ctx) {
+                                                        context = node;
                                                     } else {
-                                                        return Err(error);
+                                                        // context given, but not found (return false)
+                                                        env.stack.push(Variable::val(Val::Bool(false)));
+                                                        return Ok(None);
                                                     }
-                                                } else {
-                                                    env.stack.push(Variable::val(Val::Bool(true)));
+                                                },
+                                                Val::Obj(nref) => {
+                                                    context = nref.clone();
+                                                },
+                                                _ => {}
+                                            }
+                                            
+                                            let mut format = "stof".to_string();
+                                            match format_var.val.read().deref() {
+                                                Val::Str(fmt) => {
+                                                    format = fmt.to_string();
+                                                },
+                                                Val::Void |
+                                                Val::Null => {}, // keep as stof
+                                                _ => {
+                                                    return Err(Error::StdParse("format must be a string content type or stof format identifier".to_string()));
                                                 }
-                                                return Ok(None);
-                                            },
-                                            _ => {
-                                                return Err(Error::StdParse("age parse source data must be a blob".to_string()));
+                                            }
+
+                                            let profile = match profile_var.val.read().to_string().as_str() {
+                                                "test" => Profile::test(),
+                                                "prod" => Profile::prod(),
+                                                "prod_docs" => Profile::docs(false),
+                                                "docs" => Profile::docs(true),
+                                                _ => Profile::default(),
+                                            };
+
+                                            match encrypted_bin_var.val.read().deref() {
+                                                Val::Blob(bytes) => {
+                                                    if let Err(error) = graph.age_decrypt_import(&format, bytes.clone(), Some(context), &id, Some(profile)) {
+                                                        if error == Error::AgeNoMatchingKeys {
+                                                            env.stack.push(Variable::val(Val::Bool(false)));
+                                                        } else {
+                                                            return Err(error);
+                                                        }
+                                                    } else {
+                                                        env.stack.push(Variable::val(Val::Bool(true)));
+                                                    }
+                                                    return Ok(None);
+                                                },
+                                                _ => {
+                                                    return Err(Error::StdParse("age parse source data must be a blob".to_string()));
+                                                }
                                             }
                                         }
                                     }
@@ -296,72 +308,82 @@ impl Instruction for AgeIns {
                 return Err(Error::Custom("AgeParseError".into()));
             },
             Self::PassphraseParse => {
-                // Age.pass_parse(passphrase: str, bin: blob, context: obj = self, format: str = "stof") -> bool
-                if let Some(format_var) = env.stack.pop() {
-                    if let Some(context_var) = env.stack.pop() {
-                        if let Some(encrypted_bin_var) = env.stack.pop() {
-                            if let Some(pass_var) = env.stack.pop() {
-                                let mut context = env.self_ptr();
-                                match context_var.val.read().deref() {
-                                    Val::Str(path) => {
-                                        let mut ctx = None;
-                                        if path.starts_with(SELF_STR_KEYWORD.as_str()) || path.starts_with(SUPER_STR_KEYWORD.as_str()) {
-                                            ctx = Some(env.self_ptr());
-                                        }
-                                        if let Some(field_ref) = Field::field_from_path(graph, path.as_str(), ctx.clone()) {
-                                            if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
-                                                if let Some(obj) = field.value.try_obj() {
-                                                    context = obj;
-                                                } else {
-                                                    // Context was not an object
-                                                    env.stack.push(Variable::val(Val::Bool(false)));
-                                                    return Ok(None);
+                // Age.pass_parse(passphrase: str, bin: blob, context: obj = self, format: str = "stof", profile: str = "prod") -> bool
+                if let Some(profile_var) = env.stack.pop() {
+                    if let Some(format_var) = env.stack.pop() {
+                        if let Some(context_var) = env.stack.pop() {
+                            if let Some(encrypted_bin_var) = env.stack.pop() {
+                                if let Some(pass_var) = env.stack.pop() {
+                                    let mut context = env.self_ptr();
+                                    match context_var.val.read().deref() {
+                                        Val::Str(path) => {
+                                            let mut ctx = None;
+                                            if path.starts_with(SELF_STR_KEYWORD.as_str()) || path.starts_with(SUPER_STR_KEYWORD.as_str()) {
+                                                ctx = Some(env.self_ptr());
+                                            }
+                                            if let Some(field_ref) = Field::field_from_path(graph, path.as_str(), ctx.clone()) {
+                                                if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
+                                                    if let Some(obj) = field.value.try_obj() {
+                                                        context = obj;
+                                                    } else {
+                                                        // Context was not an object
+                                                        env.stack.push(Variable::val(Val::Bool(false)));
+                                                        return Ok(None);
+                                                    }
                                                 }
-                                            }
-                                        } else if let Some(node) = SPath::node(&graph, path.as_str(), ctx) {
-                                            context = node;
-                                        } else {
-                                            // context given, but not found (return false)
-                                            env.stack.push(Variable::val(Val::Bool(false)));
-                                            return Ok(None);
-                                        }
-                                    },
-                                    Val::Obj(nref) => {
-                                        context = nref.clone();
-                                    },
-                                    _ => {}
-                                }
-                                
-                                let mut format = "stof".to_string();
-                                match format_var.val.read().deref() {
-                                    Val::Str(fmt) => {
-                                        format = fmt.to_string();
-                                    },
-                                    Val::Void |
-                                    Val::Null => {}, // keep as stof
-                                    _ => {
-                                        return Err(Error::StdParse("format must be a string content type or stof format identifier".to_string()));
-                                    }
-                                }
-
-                                let passphrase = pass_var.val.read().to_string();
-                                match encrypted_bin_var.val.read().deref() {
-                                    Val::Blob(bytes) => {
-                                        let passphrase = SecretString::from(passphrase);
-                                        let identity = age::scrypt::Identity::new(passphrase);
-                                        if let Err(error) = graph.age_decrypt_import(&format, bytes.clone(), Some(context), &identity) {
-                                            if error == Error::AgeNoMatchingKeys {
-                                                env.stack.push(Variable::val(Val::Bool(false)));
+                                            } else if let Some(node) = SPath::node(&graph, path.as_str(), ctx) {
+                                                context = node;
                                             } else {
-                                                return Err(error);
+                                                // context given, but not found (return false)
+                                                env.stack.push(Variable::val(Val::Bool(false)));
+                                                return Ok(None);
                                             }
-                                        } else {
-                                            env.stack.push(Variable::val(Val::Bool(true)));
+                                        },
+                                        Val::Obj(nref) => {
+                                            context = nref.clone();
+                                        },
+                                        _ => {}
+                                    }
+                                    
+                                    let mut format = "stof".to_string();
+                                    match format_var.val.read().deref() {
+                                        Val::Str(fmt) => {
+                                            format = fmt.to_string();
+                                        },
+                                        Val::Void |
+                                        Val::Null => {}, // keep as stof
+                                        _ => {
+                                            return Err(Error::StdParse("format must be a string content type or stof format identifier".to_string()));
                                         }
-                                        return Ok(None);
-                                    },
-                                    _ => {
-                                        return Err(Error::StdParse("age parse source data must be a blob".to_string()));
+                                    }
+
+                                    let profile = match profile_var.val.read().to_string().as_str() {
+                                        "test" => Profile::test(),
+                                        "prod" => Profile::prod(),
+                                        "prod_docs" => Profile::docs(false),
+                                        "docs" => Profile::docs(true),
+                                        _ => Profile::default(),
+                                    };
+
+                                    let passphrase = pass_var.val.read().to_string();
+                                    match encrypted_bin_var.val.read().deref() {
+                                        Val::Blob(bytes) => {
+                                            let passphrase = SecretString::from(passphrase);
+                                            let identity = age::scrypt::Identity::new(passphrase);
+                                            if let Err(error) = graph.age_decrypt_import(&format, bytes.clone(), Some(context), &identity, Some(profile)) {
+                                                if error == Error::AgeNoMatchingKeys {
+                                                    env.stack.push(Variable::val(Val::Bool(false)));
+                                                } else {
+                                                    return Err(error);
+                                                }
+                                            } else {
+                                                env.stack.push(Variable::val(Val::Bool(true)));
+                                            }
+                                            return Ok(None);
+                                        },
+                                        _ => {
+                                            return Err(Error::StdParse("age parse source data must be a blob".to_string()));
+                                        }
                                     }
                                 }
                             }

@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Formata, Inc. All rights reserved.
+// Copyright 2025 Formata, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,9 +14,9 @@
 // limitations under the License.
 //
 
-use std::collections::BTreeMap;
 use arcstr::{literal, ArcStr};
-use rustc_hash::FxHashMap;
+use indexmap::IndexMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 use crate::{model::{DataRef, Graph, NodeRef, SPath, StofData, SELF_KEYWORD, SUPER_KEYWORD}, runtime::{Val, Variable}};
 
@@ -215,10 +215,81 @@ impl Field {
         None
     }
 
+    /// Get the number of fields on a node.
+    pub fn fields_len(graph: &Graph, node: &NodeRef) -> i64 {
+        let mut len = 0;
+        if let Some(node) = node.node(&graph) {
+            let mut seen = FxHashSet::default();
+            for (name, dref) in &node.data {
+                if let Some(field) = graph.get_stof_data::<Self>(dref) {
+                    if !field.value.dangling_obj(graph) {
+                        seen.insert(name.as_str());
+                        len += 1;
+                    }
+                }
+            }
+
+            for child in &node.children {
+                if let Some(child) = child.node(&graph) {
+                    if child.is_field() && !seen.contains(child.name.as_ref()) {
+                        len += 1;
+                        seen.insert(child.name.as_ref());
+                    }
+                }
+            }
+        }
+        len
+    }
+
+    /// Fields at index.
+    pub fn fields_at(graph: &mut Graph, node: &NodeRef, index: usize) -> Option<(String, DataRef)> {
+        let mut current = 0;
+        let mut seen_names = FxHashSet::default();
+        let mut to_create = Vec::new();
+
+        if let Some(node) = node.node(&graph) {
+            for (name, dref) in &node.data {
+                if let Some(field) = graph.get_stof_data::<Self>(dref) {
+                    if !field.value.dangling_obj(graph) {
+                        if current == index {
+                            return Some((name.clone(), dref.clone()));
+                        }
+                        current += 1;
+                        seen_names.insert(name.as_str());
+                    }
+                }
+            }
+
+            for child in &node.children {
+                if let Some(child) = child.node(&graph) {
+                    if child.is_field() && !seen_names.contains(child.name.as_ref()) {
+                        let mut attrs = child.attributes.clone();
+                        attrs.insert(NOEXPORT_FIELD_ATTR.to_string(), Val::Null); // don't export these lazily created fields
+                        let var = Variable::new(graph, true, Val::Obj(child.id.clone()), false);
+                        to_create.push((child.name.clone(), Self::new(var, Some(attrs))));
+                    }
+                }
+            }
+        }
+
+        let mut res = None;
+        for (name, field) in to_create {
+            if let Some(dref) = graph.insert_stof_data(node, name.clone(), Box::new(field), None) {
+                if current == index {
+                    if res.is_none() { res = Some((name.to_string(), dref)); }
+                } else {
+                    current += 1;
+                }
+            }
+        }
+        
+        res
+    }
+    
     /// Get all fields on a node.
     /// Will create object fields as needed.
-    pub fn fields(graph: &mut Graph, node: &NodeRef) -> BTreeMap<String, DataRef> {
-        let mut fields = BTreeMap::default();
+    pub fn fields(graph: &mut Graph, node: &NodeRef) -> IndexMap<String, DataRef> {
+        let mut fields = IndexMap::default();
         let mut to_create = Vec::new();
 
         if let Some(node) = node.node(&graph) {

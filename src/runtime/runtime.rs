@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Formata, Inc. All rights reserved.
+// Copyright 2025 Formata, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -610,6 +610,7 @@ impl Runtime {
         !self.running.is_empty() || !self.sleeping.is_empty()
     }
 
+    #[allow(unused)]
     #[cfg(any(feature = "js", feature = "tokio"))]
     /// Single step async.
     pub async fn async_single_step(&mut self, graph: &mut Graph, yield_to_outer: bool) -> bool {

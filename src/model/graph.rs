@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Formata, Inc. All rights reserved.
+// Copyright 2025 Formata, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ use bytes::Bytes;
 use colored::Colorize;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{blob::insert_blob_lib, time::insert_time_lib, prompt::insert_prompt_lib, libraries::{data::insert_data_lib, function::insert_fn_lib}, libs::insert_lib_documentation, list::insert_list_lib, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, tup::insert_tup_lib, ver::insert_semver_lib, BstfFormat, BytesFormat, Data, DataRef, Format, JsonFormat, LibFunc, MdDocsFormat, MdFormat, Node, NodeRef, SId, SPath, StofData, StofFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, INVALID_NODE_NEW}, parser::context::ParseContext, runtime::{table::SymbolTable, Error, Runtime, Val}};
+use crate::{model::{BstfFormat, BytesFormat, Data, DataRef, Field, Format, INVALID_NODE_NEW, JsonFormat, LibFunc, MdDocsFormat, MdFormat, Node, NodeRef, Profile, SId, SPath, StofData, StofFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, blob::insert_blob_lib, libraries::{data::insert_data_lib, function::insert_fn_lib}, libs::insert_lib_documentation, list::insert_list_lib, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, prompt::insert_prompt_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, time::insert_time_lib, tup::insert_tup_lib, ver::insert_semver_lib}, parser::context::ParseContext, runtime::{Error, Runtime, Val, Variable, table::SymbolTable}};
 
 #[cfg(feature = "system")]
 use crate::model::{filesys::fs_library};
@@ -231,6 +231,8 @@ impl Graph {
         // Std libs
         #[cfg(feature = "stof_std")]
         {
+            use crate::model::prof::insert_profile_lib;
+
             stof_std_lib(self);
             insert_number_lib(self);
             insert_string_lib(self);
@@ -246,6 +248,7 @@ impl Graph {
             insert_prompt_lib(self);
             insert_md_lib(self);
             insert_time_lib(self);
+            insert_profile_lib(self, &Profile::default());
         }
         
         // System libs
@@ -758,11 +761,13 @@ impl Graph {
         for nref in nodes {
             let mut replaced = None;
             if let Some(node) = nref.node_mut(self) {
-                node.data.remove(old_name.as_ref());
-                if let Some(old) = node.add_data(new_name.to_string(), data.clone()) {
-                    if &old != data {
-                        replaced = Some(old);
+                if let Some(index) = node.data.get_index_of(old_name.as_ref()) {
+                    if let Some(replaced_val) = node.data.shift_remove(new_name.as_ref()) {
+                        if &replaced_val != data {
+                            replaced = Some(replaced_val);
+                        }
                     }
+                    let _ = node.data.replace_index(index, new_name.to_string());
                 }
             }
             if let Some(old) = replaced {
@@ -1192,38 +1197,38 @@ impl Graph {
     }
 
     /// Binary import into this graph, using a loaded format.
-    pub fn binary_import(&mut self, format: &str, bytes: Bytes, node: Option<NodeRef>) -> Result<(), Error> {
+    pub fn binary_import(&mut self, format: &str, bytes: Bytes, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
         let id = format;
         if let Some(format) = self.get_format(id) {
-            format.binary_import(self, id, bytes, node)
+            format.binary_import(self, id, bytes, node, profile)
         } else if let Some(format) = self.get_format_by_content_type(id) {
-            format.binary_import(self, id, bytes, node)
+            format.binary_import(self, id, bytes, node, profile)
         } else if let Some(format) = self.get_format("bytes") {
-            format.binary_import(self, id, bytes, node)
+            format.binary_import(self, id, bytes, node, profile)
         } else {
             Err(Error::GraphFormatNotFound)
         }
     }
 
     /// Import a string into this graph, using a loaded format.
-    pub fn string_import(&mut self, format: &str, src: &str, node: Option<NodeRef>) -> Result<(), Error> {
+    pub fn string_import(&mut self, format: &str, src: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
         let id = format;
         if let Some(format) = self.get_format(id) {
-            format.string_import(self, id, src, node)
+            format.string_import(self, id, src, node, profile)
         } else if let Some(format) = self.get_format_by_content_type(id) {
-            format.string_import(self, id, src, node)
+            format.string_import(self, id, src, node, profile)
         } else if let Some(format) = self.get_format("text") {
-            format.string_import(self, id, src, node)
+            format.string_import(self, id, src, node, profile)
         } else {
             Err(Error::GraphFormatNotFound)
         }
     }
 
     /// File import into this graph, using a loaded format.
-    pub fn file_import(&mut self, format: &str, path: &str, node: Option<NodeRef>) -> Result<(), Error> {
+    pub fn file_import(&mut self, format: &str, path: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
         let id = format;
         if let Some(format) = self.get_format(id) {
-            format.file_import(self, id, path, node)
+            format.file_import(self, id, path, node, profile)
         } else {
             Err(Error::GraphFormatNotFound)
         }
@@ -1271,14 +1276,14 @@ impl Graph {
 
     #[cfg(feature = "age_encrypt")]
     /// Age decription binary import.
-    pub fn age_decrypt_import<'a>(&mut self, format: &str, bytes: Bytes, node: Option<NodeRef>, identity: &'a dyn age::Identity) -> Result<(), Error> {
+    pub fn age_decrypt_import<'a>(&mut self, format: &str, bytes: Bytes, node: Option<NodeRef>, identity: &'a dyn age::Identity, profile: Option<Profile>) -> Result<(), Error> {
         use std::io::Read;
 
         let decryptor = age::Decryptor::new(bytes.as_ref()).expect("age could not create decryptor");
         let mut decrypted = vec![];
         if let Ok(mut reader) = decryptor.decrypt(std::iter::once(identity)) {
             reader.read_to_end(&mut decrypted).expect("age read decrypted error");
-            self.binary_import(format, Bytes::from(decrypted), node)
+            self.binary_import(format, Bytes::from(decrypted), node, &profile.unwrap_or_default())
         } else {
             Err(Error::AgeNoMatchingKeys)
         }
@@ -1296,22 +1301,85 @@ impl Graph {
 
 
     /*****************************************************************************
+     * Field interface.
+     *****************************************************************************/
+    
+    /// Get a field value by path.
+    /// If no starting root, adds "root." in front.
+    /// Helper for manually getting field values from a graph.
+    pub fn field_value(&mut self, path: &str, start: Option<NodeRef>) -> Option<Val> {
+        let pth;
+        if start.is_none() && !path.contains('.') { pth = format!("root.{path}"); }
+        else { pth = path.to_string(); }
+
+        if let Some(dref) = Field::field_from_path(self, &pth, start) {
+            if let Some(field) = self.get_stof_data::<Field>(&dref) {
+                return Some(field.value.get());
+            }
+        }
+        None
+    }
+
+    /// Get a field object nref by path.
+    /// Helper for manually getting field values from a graph.
+    pub fn field_obj(&mut self, path: &str, start: Option<NodeRef>) -> Option<NodeRef> {
+        if let Some(val) = self.field_value(path, start) {
+            if let Some(nref) = val.try_obj() {
+                return Some(nref);
+            }
+        }
+        None
+    }
+
+    /// Set a field value by path.
+    /// Meant to be a quick helper - does not create nodes, fields, etc.
+    pub fn set_field(&mut self, var: Variable, path: &str, start: Option<NodeRef>) -> bool {
+        let pth;
+        if start.is_none() && !path.contains('.') { pth = format!("root.{path}"); }
+        else { pth = path.to_string(); }
+
+        if let Some(field_ref) = Field::field_from_path(self, &pth, start.clone()) {
+            let mut fvar = None;
+            if let Some(field) = self.get_stof_data::<Field>(&field_ref) {
+                if !field.can_set() { return false; }
+                fvar = Some(field.value.clone());
+            }
+            if let Some(mut fvar) = fvar {
+                let context;
+                if start.is_some() { context = start; }
+                else { context = Some(self.ensure_main_root()); }
+                let res = fvar.set(&var, self, context);
+                if res.is_err() { return false; } // const field
+
+                if let Some(field) = self.get_mut_stof_data::<Field>(&field_ref) {
+                    field.value = fvar;
+                }
+            }
+            if let Some(field) = field_ref.data_mut(self) {
+                field.invalidate_value();
+            }
+            return true;
+        }
+        false
+    }
+
+
+    /*****************************************************************************
      * Stof Language.
      *****************************************************************************/
     
     #[inline]
     /// Parse stof into this graph, optionally into a specific node.
     /// Use file_import for files...
-    pub fn parse_stof_src(&mut self, stof: &str, node: Option<NodeRef>) -> Result<(), Error> {
+    pub fn parse_stof_src(&mut self, stof: &str, node: Option<NodeRef>, profile: Profile) -> Result<(), Error> {
         // stof format creates a new context
-        self.string_import("stof", stof, node)
+        self.string_import("stof", stof, node, &profile)
     }
 
     /// Parse a stof file into this graph, optionally into a specific node.
     /// This serves as an entrypoint for parsing Stof into a graph.
-    pub fn parse_stof_file(&mut self, format: &str, path: &str, node: Option<NodeRef>, docs: bool) -> Result<(), Error> {
-        let mut context = ParseContext::new(self);
-        context.docs = docs;
+    pub fn parse_stof_file(&mut self, format: &str, path: &str, node: Option<NodeRef>, profile: Profile) -> Result<(), Error> {
+        let mut context = ParseContext::new(self, profile);
         context.parse_from_file(format, path, node)
     }
 
@@ -1405,7 +1473,7 @@ fn deserialize_nodes<'de, D>(deserializer: D) -> Result<FxHashMap<NodeRef, Node>
 
 #[cfg(test)]
 mod tests {
-    use crate::model::{Data, Graph, SPath, StofData, ROOT_NODE_NAME};
+    use crate::{model::{Data, Graph, ROOT_NODE_NAME, SPath, StofData}, runtime::Variable};
 
     #[test]
     fn new_with_id() {
@@ -1608,6 +1676,8 @@ mod tests {
     #[test]
     #[cfg(feature = "age_encrypt")]
     fn age_encryption() {
+        use crate::model::Profile;
+
         let key = age::x25519::Identity::generate();
         let pubkey = key.to_public();
 
@@ -1618,12 +1688,38 @@ mod tests {
         let _ = graph.parse_stof_src(r#"
             field: 42
             #[main] fn main() { pln('hi'); }
-        "#, None);
+        "#, None, Profile::default());
 
         let bytes = graph.age_encrypt_export("stof", None, std::iter::once(&pubkey as _)).unwrap();
         
         let mut other = Graph::default();
-        let _ = other.age_decrypt_import("stof", bytes, None, &key);
+        let _ = other.age_decrypt_import("stof", bytes, None, &key, None);
         other.dump(true);
+    }
+
+    #[test]
+    fn doc_field_interface() {
+        let mut graph = Graph::default();
+        graph.parse_stof_src(r#"
+        
+        field: 42
+        sub: {
+            field: 42
+            msg: 'hello, world'
+            sub: {
+                valid: true
+            }
+        }
+
+        "#, None, Default::default()).unwrap();
+
+        graph.set_field(Variable::val(100.into()), "field", None);
+        let field = graph.field_value("field", None).unwrap();
+        assert_eq!(field, 100.into());
+        
+        let sub = graph.field_obj("sub", None).unwrap();
+        graph.set_field(Variable::val("reset".into()), "msg", Some(sub.clone()));
+        let msg = graph.field_value("msg", Some(sub)).unwrap();
+        assert_eq!(msg, "reset".into());
     }
 }

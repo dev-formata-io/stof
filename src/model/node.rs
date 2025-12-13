@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Formata, Inc. All rights reserved.
+// Copyright 2025 Formata, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,10 +14,10 @@
 // limitations under the License.
 //
 
-use std::collections::{BTreeMap, BTreeSet};
 use arcstr::{literal, ArcStr};
 use bytes::Bytes;
 use colored::Colorize;
+use indexmap::{IndexMap, IndexSet};
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::Val};
@@ -52,8 +52,8 @@ pub struct Node {
     pub id: NodeRef,
     pub name: SId,
     pub parent: Option<NodeRef>,
-    pub children: BTreeSet<NodeRef>,  // keeps order
-    pub data: BTreeMap<String, DataRef>, // keeps order
+    pub children: IndexSet<NodeRef>,
+    pub data: IndexMap<String, DataRef>,
     pub attributes: FxHashMap<String, Val>,
 
     #[serde(skip)]
@@ -252,7 +252,7 @@ impl Node {
     #[inline]
     /// Remove a child.
     pub fn remove_child(&mut self, child: &NodeRef) -> bool {
-        if self.children.remove(child) {
+        if self.children.shift_remove(child) {
             self.invalidate_children();
             true
         } else {
@@ -294,7 +294,7 @@ impl Node {
             }
         }
         if let Some(name) = remove_name {
-            self.data.remove(&name).is_some()
+            self.data.shift_remove(&name).is_some()
         } else {
             false
         }
@@ -303,7 +303,7 @@ impl Node {
     #[inline(always)]
     /// Remove data by name.
     pub fn remove_data_named(&mut self, name: &str) -> Option<DataRef> {
-        self.data.remove(name)
+        self.data.shift_remove(name)
     }
 
     #[inline(always)]

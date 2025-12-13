@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Formata, Inc. All rights reserved.
+// Copyright 2025 Formata, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "log")]
 use crate::model::stof_std::print::{std_log_debug, std_log_error, std_log_info, std_log_trace, std_log_warn};
-use crate::{model::{stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, containers::{std_copy, std_drop, std_funcs, std_list, std_map, std_set, std_shallow_drop, std_swap}, exit::stof_exit, ops::{std_blobify, std_callstack, std_format_content_type, std_formats, std_graph_id, std_has_format, std_has_lib, std_libs, std_max, std_min, std_nanoid, std_parse, std_peek, std_stringify, std_trace, std_tracestack}, print::{dbg, err, pln, prompt, string, xmltag}, sleep::stof_sleep}, Field, Func, Graph, Prototype, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}, Base, DUPLICATE, EXIT}, proc::ProcEnv, Error, Prompt, Type, Units, Val, ValRef, Variable}};
+use crate::{model::{Field, Func, Graph, Profile, Prototype, SELF_STR_KEYWORD, SPath, SUPER_STR_KEYWORD, stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, containers::{std_copy, std_drop, std_funcs, std_list, std_map, std_set, std_shallow_drop, std_swap}, exit::stof_exit, ops::{std_blobify, std_callstack, std_format_content_type, std_formats, std_graph_id, std_has_format, std_has_lib, std_libs, std_max, std_min, std_nanoid, std_parse, std_peek, std_stringify, std_trace, std_tracestack}, print::{dbg, err, pln, prompt, string, xmltag}, sleep::stof_sleep}}, runtime::{Error, Prompt, Type, Units, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{Base, DUPLICATE, EXIT, call::FuncCall, list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}}, proc::ProcEnv}};
 
 #[cfg(feature = "system")]
 use crate::model::stof_std::ops::{std_env, std_set_env, std_remove_env, std_env_vars};
@@ -109,7 +109,7 @@ pub fn stof_std_lib(graph: &mut Graph) {
 
 
 /// Library name.
-pub(self) const STD_LIB: ArcStr = literal!("Std");
+pub(crate) const STD_LIB: ArcStr = literal!("Std");
 
 
 // Static instructions.
@@ -741,66 +741,76 @@ impl Instruction for StdIns {
             },
 
             Self::Parse => {
-                // Std.parse("source", context = self, format = 'stof') -> bool
-                if let Some(format_var) = env.stack.pop() {
-                    if let Some(context_var) = env.stack.pop() {
-                        if let Some(source_var) = env.stack.pop() {
-                            let mut context = env.self_ptr();
-                            match context_var.val.read().deref() {
-                                Val::Str(path) => {
-                                    let mut ctx = None;
-                                    if path.starts_with(SELF_STR_KEYWORD.as_str()) || path.starts_with(SUPER_STR_KEYWORD.as_str()) {
-                                        ctx = Some(env.self_ptr());
-                                    }
-                                    if let Some(field_ref) = Field::field_from_path(graph, path.as_str(), ctx.clone()) {
-                                        if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
-                                            if let Some(obj) = field.value.try_obj() {
-                                                context = obj;
-                                            } else {
-                                                // Context was not an object
-                                                env.stack.push(Variable::val(Val::Bool(false)));
-                                                return Ok(None);
-                                            }
+                // Std.parse("source", context = self, format = 'stof', profile = 'prod') -> bool
+                if let Some(profile_var) = env.stack.pop() {
+                    if let Some(format_var) = env.stack.pop() {
+                        if let Some(context_var) = env.stack.pop() {
+                            if let Some(source_var) = env.stack.pop() {
+                                let mut context = env.self_ptr();
+                                match context_var.val.read().deref() {
+                                    Val::Str(path) => {
+                                        let mut ctx = None;
+                                        if path.starts_with(SELF_STR_KEYWORD.as_str()) || path.starts_with(SUPER_STR_KEYWORD.as_str()) {
+                                            ctx = Some(env.self_ptr());
                                         }
-                                    } else if let Some(node) = SPath::node(&graph, path.as_str(), ctx) {
-                                        context = node;
-                                    } else {
-                                        // context given, but not found (return false)
-                                        env.stack.push(Variable::val(Val::Bool(false)));
-                                        return Ok(None);
-                                    }
-                                },
-                                Val::Obj(nref) => {
-                                    context = nref.clone();
-                                },
-                                _ => {}
-                            }
-                            
-                            let mut format = "stof".to_string();
-                            match format_var.val.read().deref() {
-                                Val::Str(fmt) => {
-                                    format = fmt.to_string();
-                                },
-                                Val::Void |
-                                Val::Null => {}, // keep as stof
-                                _ => {
-                                    return Err(Error::StdParse("format must be a string content type or stof format identifier".to_string()));
+                                        if let Some(field_ref) = Field::field_from_path(graph, path.as_str(), ctx.clone()) {
+                                            if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
+                                                if let Some(obj) = field.value.try_obj() {
+                                                    context = obj;
+                                                } else {
+                                                    // Context was not an object
+                                                    env.stack.push(Variable::val(Val::Bool(false)));
+                                                    return Ok(None);
+                                                }
+                                            }
+                                        } else if let Some(node) = SPath::node(&graph, path.as_str(), ctx) {
+                                            context = node;
+                                        } else {
+                                            // context given, but not found (return false)
+                                            env.stack.push(Variable::val(Val::Bool(false)));
+                                            return Ok(None);
+                                        }
+                                    },
+                                    Val::Obj(nref) => {
+                                        context = nref.clone();
+                                    },
+                                    _ => {}
                                 }
-                            }
+                                
+                                let mut format = "stof".to_string();
+                                match format_var.val.read().deref() {
+                                    Val::Str(fmt) => {
+                                        format = fmt.to_string();
+                                    },
+                                    Val::Void |
+                                    Val::Null => {}, // keep as stof
+                                    _ => {
+                                        return Err(Error::StdParse("format must be a string content type or stof format identifier".to_string()));
+                                    }
+                                }
 
-                            match source_var.val.read().deref() {
-                                Val::Str(src) => {
-                                    graph.string_import(&format, src.as_str(), Some(context))?;
-                                    env.stack.push(Variable::val(Val::Bool(true)));
-                                    return Ok(None);
-                                },
-                                Val::Blob(bytes) => {
-                                    graph.binary_import(&format, bytes.clone(), Some(context))?;
-                                    env.stack.push(Variable::val(Val::Bool(true)));
-                                    return Ok(None);
-                                },
-                                _ => {
-                                    return Err(Error::StdParse("parse source data must be a string or blob".to_string()));
+                                let profile = match profile_var.val.read().to_string().as_str() {
+                                    "test" => Profile::test(),
+                                    "prod" => Profile::prod(),
+                                    "prod_docs" => Profile::docs(false),
+                                    "docs" => Profile::docs(true),
+                                    _ => Profile::default(),
+                                };
+
+                                match source_var.val.read().deref() {
+                                    Val::Str(src) => {
+                                        graph.string_import(&format, src.as_str(), Some(context), &profile)?;
+                                        env.stack.push(Variable::val(Val::Bool(true)));
+                                        return Ok(None);
+                                    },
+                                    Val::Blob(bytes) => {
+                                        graph.binary_import(&format, bytes.clone(), Some(context), &profile)?;
+                                        env.stack.push(Variable::val(Val::Bool(true)));
+                                        return Ok(None);
+                                    },
+                                    _ => {
+                                        return Err(Error::StdParse("parse source data must be a string or blob".to_string()));
+                                    }
                                 }
                             }
                         }

@@ -1,5 +1,5 @@
 //
-// Copyright 2024 Formata, Inc. All rights reserved.
+// Copyright 2025 Formata, Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ use std::sync::Arc;
 use imbl::{vector, Vector};
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, peek}, multi::fold_many0, sequence::{delimited, preceded, terminated}, IResult, Parser};
 use rustc_hash::FxHashMap;
-use crate::{model::Graph, parser::{context::ParseContext, doc::StofParseError, expr::expr, statement::{block, statement}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, switch::SwitchIns}}};
+use crate::{model::{Graph, Profile}, parser::{context::ParseContext, doc::StofParseError, expr::expr, statement::{block, statement}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, switch::SwitchIns}}};
 
 
 /// Switch statement.
@@ -34,7 +34,7 @@ pub fn switch_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction
 
     let mut map = FxHashMap::default();
     let mut graph = Graph::default();
-    let mut context = ParseContext::new(&mut graph); // need an eval context for values
+    let mut context = ParseContext::new(&mut graph, Profile::default()); // need an eval context for values
     let mut stacked_values = Vec::new();
     for case in cases {
         let val = context.eval(case.expr).expect("failed to evaluate switch statement value expr");
