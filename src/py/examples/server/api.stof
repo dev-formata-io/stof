@@ -1,0 +1,50 @@
+
+/*!
+ * Just a really light example API.
+ *
+ * Note: #[type] objects are really handy for APIs, partly because you don't need
+ * to know (as the user) where they are located within the graph. The syntax "<Point>"
+ * is a path resolution syntax, resolving to the closest obj with typename "Point".
+ *
+ * As humans, when we see the #[type] attribute, this tells us that this obj is meant
+ * to be a prototype, and is registered in the graph with a typename (defaults to obj name).
+ *
+ * So in client.py, when we send <Point>.plot(x, y) to the server, the server Stof doc
+ * will find and call "nearest.obj.with.typename.plot(x, y)".
+ *
+ * Because it is finding the nearest, you can provide a path to search from too.
+ * So, "<Point>" is equivalent to "<self.Point>", but you could also use "<super.Point>" or
+ * "<root.myobj.Point>" if you know where you'd like to search from.
+ */
+
+
+#[type]
+Point: {
+    meters x: 0
+    meters y: 0
+
+    fn translate(x: float, y: float) {
+        self.x += x;
+        self.y += y;
+    }
+
+    #[static] // optional, but helpful for us humans
+    fn plot(x: meters, y: meters) -> Point {
+        if (Storage.graph == null) Storage.graph = map(); // creates the Storage root if needed
+        const point = new Point { x, y } on Storage;
+        Storage.graph.insert(x, point); // maps are ordered by key
+        point
+    }
+
+    #[static]
+    fn translate_all(x: float, y: float) {
+        for (const pair in Storage.graph ?? map()) ?pair[1].translate(x, y);
+    }
+
+    #[static]
+    fn points() -> list {
+        const points = [];
+        for (const pair in Storage.graph ?? map()) points.push_back(pair[1]);
+        points
+    }
+}

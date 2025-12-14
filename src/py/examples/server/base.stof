@@ -1,0 +1,17 @@
+
+root Request {
+    // this is where request data is going to go
+}
+root Response {
+    // where response data should go
+}
+
+#[cleanup]
+/// Clear old request & response before the next.
+/// Everything else in the graph persists.
+fn cleanup() {
+    drop(Request);
+    drop(Response);
+    Request = new root { };
+    Response = new root { };
+}
