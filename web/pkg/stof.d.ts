@@ -74,6 +74,8 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
+  readonly __wbg_stoffunc_free: (a: number, b: number) => void;
+  readonly stoffunc_new: (a: number, b: number, c: number, d: number, e: any, f: number) => number;
   readonly __wbg_stof_free: (a: number, b: number) => void;
   readonly start: () => void;
   readonly stof_binaryExport: (a: number, b: number, c: number, d: any) => [number, number, number];
@@ -88,8 +90,6 @@ export interface InitOutput {
   readonly stof_set: (a: number, b: number, c: number, d: any, e: any) => number;
   readonly stof_stringExport: (a: number, b: number, c: number, d: any) => [number, number, number, number];
   readonly stof_stringImport: (a: number, b: number, c: number, d: number, e: number, f: any, g: number, h: number) => [number, number, number];
-  readonly __wbg_stoffunc_free: (a: number, b: number) => void;
-  readonly stoffunc_new: (a: number, b: number, c: number, d: number, e: any, f: number) => number;
   readonly wasm_bindgen__convert__closures_____invoke__h53d5cf04cab8438f: (a: number, b: number, c: any) => void;
   readonly wasm_bindgen__closure__destroy__h72b14ab7db8750ca: (a: number, b: number) => void;
   readonly wasm_bindgen__convert__closures_____invoke__ha84735728bfe97a9: (a: number, b: number, c: any, d: any) => void;

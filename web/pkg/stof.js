@@ -937,14 +937,14 @@ function __wbg_get_imports() {
         const ret = BigInt.asUintN(64, arg0);
         return ret;
     };
-    imports.wbg.__wbindgen_cast_876dc327ef155b37 = function(arg0, arg1) {
-        // Cast intrinsic for `Closure(Closure { dtor_idx: 7125, function: Function { arguments: [Externref], shim_idx: 7126, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-        const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h72b14ab7db8750ca, wasm_bindgen__convert__closures_____invoke__h53d5cf04cab8438f);
-        return ret;
-    };
     imports.wbg.__wbindgen_cast_9ae0607507abb057 = function(arg0) {
         // Cast intrinsic for `I64 -> Externref`.
         const ret = arg0;
+        return ret;
+    };
+    imports.wbg.__wbindgen_cast_b1f65ea5810dead5 = function(arg0, arg1) {
+        // Cast intrinsic for `Closure(Closure { dtor_idx: 7010, function: Function { arguments: [Externref], shim_idx: 7011, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+        const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h72b14ab7db8750ca, wasm_bindgen__convert__closures_____invoke__h53d5cf04cab8438f);
         return ret;
     };
     imports.wbg.__wbindgen_cast_cb9088102bce6b30 = function(arg0, arg1) {

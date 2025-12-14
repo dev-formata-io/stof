@@ -1,6 +1,4 @@
-<h1 align="center" style="font-size: 40px; font-weight: 600; font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', 'Liberation Mono', Menlo, Monaco, Consolas, 'Courier New', monospace;">Stof: Data that carries its own logic</h1>
-
-----
+# STOF: Data that carries its own logic
 
 <p align="center">
     <a href="https://docs.stof.dev" style="margin: 3px"><img src="https://img.shields.io/badge/docs-docs.stof.dev-purple?logo=gitbook&logoColor=white"></a>
@@ -143,7 +141,7 @@ fn main() {
 ```
 
 ### Python
-Stof is available on [PyPi](https://pypi.org/project/stof).
+Stof is available on [PyPi](https://pypi.org/project/stof). Just `pip install stof` and import the `pystof` module to get started.
 
 ```python
 from pystof import Doc

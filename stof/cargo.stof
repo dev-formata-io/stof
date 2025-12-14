@@ -308,12 +308,11 @@ Cargo: {
     #[static]
     /// Generate a versions entire output.
     /// Ensures that the cargo configuration is valid.
-    async fn generate(cargo: Cargo!, version: ver!, update: bool = false) -> str {
+    async fn generate(cargo: Cargo!, update: bool = false) -> str {
         if (update && 'obj' == typeof cargo.dependencies) {
             const dependencies = cargo.dependencies as Dependencies;
             await dependencies.update();
         }
-        cargo.package.version = version;
 
         // verify all schemas
         assert(self.schemafy(cargo));

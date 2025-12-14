@@ -1,6 +1,8 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
+export const __wbg_stoffunc_free: (a: number, b: number) => void;
+export const stoffunc_new: (a: number, b: number, c: number, d: number, e: any, f: number) => number;
 export const __wbg_stof_free: (a: number, b: number) => void;
 export const start: () => void;
 export const stof_binaryExport: (a: number, b: number, c: number, d: any) => [number, number, number];
@@ -15,8 +17,6 @@ export const stof_run: (a: number, b: any) => any;
 export const stof_set: (a: number, b: number, c: number, d: any, e: any) => number;
 export const stof_stringExport: (a: number, b: number, c: number, d: any) => [number, number, number, number];
 export const stof_stringImport: (a: number, b: number, c: number, d: number, e: number, f: any, g: number, h: number) => [number, number, number];
-export const __wbg_stoffunc_free: (a: number, b: number) => void;
-export const stoffunc_new: (a: number, b: number, c: number, d: number, e: any, f: number) => number;
 export const wasm_bindgen__convert__closures_____invoke__h53d5cf04cab8438f: (a: number, b: number, c: any) => void;
 export const wasm_bindgen__closure__destroy__h72b14ab7db8750ca: (a: number, b: number) => void;
 export const wasm_bindgen__convert__closures_____invoke__ha84735728bfe97a9: (a: number, b: number, c: any, d: any) => void;
