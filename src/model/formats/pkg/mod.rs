@@ -20,7 +20,7 @@ use nanoid::nanoid;
 use regex::Regex;
 use walkdir::{DirEntry, WalkDir};
 use zip::{result::ZipResult, write::SimpleFileOptions};
-use crate::{model::{Field, Format, Graph, NodeRef, Profile, SELF_KEYWORD, SUPER_KEYWORD}, parser::context::ParseContext, runtime::{Error, Val}};
+use crate::{model::{Field, Format, Graph, NodeRef, Profile, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, parser::context::ParseContext, runtime::{Error, Val}};
 
 
 #[derive(Debug, Clone)]
@@ -366,7 +366,7 @@ fn perform_imports(pkg_graph: &Graph, import_val: Val, context: &mut ParseContex
 
             if path.len() > 0 {
                 let mut start = None;
-                if scope.starts_with(SELF_KEYWORD.as_ref()) || scope.starts_with(SUPER_KEYWORD.as_ref()) {
+                if scope.starts_with(SELF_STR_KEYWORD.as_str()) || scope.starts_with(SUPER_STR_KEYWORD.as_str()) {
                     start = Some(context.self_ptr());
                 }
                 let node = context.graph.ensure_named_nodes(&scope, start, true, None);

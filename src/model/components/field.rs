@@ -18,7 +18,7 @@ use arcstr::{literal, ArcStr};
 use indexmap::IndexMap;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Graph, NodeRef, SPath, StofData, SELF_KEYWORD, SUPER_KEYWORD}, runtime::{Val, Variable}};
+use crate::{model::{DataRef, Graph, NodeRef, SPath, StofData, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{Val, Variable}};
 
 /// Marks a field as no export.
 /// Used in export formats.
@@ -178,7 +178,7 @@ impl Field {
                 let mut gp = None;
                 if let Some(parent) = &node.parent {
                     if let Some(parent) = parent.node(&graph) {
-                        if (parent.name.as_ref() == field_name || field_name == SUPER_KEYWORD.as_ref()) && parent.is_field() {
+                        if (parent.name.as_ref() == field_name || field_name == &SUPER_STR_KEYWORD) && parent.is_field() {
                             if let Some(grand) = &parent.parent {
                                 if grand.node_exists(&graph) {
                                     gp = Some((grand.clone(), parent.name.clone()));
@@ -192,7 +192,7 @@ impl Field {
                 }
 
                 // Is this node the thing?
-                if (node.name.as_ref() == field_name || field_name == SELF_KEYWORD.as_ref()) && node.is_field() {
+                if (node.name.as_ref() == field_name || field_name == &SELF_STR_KEYWORD) && node.is_field() {
                     if let Some(parent) = &node.parent {
                         if parent.node_exists(graph) {
                             self_parent = Some(parent.clone());

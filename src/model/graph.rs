@@ -15,7 +15,7 @@
 //
 
 use std::{any::Any, i32, sync::Arc};
-use arcstr::ArcStr;
+use arcstr::{ArcStr, literal};
 use bytes::Bytes;
 use colored::Colorize;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -44,7 +44,7 @@ use crate::model::docx::DocxFormat;
 use crate::model::age::insert_age_encrypt_library;
 
 /// Root node name.
-pub const ROOT_NODE_NAME: SId = SId(Bytes::from_static(b"root"));
+pub const ROOT_NODE_NAME: ArcStr = literal!("root");
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -749,7 +749,7 @@ impl Graph {
     /// Will change the name of the data, but also all of the names in each node (for fast search by name).
     pub fn rename_data(&mut self, data: &DataRef, name: impl Into<SId>) -> bool {
         let new_name: SId = name.into();
-        let mut old_name = ROOT_NODE_NAME;
+        let mut old_name = SId::from(ROOT_NODE_NAME);
         let mut nodes = FxHashSet::default();
         if let Some(data) = data.data_mut(self) {
             old_name = data.name.clone();
@@ -887,7 +887,7 @@ impl Graph {
 
     /// Collects dirty nodes for validation as a group.
     /// Optionally provide a set of symbols to filter "how" that node is dirty.
-    pub fn dirty_nodes(&self, symbols: Option<FxHashSet<SId>>) -> FxHashSet<NodeRef> {
+    pub fn dirty_nodes(&self, symbols: Option<FxHashSet<ArcStr>>) -> FxHashSet<NodeRef> {
         let mut dirty = FxHashSet::default();
         for (_, node) in &self.nodes {
             if node.any_dirty() {
@@ -908,7 +908,7 @@ impl Graph {
 
     /// Collects dirty data for validation as a group.
     /// Optionally provide a set of symbols to filter "how" that data is dirty.
-    pub fn dirty_data(&self, symbols: Option<FxHashSet<SId>>) -> FxHashSet<NodeRef> {
+    pub fn dirty_data(&self, symbols: Option<FxHashSet<ArcStr>>) -> FxHashSet<NodeRef> {
         let mut dirty = FxHashSet::default();
         for (_, data) in &self.data {
             if data.any_dirty() {
@@ -961,7 +961,7 @@ impl Graph {
         for nref in other.dirty_nodes(None) {
             if let Some(changed_node) = nref.node(other) {
                 if let Some(existing) = nref.node_mut(self) {
-                    if changed_node.name != ROOT_NODE_NAME {
+                    if changed_node.name.as_str() != &ROOT_NODE_NAME {
                         existing.name = changed_node.name.clone();
                     }
                     existing.parent = changed_node.parent.clone();
@@ -1027,7 +1027,7 @@ impl Graph {
         let mut stof_node = None;
         for nref in &clone.roots {
             if let Some(node) = nref.node(&clone) {
-                if node.name == ROOT_NODE_NAME {
+                if node.name.as_str() == &ROOT_NODE_NAME {
                     new_roots.insert(nref.clone());
                     found_root = true;
                 } else if node.name.as_ref() == "__stof__" {
@@ -1484,7 +1484,7 @@ mod tests {
     #[test]
     fn default_graph() {
         let graph = Graph::default();
-        assert_eq!(graph.id.len(), 20);
+        assert_eq!(graph.id.len(), 14);
         assert_eq!(graph.roots.len(), 0);
         assert_eq!(graph.nodes.len(), 0);
         assert_eq!(graph.data.len(), 0);
@@ -1616,7 +1616,7 @@ mod tests {
         let mut other = Graph::default();
         other.ensure_named_nodes("Dude.dude.created", None, false, None);
         let external = other.find_node_named("Dude.dude", None).unwrap();
-        graph.insert_external_node(&other, external.node(&other).unwrap(), None, Some(ROOT_NODE_NAME), None);
+        graph.insert_external_node(&other, external.node(&other).unwrap(), None, Some(ROOT_NODE_NAME.into()), None);
     
         assert!(graph.find_node_named("root.created", None).is_some());
         assert_eq!(graph.nodes.len(), 6);

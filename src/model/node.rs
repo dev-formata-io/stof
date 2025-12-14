@@ -15,7 +15,6 @@
 //
 
 use arcstr::{literal, ArcStr};
-use bytes::Bytes;
 use colored::Colorize;
 use indexmap::{IndexMap, IndexSet};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -24,22 +23,22 @@ use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::Val};
 
 
 /// Invalid/dirty new symbol.
-pub const INVALID_NODE_NEW: SId = SId(Bytes::from_static(b"new"));
+pub const INVALID_NODE_NEW: ArcStr = literal!("new");
 
 /// Invalid/dirty name symbol.
-pub const INVALID_NODE_NAME: SId = SId(Bytes::from_static(b"name"));
+pub const INVALID_NODE_NAME: ArcStr = literal!("name");
 
 /// Invalid/dirty parent symbol.
-pub const INVALID_NODE_PARENT: SId = SId(Bytes::from_static(b"parent"));
+pub const INVALID_NODE_PARENT: ArcStr = literal!("parent");
 
 /// Invalid/dirty children symbol.
-pub const INVALID_NODE_CHILDREN: SId = SId(Bytes::from_static(b"children"));
+pub const INVALID_NODE_CHILDREN: ArcStr = literal!("children");
 
 /// Invalid/dirty data symbol.
-pub const INVALID_NODE_DATA: SId = SId(Bytes::from_static(b"data"));
+pub const INVALID_NODE_DATA: ArcStr = literal!("data");
 
 /// Invalid/dirty attributes symbol.
-pub const INVALID_NODE_ATTRS: SId = SId(Bytes::from_static(b"attributes"));
+pub const INVALID_NODE_ATTRS: ArcStr = literal!("attributes");
 
 /// Field node attribute.
 /// Used for lazy field creation of nodes.
@@ -57,7 +56,7 @@ pub struct Node {
     pub attributes: FxHashMap<String, Val>,
 
     #[serde(skip)]
-    pub dirty: FxHashSet<SId>,
+    pub dirty: FxHashSet<ArcStr>,
 }
 impl Node {
     /// Create a new node.
@@ -110,7 +109,7 @@ impl Node {
 
     #[inline(always)]
     /// Invalidate with a symbol.
-    pub fn invalidate(&mut self, symbol: SId) -> bool {
+    pub fn invalidate(&mut self, symbol: ArcStr) -> bool {
         self.dirty.insert(symbol)
     }
 
@@ -146,7 +145,7 @@ impl Node {
 
     #[inline(always)]
     /// Validate with a symbol.
-    pub fn validate(&mut self, symbol: &SId) -> bool {
+    pub fn validate(&mut self, symbol: &ArcStr) -> bool {
         self.dirty.remove(symbol)
     }
 
@@ -190,7 +189,7 @@ impl Node {
 
     #[inline(always)]
     /// Is this node dirty
-    pub fn dirty(&self, symbol: &SId) -> bool {
+    pub fn dirty(&self, symbol: &ArcStr) -> bool {
         self.dirty.contains(symbol)
     }
 

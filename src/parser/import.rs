@@ -16,7 +16,7 @@
 
 use colored::Colorize;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, recognize}, multi::separated_list1, sequence::{delimited, preceded}, IResult, Parser};
-use crate::{model::{SELF_KEYWORD, SUPER_KEYWORD}, parser::{context::ParseContext, doc::StofParseError, ident::ident, parse_attributes, string::{double_string, single_string}, whitespace::whitespace}};
+use crate::{model::{SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, parser::{context::ParseContext, doc::StofParseError, ident::ident, parse_attributes, string::{double_string, single_string}, whitespace::whitespace}};
 
 
 /// Parse an import statement into a graph.
@@ -30,7 +30,7 @@ pub fn import<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str
     }
 
     let mut start = None;
-    if scope.starts_with(SELF_KEYWORD.as_ref()) || scope.starts_with(SUPER_KEYWORD.as_ref()) {
+    if scope.starts_with(SELF_STR_KEYWORD.as_str()) || scope.starts_with(SUPER_STR_KEYWORD.as_str()) {
         start = Some(context.self_ptr());
     }
     let node = context.graph.ensure_named_nodes(&scope, start, true, None);

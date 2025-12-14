@@ -15,20 +15,20 @@
 //
 
 use std::any::Any;
-use bytes::Bytes;
+use arcstr::{ArcStr, literal};
 use rustc_hash::FxHashSet;
 use serde::{ser::Error, Deserialize, Serialize};
 use crate::model::{StofDataContainer, DataRef, NodeRef, SId, StofData};
 
 
 /// Invalid/dirty name.
-pub const INVALID_DATA_NAME: SId = SId(Bytes::from_static(b"name"));
+pub const INVALID_DATA_NAME: ArcStr = literal!("name");
 
 /// Invalid/dirty nodes.
-pub const INVALID_DATA_NODES: SId = SId(Bytes::from_static(b"nodes"));
+pub const INVALID_DATA_NODES: ArcStr = literal!("nodes");
 
 /// Invalid/dirty value.
-pub const INVALID_DATA_VALUE: SId = SId(Bytes::from_static(b"value"));
+pub const INVALID_DATA_VALUE: ArcStr = literal!("value");
 
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -43,7 +43,7 @@ pub struct Data {
     pub data: Box<dyn StofData>,
 
     #[serde(skip)]
-    pub dirty: FxHashSet<SId>,
+    pub dirty: FxHashSet<ArcStr>,
 }
 impl From<Box<dyn StofData>> for Data {
     fn from(value: Box<dyn StofData>) -> Self {
@@ -65,7 +65,7 @@ impl Data {
 
     #[inline(always)]
     /// Invalidate with a symbol.
-    pub fn invalidate(&mut self, symbol: SId) -> bool {
+    pub fn invalidate(&mut self, symbol: ArcStr) -> bool {
         self.dirty.insert(symbol)
     }
 
@@ -89,7 +89,7 @@ impl Data {
 
     #[inline(always)]
     /// Validate with a symbol.
-    pub fn validate(&mut self, symbol: &SId) -> bool {
+    pub fn validate(&mut self, symbol: &ArcStr) -> bool {
         self.dirty.remove(symbol)
     }
 
@@ -121,7 +121,7 @@ impl Data {
 
     #[inline(always)]
     /// Is this data dirty
-    pub fn dirty(&self, symbol: &SId) -> bool {
+    pub fn dirty(&self, symbol: &ArcStr) -> bool {
         self.dirty.contains(symbol)
     }
 

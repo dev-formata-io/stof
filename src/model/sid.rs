@@ -15,71 +15,228 @@
 //
 
 use arcstr::ArcStr;
-use bytes::Bytes;
+use compact_str::CompactString;
 use nanoid::nanoid;
-use std::{fmt::Display, ops::Deref};
-use serde::{Deserialize, Serialize};
+use std::{fmt::{self, Display}, ops::Deref};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord,)]
-/// Stof ID.
-/// Cross between nanoid (flexibility, speed, size) & uuid (storage, hashing, etc.)
-/// Can be smaller than UUID and generated much quicker.
-pub struct SId(pub Bytes);
+/// Stof ID - Optimized string-based identifier
+/// 
+/// Uses CompactString for:
+/// - Zero heap allocation for strings ≤23 bytes (most IDs)
+/// - Cheap cloning (inline or refcounted)
+/// - Human-readable identifiers
+/// - Paths, names, and generated IDs
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct SId(pub CompactString);
 impl SId {
-    /// Create a new id with a specific string length.
-    pub fn new(length: usize) -> Self {
-        Self(Bytes::from(nanoid!(length)))
+    /// Create a new random ID (14 chars, fits inline!)
+    #[inline]
+    pub fn new() -> Self {
+        Self(CompactString::new(nanoid!(14)))
     }
 
-    /// Length of this id (bytes).
+    /// Create from any string value
+    #[inline]
+    pub fn from_str(s: impl AsRef<str>) -> Self {
+        Self(CompactString::new(s))
+    }
+
+    /// Get as string slice
+    #[inline]
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
+    /// Length in bytes
+    #[inline]
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Check if stored inline (no heap allocation)
+    /// Most paths and all generated IDs will be inline!
+    #[inline]
+    pub fn is_inline(&self) -> bool {
+        !self.0.is_heap_allocated()
+    }
+
+    /// Memory diagnostics
+    pub fn memory_info(&self) -> String {
+        format!(
+            "len={}, inline={}, heap={}",
+            self.len(),
+            self.is_inline(),
+            if self.is_inline() { 0 } else { self.len() }
+        )
     }
 }
 impl Default for SId {
     fn default() -> Self {
-        Self::new(20)
+        Self::new()
     }
 }
+
+impl Display for SId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 impl Deref for SId {
-    type Target = [u8];
+    type Target = str;
+    
     fn deref(&self) -> &Self::Target {
-        self.0.deref()
+        self.as_str()
     }
 }
+
 impl AsRef<str> for SId {
     fn as_ref(&self) -> &str {
-        unsafe {
-            std::str::from_utf8_unchecked(&self.0)
+        self.as_str()
+    }
+}
+
+impl From<&str> for SId {
+    fn from(s: &str) -> Self {
+        Self::from_str(s)
+    }
+}
+
+impl From<String> for SId {
+    fn from(s: String) -> Self {
+        Self(CompactString::from(s))
+    }
+}
+
+impl From<CompactString> for SId {
+    fn from(s: CompactString) -> Self {
+        Self(s)
+    }
+}
+
+impl From<&String> for SId {
+    fn from(s: &String) -> Self {
+        Self::from_str(s)
+    }
+}
+
+impl From<ArcStr> for SId {
+    fn from(value: ArcStr) -> Self {
+        Self::from_str(&value)
+    }
+}
+
+impl From<&ArcStr> for SId {
+    fn from(value: &ArcStr) -> Self {
+        Self::from_str(&value)
+    }
+}
+
+impl From<&SId> for SId {
+    fn from(value: &SId) -> Self {
+        value.clone()
+    }
+}
+
+
+// Serialize as a simple string
+impl Serialize for SId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+// Deserialize from either old Bytes format or new string format
+impl<'de> Deserialize<'de> for SId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::{self, Visitor};
+        
+        struct SIdVisitor;
+        
+        impl<'de> Visitor<'de> for SIdVisitor {
+            type Value = SId;
+            
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a string or bytes representing an SId")
+            }
+            
+            // New format: direct string (most common)
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(SId::from_str(v))
+            }
+            
+            // New format: owned string
+            fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(SId::from(v))
+            }
+            
+            // Old format: Bytes serialized as bytes (some formats)
+            fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                let s = std::str::from_utf8(v)
+                    .map_err(|_| de::Error::custom("invalid UTF-8 in SId bytes"))?;
+                Ok(SId::from_str(s))
+            }
+            
+            // Old format: Bytes serialized as byte buffer
+            fn visit_byte_buf<E>(self, v: Vec<u8>) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                let s = String::from_utf8(v)
+                    .map_err(|e| de::Error::custom(format!("invalid UTF-8 in SId: {}", e)))?;
+                Ok(SId::from(s))
+            }
+        }
+        
+        // Use deserialize_string for bincode (schema-based)
+        // This is more efficient and works because both Bytes and String
+        // serialize identically in bincode
+        if deserializer.is_human_readable() {
+            // For human-readable formats (JSON, YAML, etc.), use visitor
+            // to handle potential different representations
+            deserializer.deserialize_str(SIdVisitor)
+        } else {
+            // For binary formats (bincode, postcard, etc.), just deserialize as String
+            // This is faster and works because the binary representation is identical
+            let s = String::deserialize(deserializer)?;
+            Ok(SId::from(s))
         }
     }
 }
-impl Display for SId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_ref())
-    }
-}
-impl<T: ?Sized + ToString> From<&T> for SId {
-    fn from(value: &T) -> Self {
-        Self(Bytes::from(value.to_string()))
-    }
-}
-impl From<ArcStr> for SId {
-    fn from(value: ArcStr) -> Self {
-        Self(Bytes::from(value.to_string()))
-    }
-}
+
 
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
+    use serde::Serialize;
     use crate::model::SId;
 
     #[test]
     fn default() {
         let id = SId::default();
-        assert_eq!(id.len(), 20);
+        assert_eq!(id.len(), 14);
     }
 
     #[test]
@@ -94,26 +251,59 @@ mod tests {
     }
 
     #[test]
-    fn custom_length() {
-        let id = SId::new(10);
-        assert_eq!(id.len(), 10);
-    }
-
-    #[test]
     fn cloned() {
-        let id = SId::new(35);
+        let id = SId::new();
         let cl = id.clone();
         assert_eq!(cl, id);
 
-        let an = SId::new(35);
+        let an = SId::new();
         assert_ne!(cl, an);
     }
 
     #[test]
     fn to_bytes() {
         let id = SId::default();
-        let by = Bytes::from(id.to_vec());
-        assert_eq!(id.0, by);
+        let by = Bytes::from(id.to_string());
         assert_eq!(id.as_ref(), &by);
+    }
+    
+    #[test]
+    fn test_deserialize_new_format() {
+        let id = SId::from_str("test_id_123");
+        let serialized = bincode::serialize(&id).unwrap();
+        let deserialized: SId = bincode::deserialize(&serialized).unwrap();
+        assert_eq!(id, deserialized);
+    }
+    
+    #[test]
+    fn test_deserialize_old_bytes_format() {
+        // Simulate old format: Bytes wrapping a string
+        #[derive(Serialize)]
+        struct OldSId(Bytes);
+        
+        let old_id = OldSId(Bytes::from("old_test_id"));
+        let serialized = bincode::serialize(&old_id).unwrap();
+        
+        // Should deserialize into new SId format
+        let deserialized: SId = bincode::deserialize(&serialized).unwrap();
+        assert_eq!(deserialized.as_str(), "old_test_id");
+    }
+    
+    #[test]
+    fn test_roundtrip() {
+        let original = SId::from_str("roundtrip_test");
+        let serialized = bincode::serialize(&original).unwrap();
+        let deserialized: SId = bincode::deserialize(&serialized).unwrap();
+        assert_eq!(original, deserialized);
+    }
+    
+    #[test]
+    fn test_inline_optimization() {
+        let id = SId::new(); // 14 chars
+        assert!(id.is_inline());
+        
+        let serialized = bincode::serialize(&id).unwrap();
+        let deserialized: SId = bincode::deserialize(&serialized).unwrap();
+        assert!(deserialized.is_inline());
     }
 }

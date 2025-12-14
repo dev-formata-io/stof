@@ -15,17 +15,14 @@
 //
 
 use arcstr::{literal, ArcStr};
-use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use crate::model::{Field, Graph, NodeRef, SId};
 
 
 /// Const super keyword for paths.
-pub const SUPER_KEYWORD: SId = SId(Bytes::from_static(b"super"));
 pub const SUPER_STR_KEYWORD: ArcStr = literal!("super");
 
 /// Const self keyword for paths.
-pub const SELF_KEYWORD: SId = SId(Bytes::from_static(b"self"));
 pub const SELF_STR_KEYWORD: ArcStr = literal!("self");
 
 
@@ -161,7 +158,7 @@ impl SPath {
             // Look at parent
             if let Some(parent) = &current_node.parent {
                 if let Some(parent) = parent.node(graph) {
-                    if next_name == SUPER_KEYWORD || next_name == parent.name {
+                    if next_name.as_str() == &SUPER_STR_KEYWORD || next_name == parent.name {
                         current = Some(parent);
                         continue 'node_loop;
                     }
@@ -179,7 +176,7 @@ impl SPath {
             }
 
             // Handle self (or duplicate) next
-            if next_name == SELF_KEYWORD || current_node.name == next_name {
+            if next_name.as_str() == &SELF_STR_KEYWORD || current_node.name == next_name {
                 current = Some(current_node);
                 continue 'node_loop;
             }

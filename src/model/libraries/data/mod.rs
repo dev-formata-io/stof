@@ -215,7 +215,7 @@ impl Instruction for DataIns {
                 if let Some(symbol_var) = env.stack.pop() {
                     match symbol_var.val.read().deref() {
                         Val::Str(sym) => {
-                            symbol = SId::from(sym.as_str());
+                            symbol = sym.clone();
                         },
                         _ => {}
                     }
@@ -236,7 +236,7 @@ impl Instruction for DataIns {
                 if let Some(symbol_var) = env.stack.pop() {
                     match symbol_var.val.read().deref() {
                         Val::Str(sym) => {
-                            symbol = Some(SId::from(sym.as_str()));
+                            symbol = Some(sym.clone());
                         },
                         _ => {}
                     }
