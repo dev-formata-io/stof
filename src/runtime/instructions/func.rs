@@ -35,7 +35,10 @@ impl Instruction for FuncLit {
         if self.dref.data_exists(&graph) {
             instructions.push(Arc::new(Base::Literal(Val::Fn(self.dref.clone()))));
         } else {
-            let self_ptr = env.self_ptr();
+            let mut self_ptr = env.self_ptr();
+            if let Some(ns) = env.new_stack.last() {
+                self_ptr = ns.clone(); // if we are currently creating an object, make it the scope!
+            }
             if let Some(dref) = graph.insert_stof_data(&self_ptr, &self.dref, Box::new(self.func.clone()), Some(self.dref.clone())) {
                 instructions.push(Arc::new(Base::Literal(Val::Fn(dref))));
             }

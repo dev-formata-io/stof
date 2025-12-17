@@ -135,3 +135,11 @@ fn static_fn_via_variable() {
     assert_eq(addition(30, 12), 42);
     assert_eq(addition('hello', ', world'), 'hello, world');
 }
+
+#[test]
+fn arrow_scoped() {
+    const created = new {
+        visit: ():obj => self;
+    };
+    assert_eq(created.visit(), created);
+}
