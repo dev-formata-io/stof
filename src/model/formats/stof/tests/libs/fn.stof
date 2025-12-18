@@ -110,3 +110,20 @@ fn test_this() {
     const attrs = this.attributes();
     assert_eq(attrs, {'test': null});
 }
+
+#[test]
+fn bind_func() {
+    const func = ():str => self.msg ?? 'dne';
+    assert_eq(func(), 'dne');
+    assert_eq(func.objs(), [self]);
+
+    const to = new { msg: 'hi' };
+    func.bind(to);
+    assert_eq(func(), 'hi');
+    assert_eq(func.objs(), [to]);
+
+    const another = new { msg: 'another' };
+    func.bind(another);
+    assert_eq(func(), 'another');
+    assert_eq(func.objs(), [another]);
+}

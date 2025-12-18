@@ -114,6 +114,7 @@ pub enum Error {
      *****************************************************************************/
     FnId,
     FnData,
+    FnBind,
     FnName,
     FnParams,
     FnReturnType,

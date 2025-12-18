@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use imbl::vector;
-use crate::{model::{libraries::function::{FuncIns, ATTRIBUTES, DATA, FUNC_LIB, HAS_ATTR, ID, IS_ASYNC, NAME, OBJ, OBJS, PARAMS, RETURN_TYPE}, LibFunc, Param}, runtime::{instruction::Instructions, Type}};
+use crate::{model::{LibFunc, Param, function::BIND, libraries::function::{ATTRIBUTES, DATA, FUNC_LIB, FuncIns, HAS_ATTR, ID, IS_ASYNC, NAME, OBJ, OBJS, PARAMS, RETURN_TYPE}}, runtime::{Type, instruction::Instructions}};
 
 
 /// Id.
@@ -66,6 +66,37 @@ assert(func.data().exists());
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(DATA.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// Bind.
+pub fn fn_bind() -> LibFunc {
+    LibFunc {
+        library: FUNC_LIB.clone(),
+        name: "bind".into(),
+        is_async: false,
+        docs: r#"# Fn.bind(func: fn, to: obj) -> bool
+Bind a function to an object. This will remove the object from the nodes that currently reference it and place it on the "to" object.
+```rust
+const func = ():str => self.msg ?? 'dne';
+
+const to = new { msg: 'hi' };
+func.bind(to);
+
+assert_eq(func(), 'hi');
+```"#.into(),
+        params: vector![
+            Param { name: "fn".into(), param_type: Type::Fn, default: None },
+            Param { name: "to".into(), param_type: Type::Void, default: None },
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(BIND.clone());
             Ok(instructions)
         })
     }

@@ -19,8 +19,7 @@ use arcstr::{literal, ArcStr};
 use imbl::{vector, OrdMap, Vector};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{libraries::function::ops::{fn_attributes, fn_call, fn_data, fn_exp_call, fn_has_attr, fn_id, fn_is_async, fn_name, fn_obj, fn_objs, fn_params, fn_return_type}, Func, Graph, ASYNC_FUNC_ATTR}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, Base}, proc::ProcEnv, Error, Val, ValRef, Variable}};
-
+use crate::{model::{ASYNC_FUNC_ATTR, Func, Graph, function::ops::fn_bind, libraries::function::ops::{fn_attributes, fn_call, fn_data, fn_exp_call, fn_has_attr, fn_id, fn_is_async, fn_name, fn_obj, fn_objs, fn_params, fn_return_type}}, runtime::{Error, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{Base, call::FuncCall}, proc::ProcEnv}};
 mod ops;
 
 
@@ -32,6 +31,7 @@ pub(self) const FUNC_LIB: ArcStr = literal!("Fn");
 pub fn insert_fn_lib(graph: &mut Graph) {
     graph.insert_libfunc(fn_id());
     graph.insert_libfunc(fn_data());
+    graph.insert_libfunc(fn_bind());
     graph.insert_libfunc(fn_name());
     graph.insert_libfunc(fn_params());
     graph.insert_libfunc(fn_return_type());
@@ -48,6 +48,7 @@ pub fn insert_fn_lib(graph: &mut Graph) {
 lazy_static! {
     pub(self) static ref ID: Arc<dyn Instruction> = Arc::new(FuncIns::Id);
     pub(self) static ref DATA: Arc<dyn Instruction> = Arc::new(FuncIns::Data);
+    pub(self) static ref BIND: Arc<dyn Instruction> = Arc::new(FuncIns::Bind);
     pub(self) static ref NAME: Arc<dyn Instruction> = Arc::new(FuncIns::Name);
     pub(self) static ref PARAMS: Arc<dyn Instruction> = Arc::new(FuncIns::Params);
     pub(self) static ref RETURN_TYPE: Arc<dyn Instruction> = Arc::new(FuncIns::ReturnType);
@@ -64,6 +65,7 @@ lazy_static! {
 pub enum FuncIns {
     Id,
     Data,
+    Bind,
     Name,
     Params,
     ReturnType,
@@ -96,6 +98,27 @@ impl Instruction for FuncIns {
                     }
                 }
                 Err(Error::FnData)
+            },
+            Self::Bind => {
+                if let Some(to_var) = env.stack.pop() {
+                    if let Some(var) = env.stack.pop() {
+                        if let Some(to_ref) = to_var.try_obj() {
+                            if let Some(dref) = var.try_data_or_func() {
+                                let mut moved = false;
+                                let existing = dref.data_nodes(&graph);
+                                if graph.attach_data(&to_ref, &dref) {
+                                    for nref in existing {
+                                        graph.remove_data(&dref, Some(nref));
+                                    }
+                                    moved = true;
+                                }
+                                env.stack.push(Variable::val(Val::Bool(moved)));
+                                return Ok(None);
+                            }
+                        }
+                    }
+                }
+                Err(Error::FnBind)
             },
             Self::Name => {
                 if let Some(var) = env.stack.pop() {
