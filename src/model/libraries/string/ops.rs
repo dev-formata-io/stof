@@ -17,7 +17,7 @@
 use std::sync::Arc;
 use arcstr::literal;
 use imbl::vector;
-use crate::{model::{string::{AT, CONTAINS, ENDS_WITH, FIRST, INDEX_OF, LAST, LEN, LOWER, PUSH, REPLACE, SPLIT, STARTS_WITH, STR_LIB, SUBSTRING, TRIM, TRIM_END, TRIM_START, UPPER}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Num, NumT, Type, Val}};
+use crate::{model::{LibFunc, Param, string::{AT, CONTAINS, ENDS_WITH, FIND_ALL, FIRST, INDEX_OF, IS_MATCH, LAST, LEN, LOWER, PUSH, REPLACE, SPLIT, STARTS_WITH, STR_LIB, SUBSTRING, TRIM, TRIM_END, TRIM_START, UPPER}}, runtime::{Num, NumT, Type, Val, instruction::Instructions, instructions::Base}};
 
 
 /// Len.
@@ -487,6 +487,64 @@ assert_eq(val.substring(3, 8), "lo, w");
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(SUBSTRING.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// Is match?
+pub fn str_matches() -> LibFunc {
+    LibFunc {
+        library: STR_LIB.clone(),
+        name: "matches".into(),
+        is_async: false,
+        docs: r#"# Str.matches(val: str, regex: str) -> bool
+Return true if this string matches the provided regex string.
+```rust
+const val = "I categorically deny having triskaidekaphobia.";
+const regex = "\\b\\w{13}\\b";
+assert(val.matches(regex));
+```
+"#.into(),
+        params: vector![
+            Param { name: "val".into(), param_type: Type::Str, default: None },
+            Param { name: "regex".into(), param_type: Type::Str, default: None },
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(IS_MATCH.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// Find all matches.
+pub fn str_find_matches() -> LibFunc {
+    LibFunc {
+        library: STR_LIB.clone(),
+        name: "find_matches".into(),
+        is_async: false,
+        docs: r#"# Str.find_matches(val: str, regex: str) -> list
+Return a list of tuples "(content: str, start: int, end: int)" that represent all matches of the regex in the string vlaue.
+```rust
+const val = "I categorically deny having triskaidekaphobia.";
+const regex = "\\b\\w{13}\\b";
+assert_eq(val.find_matches(regex), [("categorically", 2, 15)]);
+```
+"#.into(),
+        params: vector![
+            Param { name: "val".into(), param_type: Type::Str, default: None },
+            Param { name: "regex".into(), param_type: Type::Str, default: None },
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(FIND_ALL.clone());
             Ok(instructions)
         })
     }

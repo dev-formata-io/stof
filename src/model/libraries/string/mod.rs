@@ -16,10 +16,11 @@
 
 use std::{ops::{Deref, DerefMut}, sync::Arc};
 use arcstr::{literal, ArcStr};
-use imbl::Vector;
+use imbl::{Vector, vector};
 use lazy_static::lazy_static;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
-use crate::{model::{string::ops::{str_at, str_contains, str_ends_with, str_first, str_index_of, str_last, str_len, str_lower, str_push, str_replace, str_split, str_starts_with, str_substr, str_trim, str_trim_end, str_trim_start, str_upper}, Graph}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Num, Val, ValRef, Variable}};
+use crate::{model::{Graph, string::ops::{str_at, str_contains, str_ends_with, str_find_matches, str_first, str_index_of, str_last, str_len, str_lower, str_matches, str_push, str_replace, str_split, str_starts_with, str_substr, str_trim, str_trim_end, str_trim_start, str_upper}}, runtime::{Error, Num, Val, ValRef, Variable, instruction::{Instruction, Instructions}, proc::ProcEnv}};
 
 mod ops;
 
@@ -46,6 +47,8 @@ pub fn insert_string_lib(graph: &mut Graph) {
     graph.insert_libfunc(str_trim_start());
     graph.insert_libfunc(str_trim_end());
     graph.insert_libfunc(str_substr());
+    graph.insert_libfunc(str_matches());
+    graph.insert_libfunc(str_find_matches());
 }
 
 
@@ -67,6 +70,8 @@ lazy_static! {
     pub(self) static ref TRIM_START: Arc<dyn Instruction> = Arc::new(StrIns::TrimStart);
     pub(self) static ref TRIM_END: Arc<dyn Instruction> = Arc::new(StrIns::TrimEnd);
     pub(self) static ref SUBSTRING: Arc<dyn Instruction> = Arc::new(StrIns::Substring);
+    pub(self) static ref IS_MATCH: Arc<dyn Instruction> = Arc::new(StrIns::IsMatch);
+    pub(self) static ref FIND_ALL: Arc<dyn Instruction> = Arc::new(StrIns::FindAll);
 }
 
 
@@ -90,6 +95,10 @@ pub enum StrIns {
     TrimStart,
     TrimEnd,
     Substring,
+
+    // REGEX
+    IsMatch,
+    FindAll,
 }
 #[typetag::serde(name = "StrIns")]
 impl Instruction for StrIns {
@@ -422,6 +431,65 @@ impl Instruction for StrIns {
                 }
                 Err(Error::StrSubstring)
             },
+
+            // Ex. "haystack".matches("regex") => Str.matches(haystack, regex)
+            Self::IsMatch => {
+                if let Some(matches_var) = env.stack.pop() {
+                    if let Some(var) = env.stack.pop() {
+                        match var.val.read().deref() {
+                            Val::Str(val) => {
+                                match matches_var.val.read().deref() {
+                                    Val::Str(matches) => {
+                                        if let Ok(regex) = Regex::new(&matches) {
+                                            env.stack.push(Variable::val(Val::Bool(regex.is_match(&val))));
+                                            return Ok(None);
+                                        } else {
+                                            return Err(Error::StrRegexFail);
+                                        }
+                                    },
+                                    _ => {}
+                                }
+                            },
+                            _ => {},
+                        }
+                    }
+                }
+                Err(Error::StrIsMatch)
+            },
+            // "haystack".find_matches("regex") -> list
+            // Str.find_matches(haystack, regex)
+            Self::FindAll => {
+                if let Some(regex) = env.stack.pop() {
+                    if let Some(var) = env.stack.pop() {
+                        match var.val.read().deref() {
+                            Val::Str(val) => {
+                                match regex.val.read().deref() {
+                                    Val::Str(regex) => {
+                                        if let Ok(regex) = Regex::new(&regex) {
+                                            let mut list = vector![];
+                                            for re_match in regex.find_iter(&val) {
+                                                let tup = vector![
+                                                    ValRef::new(Val::Str(re_match.as_str().into())),
+                                                    ValRef::new(Val::Num(Num::Int(re_match.start() as i64))),
+                                                    ValRef::new(Val::Num(Num::Int(re_match.end() as i64))),
+                                                ];
+                                                list.push_back(ValRef::new(Val::Tup(tup)));
+                                            }
+                                            env.stack.push(Variable::val(Val::List(list)));
+                                            return Ok(None);
+                                        } else {
+                                            return Err(Error::StrRegexFail);
+                                        }
+                                    },
+                                    _ => {}
+                                }
+                            },
+                            _ => {},
+                        }   
+                    }
+                }
+                Err(Error::StrFindAll)
+            }
         }
     }
 }

@@ -131,3 +131,17 @@ fn substr() {
     let r = Str.substring(x, 2, 5); // lib ref by name
     assert_eq(r, "llo");
 }
+
+#[test]
+fn matches() {
+    const val = "I categorically deny having triskaidekaphobia.";
+    const regex = "\\b\\w{13}\\b";
+    assert(val.matches(regex));
+}
+
+#[test]
+fn find_matches() {
+    const val = "I categorically deny having triskaidekaphobia.";
+    const regex = "\\b\\w{13}\\b";
+    assert_eq(val.find_matches(regex), [("categorically", 2, 15)]);
+}

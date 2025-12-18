@@ -162,6 +162,9 @@ pub enum Error {
     StrTrimStart,
     StrTrimEnd,
     StrSubstring,
+    StrRegexFail,
+    StrIsMatch,
+    StrFindAll,
 
     /*****************************************************************************
      * Prompt Lib Errors.
