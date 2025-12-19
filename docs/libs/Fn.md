@@ -19,6 +19,17 @@ const func: fn = self.hi; // #[hi] fn hi() {}
 assert_eq(func.attributes(), {"hi": null});
 ```
 
+# Fn.bind(func: fn, to: obj) -> bool
+Bind a function to an object. This will remove the object from the nodes that currently reference it and place it on the "to" object.
+```rust
+const func = ():str => self.msg ?? 'dne';
+
+const to = new { msg: 'hi' };
+func.bind(to);
+
+assert_eq(func(), 'hi');
+```
+
 # Fn.call(func: fn, ..) -> unknown
 Call this function, using any arguments given after the function itself (some library functions can take N arguments, this is one of them).
 ```rust

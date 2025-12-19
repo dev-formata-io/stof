@@ -204,6 +204,18 @@ array.sort();
 assert_eq(array, [1, 2, 3, 4]);
 ```
 
+# List.sort_by(array: list, func: fn) -> void
+Sort the values in this array according to a function that takes two list arguments and returns an integer (< 0 for less, > 0 for greater, and 0 for equal).
+```rust
+const array = [2, 1, 4, 3];
+array.sort_by((a: int, b: int): int => {
+    if (a < b) 1
+    if (a > b) -1
+    0
+});
+assert_eq(array, [4, 3, 2, 1]);
+```
+
 # List.to_uniform(array: list, type: str) -> void
 Try casting all values in this list to the given type (given as a string like you would in a Stof file). Will throw an error if a value cannot be cast.
 ```rust

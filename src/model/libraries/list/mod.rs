@@ -17,7 +17,7 @@
 use std::sync::Arc;
 use arcstr::{literal, ArcStr};
 use imbl::vector;
-use crate::{model::{Graph, LibFunc, Param}, runtime::{instruction::Instructions, instructions::{list::{ListIns, ANY_LIST, APPEND_LIST, AT_LIST, AT_REF_LIST, CLEAR_LIST, CONTAINS_LIST, EMPTY_LIST, FIRST_LIST, FIRST_REF_LIST, INDEX_OF_LIST, INSERT_LIST, IS_UNIFORM_LIST, JOIN_LIST, LAST_LIST, LAST_REF_LIST, LEN_LIST, POP_BACK_LIST, POP_FRONT_LIST, REMOVE_ALL_LIST, REMOVE_FIRST_LIST, REMOVE_LAST_LIST, REMOVE_LIST, REPLACE_LIST, REVERSED_LIST, REVERSE_LIST, SORT_LIST, TO_UNIFORM_LIST}, Base}, NumT, Type, Val}};
+use crate::{model::{Graph, LibFunc, Param}, runtime::{NumT, Type, Val, instruction::Instructions, instructions::{Base, list::{ANY_LIST, APPEND_LIST, AT_LIST, AT_REF_LIST, CLEAR_LIST, CONTAINS_LIST, EMPTY_LIST, FIRST_LIST, FIRST_REF_LIST, INDEX_OF_LIST, INSERT_LIST, IS_UNIFORM_LIST, JOIN_LIST, LAST_LIST, LAST_REF_LIST, LEN_LIST, ListIns, POP_BACK_LIST, POP_FRONT_LIST, REMOVE_ALL_LIST, REMOVE_FIRST_LIST, REMOVE_LAST_LIST, REMOVE_LIST, REPLACE_LIST, REVERSE_LIST, REVERSED_LIST, SORT_LIST, SORT_LIST_BY, TO_UNIFORM_LIST}}}};
 
 
 /// Library name.
@@ -50,6 +50,7 @@ pub fn insert_list_lib(graph: &mut Graph) {
     graph.insert_libfunc(list_insert());
     graph.insert_libfunc(list_replace());
     graph.insert_libfunc(list_sort());
+    graph.insert_libfunc(list_sort_by());
     graph.insert_libfunc(list_is_uniform());
     graph.insert_libfunc(list_to_uniform());
 }
@@ -717,6 +718,38 @@ assert_eq(array, [1, 2, 3, 4]);
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(SORT_LIST.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// Sort by.
+fn list_sort_by() -> LibFunc {
+    LibFunc {
+        library: LIST_LIB.clone(),
+        name: "sort_by".into(),
+        is_async: false,
+        docs: r#"# List.sort_by(array: list, func: fn) -> void
+Sort the values in this array according to a function that takes two list arguments and returns an integer (< 0 for less, > 0 for greater, and 0 for equal).
+```rust
+const array = [2, 1, 4, 3];
+array.sort_by((a: int, b: int): int => {
+    if (a < b) 1
+    if (a > b) -1
+    0
+});
+assert_eq(array, [4, 3, 2, 1]);
+```"#.into(),
+        params: vector![
+            Param { name: "list".into(), param_type: Type::List, default: None },
+            Param { name: "func".into(), param_type: Type::Fn, default: None }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(SORT_LIST_BY.clone());
             Ok(instructions)
         })
     }

@@ -33,6 +33,15 @@ assert(val.ends_with("llo"));
 ```
 
 
+# Str.find_matches(val: str, regex: str) -> list
+Return a list of tuples "(content: str, start: int, end: int)" that represent all matches of the regex in the string vlaue.
+```rust
+const val = "I categorically deny having triskaidekaphobia.";
+const regex = "\\b\\w{13}\\b";
+assert_eq(val.find_matches(regex), [("categorically", 2, 15)]);
+```
+
+
 # Str.first(val: str) -> str
 Return the first char (as a string) in this string.
 ```rust
@@ -69,6 +78,15 @@ Return a new string with all characters converted to lowercase.
 ```rust
 const val = "HELLO";
 assert_eq(val.lower(), "hello");
+```
+
+
+# Str.matches(val: str, regex: str) -> bool
+Return true if this string matches the provided regex string.
+```rust
+const val = "I categorically deny having triskaidekaphobia.";
+const regex = "\\b\\w{13}\\b";
+assert(val.matches(regex));
 ```
 
 

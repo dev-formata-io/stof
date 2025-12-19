@@ -226,3 +226,58 @@ fn list_constructor() {
     a = list(1, 2, 3);
     assert_eq(a, [1, 2, 3]);
 }
+
+#[test]
+fn list_sortby() {
+    const arr = [10, 23, -34, 1, 45, 2, 55, 23];
+    self.quicksort(arr, (a: int, b: int): int => {
+        if (a < b) 1
+        if (a > b) -1
+        0
+    });
+    assert_eq(arr, [55, 45, 23, 23, 10, 2, 1, -34]);
+
+    const other = [
+        new { val: 10 },
+        new { val: 20 },
+        new { val: 12 },
+        new { val: -3 },
+        new { val: 21 },
+    ];
+    other.sort_by((a: obj, b: obj): int => {
+        if (a.val < b.val) return -1;
+        if (a.val > b.val) return 1;
+        return 0;
+    });
+    const other_vals = [];
+    for (const o in other) other_vals.push_back(o.val);
+    assert_eq(other_vals, [-3, 10, 12, 20, 21]);
+
+    const array = [2, 1, 4, 3];
+    array.sort_by((a: int, b: int): int => {
+        if (a < b) 1
+        if (a > b) -1
+        0
+    });
+    assert_eq(array, [4, 3, 2, 1]);
+}
+
+fn quicksort(arr: list, func: fn = null, low: int = 0, high: int = null) {
+    if (high == null) high = arr.len() - 1;
+    if (low < high) {
+        const idx = {
+            const pivot = arr[high];
+            let i = low;
+            for (let j = low; j < high; j += 1) {
+                if (func != null ? func(arr[j], pivot) < 0 : arr[j] < pivot) {
+                    swap(&arr[i], &arr[j]);
+                    i += 1;
+                }
+            }
+            swap(&arr[i], &arr[high]);
+            i
+        };
+        this(arr, func, low, idx - 1);
+        this(arr, func, idx + 1, high);
+    }
+}

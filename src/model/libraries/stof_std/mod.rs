@@ -535,13 +535,15 @@ impl Instruction for StdIns {
             Self::Swap => {
                 if let Some(first) = env.stack.pop() {
                     if let Some(second) = env.stack.pop() {
-                        let mut first = first.val.write();
-                        let mut second = second.val.write();
+                        if !Arc::ptr_eq(&first.val, &second.val) {
+                            let mut first = first.val.write();
+                            let mut second = second.val.write();
 
-                        let first = first.deref_mut();
-                        let second = second.deref_mut();
-                        
-                        swap(first, second);
+                            let first = first.deref_mut();
+                            let second = second.deref_mut();
+                            
+                            swap(first, second);
+                        }
                     }
                 }
             },

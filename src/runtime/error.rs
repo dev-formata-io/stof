@@ -311,7 +311,7 @@ pub enum Error {
     ListInsert,
     ListReplace,
     ListSort,
-    ListSortWith,
+    ListSortBy,
     ListIsUniform,
     ListToUniform,
 

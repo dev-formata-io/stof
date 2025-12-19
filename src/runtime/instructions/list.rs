@@ -15,10 +15,10 @@
 //
 
 use std::{ops::{Deref, DerefMut}, sync::Arc};
-use imbl::Vector;
+use imbl::{Vector, vector};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, parser::types::parse_type_complete, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Num, Type, Val, Variable}};
+use crate::{model::{Func, Graph}, parser::types::parse_type_complete, runtime::{Error, Num, NumT, Type, Val, Variable, instruction::{Instruction, Instructions}, instructions::{Base, call::FuncCall}, proc::ProcEnv}};
 
 
 lazy_static! {
@@ -50,6 +50,7 @@ lazy_static! {
     pub static ref INSERT_LIST: Arc<dyn Instruction> = Arc::new(ListIns::Insert);
     pub static ref REPLACE_LIST: Arc<dyn Instruction> = Arc::new(ListIns::Replace);
     pub static ref SORT_LIST: Arc<dyn Instruction> = Arc::new(ListIns::Sort);
+    pub static ref SORT_LIST_BY: Arc<dyn Instruction> = Arc::new(ListIns::SortBy);
     pub static ref IS_UNIFORM_LIST: Arc<dyn Instruction> = Arc::new(ListIns::IsUniform);
     pub static ref TO_UNIFORM_LIST: Arc<dyn Instruction> = Arc::new(ListIns::ToUniform);
 }
@@ -93,6 +94,7 @@ pub enum ListIns {
     Insert,
     Replace,
     Sort,
+    SortBy,
     IsUniform,
     ToUniform,
 }
@@ -677,6 +679,74 @@ impl Instruction for ListIns {
                     }
                 }
                 Err(Error::ListSort)
+            },
+            Self::SortBy => {
+                if let Some(cmp) = env.stack.pop() {
+                    if let Some(cmp) = cmp.try_func() {
+                        if let Some(var) = env.stack.pop() {
+                            match var.val.write().deref_mut() {
+                                Val::List(list) => {
+                                    // check func signature
+                                    if let Some(func) = graph.get_stof_data::<Func>(&cmp) {
+                                        if func.return_type != Type::Num(NumT::Int) || func.params.len() != 2 {
+                                            return Err(Error::ListSortBy);
+                                        }
+                                    }
+
+                                    let env_cell = std::cell::RefCell::new(env);
+                                    let graph_cell = std::cell::RefCell::new(graph);
+                                    list.sort_by(move |a, b| {
+                                        let ins: Arc<dyn Instruction> = Arc::new(FuncCall {
+                                            func: Some(cmp.clone()),
+                                            search: None,
+                                            stack: false,
+                                            as_ref: false,
+                                            cnull: false,
+                                            args: vector![
+                                                Arc::new(Base::Variable(Variable::refval(a.clone()))) as Arc<dyn Instruction>,
+                                                Arc::new(Base::Variable(Variable::refval(b.clone()))) as Arc<dyn Instruction>,
+                                            ],
+                                            oself: None,
+                                        });
+                                        let mut env = env_cell.borrow_mut();
+                                        let mut graph = graph_cell.borrow_mut();
+                                        match ins.exec(*env.deref_mut(), *graph.deref_mut()) {
+                                            Ok(res) => {
+                                                if let Some(mut func_ins) = res {
+                                                    match func_ins.exec(*env.deref_mut(), *graph.deref_mut(), -1) {
+                                                        Ok(_res) => {
+                                                            if let Some(ret) = (*env.deref_mut()).stack.pop() {
+                                                                match ret.val.read().deref() {
+                                                                    Val::Num(num) => {
+                                                                        let i = num.int();
+                                                                        if i > 0 { return std::cmp::Ordering::Greater; }
+                                                                        if i < 0 { return std::cmp::Ordering::Less; }
+                                                                        return std::cmp::Ordering::Equal;
+                                                                    },
+                                                                    _ => {}
+                                                                }
+                                                            }
+                                                        },
+                                                        Err(_err) => {
+                                                            // nothing we can do here...?
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            Err(_err) => {
+                                                // nothing we can do here...?
+                                            },
+                                        }
+                                        std::cmp::Ordering::Equal
+                                    });
+                                    return Ok(None);
+                                },
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+                Err(Error::ListSortBy)
             },
             Self::IsUniform => {
                 if let Some(var) = env.stack.pop() {

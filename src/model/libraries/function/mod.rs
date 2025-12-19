@@ -105,7 +105,8 @@ impl Instruction for FuncIns {
                         if let Some(to_ref) = to_var.try_obj() {
                             if let Some(dref) = var.try_data_or_func() {
                                 let mut moved = false;
-                                let existing = dref.data_nodes(&graph);
+                                let mut existing = dref.data_nodes(&graph);
+                                existing.remove(&to_ref); // can bind to an existing node
                                 if graph.attach_data(&to_ref, &dref) {
                                     for nref in existing {
                                         graph.remove_data(&dref, Some(nref));
