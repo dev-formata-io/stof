@@ -211,6 +211,7 @@ pub enum Error {
     NumInf,
 
     NumHasUnits,
+    NumToUnits,
     NumIsAngle,
     NumIsTemp,
     NumIsLength,

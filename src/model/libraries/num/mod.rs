@@ -18,7 +18,7 @@ use std::sync::Arc;
 use arcstr::{literal, ArcStr};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{num::{iter::{num_at, num_len}, maxmin::{num_max, num_min}, ops::{num_abs, num_acos, num_acosh, num_asin, num_asinh, num_atan, num_atan2, num_atanh, num_bin, num_cbrt, num_ceil, num_cos, num_cosh, num_exp, num_exp2, num_floor, num_fract, num_has_units, num_hex, num_inf, num_is_angle, num_is_length, num_is_mass, num_is_memory, num_is_temp, num_is_time, num_ln, num_log, num_nan, num_oct, num_pow, num_remove_units, num_round, num_signum, num_sin, num_sinh, num_sqrt, num_string, num_tan, num_tanh, num_trunc}}, Graph}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Val, Variable}};
+use crate::{model::{Graph, num::{iter::{num_at, num_len}, maxmin::{num_max, num_min}, ops::{num_abs, num_acos, num_acosh, num_asin, num_asinh, num_atan, num_atan2, num_atanh, num_bin, num_cbrt, num_ceil, num_cos, num_cosh, num_exp, num_exp2, num_floor, num_fract, num_has_units, num_hex, num_inf, num_is_angle, num_is_length, num_is_mass, num_is_memory, num_is_temp, num_is_time, num_ln, num_log, num_nan, num_oct, num_pow, num_remove_units, num_round, num_signum, num_sin, num_sinh, num_sqrt, num_string, num_tan, num_tanh, num_to_units, num_trunc}}}, parser::types::parse_type_complete, runtime::{Error, NumT, Type, Val, Variable, instruction::{Instruction, Instructions}, proc::ProcEnv}};
 
 mod ops;
 mod maxmin;
@@ -67,6 +67,7 @@ pub fn insert_number_lib(graph: &mut Graph) {
     graph.insert_libfunc(num_at());
 
     graph.insert_libfunc(num_has_units());
+    graph.insert_libfunc(num_to_units());
     graph.insert_libfunc(num_remove_units());
     graph.insert_libfunc(num_is_angle());
     graph.insert_libfunc(num_is_temp());
@@ -129,6 +130,7 @@ lazy_static! {
     pub(self) static ref ATAN2: Arc<dyn Instruction> = Arc::new(NumIns::ATan2);
 
     pub(self) static ref HAS_UNITS: Arc<dyn Instruction> = Arc::new(NumIns::HasUnits);
+    pub(self) static ref TO_UNITS: Arc<dyn Instruction> = Arc::new(NumIns::ToUnits);
     pub(self) static ref REMOVE_UNITS: Arc<dyn Instruction> = Arc::new(NumIns::RemoveUnits);
     pub(self) static ref IS_ANGLE: Arc<dyn Instruction> = Arc::new(NumIns::IsAngle);
     pub(self) static ref IS_LENGTH: Arc<dyn Instruction> = Arc::new(NumIns::IsLength);
@@ -187,6 +189,7 @@ pub enum NumIns {
 
     HasUnits,
     RemoveUnits,
+    ToUnits,
     IsAngle,
     IsTemp,
     IsLength,
@@ -715,6 +718,41 @@ impl Instruction for NumIns {
                     }
                 }
                 return Err(Error::NumHasUnits);
+            },
+            Self::ToUnits => {
+                if let Some(units_val) = env.stack.pop() {
+                    if let Some(mut val) = env.stack.pop() {
+                        let mut to_type = None;
+                        if let Some(units_num) = units_val.val.write().try_num() {
+                            if let Some(units) = units_num.units() {
+                                to_type = Some(Type::Num(NumT::Units(units)));
+                            }
+                        } else {
+                            let val_str = units_val.val.read().to_string();
+                            if let Ok(ty) = parse_type_complete(&val_str) {
+                                to_type = Some(ty);
+                            } else {
+                                return Err(Error::NumToUnits);
+                            }
+                        }
+                        if let Some(to) = to_type {
+                            match &to {
+                                Type::Num(_) => {},
+                                _ => {
+                                    // to_type is not a number type
+                                    return Err(Error::NumToUnits);
+                                }
+                            }
+                            val = val.stack_var(false);
+                            if let Err(_error) = val.cast(&to, graph, Some(env.self_ptr())) {
+                                return Err(Error::NumToUnits);
+                            }
+                        }
+                        env.stack.push(val);
+                        return Ok(None);
+                    }
+                }
+                return Err(Error::NumToUnits);
             },
 
             Self::Round => {

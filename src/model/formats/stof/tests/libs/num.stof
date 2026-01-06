@@ -105,6 +105,26 @@ Units: {
         assert(x.has_units());
         assert(!y.has_units());
     }
+
+    #[test]
+    fn to_units() {
+        const val = 10kg;
+        const units = 'g';
+        assert_eq(val.to_units(units), 10_000);
+        assert_eq(val, 10); // unmodified
+
+        assert_eq(val.to_units(50mg), 10_000_000);
+        assert_eq(typename val.to_units('mg'), 'mg');
+        assert_eq(val, 10);
+
+        const clone = val.to_units('float'); // keep any prior units
+        assert_eq(clone, 10);
+        assert_eq(typeof clone, 'kg');
+
+        const mod = val.to_units('int'); // will work, but eh..
+        assert_eq(mod, 10);
+        assert_eq(typeof mod, 'int');
+    }
     
     #[test]
     fn remove_units() {

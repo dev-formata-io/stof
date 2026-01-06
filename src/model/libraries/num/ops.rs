@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use imbl::vector;
-use crate::{model::{num::{ABS, ACOS, ACOSH, ASIN, ASINH, ATAN, ATAN2, ATANH, BIN, CBRT, CEIL, COS, COSH, EXP, EXP2, FLOOR, FRACT, HAS_UNITS, HEX, INF, IS_ANGLE, IS_LENGTH, IS_MASS, IS_MEMORY, IS_TEMP, IS_TIME, LN, LOG, NAN, NUM_LIB, OCT, POW, REMOVE_UNITS, ROUND2, SIGNUM, SIN, SINH, SQRT, STRING, TAN, TANH, TRUNC}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Num, Type, Val}};
+use crate::{model::{LibFunc, Param, num::{ABS, ACOS, ACOSH, ASIN, ASINH, ATAN, ATAN2, ATANH, BIN, CBRT, CEIL, COS, COSH, EXP, EXP2, FLOOR, FRACT, HAS_UNITS, HEX, INF, IS_ANGLE, IS_LENGTH, IS_MASS, IS_MEMORY, IS_TEMP, IS_TIME, LN, LOG, NAN, NUM_LIB, OCT, POW, REMOVE_UNITS, ROUND2, SIGNUM, SIN, SINH, SQRT, STRING, TAN, TANH, TO_UNITS, TRUNC}}, runtime::{Num, Type, Val, instruction::Instructions, instructions::Base}};
 
 
 /// Absolute value library function.
@@ -755,6 +755,36 @@ assert(val.has_units());
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(HAS_UNITS.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// To units.
+pub fn num_to_units() -> LibFunc {
+    LibFunc {
+        library: NUM_LIB.clone(),
+        name: "to_units".into(),
+        is_async: false,
+        docs: r#"# Num.to_units(val: int | float, units: str | float) -> units
+Returns val cast to the given units (either a str or another number with units).
+```rust
+const val = 10kg;
+const units = 'g';
+assert_eq(val.to_units(units), 10_000g);
+assert_eq(val, 10kg); // unmodified
+```
+"#.into(),
+        params: vector![
+            Param { name: "val".into(), param_type: Type::Void, default: None },
+            Param { name: "units".into(), param_type: Type::Void, default: None },
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(TO_UNITS.clone());
             Ok(instructions)
         })
     }
