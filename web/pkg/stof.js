@@ -432,6 +432,49 @@ export class Stof {
         }
         return ret[0] !== 0;
     }
+    /**
+     * Synchronous run functions with the given attribute(s) in this document.
+     * Attributes defaults to #[main] functions if null or undefined.
+     * Async TS lib functions will not work with this, but it will be faster.
+     * @param {any} attributes
+     * @returns {string}
+     */
+    sync_run(attributes) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ret = wasm.stof_sync_run(this.__wbg_ptr, attributes);
+            var ptr1 = ret[0];
+            var len1 = ret[1];
+            if (ret[3]) {
+                ptr1 = 0; len1 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred2_0 = ptr1;
+            deferred2_1 = len1;
+            return getStringFromWasm0(ptr1, len1);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+    /**
+     * Synchronous call a singular function in the document (by path).
+     * If no arguments, pass undefined as args.
+     * Otherwise, pass an array of arguments as args.
+     * Async TS lib functions will not work with this, but it will be faster.
+     * @param {string} path
+     * @param {any} args
+     * @returns {any}
+     */
+    sync_call(path, args) {
+        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.stof_sync_call(this.__wbg_ptr, ptr0, len0, args);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
 }
 if (Symbol.dispose) Stof.prototype[Symbol.dispose] = Stof.prototype.free;
 
@@ -937,14 +980,14 @@ function __wbg_get_imports() {
         const ret = BigInt.asUintN(64, arg0);
         return ret;
     };
+    imports.wbg.__wbindgen_cast_483b6e67f319559d = function(arg0, arg1) {
+        // Cast intrinsic for `Closure(Closure { dtor_idx: 7058, function: Function { arguments: [Externref], shim_idx: 7059, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+        const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h72b14ab7db8750ca, wasm_bindgen__convert__closures_____invoke__h53d5cf04cab8438f);
+        return ret;
+    };
     imports.wbg.__wbindgen_cast_9ae0607507abb057 = function(arg0) {
         // Cast intrinsic for `I64 -> Externref`.
         const ret = arg0;
-        return ret;
-    };
-    imports.wbg.__wbindgen_cast_b1f65ea5810dead5 = function(arg0, arg1) {
-        // Cast intrinsic for `Closure(Closure { dtor_idx: 7010, function: Function { arguments: [Externref], shim_idx: 7011, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-        const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h72b14ab7db8750ca, wasm_bindgen__convert__closures_____invoke__h53d5cf04cab8438f);
         return ret;
     };
     imports.wbg.__wbindgen_cast_cb9088102bce6b30 = function(arg0, arg1) {

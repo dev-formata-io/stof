@@ -137,6 +137,38 @@ impl Stof {
         Runtime::async_run_attribute_functions(&mut self.graph, None, &Some(attrs), true).await
     }
 
+    /// Synchronous run functions with the given attribute(s) in this document.
+    /// Attributes defaults to #[main] functions if null or undefined.
+    /// Async TS lib functions will not work with this, but it will be faster.
+    pub fn sync_run(&mut self, attributes: JsValue) -> Result<String, String> {
+        let mut attrs = FxHashSet::default();
+        match to_stof_value(attributes, &self) {
+            Val::Str(attribute) => {
+                attrs.insert(attribute.to_string());
+            },
+            Val::List(vals) => {
+                for val in vals {
+                    match val.read().deref() {
+                        Val::Str(att) => { attrs.insert(att.to_string()); },
+                        _ => {}
+                    }
+                }
+            },
+            Val::Set(set) => {
+                for val in set {
+                    match val.read().deref() {
+                        Val::Str(att) => { attrs.insert(att.to_string()); },
+                        _ => {}
+                    }
+                }
+            },
+            _ => {
+                attrs.insert("main".into());
+            }
+        }
+        Runtime::run_attribute_functions(&mut self.graph, None, &Some(attrs), true)
+    }
+
     /// Call a singular function in the document (by path).
     /// If no arguments, pass undefined as args.
     /// Otherwise, pass an array of arguments as args.
@@ -154,6 +186,29 @@ impl Stof {
             }
         }
         match Runtime::async_call(&mut self.graph, path, arguments).await {
+            Ok(res) => Ok(JsValue::from(res)),
+            Err(err) => Err(err.to_string())
+        }
+    }
+
+    /// Synchronous call a singular function in the document (by path).
+    /// If no arguments, pass undefined as args.
+    /// Otherwise, pass an array of arguments as args.
+    /// Async TS lib functions will not work with this, but it will be faster.
+    pub fn sync_call(&mut self, path: &str, args: JsValue) -> Result<JsValue, String> {
+        let mut arguments = vec![];
+        match to_stof_value(args, &self) {
+            Val::List(vals) => {
+                for val in vals {
+                    arguments.push(val.read().clone());
+                }
+            },
+            Val::Void => { /* Undefined value. */ },
+            val => {
+                arguments.push(val);
+            }
+        }
+        match Runtime::call(&mut self.graph, path, arguments) {
             Ok(res) => Ok(JsValue::from(res)),
             Err(err) => Err(err.to_string())
         }

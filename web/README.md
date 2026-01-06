@@ -143,6 +143,8 @@ fn main() {
 ### Python
 Stof is available on [PyPi](https://pypi.org/project/stof). Just `pip install stof` and import the `pystof` module to get started.
 
+> A few examples are located in the *src/py/examples* folder.
+
 ```python
 from pystof import Doc
 
@@ -172,6 +174,8 @@ if __name__ == "__main__":
 
 ### JavaScript/TypeScript
 Stof is compiled to WebAssembly for embedding in JS, and a [JSR](https://jsr.io/@formata/stof) package is provided.
+
+> A few examples are located in the *web/examples* folder.
 
 ```typescript
 import { StofDoc } from '@formata/stof';

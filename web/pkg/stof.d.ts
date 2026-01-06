@@ -57,6 +57,19 @@ export class Stof {
    * Parse Stof into this document, optionally within the specified node (pass null for root node).
    */
   parse(stof: string, node: any, profile: string): boolean;
+  /**
+   * Synchronous run functions with the given attribute(s) in this document.
+   * Attributes defaults to #[main] functions if null or undefined.
+   * Async TS lib functions will not work with this, but it will be faster.
+   */
+  sync_run(attributes: any): string;
+  /**
+   * Synchronous call a singular function in the document (by path).
+   * If no arguments, pass undefined as args.
+   * Otherwise, pass an array of arguments as args.
+   * Async TS lib functions will not work with this, but it will be faster.
+   */
+  sync_call(path: string, args: any): any;
 }
 
 export class StofFunc {
@@ -90,6 +103,8 @@ export interface InitOutput {
   readonly stof_set: (a: number, b: number, c: number, d: any, e: any) => number;
   readonly stof_stringExport: (a: number, b: number, c: number, d: any) => [number, number, number, number];
   readonly stof_stringImport: (a: number, b: number, c: number, d: number, e: number, f: any, g: number, h: number) => [number, number, number];
+  readonly stof_sync_call: (a: number, b: number, c: number, d: any) => [number, number, number];
+  readonly stof_sync_run: (a: number, b: any) => [number, number, number, number];
   readonly wasm_bindgen__convert__closures_____invoke__h53d5cf04cab8438f: (a: number, b: number, c: any) => void;
   readonly wasm_bindgen__closure__destroy__h72b14ab7db8750ca: (a: number, b: number) => void;
   readonly wasm_bindgen__convert__closures_____invoke__ha84735728bfe97a9: (a: number, b: number, c: any, d: any) => void;

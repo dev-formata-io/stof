@@ -34,7 +34,7 @@ fn click_it() {
 }
 `;
 
-await doc.run('click');
+doc.sync_run('click');
 console.log(doc.stringify('yaml'));
 
 /* deno run --allow-all web/examples/ordered.ts

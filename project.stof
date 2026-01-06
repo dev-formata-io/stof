@@ -53,7 +53,7 @@ Cargo cargo: {
         basic: ['stof_std', 'system', 'pkg', 'log']
         full: ['stof_std', 'system', 'pkg', 'log', 'image', 'docx', 'pdf', 'http', 'tokio', 'age_encrypt']
 
-        stof_std: []
+        stof_std: ['dep:regex']
         system: []
         pkg: ['dep:zip', 'dep:regex', 'dep:walkdir']
         log: ['dep:log']

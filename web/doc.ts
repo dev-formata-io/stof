@@ -96,11 +96,13 @@ export class StofDoc {
 
 
     /**
-     * Parse string source or a JS record.
+     * Parse string source, array, or a JS record.
      */
-    parse(src: string | Record<string, unknown>, format: string = "stof", node: string | null = null, profile: 'prod' | 'test' = 'prod'): boolean {
+    parse(src: string | Record<string, unknown> | Uint8Array, format: string = "stof", node: string | null = null, profile: 'prod' | 'test' = 'prod'): boolean {
         if (typeof src === 'string') {
             return this.stof.stringImport(src, format, node, profile);
+        } else if (src instanceof Uint8Array) {
+            return this.stof.binaryImport(src, format, node, profile);
         }
         return this.stof.objImport(src, node);
     }
@@ -125,11 +127,31 @@ export class StofDoc {
 
 
     /**
+     * Run this document with a given set of Stof attributes (synchronously).
+     * Will run all #[main] functions by default.
+     * Note: any async TS library functions called will not work with synchronous exec (ex. fetch).
+     */
+    sync_run(attr: string | string[] = 'main'): string {
+        return this.stof.sync_run(attr);
+    }
+
+
+    /**
      * Call a specific Stof function by path/name.
      */
     async call(path: string, ...args: unknown[]): Promise<unknown> {
         if (!path.includes('.')) path = 'root.' + path; // assume root node if not specified
         return await this.stof.call(path, args);
+    }
+
+
+    /**
+     * Call a specific Stof function by path/name.
+     * Note: any async TS library functions called will not work with synchronous exec (ex. fetch).
+     */
+    sync_call(path: string, ...args: unknown[]): unknown {
+        if (!path.includes('.')) path = 'root.' + path; // assume root node if not specified
+        return this.stof.sync_call(path, args);
     }
 
 
@@ -157,6 +179,14 @@ export class StofDoc {
      */
     stringify(format: string = "json", node: string | null = null): string {
         return this.stof.stringExport(format, node);
+    }
+
+
+    /**
+     * Blobify this doc (or a specific node) into a format (JSON by default).
+     */
+    blobify(format: string = "json", node: string | null = null): Uint8Array {
+        return this.stof.binaryExport(format, node);
     }
 
 
