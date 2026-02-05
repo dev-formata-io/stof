@@ -1,0 +1,38 @@
+{
+    "name": "@formata/stof",
+    "version": "0.9.6",
+    "type": "module",
+    "main": "./dist/doc.js",
+    "types": "./dist/doc.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/doc.d.ts",
+            "default": "./dist/doc.js"
+        }
+    },
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "build": "tsc && cpy pkg dist/ --parents",
+        "prepublishOnly": "npm run build",
+        "clean": "rimraf dist"
+    },
+    "license": "Apache-2.0",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/dev-formata-io/stof"
+    },
+    "homepage": "https://docs.stof.dev",
+    "devDependencies": {
+        "cpy-cli": "^7.0.0",
+        "rimraf": "^6.1.2",
+        "typescript": "^5.3.3"
+    },
+    "keywords": [
+        "formata",
+        "stof"
+    ]
+}
