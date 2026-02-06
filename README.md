@@ -173,41 +173,70 @@ if __name__ == "__main__":
 ```
 
 ### JavaScript/TypeScript
-Stof is compiled to WebAssembly for embedding in JS, and a [JSR](https://jsr.io/@formata/stof) package is provided.
 
-> A few examples are located in the *web/examples* folder.
+#### Installation
+```bash
+npm install @formata/stof
+```
 
+#### Quick Start
 ```typescript
-import { StofDoc } from '@formata/stof';
-const doc = await StofDoc.new();
+import { initStof, StofDoc } from '@formata/stof';
 
-doc.lib('Std', 'pln', (... vars: unknown[]) => console.log(...vars));
-doc.lib('Example', 'nested', async (): Promise<Map<string, string>> => {
-    const res = new Map();
-    res.set('msg', 'hello, there');
-    res.set('nested', await (async (): Promise<string> => 'this is a nested async JS fn (like fetch)')());
-    return res;
-}, true);
+// Initialize once at startup
+await initStof();
 
+// Create and parse documents
+const doc = new StofDoc();
 doc.parse(`
-    field: 42
-    fn main() -> int {
-        const res = await Example.nested();
-        pln(res);
-        self.field
+    name: "Alice"
+    age: 30
+    fn greet() -> string {
+        "Hello, " + self.name
     }
 `);
-const field = await doc.call('main');
-console.log(field);
 
-/*
-Map(2) {                                                                                                                                                                                                                       
-  "msg" => "hello, there",
-  "nested" => "this is a nested async JS fn (like fetch)"
-}
-42
-*/
+// Call functions and access values
+const greeting = await doc.call('greet');
+console.log(greeting); // "Hello, Alice"
+console.log(doc.get('age')); // 30
 ```
+
+#### JavaScript Interop
+
+Call JavaScript functions from Stof:
+```typescript
+await initStof();
+const doc = new StofDoc();
+
+// Register JS functions
+doc.lib('console', 'log', (...args: unknown[]) => console.log(...args));
+doc.lib('fetch', 'get', async (url: string) => {
+    const res = await fetch(url);
+    return await res.json();
+}, true); // true = async function
+
+doc.parse(`
+    fn main() {
+        const data = await fetch.get("https://api.example.com/data");
+        console.log(data);
+    }
+`);
+
+await doc.call('main');
+```
+
+#### Parse & Export
+```typescript
+// Parse from JSON
+doc.parse({ name: "Bob", age: 25 });
+
+// Export to different formats
+const json = doc.stringify('json');
+const obj = doc.record(); // JavaScript object
+```
+
+**Supports**: Node.js, Browser, Deno, Bun, Edge runtimes
 
 ## Research & Exploration
 Stof explores several research areas:

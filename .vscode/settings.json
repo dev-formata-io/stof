@@ -9,6 +9,5 @@
         "activityBar.inactiveForeground": "#fff",
         "activityBar.foreground": "#000",
     },
-    "rust-analyzer.showUnlinkedFileNotification": false,
-    "deno.enablePaths": ["web"],
+    "rust-analyzer.showUnlinkedFileNotification": false
 }

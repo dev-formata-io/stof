@@ -1,6 +1,6 @@
 {
     "name": "@formata/stof",
-    "version": "0.9.6",
+    "version": "0.9.7",
     "type": "module",
     "main": "./dist/doc.js",
     "types": "./dist/doc.d.ts",
@@ -8,8 +8,10 @@
         ".": {
             "types": "./dist/doc.d.ts",
             "default": "./dist/doc.js"
-        }
+        },
+        "./stof_bg.wasm": "./dist/pkg/stof_bg.wasm"
     },
+    "sideEffects": false,
     "files": [
         "dist",
         "README.md",

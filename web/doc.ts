@@ -21,10 +21,76 @@ export * from './pkg/stof.js';
 
 
 /**
+ * Auto-initialize Stof WASM for any environment.
+ * Detects Node.js vs Browser and loads the WASM file appropriately.
+ */
+export async function initStof(wasmSource?: string | BufferSource): Promise<unknown> {
+    if (StofDoc['initialized']) {
+        return StofDoc['initialized'];
+    }
+
+    let wasmData: BufferSource | undefined;
+
+    if (wasmSource) {
+        // User provided WASM source
+        if (typeof wasmSource === 'string') {
+            // It's a file path (Node.js only)
+            // @ts-ignore - Node.js module, conditionally imported
+            const fs = await import('fs');
+            wasmData = fs.readFileSync(wasmSource);
+        } else {
+            wasmData = wasmSource;
+        }
+    } else {
+        // Auto-detect environment and load
+        // Check for Deno first (it has both process and Deno global)
+        // @ts-ignore - Deno global
+        const isDeno = typeof Deno !== 'undefined' && typeof Deno.version !== 'undefined';
+        
+        // Then check for Node.js
+        // @ts-ignore - process is Node.js global
+        const isNode = !isDeno && typeof process !== 'undefined' && process.versions != null && process.versions.node != null;
+
+        if (isNode) {
+            // @ts-ignore - Node.js modules, conditionally imported
+            const fs = await import('fs');
+            // @ts-ignore
+            const { fileURLToPath } = await import('url');
+            // @ts-ignore
+            const { dirname, join } = await import('path');
+            
+            const __filename = fileURLToPath(import.meta.url);
+            const __dirname = dirname(__filename);
+            const wasmPath = join(__dirname, './pkg/stof_bg.wasm');
+            wasmData = fs.readFileSync(wasmPath);
+        } else {
+            // Browser/Deno environment - use fetch with import.meta.url
+            const wasmUrl = new URL('./pkg/stof_bg.wasm', import.meta.url);
+            const response = await fetch(wasmUrl);
+            wasmData = await response.arrayBuffer();
+        }
+    }
+
+    return await StofDoc.initialize(wasmData);
+}
+
+
+/**
+ * Check if Stof WASM is initialized.
+ */
+export function isStofInitialized(): boolean {
+    return StofDoc['initialized'] !== undefined;
+}
+
+
+/**
  * Template function for a document.
  * Stof must be initialized before with `await Doc.initialize()`.
  */
 export function stof(strings: TemplateStringsArray, ...values: unknown[]): StofDoc {
+    if (!StofDoc['initialized']) {
+        throw new Error('Stof not initialized. Call await initStof() first.');
+    }
     const doc = new StofDoc();
     let result = '';
     for (let i = 0; i < strings.length; i++) {
@@ -37,22 +103,60 @@ export function stof(strings: TemplateStringsArray, ...values: unknown[]): StofD
 
 
 /**
+ * Async template function that auto-initializes.
+ */
+export async function stofAsync(strings: TemplateStringsArray, ...values: unknown[]): Promise<StofDoc> {
+    await initStof();
+    const doc = new StofDoc();
+    let result = '';
+    for (let i = 0; i < strings.length; i++) {
+        result += strings[i];
+        if (i < values.length) result += values[i];
+    }
+    doc.parse(result);
+    return doc;
+}
+
+
+/**
+ * Internal gate to serialize WASM calls.
+ * Prevents race conditions and memory issues.
+ */
+class WasmGate {
+    private tail: Promise<unknown> = Promise.resolve();
+    
+    run<T>(fn: () => Promise<T> | T): Promise<T> {
+        const next = this.tail.then(fn, fn);
+        this.tail = next.catch(() => {});
+        return next;
+    }
+}
+
+
+/**
  * Stof document.
  */
 export class StofDoc {
-    /** Initialized? */
-    private static initialized?: Promise<void>;
-
-    /** Stof Document. */
+    static readonly VERSION = '0.9.6';
+    private static initialized?: Promise<unknown>;
+    private static wasmGate = new WasmGate();
     stof: Stof;
 
 
     /**
      * Initialize Stof WASM.
+     * Use initStof() instead for automatic environment detection.
      */
-    static async initialize(data?: unknown): Promise<void> {
-        // @ts-ignore this exists
-        return StofDoc.initialized ?? await (StofDoc.initialized = init(data));
+    static initialize(data?: BufferSource | string): Promise<unknown> {
+        if (StofDoc.initialized) {
+            return StofDoc.initialized;
+        }
+        if (data) {
+            StofDoc.initialized = init({ module_or_path: data });
+        } else {
+            StofDoc.initialized = init();
+        }
+        return StofDoc.initialized;
     }
 
 
@@ -66,10 +170,10 @@ export class StofDoc {
 
 
     /**
-     * Create & initialize (if needed).
+     * Ensure stof is initialized before creating a new instance.
      */
     static async new(): Promise<StofDoc> {
-        await StofDoc.initialize();
+        await initStof();
         return new StofDoc();
     }
 
@@ -122,7 +226,7 @@ export class StofDoc {
      * Will run all #[main] functions by default.
      */
     async run(attr: string | string[] = 'main'): Promise<string> {
-        return await this.stof.run(attr);
+        return await StofDoc.wasmGate.run(() => this.stof.run(attr));
     }
 
 
@@ -141,7 +245,7 @@ export class StofDoc {
      */
     async call(path: string, ...args: unknown[]): Promise<unknown> {
         if (!path.includes('.')) path = 'root.' + path; // assume root node if not specified
-        return await this.stof.call(path, args);
+        return await StofDoc.wasmGate.run(() => this.stof.call(path, args));
     }
 
 
@@ -198,6 +302,28 @@ export class StofDoc {
     }
 
 
+    /**
+     * Free WASM resources.
+     * Call this when you're done with the document to prevent memory leaks.
+     */
+    dispose(): void {
+        if (this.stof && typeof this.stof.free === 'function') {
+            this.stof.free();
+        }
+    }
+
+
+    /**
+     * Create a deep copy of this document.
+     */
+    async clone(): Promise<StofDoc> {
+        const serialized = this.stof.binaryExport('bstf', null);
+        const doc = await StofDoc.new();
+        doc.stof.binaryImport(serialized, 'bstf', null, 'prod');
+        return doc;
+    }
+
+
     /*****************************************************************************
      * Network.
      *****************************************************************************/
@@ -220,13 +346,15 @@ export class StofDoc {
      * Send this document ('bstf' format) as an HTTP request.
      */
     async send(url: string, method: string = 'POST', bearer?: string, headers: Record<string, string> = {}): Promise<Response> {
-        headers['Content-Type'] = 'application/bstf';
-        if (bearer !== undefined) headers['Authorization'] = `Bearer ${bearer}`;
-        const body = this.stof.binaryExport('bstf', null); // Uint8Array
-        return await fetch(url, {
-            method,
-            headers: headers as HeadersInit,
-            body
+        return await StofDoc.wasmGate.run(async () => {
+            headers['Content-Type'] = 'application/bstf';
+            if (bearer !== undefined) headers['Authorization'] = `Bearer ${bearer}`;
+            const body = this.stof.binaryExport('bstf', null); // Uint8Array
+            return await fetch(url, {
+                method,
+                headers: headers as HeadersInit,
+                body
+            });
         });
     }
 }
