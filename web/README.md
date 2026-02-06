@@ -179,6 +179,20 @@ if __name__ == "__main__":
 npm install @formata/stof
 ```
 
+#### Initialization
+Stof uses WebAssembly, so make sure to initialize it once.
+
+```typescript
+// Node.js, Deno, & Bun - Auto-detects and loads WASM
+import { initStof } from '@formata/stof';
+await initStof();
+
+// Browser with bundler - Pass WASM explicitly
+import { initStof } from '@formata/stof';
+import stofWasm from '@formata/stof/wasm';
+await initStof(await stofWasm());
+```
+
 #### Quick Start
 ```typescript
 import { initStof, StofDoc } from '@formata/stof';
