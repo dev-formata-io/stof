@@ -187,7 +187,12 @@ Stof uses WebAssembly, so make sure to initialize it once.
 import { initStof } from '@formata/stof';
 await initStof();
 
-// Browser with bundler - Pass WASM explicitly
+// Vite
+import { initStof } from '@formata/stof';
+import stofWasm from '@formata/stof/wasm?url';
+await initStof(stofWasm);
+
+// Browser with bundler - Pass WASM explicitly (e.g. @rollup/plugin-wasm)
 import { initStof } from '@formata/stof';
 import stofWasm from '@formata/stof/wasm';
 await initStof(await stofWasm());

@@ -34,10 +34,22 @@ export async function initStof(wasmSource?: string | BufferSource): Promise<unkn
     if (wasmSource) {
         // User provided WASM source
         if (typeof wasmSource === 'string') {
-            // It's a file path (Node.js only)
-            // @ts-ignore - Node.js module, conditionally imported
-            const fs = await import('fs');
-            wasmData = fs.readFileSync(wasmSource);
+            // Check environment using the same detection as auto-load
+            // @ts-ignore
+            const isDeno = typeof Deno !== 'undefined' && typeof Deno.version !== 'undefined';
+            // @ts-ignore
+            const isNode = !isDeno && typeof process !== 'undefined' && process.versions != null && process.versions.node != null;
+
+            if (isNode) {
+                // It's a file path (Node.js only)
+                // @ts-ignore - Node.js module, conditionally imported
+                const fs = await import('fs');
+                wasmData = fs.readFileSync(wasmSource);
+            } else {
+                // Browser/Deno: treat string as URL and fetch it
+                const response = await fetch(wasmSource);
+                wasmData = await response.arrayBuffer();
+            }
         } else {
             wasmData = wasmSource;
         }
