@@ -69,7 +69,8 @@ fn return_from_for_in() {
 fn cast_for_in() {
     let total = 0;
     for (const val: kg in self.iterator) total += val;
-    assert_eq(typeof total, 'kg');
+    assert_eq(typename total, 'kg');
+    assert_eq(typeof total, 'float');
     assert_eq(total, 45000g);
 }
 

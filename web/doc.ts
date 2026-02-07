@@ -149,7 +149,7 @@ class WasmGate {
  * Stof document.
  */
 export class StofDoc {
-    static readonly VERSION = '0.9.6';
+    static readonly VERSION = '0.9.10';
     private static initialized?: Promise<unknown>;
     private static wasmGate = new WasmGate();
     stof: Stof;

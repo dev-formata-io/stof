@@ -18,14 +18,14 @@
 #[test]
 fn now() {
     const now = Time.now();
-    assert_eq(typeof now, 'ms');
+    assert_eq(typename now, 'ms');
     assert(now > 100ms);
 }
 
 #[test]
 fn now_ns() {
     const now = Time.now_ns();
-    assert_eq(typeof now, 'ns');
+    assert_eq(typename now, 'ns');
     assert(now > 100ms);
 }
 
@@ -43,7 +43,8 @@ fn diff_ns() {
     Time.sleep(20ms);
     const diff = Time.diff_ns(now);
 
-    assert_eq(typeof diff, 'ns');
+    assert_eq(typename diff, 'ns');
+    assert_eq(typeof diff, 'float');
     assert(diff >= 20ms);
 }
 

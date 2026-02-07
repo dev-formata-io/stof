@@ -619,14 +619,24 @@ impl Runtime {
         #[cfg(feature = "js")]
         {
             if yield_to_outer {
+                // Yield to the macrotask queue so async JS operations (fetch, etc.) can execute.
+                // Using setTimeout(0) instead of Promise microtasks ensures proper event loop yielding.
                 let promise = js_sys::Promise::new(&mut |resolve, _reject| {
-                    let window = web_sys::window().unwrap();
-                    window.set_timeout_with_callback_and_timeout_and_arguments_0(
-                        &resolve,
-                        0  // 0ms timeout - yields to macrotask queue (instead of just microtasks)
-                    ).unwrap();
+                    use wasm_bindgen::JsCast;
+                    let global = js_sys::global();
+
+                    // Get setTimeout from global (works in Node.js, Browser, Deno, Bun)
+                    let set_timeout = js_sys::Reflect::get(&global, &"setTimeout".into()).expect("setTimeout not available");
+                    let set_timeout_fn = set_timeout.dyn_into::<js_sys::Function>().expect("setTimeout is not a function");
+                    
+                    // Call setTimeout(resolve, 0)
+                    let args = js_sys::Array::new();
+                    args.push(&resolve);
+                    args.push(&0.into()); // 0ms - yields to macrotask queue
+                    
+                    set_timeout_fn.apply(&global, &args).expect("setTimeout failed");
                 });
-                wasm_bindgen_futures::JsFuture::from(promise).await.unwrap();
+                wasm_bindgen_futures::JsFuture::from(promise).await.expect("setTimeout promise failed");
             }
         }
         res

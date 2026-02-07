@@ -2,7 +2,7 @@
 # RUN "stof run project.stof" TO REGENERATE.
 [package]
 name = "stof"
-version = "0.9.6"
+version = "0.9.10"
 authors = ["CJ Cummings <cj@formata.io>"]
 description = "Data that carries its own logic."
 license = "Apache-2.0"

@@ -1097,7 +1097,7 @@ impl Val {
         match self {
             Self::Void => Type::Void,
             Self::Null => Type::Null,
-            Self::Num(num) => Type::Num(num.ntype()),
+            Self::Num(num) => Type::Num(num.gen_type()),
             Self::Str(_) => Type::Str,
             Self::Prompt(_) => Type::Prompt,
             Self::Blob(_) => Type::Blob,
@@ -1141,6 +1141,7 @@ impl Val {
                 }
                 Type::Obj(SId::from(&OBJ))
             },
+            Self::Num(num) => Type::Num(num.ntype()),
             _ => self.gen_type()
         }
     }

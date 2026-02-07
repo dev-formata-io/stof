@@ -119,11 +119,11 @@ Units: {
 
         const clone = val.to_units('float'); // keep any prior units
         assert_eq(clone, 10);
-        assert_eq(typeof clone, 'kg');
+        assert_eq(typename clone, 'kg');
 
         const mod = val.to_units('int'); // will work, but eh..
         assert_eq(mod, 10);
-        assert_eq(typeof mod, 'int');
+        assert_eq(typename mod, 'int');
     }
     
     #[test]
@@ -262,4 +262,11 @@ fn num_iter() {
         total += 1;
     }
     assert_eq(total, 8);
+}
+
+#[test]
+fn units_gen_type() {
+    const val = 54kg;
+    assert_eq(typename val, 'kg');
+    assert_eq(typeof val, 'float');
 }

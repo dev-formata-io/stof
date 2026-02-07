@@ -227,6 +227,15 @@ impl ToString for Num {
     }
 }
 impl Num {
+    /// Gen type for this number.
+    pub fn gen_type(&self) -> NumT {
+        match self {
+            Self::Float(_) => NumT::Float,
+            Self::Int(_) => NumT::Int,
+            Self::Units(_, _) => NumT::Float,
+        }
+    }
+
     /// Type for this number.
     pub fn ntype(&self) -> NumT {
         match self {
