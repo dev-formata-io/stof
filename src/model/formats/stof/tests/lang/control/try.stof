@@ -71,3 +71,26 @@ fn nested_try() {
     }
     assert_eq(caught, 'hello, world!!');
 }
+
+#[test]
+fn complex_try_return() {
+    const func = (): int => {
+        try {
+            42
+        } catch {
+            72
+        }
+    };
+    const res = func();
+
+    let cpx = false;
+    try assert(false); // this is a thing
+    catch {
+        try assert_eq(res, 77); // false
+        catch {
+            assert_eq(res, 42);
+            cpx = true;
+        }
+    }
+    assert(cpx);
+}

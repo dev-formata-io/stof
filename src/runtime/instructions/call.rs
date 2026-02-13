@@ -331,6 +331,7 @@ impl FuncCall {
         // Record symbol scope depth for poping later
         let scope_depth = env.table.scopes.len();
         let while_depth = env.loop_stack.len();
+        let try_depth = env.try_stack.len();
         
         // Push call stack, start a new scope, and add self if needed
         let mut instructions = Instructions::default();
@@ -427,6 +428,7 @@ impl FuncCall {
         }
 
         // Cleanup stacks
+        instructions.push(Arc::new(Base::PopTryUntilDepth(try_depth)));
         instructions.push(Arc::new(Base::PopLoopUntilDepth(while_depth)));
         instructions.push(Arc::new(Base::PopSymbolScopeUntilDepth(scope_depth)));
 
@@ -517,6 +519,7 @@ impl Instruction for FuncCall {
         // Record the current table depth, because we need to pop until we get back here at the end
         let scope_depth = env.table.scopes.len();
         let while_depth = env.loop_stack.len();
+        let try_depth = env.try_stack.len();
        
         // Push call stack, start a new scope, and add self if needed
         let mut instructions = Instructions::default();
@@ -634,6 +637,7 @@ impl Instruction for FuncCall {
         }
 
         // Cleanup stacks
+        instructions.push(Arc::new(Base::PopTryUntilDepth(try_depth)));
         instructions.push(Arc::new(Base::PopLoopUntilDepth(while_depth)));
         instructions.push(Arc::new(Base::PopSymbolScopeUntilDepth(scope_depth)));
         instructions.push(POP_CALL.clone());

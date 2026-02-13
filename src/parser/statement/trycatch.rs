@@ -32,6 +32,9 @@ pub fn try_catch_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruct
         statement
     )).parse(input)?;
 
+    // Any whitespace between try and catch
+    let (input, _) = whitespace(input)?;
+
     // Catch instructions
     let (input, _) = delimited(multispace0, tag("catch"), multispace0).parse(input)?;
     let (input, error_param) = opt(delimited(char('('), error_parameter, char(')'))).parse(input)?;

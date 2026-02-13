@@ -19,7 +19,7 @@ use arcstr::ArcStr;
 use imbl::Vector;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, END_TRY}, proc::ProcEnv, Error}};
+use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -35,15 +35,16 @@ impl Instruction for TryCatchIns {
         let catch_tag: ArcStr = nanoid!(10).into();
         let end_tag: ArcStr = nanoid!(10).into();
         let size = env.stack.len();
+        let try_depth = env.try_stack.len();
 
         let mut instructions = Instructions::default();
         instructions.push(Arc::new(Base::Try(catch_tag.clone()))); // Go here when theres an error & inc try count
         instructions.append(&self.try_ins);
-        instructions.push(END_TRY.clone());
+        instructions.push(Arc::new(Base::PopTryUntilDepth(try_depth)));
         instructions.push(Arc::new(Base::CtrlForwardTo(end_tag.clone())));
         
         instructions.push(Arc::new(Base::Tag(catch_tag))); // now theres an error on the stack!
-        // throw will have already popped the try stack, so no need for another END_TRY
+        instructions.push(Arc::new(Base::PopTryUntilDepth(try_depth))); // should be redundant!
         instructions.append(&self.err_ins);
         instructions.push(Arc::new(Base::PopUntilStackCount(size)));
         instructions.append(&self.catch_ins);

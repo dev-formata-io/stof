@@ -45,7 +45,6 @@ lazy_static! {
     pub static ref SUSPEND: Arc<dyn Instruction> = Arc::new(Base::CtrlSuspend);
     pub static ref AWAIT: Arc<dyn Instruction> = Arc::new(Base::CtrlAwait);
     pub static ref NOOP: Arc<dyn Instruction> = Arc::new(Base::CtrlNoOp);
-    pub static ref END_TRY: Arc<dyn Instruction> = Arc::new(Base::TryEnd);
     pub static ref EXIT: Arc<dyn Instruction> = Arc::new(Base::CtrlExit);
 
     pub static ref PUSH_SELF: Arc<dyn Instruction> = Arc::new(Base::PushSelf);
@@ -150,7 +149,7 @@ pub enum Base {
 
     // Try catch control instructions.
     Try(ArcStr),
-    TryEnd,
+    PopTryUntilDepth(usize),
 
     // Sleep instructions.
     CtrlSleepFor(Duration),
@@ -290,8 +289,10 @@ impl Instruction for Base {
             Self::Try(tag) => {
                 env.try_stack.push(tag.clone());
             },
-            Self::TryEnd => {
-                env.try_stack.pop();
+            Self::PopTryUntilDepth(usize) => {
+                while env.try_stack.len() > *usize {
+                    env.try_stack.pop();
+                }
             },
 
             Self::CtrlTrace(_) => {}, // Nothing here... used by instructions...
