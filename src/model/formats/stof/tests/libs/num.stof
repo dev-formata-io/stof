@@ -235,6 +235,20 @@ fn parse_numbers() {
 }
 
 #[test]
+fn parse_unit_numbers() {
+    let val = '34GB' as float;
+    assert_eq(val, 34000MB);
+
+    let res = false;
+    try {
+        val = '34DNE' as float;
+    } catch {
+        res = true;
+    }
+    assert(res);
+}
+
+#[test]
 fn num_len() {
     let len = (56).len();
     assert_eq(len, 56);

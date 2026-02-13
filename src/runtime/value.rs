@@ -1379,7 +1379,12 @@ impl Val {
                     },
                     Type::Num(_) => {
                         match number(&val) {
-                            Ok((_, mut res)) => {
+                            Ok((rest, mut res)) => {
+                                if rest.len() > 0 {
+                                    // didn't parse the entire string, so error
+                                    return Err(Error::CastVal(self.spec_type(graph), target.clone()));
+                                }
+
                                 res.cast(target, graph, context)?; // get the number into the right type, no matter the string
                                 *self = res;
                                 Ok(())
@@ -1434,7 +1439,12 @@ impl Val {
                     },
                     Type::Num(_) => {
                         match number(&prompt.to_string()) {
-                            Ok((_, mut res)) => {
+                            Ok((rest, mut res)) => {
+                                if rest.len() > 0 {
+                                    // didn't parse the entire string, so error
+                                    return Err(Error::CastVal(self.spec_type(graph), target.clone()));
+                                }
+
                                 res.cast(target, graph, context)?; // get the number into the right type, no matter the string
                                 *self = res;
                                 Ok(())
@@ -2137,7 +2147,12 @@ impl Val {
                     },
                     Self::Str(other) => {
                         match number(&other) {
-                            Ok((_, res)) => {
+                            Ok((rest, res)) => {
+                                if rest.len() > 0 {
+                                    *self = Self::Str(format!("{}{other}", self.print(&graph)).into());
+                                    return Ok(());
+                                }
+
                                 self.add(res, graph)?;
                                 Ok(())
                             },
@@ -2257,7 +2272,11 @@ impl Val {
                     },
                     Self::Str(other) => {
                         match number(&other) {
-                            Ok((_, res)) => {
+                            Ok((rest, res)) => {
+                                if rest.len() > 0 {
+                                    return Err(Error::NotImplemented);
+                                }
+
                                 self.sub(res, graph)?;
                                 Ok(())
                             },
@@ -2350,7 +2369,11 @@ impl Val {
                     },
                     Self::Str(other) => {
                         match number(&other) {
-                            Ok((_, res)) => {
+                            Ok((rest, res)) => {
+                                if rest.len() > 0 {
+                                    return Err(Error::NotImplemented);
+                                }
+
                                 self.mul(res, graph)?;
                                 Ok(())
                             },
@@ -2459,7 +2482,11 @@ impl Val {
                     },
                     Self::Str(other) => {
                         match number(&other) {
-                            Ok((_, res)) => {
+                            Ok((rest, res)) => {
+                                if rest.len() > 0 {
+                                    return Err(Error::NotImplemented);
+                                }
+
                                 self.div(res, graph)?;
                                 Ok(())
                             },
@@ -2560,7 +2587,11 @@ impl Val {
                     },
                     Self::Str(other) => {
                         match number(&other) {
-                            Ok((_, res)) => {
+                            Ok((rest, res)) => {
+                                if rest.len() > 0 {
+                                    return Err(Error::NotImplemented);
+                                }
+
                                 self.rem(res, graph)?;
                                 Ok(())
                             },
