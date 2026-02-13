@@ -19,7 +19,7 @@ use arcstr::ArcStr;
 use imbl::Vector;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack, POP_LOOP, PUSH_SYMBOL_SCOPE, TRUTHY}, proc::ProcEnv, Error}};
+use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack, PUSH_SYMBOL_SCOPE, TRUTHY}, proc::ProcEnv, Error}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,6 +51,7 @@ impl Instruction for WhileIns {
 
         // Record scopes for poping at end
         let scope_count = env.table.scopes.len();
+        let while_count = env.loop_stack.len();
 
         let mut instructions = Instructions::default();
         instructions.push(Arc::new(Base::PushLoop(tag)));
@@ -75,6 +76,7 @@ impl Instruction for WhileIns {
 
             // Continue statements will go to here
             instructions.push(Arc::new(Base::Tag(continue_tag.clone())));
+            instructions.push(Arc::new(Base::PopLoopUntilDepth(while_count + 1)));
             instructions.push(Arc::new(Base::PopSymbolScopeUntilDepth(scope_count + 1))); // take loop count into consideration
 
             // If we have an inc expr, do that now before we start the loop again
@@ -89,6 +91,7 @@ impl Instruction for WhileIns {
                 end_tag: end_tag.clone(),
                 ins: self.ins.clone(),
                 continue_tag,
+                loop_count: while_count,
                 scope_count,
                 inc: self.inc.clone()
             }));
@@ -97,7 +100,7 @@ impl Instruction for WhileIns {
         // Break statements will go here, as well as our jump if not truthy
         instructions.push(Arc::new(Base::Tag(break_tag)));
         instructions.push(Arc::new(Base::Tag(end_tag)));
-        instructions.push(POP_LOOP.clone());
+        instructions.push(Arc::new(Base::PopLoopUntilDepth(while_count)));
         instructions.push(Arc::new(Base::PopSymbolScopeUntilDepth(scope_count)));
         Ok(Some(instructions))
     }

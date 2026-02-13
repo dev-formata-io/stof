@@ -68,7 +68,7 @@ lazy_static! {
 
     pub static ref PUSH_SYMBOL_SCOPE: Arc<dyn Instruction> = Arc::new(Base::PushSymbolScope);
     pub static ref POP_SYMBOL_SCOPE: Arc<dyn Instruction> = Arc::new(Base::PopSymbolScope);
-    pub static ref POP_LOOP: Arc<dyn Instruction> = Arc::new(Base::PopLoop);
+
     pub static ref BREAK_LOOP: Arc<dyn Instruction> = Arc::new(Base::CtrlBreak);
     pub static ref CONTINUE_LOOP: Arc<dyn Instruction> = Arc::new(Base::CtrlContinue);
 
@@ -173,7 +173,7 @@ pub enum Base {
 
     // Loop stack.
     PushLoop(ArcStr),
-    PopLoop,
+    PopLoopUntilDepth(usize),
     CtrlBreak,
     CtrlContinue,
     // Kill the while loop that just executed and start over
@@ -192,6 +192,7 @@ pub enum Base {
         // Continue tag & end of while.
         continue_tag: ArcStr,
         scope_count: usize,
+        loop_count: usize,
         inc: Option<Arc<dyn Instruction>>,
     },
 
@@ -348,13 +349,15 @@ impl Instruction for Base {
                 env.loop_stack.push(tag.clone());
                 env.table.push();
             },
-            Self::PopLoop => {
-                env.loop_stack.pop();
-                env.table.pop();
+            Self::PopLoopUntilDepth(depth) => {
+                while env.loop_stack.len() > *depth {
+                    env.loop_stack.pop();
+                    env.table.pop();
+                }
             },
             Self::CtrlBreak => {}, // Nothing here...
             Self::CtrlContinue => {}, // Nothing here...
-            Self::CtrlLoopBackTo { top_tag: _, test, end_tag, ins, continue_tag, scope_count, inc } => {
+            Self::CtrlLoopBackTo { top_tag: _, test, end_tag, ins, continue_tag, scope_count, loop_count, inc } => {
                 let mut instructions = Instructions::default();
                 // Test if the value is truthy, go to end_tag if not
                 instructions.push(test.clone());
@@ -367,6 +370,7 @@ impl Instruction for Base {
 
                 // Continue statements will go to here
                 instructions.push(Arc::new(Base::Tag(continue_tag.clone())));
+                instructions.push(Arc::new(Base::PopLoopUntilDepth(loop_count + 1)));
                 instructions.push(Arc::new(Base::PopSymbolScopeUntilDepth(scope_count + 1))); // take loop count into consideration
 
                 // If we have an inc expr, do that now before we start the loop again

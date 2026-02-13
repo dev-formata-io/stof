@@ -106,6 +106,17 @@ Contunue: {
         }
         assert_eq(total, 540);
     }
+
+    #[test]
+    fn return_loop_continue() {
+        const func = (): int => { return 42; };
+        let res;
+        while (true) {
+            res = func();
+            break;
+        }
+        assert_eq(res, 42);
+    }
 }
 
 Return: {
