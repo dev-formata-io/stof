@@ -8,8 +8,8 @@ description: >
   prototype types (#[type]), creating workflow pipelines with #[run], embedding logic in data,
   sending functions over APIs, or any question about Stof fields, functions, attributes, types,
   unit types, prototypes, schemas, async, imports, or the standard library. Also trigger when
-  the user shows code using `self.`, `#[type]`, `#[main]`, `new X {}`, `schemafy`, `<TypeName>`,
-  `typename`, or `funcs(attributes = ...)` syntax.
+  the user shows code using `self.`, `#[type]`, `#[main]`, `new X {}`, `schemafy`, prototype
+  type-dispatch syntax, `typename`, or `funcs(attributes = ...)` syntax.
 ---
 
 # Stof Skill
