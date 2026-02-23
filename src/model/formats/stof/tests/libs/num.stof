@@ -125,6 +125,13 @@ Units: {
         assert_eq(mod, 10);
         assert_eq(typename mod, 'int');
     }
+
+    #[test]
+    #[errors]
+    fn to_units_fails() {
+        const val = 42;
+        val.to_units('rg'); // units do not exist
+    }
     
     #[test]
     fn remove_units() {
