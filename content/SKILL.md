@@ -563,14 +563,55 @@ Sub: {
 ```
 
 **Creating instances:**
-```stof
-// new PrototypeName { field: value } on parent_obj
-const customer = new Customer {
-    id,
-    plan,
-    refs: refs ?? [],
-} on self.customers;
 
+There are two equivalent styles for typed instantiation at document/object level:
+
+*Style A — `TypeName fieldname: { ... }` (preferred for clarity):*
+```stof
+// Declare the type before the field name; the object literal is auto-cast to that prototype.
+// Nested typed fields work the same way — no `new` keyword needed anywhere.
+roster: {
+    const Character aurora: {
+        name:  'Aurora',
+        class: 'Mage',
+        level: 5,
+        stats: {
+            Stat STR: { name: 'Strength', base: 7  };
+            Stat DEX: { name: 'Dexterity', base: 14 };
+        };
+        Resources resources: {
+            max_hp: 48, current_hp: 48,
+            max_mp: 120, current_mp: 90,
+        };
+        // Items in lists can be cast inline with `as Type`
+        items: [
+            { name: 'Arcane Staff', rarity: 'Rare', power: 3, equipped: true } as Item,
+            { name: 'Mana Crystal', rarity: 'Uncommon', power: 0 } as Item,
+        ];
+    };
+}
+```
+
+*Style B — `new TypeName { ... }` / `const name: new TypeName { ... }`:*
+```stof
+// Document-level typed instance — use COLON (:), not equals (=)
+const aurora: new Character { name: 'Aurora' };   // ✓ colon syntax at document level
+// const aurora = new Character { ... };          // ✗ = syntax does NOT work at document level
+
+// Inside a function, = works fine for local variables:
+fn example() {
+    const c = new Character { name: 'Test' };     // ✓ = works in function scope
+}
+
+// new ... on parent_obj — attach to a specific parent
+const customer = new Customer {
+    id, plan, refs: refs ?? [],
+} on self.customers;
+```
+
+Both styles trigger `#[constructor]` and auto-fill prototype defaults. Style A (type-before-name) is generally cleaner for nested documents.
+
+```stof
 // Shorthand: variable name as field name (punning)
 const var = 42;
 const object = new { var };         // → { var: 42 }
@@ -646,6 +687,22 @@ assert_eq(MyRoot.id(), 'custom_root_id');
 `#[schema]` validates fields when `schemafy` is called. Receives `target_val` (the field value)
 and optionally `target` (the containing object). Multiple schema attributes form a pipeline
 (all must pass, short-circuited like `&&`):
+
+> **⚠️ `#[schema]` must be placed on a specific *field*, not on the prototype body itself.**
+> A `#[schema]` placed directly inside a `#[type]` block (not above a named field) will cause
+> a syntax or runtime error. Each schema attribute decorates the field declared immediately below it:
+> ```stof
+> #[type]
+> Limit: {
+>     // ✓ Correct — #[schema] is on the field 'mode'
+>     #[schema((v: str): bool => v == 'hard' || v == 'soft')]
+>     str! mode: 'hard';
+>
+>     // ✗ Wrong — #[schema] floating in the prototype body, not on a field and must have type signatures
+>     #[schema((v) => v.level >= 1 && v.level <= 20)]
+>     // ...and then some other field follows — this is a parse error
+> }
+> ```
 
 ```stof
 #[type]
@@ -789,6 +846,17 @@ if (!dev && !sub) { /* both falsy */ }
 assert(!!sub);
 assert_eq(str(!!!!56), 'true');
 ```
+
+> **⚠️ `if` is a statement, not an inline expression.** For inline conditional values, use the
+> ternary operator `?:` — NOT `if`:
+> ```stof
+> // ✓ Correct — ternary for inline values
+> let sign = mod >= 0 ? '+' : '';
+> let eq   = self.equipped ? ' [EQUIPPED]' : '';
+>
+> // ✗ Wrong — if cannot be used as an inline value expression
+> let sign = if (mod >= 0) { '+' } else { '' };   // syntax error
+> ```
 
 ### Ternary
 
@@ -1203,6 +1271,16 @@ str.find_matches(regex)     // list of (match, start, end) tuples
 // String can be iterated char by char:
 for (const c in my_str) { ... }
 ```
+
+> **⚠️ No `str.repeat()`** — the String library does NOT have a `repeat` method. To repeat a
+> character or string N times, write a manual loop or a helper function:
+> ```stof
+> fn repeat(char: str, times: int) -> str {
+>     let out = '';
+>     for (let _ in times) out += char;
+>     out
+> }
+> ```
 
 ---
 
