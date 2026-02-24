@@ -68,6 +68,20 @@ assert_eq(ins.prototype(), obj);
 Utility function for dumping the complete graph, helpful for some debugging cases. To dump a specific node, use Std.dbg(..) with the desired object(s).
 
 
+# Obj.diff(schema: obj, target: obj, symmetric: bool = false) -> void
+Diffs the schema with the target, modifying the target object only. Removes all fields from the target that match the schema, recursively. Optionally, if symmetric, unique schema fields will be deep copied to the target object as well (a version of: (a - b) U (b - a)).
+```rust
+const sch = new { x: 3km, y: 5.5m };
+const other = new { x: 3km, y: 5.6m };
+
+let difference = copy(other);
+sch.diff(difference);
+
+assert_eq(difference.x, null);
+assert_eq(difference.y, 5.6m);
+```
+
+
 # Obj.dist(obj: obj, other: obj) -> int
 Get the distance between two objects (number of edges that separate them).
 ```rust
