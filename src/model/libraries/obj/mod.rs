@@ -21,7 +21,7 @@ use lazy_static::lazy_static;
 use nanoid::nanoid;
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
-use crate::{model::{obj::{ops::{obj_any, obj_at, obj_attributes, obj_children, obj_contains, obj_create_type, obj_dist, obj_dump_graph, obj_empty, obj_exists, obj_fields, obj_from_id, obj_from_map, obj_funcs, obj_get, obj_id, obj_insert, obj_instance_of_proto, obj_is_parent, obj_is_root, obj_len, obj_move, obj_move_field, obj_name, obj_parent, obj_path, obj_proto, obj_remove, obj_remove_proto, obj_root, obj_run, obj_schemafy, obj_set_proto, obj_to_map, obj_upcast}, validate::validation}, stof_std::StdIns, Field, Func, Graph, Prototype, SId, PROTOTYPE_TYPE_ATTR}, runtime::{instruction::{Instruction, Instructions}, instructions::{call::FuncCall, empty::EmptyIns, ifs::IfIns, Base, ConsumeStack, POP_SELF, POP_STACK, PUSH_SELF, TRUTHY}, proc::ProcEnv, Error, Num, Type, Val, ValRef, Variable}};
+use crate::{model::{Field, Func, Graph, PROTOTYPE_TYPE_ATTR, Prototype, SId, obj::{ops::{obj_any, obj_at, obj_attributes, obj_children, obj_contains, obj_create_type, obj_diff, obj_dist, obj_dump_graph, obj_empty, obj_exists, obj_fields, obj_from_id, obj_from_map, obj_funcs, obj_get, obj_id, obj_insert, obj_instance_of_proto, obj_is_parent, obj_is_root, obj_len, obj_move, obj_move_field, obj_name, obj_parent, obj_path, obj_proto, obj_remove, obj_remove_proto, obj_root, obj_run, obj_schemafy, obj_set_proto, obj_to_map, obj_upcast}, validate::validation}, stof_std::{COPY, StdIns}}, runtime::{Error, Num, Type, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack, DUPLICATE, EQUAL, POP_SELF, POP_STACK, PUSH_SELF, TRUTHY, call::FuncCall, empty::EmptyIns, ifs::IfIns}, proc::ProcEnv}};
 mod validate;
 mod ops;
 
@@ -66,6 +66,7 @@ pub fn insert_obj_lib(graph: &mut Graph) {
 
     graph.insert_libfunc(obj_run());
     graph.insert_libfunc(obj_schemafy());
+    graph.insert_libfunc(obj_diff());
 
     graph.insert_libfunc(obj_to_map());
     graph.insert_libfunc(obj_from_map());
@@ -112,6 +113,7 @@ lazy_static! {
 
     pub(self) static ref RUN: Arc<dyn Instruction> = Arc::new(ObjIns::Run);
     pub(self) static ref SCHEMAFY: Arc<dyn Instruction> = Arc::new(ObjIns::Schemafy);
+    pub(self) static ref DIFF: Arc<dyn Instruction> = Arc::new(ObjIns::Diff);
     pub(self) static ref TO_MAP: Arc<dyn Instruction> = Arc::new(ObjIns::ToMap);
     pub(self) static ref TO_MAP_REF: Arc<dyn Instruction> = Arc::new(ObjIns::ToMapRef);
     pub(self) static ref FROM_MAP: Arc<dyn Instruction> = Arc::new(ObjIns::FromMap);
@@ -159,6 +161,7 @@ pub enum ObjIns {
 
     Run,
     Schemafy,
+    Diff,
 
     ToMap,
     ToMapRef,
@@ -1297,6 +1300,104 @@ impl Instruction for ObjIns {
                     }
                 }
                 Err(Error::ObjSchemafy)
+            },
+            Self::Diff => {
+                // Basically a symmetric difference applied to target
+                // Remove all matching fields from target, recursively
+                // Symmetric? Should unique values from schema be moved to target?
+
+                // Obj.diff(schema: obj, target: obj, symmetric: bool = false)
+                if let Some(symmetric_var) = env.stack.pop() {
+                    let symmetric = symmetric_var.truthy();
+                    if let Some(target_var) = env.stack.pop() {
+                        if let Some(schema_var) = env.stack.pop() {
+                            if let Some(schema) = schema_var.try_obj() {
+                                if let Some(target) = target_var.try_obj() {
+                                    let mut instructions = Instructions::default();
+                                    for (schema_field_name, schema_field_ref) in Field::fields(graph, &schema) {
+                                        let mut schema_val = None;
+                                        let mut target_val = None;
+                                        if let Some(schema_field) = graph.get_stof_data::<Field>(&schema_field_ref) {
+                                            schema_val = Some(schema_field.value.stack_var(false));
+                                        }
+                                        if let Some(target_field_ref) = Field::field(graph, &target, &schema_field_name) {
+                                            if let Some(target_field) = graph.get_stof_data::<Field>(&target_field_ref) {
+                                                target_val = Some(target_field.value.stack_var(false));
+                                            }
+                                        }
+                                        if let Some(schema_val) = schema_val {
+                                            if let Some(target_val) = target_val {
+                                                // target value exists, remove it if the values are equal unless both objects, then diff them
+                                                let mut obj_diffed = false;
+                                                if let Some(schema_val_obj) = schema_val.try_obj() {
+                                                    if let Some(target_val_obj) = target_val.try_obj() {
+                                                        // both objects, so do a diff on them!
+                                                        obj_diffed = true;
+                                                        instructions.push(Arc::new(Base::Literal(Val::Obj(schema_val_obj))));
+                                                        instructions.push(Arc::new(Base::Literal(Val::Obj(target_val_obj.clone()))));
+                                                        instructions.push(Arc::new(Base::Literal(Val::Bool(symmetric))));
+                                                        instructions.push(Arc::new(Self::Diff));
+
+                                                        // if target object field len is 0, then remove the target field
+                                                        instructions.push(Arc::new(Base::Literal(Val::Obj(target_val_obj))));
+                                                        instructions.push(Arc::new(Self::Len));
+                                                        instructions.push(Arc::new(Base::Literal(Val::Num(Num::Int(0)))));
+                                                        instructions.push(Arc::new(IfIns {
+                                                            if_test: Some(EQUAL.clone()),
+                                                            if_ins: vector![
+                                                                Arc::new(Base::Literal(Val::Obj(target.clone()))) as Arc<dyn Instruction>,
+                                                                Arc::new(Base::Literal(Val::Str(schema_field_name.clone().into()))),
+                                                                Arc::new(Base::Literal(Val::Bool(false))),
+                                                                Arc::new(Self::Remove),
+                                                            ],
+                                                            el_ins: vector![],
+                                                        }));
+                                                    }
+                                                }
+                                                if !obj_diffed {
+                                                    if let Ok(res) = schema_val.equal(&target_val) {
+                                                        if res.truthy() {
+                                                            instructions.push(Arc::new(Base::Literal(Val::Obj(target.clone())))); // remove from target
+                                                            instructions.push(Arc::new(Base::Literal(Val::Str(schema_field_name.into())))); // the field name to remove
+                                                            instructions.push(Arc::new(Base::Literal(Val::Bool(false)))); // shallow = false
+                                                            instructions.push(Arc::new(Self::Remove));
+                                                        }
+                                                    }
+                                                }
+                                            } else if symmetric {
+                                                let schema_val_obj = schema_val.try_obj();
+
+                                                // load the target & name for the insert op
+                                                instructions.push(Arc::new(Base::Literal(Val::Obj(target.clone()))));
+                                                instructions.push(Arc::new(Base::Literal(Val::Str(schema_field_name.into()))));
+
+                                                // copy schema value and put copy on stack
+                                                instructions.push(Arc::new(Base::Literal(Val::Obj(schema.clone()))));
+                                                instructions.push(PUSH_SELF.clone());
+                                                instructions.push(Arc::new(Base::Variable(schema_val)));
+                                                instructions.push(COPY.clone());
+                                                instructions.push(POP_SELF.clone());
+
+                                                // move the copied schema value to the target if an object!
+                                                if let Some(_) = schema_val_obj {
+                                                    instructions.push(DUPLICATE.clone());
+                                                    instructions.push(Arc::new(Base::Literal(Val::Obj(target.clone()))));
+                                                    instructions.push(Arc::new(Self::Move));
+                                                    instructions.push(POP_STACK.clone()); // no return vals from move
+                                                }
+
+                                                // insert the schema value into the target as a new field
+                                                instructions.push(Arc::new(Self::Insert));
+                                            }
+                                        }
+                                    }
+                                    return Ok(Some(instructions));
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(Error::ObjDiff)
             },
 
             Self::ToMap => {

@@ -355,6 +355,9 @@ Libs: {
         assert(lib('Num'));
         assert(lib('Fn'));
         assert_not(lib('Dne'));
+
+        assert(lib('Std', 'assert'));
+        assert(lib('Num', 'sqrt'));
     }
 
     #[test]

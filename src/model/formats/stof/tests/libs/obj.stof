@@ -390,6 +390,114 @@ Run: {
     }
 }
 
+Diff: {
+    #[test]
+    fn diff_simple() {
+        const sch = new { x: 3km, y: 5.5m };
+        const other = new { x: 3km, y: 5.6m };
+
+        let difference = copy(other);
+        sch.diff(difference);
+
+        assert_eq(difference.x, null);
+        assert_eq(difference.y, 5.6m);
+        drop(difference, other, sch);
+    }
+
+    #[test]
+    fn copy_diff_paradigm() {
+        let a = new {
+            first: 'Bob'
+            last: 'Smith'
+            age: 34
+            value: 4
+        };
+
+        let cpy = copy(a);
+        cpy.value += 10;
+
+        let diff = copy(cpy);
+        a.diff(diff);
+
+        assert_eq(diff.len(), 1);
+        assert_eq(diff.value, 14);
+        assert_eq(cpy.len(), 4);
+        assert_eq(cpy.value, 14);
+        assert_eq(a.value, 4);
+        drop(a, cpy, diff);
+    }
+
+    Nested: {
+        schema: {
+            first: 'CJ'
+            last: 'Cummings'
+            age: 30
+
+            collides: {
+                matches: true
+                no_match: 'nothing to see here'
+                deeper: {
+                    a: 1
+                    b: 2
+                    c: 3
+                }
+                full: {
+                    a: 2
+                }
+            }
+
+            unique: {
+                cool: true
+            }
+        }
+        target: {
+            first: 'Himalaya'
+            last: 'Cummings'
+            age: 100
+
+            collides: {
+                matches: true
+                no_match: 'see it here'
+                deeper: {
+                    a: 2
+                    b: 2
+                    c: 3
+                }
+                full: {
+                    a: 2
+                }
+            }
+
+            unique_target: {
+                very_cool: true
+            }
+        }
+
+        #[test]
+        fn diff_nested() {
+            self.schema.diff(self.target, symmetric = true);
+            
+            assert_eq(self.target.first, 'Himalaya');
+            assert_not(self.target.last);
+            assert_eq(self.target.age, 100);
+
+            assert_not(self.target.collides.matches);
+            assert_eq(self.target.collides.no_match, 'see it here');
+
+            assert_eq(self.target.collides.deeper.a, 2);
+            assert_not(self.target.collides.deeper.b);
+            assert_not(self.target.collides.deeper.c);
+
+            assert_eq(self.schema.collides.full.a, 2);
+            assert_eq(self.target.collides.full, null);
+
+            self.schema.unique.cool = false;
+            assert_eq(self.target.unique.cool, true);
+            assert(self.target.unique_target.very_cool);
+        }
+    }
+}
+
 Schemafy: {
     schema: {
         #[schema((target_value: str): bool => target_value.len() > 2)]

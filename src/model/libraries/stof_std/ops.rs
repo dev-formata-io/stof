@@ -16,12 +16,13 @@
 
 use std::sync::Arc;
 use imbl::vector;
-use crate::{model::{stof_std::{StdIns, BLOBIFY, CALLSTACK, FORMATS, FORMAT_CONTENT_TYPE, GRAPH_ID, HAS_FORMAT, HAS_LIB, LIBS, NANO_ID, PARSE, STD_LIB, STRINGIFY}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Num, NumT, Type, Val}};
+use crate::{model::{stof_std::{StdIns, BLOBIFY, CALLSTACK, FORMATS, FORMAT_CONTENT_TYPE, GRAPH_ID, HAS_FORMAT, HAS_LIB_FUNC, LIBS, NANO_ID, PARSE, STD_LIB, STRINGIFY}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Num, NumT, Type, Val}};
 
 #[cfg(feature = "system")]
 use crate::model::stof_std::{ENV, SET_ENV, REMOVE_ENV, ENV_MAP};
 
 
+#[inline(always)]
 /// Parse.
 pub fn std_parse() -> LibFunc {
     LibFunc {
@@ -52,6 +53,7 @@ assert_eq(self.hello(), "hello"); // can now call it
     }
 }
 
+#[inline(always)]
 /// Stringify.
 pub fn std_stringify() -> LibFunc {
     LibFunc {
@@ -80,6 +82,7 @@ assert_eq(stringify("json", object), "{\"x\":3.14,\"y\":42}"); // lossy as json 
     }
 }
 
+#[inline(always)]
 /// Blobify.
 pub fn std_blobify() -> LibFunc {
     LibFunc {
@@ -109,6 +112,7 @@ assert(export.len() > 0);
     }
 }
 
+#[inline(always)]
 /// Has format?
 pub fn std_has_format() -> LibFunc {
     LibFunc {
@@ -136,6 +140,7 @@ assert_not(format("step"));
     }
 }
 
+#[inline(always)]
 /// Formats.
 pub fn std_formats() -> LibFunc {
     LibFunc {
@@ -161,6 +166,7 @@ assert(loaded.contains("json"));
     }
 }
 
+#[inline(always)]
 /// Format content type.
 pub fn std_format_content_type() -> LibFunc {
     LibFunc {
@@ -187,33 +193,38 @@ assert_eq(format_content_type("json"), "application/json");
     }
 }
 
+#[inline(always)]
 /// Has lib?
 pub fn std_has_lib() -> LibFunc {
     LibFunc {
         library: STD_LIB.clone(),
         name: "lib".into(),
         is_async: false,
-        docs: r#"# Std.lib(lib: str) -> bool
-Is the given library loaded/available to use?
+        docs: r#"# Std.lib(lib: str, func?: str) -> bool
+Is the given library (and optional function) loaded/available to use?
 ```rust
 assert(lib("Std")); // standard library is loaded
 assert_not(lib("Render")); // no "Render" library loaded
+
+assert(lib("Num", "abs")); // Num.abs(..) lib function is available
 ```
 "#.into(),
         params: vector![
             Param { name: "lib".into(), param_type: Type::Str, default: None, },
+            Param { name: "func".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))), },
         ],
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
-            instructions.push(HAS_LIB.clone());
+            instructions.push(HAS_LIB_FUNC.clone());
             Ok(instructions)
         })
     }
 }
 
+#[inline(always)]
 /// Libs.
 pub fn std_libs() -> LibFunc {
     LibFunc {
@@ -238,6 +249,7 @@ assert(libs().superset({"Std", "Fn", "Num", "Set"}));
     }
 }
 
+#[inline(always)]
 /// Nanoid
 pub fn std_nanoid() -> LibFunc {
     LibFunc {
@@ -264,6 +276,7 @@ assert_neq(nanoid(), nanoid(33));
     }
 }
 
+#[inline(always)]
 /// Graph ID.
 pub fn std_graph_id() -> LibFunc {
     LibFunc {
@@ -288,6 +301,7 @@ assert(graph_id().len() > 10);
     }
 }
 
+#[inline(always)]
 /// Max value library function.
 pub fn std_max() -> LibFunc {
     LibFunc {
@@ -312,7 +326,7 @@ assert_eq(max(1km, 2m, 3mm), 1km);
     }
 }
 
-
+#[inline(always)]
 /// Min value library function.
 pub fn std_min() -> LibFunc {
     LibFunc {
@@ -337,6 +351,7 @@ assert_eq(min(1km, 2m, 3mm), 3mm);
     }
 }
 
+#[inline(always)]
 /// Callstack.
 pub fn std_callstack() -> LibFunc {
     LibFunc {
@@ -364,6 +379,7 @@ for (const func in callstack()) {
     }
 }
 
+#[inline(always)]
 /// Trace.
 pub fn std_trace() -> LibFunc {
     LibFunc {
@@ -389,6 +405,7 @@ trace(70); // last 70 executed instructions (most recent on bottom and numbered)
     }
 }
 
+#[inline(always)]
 /// Peek.
 pub fn std_peek() -> LibFunc {
     LibFunc {
@@ -414,6 +431,7 @@ peek(70); // next 70 instructions
     }
 }
 
+#[inline(always)]
 /// Trace stack.
 pub fn std_tracestack() -> LibFunc {
     LibFunc {
@@ -436,6 +454,7 @@ Print a snapshot of the current stack.
 }
 
 #[cfg(feature = "system")]
+#[inline(always)]
 /// Env var.
 pub fn std_env() -> LibFunc {
     LibFunc {
@@ -463,6 +482,7 @@ const var = env("HOST");
 }
 
 #[cfg(feature = "system")]
+#[inline(always)]
 /// Set env var.
 pub fn std_set_env() -> LibFunc {
     LibFunc {
@@ -491,6 +511,7 @@ set_env("HOST", "localhost");
 }
 
 #[cfg(feature = "system")]
+#[inline(always)]
 /// Remove env var.
 pub fn std_remove_env() -> LibFunc {
     LibFunc {
@@ -518,6 +539,7 @@ remove_env("HOST");
 }
 
 #[cfg(feature = "system")]
+#[inline(always)]
 /// Env vars.
 pub fn std_env_vars() -> LibFunc {
     LibFunc {

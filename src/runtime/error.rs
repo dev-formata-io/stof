@@ -421,6 +421,7 @@ pub enum Error {
     ObjDistance,
     ObjRun,
     ObjSchemafy,
+    ObjDiff,
     ObjToMap,
     ObjToMapRef,
     ObjFromMap,

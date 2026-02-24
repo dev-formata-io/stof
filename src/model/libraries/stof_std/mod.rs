@@ -134,7 +134,7 @@ lazy_static! {
     pub(self) static ref HAS_FORMAT: Arc<dyn Instruction> = Arc::new(StdIns::HasFormat);
     pub(self) static ref FORMATS: Arc<dyn Instruction> = Arc::new(StdIns::Formats);
     pub(self) static ref FORMAT_CONTENT_TYPE: Arc<dyn Instruction> = Arc::new(StdIns::FormatContentType);
-    pub(self) static ref HAS_LIB: Arc<dyn Instruction> = Arc::new(StdIns::HasLib);
+    pub(self) static ref HAS_LIB_FUNC: Arc<dyn Instruction> = Arc::new(StdIns::HasLibFunc);
     pub(self) static ref LIBS: Arc<dyn Instruction> = Arc::new(StdIns::Libs);
     pub(self) static ref NANO_ID: Arc<dyn Instruction> = Arc::new(StdIns::NanoId);
     pub(self) static ref GRAPH_ID: Arc<dyn Instruction> = Arc::new(StdIns::GraphId);
@@ -196,8 +196,8 @@ pub enum StdIns {
     Formats,
     FormatContentType,
 
-    HasLib,
     Libs,
+    HasLibFunc,
 
     NanoId,
     GraphId,
@@ -933,18 +933,38 @@ impl Instruction for StdIns {
                 return Err(Error::StdFormatContentType("format must be a string".into()));
             },
 
-            Self::HasLib => {
-                if let Some(lib_var) = env.stack.pop() {
-                    match lib_var.val.read().deref() {
-                        Val::Str(lib) => {
-                            let has = graph.libfuncs.contains_key(lib.as_str());
-                            env.stack.push(Variable::val(Val::Bool(has)));
-                            return Ok(None);
-                        },
-                        _ => {}
+            Self::HasLibFunc => {
+                if let Some(func_var) = env.stack.pop() {
+                    if let Some(lib_var) = env.stack.pop() {
+                        match lib_var.val.read().deref() {
+                            Val::Str(lib) => {
+                                match func_var.val.read().deref() {
+                                    Val::Str(funcname) => {
+                                        if let Some(lib) = graph.libfuncs.get(lib.as_str()) {
+                                            if let Some(_) = lib.get(funcname.as_str()) {
+                                                env.stack.push(Variable::val(Val::Bool(true)));
+                                            } else {
+                                                env.stack.push(Variable::val(Val::Bool(false)));
+                                            }
+                                        } else {
+                                            env.stack.push(Variable::val(Val::Bool(false)));
+                                        }
+                                    },
+                                    Val::Null | Val::Void => {
+                                        let has = graph.libfuncs.contains_key(lib.as_str());
+                                        env.stack.push(Variable::val(Val::Bool(has)));
+                                    },
+                                    _ => {
+                                        return Err(Error::StdHasLib("lib name and func name must both be a string".into()));
+                                    }
+                                }
+                                return Ok(None);
+                            },
+                            _ => {}
+                        }
                     }
                 }
-                return Err(Error::StdHasLib("lib must be a string".into()));
+                return Err(Error::StdHasLib("lib name and optional func name must both be a string".into()));
             },
             Self::Libs => {
                 let libs = graph.libfuncs.keys()

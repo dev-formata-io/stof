@@ -16,9 +16,10 @@
 
 use std::sync::Arc;
 use imbl::vector;
-use crate::{model::{obj::{ANY, AT, ATTRIBUTES, AT_REF, CHILDREN, CONTAINS, CREATE_TYPE, DISTANCE, DUMP, EMPTY, EXISTS, FIELDS, FROM_ID, FROM_MAP, FUNCS, GET, GET_REF, ID, INSERT, INSTANCE_OF, IS_PARENT, IS_ROOT, LEN, MOVE, MOVE_FIELD, NAME, OBJ_LIB, PARENT, PATH, PROTO, REMOVE, REMOVE_PROTO, ROOT, RUN, SCHEMAFY, SET_PROTO, TO_MAP, TO_MAP_REF, UPCAST}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, NumT, Type, Val}};
+use crate::{model::{LibFunc, Param, obj::{ANY, AT, AT_REF, ATTRIBUTES, CHILDREN, CONTAINS, CREATE_TYPE, DIFF, DISTANCE, DUMP, EMPTY, EXISTS, FIELDS, FROM_ID, FROM_MAP, FUNCS, GET, GET_REF, ID, INSERT, INSTANCE_OF, IS_PARENT, IS_ROOT, LEN, MOVE, MOVE_FIELD, NAME, OBJ_LIB, PARENT, PATH, PROTO, REMOVE, REMOVE_PROTO, ROOT, RUN, SCHEMAFY, SET_PROTO, TO_MAP, TO_MAP_REF, UPCAST}}, runtime::{NumT, Type, Val, instruction::Instructions, instructions::Base}};
 
 
+#[inline(always)]
 /// Name.
 pub fn obj_name() -> LibFunc {
     LibFunc {
@@ -46,6 +47,7 @@ assert(obj.name().len() > 0);
     }
 }
 
+#[inline(always)]
 /// Id.
 pub fn obj_id() -> LibFunc {
     LibFunc {
@@ -73,6 +75,7 @@ assert(obj.id().len() > 0);
     }
 }
 
+#[inline(always)]
 /// Path.
 pub fn obj_path() -> LibFunc {
     LibFunc {
@@ -99,6 +102,7 @@ assert_eq(self.path(), "root.TestObject"); // if self is "TestObject" and it's p
     }
 }
 
+#[inline(always)]
 /// Parent.
 pub fn obj_parent() -> LibFunc {
     LibFunc {
@@ -126,6 +130,7 @@ assert_eq(obj.parent(), self);
     }
 }
 
+#[inline(always)]
 /// Is Parent?
 pub fn obj_is_parent() -> LibFunc {
     LibFunc {
@@ -154,6 +159,7 @@ assert(self.is_parent(obj));
     }
 }
 
+#[inline(always)]
 /// Exists?
 pub fn obj_exists() -> LibFunc {
     LibFunc {
@@ -181,6 +187,7 @@ assert(obj.exists());
     }
 }
 
+#[inline(always)]
 /// Children.
 pub fn obj_children() -> LibFunc {
     LibFunc {
@@ -208,6 +215,7 @@ assert_eq(self.children(), [obj]);
     }
 }
 
+#[inline(always)]
 /// Root.
 pub fn obj_root() -> LibFunc {
     LibFunc {
@@ -235,6 +243,7 @@ assert_eq(obj.root(), self); // if self is a root
     }
 }
 
+#[inline(always)]
 /// Is root?
 pub fn obj_is_root() -> LibFunc {
     LibFunc {
@@ -261,6 +270,7 @@ assert(self.is_root()); // if self is a root
     }
 }
 
+#[inline(always)]
 /// Prototype.
 pub fn obj_proto() -> LibFunc {
     LibFunc {
@@ -287,6 +297,7 @@ assert_not(self.prototype()); // no prototype
     }
 }
 
+#[inline(always)]
 /// Create a type.
 pub fn obj_create_type() -> LibFunc {
     LibFunc {
@@ -321,6 +332,7 @@ assert_eq(ins.prototype(), obj);
     }
 }
 
+#[inline(always)]
 /// Upcast.
 pub fn obj_upcast() -> LibFunc {
     LibFunc {
@@ -349,6 +361,7 @@ assert_eq(typename obj, "SuperType");
     }
 }
 
+#[inline(always)]
 /// Set prototype.
 pub fn obj_set_proto() -> LibFunc {
     LibFunc {
@@ -379,6 +392,7 @@ assert_eq(obj.prototype(), proto);
     }
 }
 
+#[inline(always)]
 /// Remove prototype.
 pub fn obj_remove_proto() -> LibFunc {
     LibFunc {
@@ -407,6 +421,7 @@ assert_eq(typename obj, "obj");
     }
 }
 
+#[inline(always)]
 /// Instance of prototype?
 pub fn obj_instance_of_proto() -> LibFunc {
     LibFunc {
@@ -435,6 +450,7 @@ assert(obj.instance_of("MyType"));
     }
 }
 
+#[inline(always)]
 /// Length.
 pub fn obj_len() -> LibFunc {
     LibFunc {
@@ -462,6 +478,7 @@ assert_eq(obj.len(), 2);
     }
 }
 
+#[inline(always)]
 /// At.
 pub fn obj_at() -> LibFunc {
     LibFunc {
@@ -494,6 +511,7 @@ assert_eq(obj[1], ("y", 0));
     }
 }
 
+#[inline(always)]
 /// Get.
 pub fn obj_get() -> LibFunc {
     LibFunc {
@@ -526,6 +544,7 @@ assert_eq(obj.get("x"), 0);
     }
 }
 
+#[inline(always)]
 /// Contains?
 pub fn obj_contains() -> LibFunc {
     LibFunc {
@@ -554,6 +573,7 @@ assert(obj.contains("y"));
     }
 }
 
+#[inline(always)]
 /// Insert.
 pub fn obj_insert() -> LibFunc {
     LibFunc {
@@ -584,6 +604,7 @@ assert_eq(obj.z, 9);
     }
 }
 
+#[inline(always)]
 /// Remove.
 pub fn obj_remove() -> LibFunc {
     LibFunc {
@@ -618,6 +639,7 @@ assert_not(obj.x);
     }
 }
 
+#[inline(always)]
 /// Move field.
 pub fn obj_move_field() -> LibFunc {
     LibFunc {
@@ -649,6 +671,7 @@ assert_not(obj.x);
     }
 }
 
+#[inline(always)]
 /// Fields.
 pub fn obj_fields() -> LibFunc {
     LibFunc {
@@ -676,6 +699,7 @@ assert_eq(obj.fields(), [("x", 0), ("y", 0)]);
     }
 }
 
+#[inline(always)]
 /// Funcs.
 pub fn obj_funcs() -> LibFunc {
     LibFunc {
@@ -704,6 +728,7 @@ assert_eq(self.funcs("myfunc"), [self.func]);
     }
 }
 
+#[inline(always)]
 /// Empty?
 pub fn obj_empty() -> LibFunc {
     LibFunc {
@@ -731,6 +756,7 @@ assert_not(obj.empty());
     }
 }
 
+#[inline(always)]
 /// Any?
 pub fn obj_any() -> LibFunc {
     LibFunc {
@@ -758,6 +784,7 @@ assert(obj.any());
     }
 }
 
+#[inline(always)]
 /// Attributes.
 pub fn obj_attributes() -> LibFunc {
     LibFunc {
@@ -785,6 +812,7 @@ assert_eq(self.attributes(), {"a": null}); // if self was defined as a field wit
     }
 }
 
+#[inline(always)]
 /// Move.
 pub fn obj_move() -> LibFunc {
     LibFunc {
@@ -815,6 +843,7 @@ assert_eq(obj.parent(), other);
     }
 }
 
+#[inline(always)]
 /// Distance.
 pub fn obj_dist() -> LibFunc {
     LibFunc {
@@ -843,6 +872,7 @@ assert_eq(obj.dist(self), 1);
     }
 }
 
+#[inline(always)]
 /// Run.
 pub fn obj_run() -> LibFunc {
     LibFunc {
@@ -890,6 +920,43 @@ fn example() {
     }
 }
 
+#[inline(always)]
+/// Diff.
+pub fn obj_diff() -> LibFunc {
+    LibFunc {
+        library: OBJ_LIB.clone(),
+        name: "diff".into(),
+        is_async: false,
+        docs: r#"# Obj.diff(schema: obj, target: obj, symmetric: bool = false) -> void
+Diffs the schema with the target, modifying the target object only. Removes all fields from the target that match the schema, recursively. Optionally, if symmetric, unique schema fields will be deep copied to the target object as well (a version of: (a - b) U (b - a)).
+```rust
+const sch = new { x: 3km, y: 5.5m };
+const other = new { x: 3km, y: 5.6m };
+
+let difference = copy(other);
+sch.diff(difference);
+
+assert_eq(difference.x, null);
+assert_eq(difference.y, 5.6m);
+```
+"#.into(),
+        params: vector![
+            Param { name: "schema".into(), param_type: Type::Void, default: None },
+            Param { name: "target".into(), param_type: Type::Void, default: None },
+            Param { name: "symmetric".into(), param_type: Type::Bool, default: Some(Arc::new(Base::Literal(Val::Bool(false)))) },
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(DIFF.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+#[inline(always)]
 /// Schemafy.
 pub fn obj_schemafy() -> LibFunc {
     LibFunc {
@@ -947,6 +1014,7 @@ fn schemafy_obj() {
     }
 }
 
+#[inline(always)]
 /// To Map.
 pub fn obj_to_map() -> LibFunc {
     LibFunc {
@@ -979,6 +1047,7 @@ assert_eq(map.get("x"), 3km);
     }
 }
 
+#[inline(always)]
 /// From Map.
 pub fn obj_from_map() -> LibFunc {
     LibFunc {
@@ -1007,6 +1076,7 @@ assert_eq(obj.x, 0);
     }
 }
 
+#[inline(always)]
 /// From ID.
 pub fn obj_from_id() -> LibFunc {
     LibFunc {
@@ -1035,6 +1105,7 @@ assert_eq(ptr, obj);
     }
 }
 
+#[inline(always)]
 /// Dump graph info.
 pub fn obj_dump_graph() -> LibFunc {
     LibFunc {
