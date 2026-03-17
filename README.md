@@ -1,101 +1,136 @@
-# STOF: Data that carries its own logic
+# Stof: Data + Logic, Anywhere
+### Standard Transformation and Organization Format
 
-<p align="center">
+<p align="left">
     <a href="https://docs.stof.dev" style="margin: 3px"><img src="https://img.shields.io/badge/docs-docs.stof.dev-purple?logo=gitbook&logoColor=white"></a>
     <a href="https://github.com/dev-formata-io/stof" style="margin: 3px"><img src="https://img.shields.io/github/stars/dev-formata-io/stof"></a>
     <a href="https://github.com/dev-formata-io/stof/actions" style="margin: 3px"><img src="https://img.shields.io/github/actions/workflow/status/dev-formata-io/stof/rust.yml"></a>
+    <a href="https://www.npmjs.com/package/@formata/stof"><img src="https://img.shields.io/npm/d18m/%40formata%2Fstof?label=npm%3A%40formata%2Fstof&color=orange"></a>
     <a href="https://crates.io/crates/stof" style="margin: 3px"><img src="https://img.shields.io/crates/d/stof?label=crate%20downloads&color=aqua"></a>
     <a href="https://crates.io/crates/stof" style="margin: 3px"><img src="https://img.shields.io/crates/l/stof?color=maroon"></a>
 </p>
 
-### Standard Transformation and Organization Format
-
+- [Site](https://stof.dev)
 - [Docs](https://docs.stof.dev)
 - [Playground](https://play.stof.dev)
 - [GitHub](https://github.com/dev-formata-io/stof)
 - [Discord](https://discord.gg/Up5kxdeXZt)
-- [Install](https://docs.stof.dev/book/installation)
 
 <br/>
 
-![Alt](https://repobeats.axiom.co/api/embed/efbc3324d289ccfb6d7825c840491d10ea1d5260.svg "Repobeats analytics image")
-
 ## Overview
-Send functions + data over APIs, write configs that validate themselves, build data pipelines where transformations travel with the data, store logic + data in a database, etc.
+Data and logic have always been separate. That makes things hard. Stof puts them together.
 
-> Works with JSON, YAML, TOML, etc. - no migration needed.
+A portable document format where validation, functions, and behavior live alongside the data they belong to, in one document, across any service, language, or runtime.
 
-> Add/import logic only where required.
+> Works with JSON, YAML, TOML, etc. out of the box for seamless interchange. Add sandboxed logic as data where you need it for immediate eval/transforms.
 
-Treats everything uniformly - fields, functions, PDFs, images, binaries, etc. - as data that can be combined in a single portable document.
+> Built with Stof: [Limitr](https://limitr.dev) is an open source pricing and enforcement engine. The entire policy - plans, credits, limits, validation logic - lives in a single Stof document.
 
-### Benefits
-- Write data + logic once, use it everywhere (JS, Rust, Python, anywhere your app lives)
-- Format-agnostic I/O (works with JSON, YAML, TOML, PDF, binaries, etc.)
-- Sandboxed logic + execution in your data (as data)
-- Send functions over APIs
-- Doesn't need a large ecosystem to work
+## Define Data and Logic Together - Combine/Split as Needed
+`npm i @formata/stof`
+```typescript
+import { stofAsync } from '@formata/stof';
 
-### Example Use-Cases
-- Smart configs with validation and logic
-- Data interchange with sandboxed execution
-- Prompts as human-readable & maintainable data + code
-- AI/LLM workflows and model configs
-- Data pipelines with built-in processing
-- Integration glue between systems
-- Self-describing datasets
-- ... basically anywhere data meets logic
-
-### Sample Stof
-Check out the online [playground](https://play.stof.dev) for examples you can play with yourself.
-```rust
-#[attributes("optional exec control | metadata | meta-logic")]
-// A field on the doc "root" node.
-field: 42
-
-// JSON-like data & function organization
-stats: {
-    // Optional field types & expressions
-    prompt context: prompt("trees of strings", tag="optional-xml-tag",
-        prompt("behaves like a tree for workflows & functions"),
-        prompt("just cast to/from str anywhere strings are needed")
-        // Std.prompt(..) can take N prompts as sub-prompts
-    );
+const doc = await stofAsync`{
+    json: '{"plans":{"pro":{"label":"Pro","price":{"amount":20},"entitlements":{"ai_chat":{"description":"AI Chat Feature","limit":{"credit":"chat-token","value":100000,"resets":true,"reset_inc":1.0}}}}}}'
+    yaml: ''
     
-    // Units as types with conversions & casting
-    cm height: 6ft + 2in
-    MiB memory: 2MB + 50GiB - 5GB + 1TB
-    ms ttl: 300s
+    fn transform() {
+        const policy = new {};
+        parse(self.json, policy, 'json');
+        
+        policy.plans.pro.price.amount = 50;
+        const entitlements = policy.plans.pro.entitlements;
+        entitlements.ai_chat.limit.value *= 2;
+        
+        self.yaml = stringify('yaml', policy);
+        Std.pln(self.yaml);
+    }
+}`;
+doc.lib('Std', 'pln', (...args: unknown[])=>console.log(...args));
+
+await doc.call('transform');
+```
+```bash
+bun run transform.ts
+plans:
+  pro:
+    label: Pro
+    price:
+      amount: 50
+    entitlements:
+      ai_chat:
+        description: AI Chat Feature
+        limit:
+          credit: chat-token
+          value: 200000
+          resets: true
+          reset_inc: 1.0
+```
+
+## Units & Types
+Rich type system for accuracy and consistency across environments + conversions (time, memory e.g. GB or MiB, temperature, etc.).
+
+```typescript
+import { stofAsync } from '../doc.ts';
+
+const doc = await stofAsync`
+#[type]
+Point: {
+    meters x: 0
+    meters y: 0
+    
+    fn dist(other: Point) -> m {
+        Num.sqrt((other.x - self.x).pow(2) + (other.y - self.y).pow(2))
+    }
 }
+
+Point reference: {
+    x: 1ft
+    y: 2ft
+}
+
+fn distance(imported_json: str) -> inches {
+    const imported = new {};
+    parse(imported_json, imported, 'json');
+    (self.reference.dist(imported) as inches).round(2)
+}
+`;
+
+const dist = await doc.call('distance', '{ "x": 3, "y": 4 }');
+console.log(dist); // 170.52
+```
+
+## Self-Expanding Contexts
+Documents evolve over time. Stof can even parse itself for immediate use in the same call.
+
+Small surface area, always sandboxed (wasm + host libs), ultra portable, and quick.
+
+```typescript
+import { stofAsync } from '@formata/stof';
+
+const doc = await stofAsync`
+api: {}
+
+fn load_api(stof: str) {
+    parse(stof, self.api); // parses itself
+}`;
+
+const api = `
+name: 'Stof'
+fn message() -> str { 'Hello, ' + self.name ?? 'World' + '!!' }
 
 #[main]
-/// The CLI (and other envs) use the #[main] attribute for which fns to call on run.
-fn do_something() {
-    // Dot separated path navigation of the document (self is the current node/obj)
-    let gone = self.self_destruction();
-    assert(gone);
+fn main() {
+    pln(self.message());
+}`;
 
-    // async functions, blocks, and expressions always available
-    async {
-        const now = Time.now();
-        loop {
-            sleep(20ms);
-            if (Time.diff(now) > 2s) break;
-        }
-    }
+doc.lib('Std', 'pln', (...args: unknown[])=>console.log(...args));
+await doc.call('load_api', api);
+await doc.run(); // calls #[main] funcs - see docs
 
-    // partial I/O with any format
-    pln(stringify("toml", self.stats));
-}
-
-/**
- * A function that removes itself from this document when executed.
- */
-fn self_destruction() -> bool {
-    pln(self.field); // Std.pln(..) print line function
-    drop(this);      // "this" is always the last fn on the call stack
-    true             // "return" keyword is optional (no ";")
-}
+// Hello, Stof
 ```
 
 ## CLI
@@ -112,13 +147,13 @@ fn say_hi() {
 Hello, world!
 ```
 
-## Embedded Stof
-Stof is written in Rust, and is meant to be used wherever you work. Join the project [Discord](https://discord.gg/Up5kxdeXZt) to get involved.
+## Embedded
+Stof is written in Rust, but use it where you work. Join the project [Discord](https://discord.gg/Up5kxdeXZt) to contribute.
 
 ### Rust
 ``` toml
 [dependencies]
-stof = "0.8.*"
+stof = "0.9.*"
 ```
 ```rust
 use stof::model::Graph;
@@ -141,9 +176,7 @@ fn main() {
 ```
 
 ### Python
-Stof is available on [PyPi](https://pypi.org/project/stof). Just `pip install stof` and import the `pystof` module to get started.
-
-> A few examples are located in the *src/py/examples* folder.
+`pip install stof`
 
 ```python
 from pystof import Doc
@@ -173,11 +206,7 @@ if __name__ == "__main__":
 ```
 
 ### JavaScript/TypeScript
-
-#### Installation
-```bash
-npm install @formata/stof
-```
+`npm i @formata/stof`
 
 #### Initialization
 Stof uses WebAssembly, so make sure to initialize it once.
@@ -197,12 +226,10 @@ import { initStof } from '@formata/stof';
 import stofWasm from '@formata/stof/wasm';
 await initStof(await stofWasm());
 ```
-
-#### Quick Start
 ```typescript
 import { initStof, StofDoc } from '@formata/stof';
 
-// Initialize once at startup
+// Initialize wasm once at startup
 await initStof();
 
 // Create and parse documents
@@ -222,8 +249,6 @@ console.log(doc.get('age')); // 30
 ```
 
 #### JavaScript Interop
-
-Call JavaScript functions from Stof:
 ```typescript
 await initStof();
 const doc = new StofDoc();
@@ -233,7 +258,7 @@ doc.lib('console', 'log', (...args: unknown[]) => console.log(...args));
 doc.lib('fetch', 'get', async (url: string) => {
     const res = await fetch(url);
     return await res.json();
-}, true); // true = async function
+}, true); // true = async function - full support
 
 doc.parse(`
     fn main() {
@@ -256,15 +281,6 @@ const obj = doc.record(); // JavaScript object
 ```
 
 **Supports**: Node.js, Browser, Deno, Bun, Edge runtimes
-
-## Research & Exploration
-Stof explores several research areas:
-
-- Practical code mobility at scale with modern type systems
-- Security models for distributed computation-as-data
-- Performance characteristics of serializable computation vs traditional RPC
-- Formal semantics for "code as data" in distributed systems
-- Edge computing, data pipelines, and collaborative systems
 
 ## License
 Apache 2.0. See LICENSE for details.
