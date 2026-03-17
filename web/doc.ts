@@ -229,7 +229,8 @@ export class StofDoc {
      */
     // deno-lint-ignore ban-types
     lib(library: string, name: string, func: Function, is_async: boolean = false) {
-        this.stof.js_library_function(new StofFunc(library, name, func, is_async));
+        const docid = this.stof.docid();
+        this.stof.js_library_function(new StofFunc(docid, library, name, func, is_async));
     }
 
 

@@ -24,13 +24,14 @@ use crate::{js::value::{to_graph_value, to_raw_value}, model::{Graph, LibFunc, s
 
 
 thread_local! {
-    static JS_FUNCTIONS: RefCell<BTreeMap<String, BTreeMap<String, Function>>> = RefCell::new(BTreeMap::default());
+    static JS_FUNCTIONS: RefCell<BTreeMap<String, BTreeMap<String, BTreeMap<String, Function>>>> = RefCell::new(BTreeMap::default());
 }
 
 
 #[wasm_bindgen]
 /// JS Library Function.
 pub struct StofFunc {
+    docid: String,
     func: LibFunc,
 }
 impl StofFunc {
@@ -38,14 +39,22 @@ impl StofFunc {
         self.func
     }
 
-    fn set_js_func(lib: &str, name: &str, func: Function) {
+    fn set_js_func(docid: &str, lib: &str, name: &str, func: Function) {
         JS_FUNCTIONS.with_borrow_mut(|map| {
-            if let Some(lib) = map.get_mut(lib) {
-                lib.insert(name.into(), func);
+            if let Some(doc) = map.get_mut(docid) {
+                if let Some(lib) = doc.get_mut(lib) {
+                    lib.insert(name.into(), func);
+                } else {
+                    let mut funcs = BTreeMap::new();
+                    funcs.insert(name.into(), func);
+                    doc.insert(lib.into(), funcs);
+                }
             } else {
-                let mut inner = BTreeMap::new();
-                inner.insert(name.into(), func);
-                map.insert(lib.into(), inner);
+                let mut funcs = BTreeMap::new();
+                funcs.insert(name.into(), func);
+                let mut libs = BTreeMap::new();
+                libs.insert(lib.into(), funcs);
+                map.insert(docid.into(), libs);
             }
         });
     }
@@ -54,12 +63,13 @@ impl StofFunc {
 impl StofFunc {
     #[wasm_bindgen(constructor)]
     /// Create a new Stof function from a JS function.
-    pub fn new(library: &str, name: &str, js_function: JsValue, is_async: bool) -> Self {
+    pub fn new(docid: &str, library: &str, name: &str, js_function: JsValue, is_async: bool) -> Self {
         let js_function = Function::from(js_function);
-        Self::set_js_func(library, name, js_function);
+        Self::set_js_func(docid, library, name, js_function);
 
         let lib = library.to_string();
         let nm = name.to_string();
+        let did = docid.to_string();
         let func = LibFunc {
             library: library.into(),
             name: name.into(),
@@ -71,12 +81,17 @@ impl StofFunc {
             args_to_symbol_table: false,
             func: Arc::new(move |_as_ref, arg_count, _env, _graph| {
                 let mut instructions = Instructions::default();
-                instructions.push(Arc::new(JsLibFuncIns::Call(arg_count, lib.clone(), nm.clone())));
+                instructions.push(Arc::new(JsLibFuncIns::Call(did.clone(), arg_count, lib.clone(), nm.clone())));
                 Ok(instructions)
             }),
         };
 
-        Self { func }
+        Self { docid: docid.into(), func }
+    }
+
+    /// Doc id for this function.
+    pub fn docid(&self) -> String {
+        self.docid.clone()
     }
 }
 
@@ -84,95 +99,99 @@ impl StofFunc {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// JS Library Function Instructions.
 enum JsLibFuncIns {
-    Call(usize, String, String),
+    Call(String, usize, String, String),
 }
 #[typetag::serde(name = "JsLibFuncIns")]
 impl Instruction for JsLibFuncIns {
     fn exec(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         match self {
-            Self::Call(arg_count, library, name) => {
+            Self::Call(docid, arg_count, library, name) => {
                 let context = JsValue::from(Val::Obj(env.self_ptr()));
                 let res = JS_FUNCTIONS.with_borrow(|map| {
-                    if let Some(lib) = map.get(library) {
-                        if let Some(js_func) = lib.get(name) {
-                            match arg_count {
-                                0 => {
-                                    js_func.call0(&context)
-                                },
-                                1 => {
-                                    js_func.call1(&context, &env.stack.pop().unwrap().val.read().clone().into())
-                                },
-                                2 => {
-                                    let one = env.stack.pop().unwrap().val.read().clone();
-                                    let zer = env.stack.pop().unwrap().val.read().clone();
-                                    js_func.call2(&context, &zer.into(), &one.into())
-                                },
-                                3 => {
-                                    let two = env.stack.pop().unwrap().val.read().clone();
-                                    let one = env.stack.pop().unwrap().val.read().clone();
-                                    let zer = env.stack.pop().unwrap().val.read().clone();
-                                    js_func.call3(&context, &zer.into(), &one.into(), &two.into())
-                                },
-                                4 => {
-                                    let thr = env.stack.pop().unwrap().val.read().clone();
-                                    let two = env.stack.pop().unwrap().val.read().clone();
-                                    let one = env.stack.pop().unwrap().val.read().clone();
-                                    let zer = env.stack.pop().unwrap().val.read().clone();
-                                    js_func.call4(&context, &zer.into(), &one.into(), &two.into(), &thr.into())
-                                },
-                                5 => {
-                                    let foy = env.stack.pop().unwrap().val.read().clone();
-                                    let thr = env.stack.pop().unwrap().val.read().clone();
-                                    let two = env.stack.pop().unwrap().val.read().clone();
-                                    let one = env.stack.pop().unwrap().val.read().clone();
-                                    let zer = env.stack.pop().unwrap().val.read().clone();
-                                    js_func.call5(&context, &zer.into(), &one.into(), &two.into(), &thr.into(), &foy.into())
-                                },
-                                6 => {
-                                    let six = env.stack.pop().unwrap().val.read().clone();
-                                    let foy = env.stack.pop().unwrap().val.read().clone();
-                                    let thr = env.stack.pop().unwrap().val.read().clone();
-                                    let two = env.stack.pop().unwrap().val.read().clone();
-                                    let one = env.stack.pop().unwrap().val.read().clone();
-                                    let zer = env.stack.pop().unwrap().val.read().clone();
-                                    js_func.call6(&context, &zer.into(), &one.into(), &two.into(), &thr.into(), &foy.into(), &six.into())
-                                },
-                                7 => {
-                                    let sev = env.stack.pop().unwrap().val.read().clone();
-                                    let six = env.stack.pop().unwrap().val.read().clone();
-                                    let foy = env.stack.pop().unwrap().val.read().clone();
-                                    let thr = env.stack.pop().unwrap().val.read().clone();
-                                    let two = env.stack.pop().unwrap().val.read().clone();
-                                    let one = env.stack.pop().unwrap().val.read().clone();
-                                    let zer = env.stack.pop().unwrap().val.read().clone();
-                                    js_func.call7(&context, &zer.into(), &one.into(), &two.into(), &thr.into(), &foy.into(), &six.into(), &sev.into())
-                                },
-                                8 => {
-                                    let eig = env.stack.pop().unwrap().val.read().clone();
-                                    let sev = env.stack.pop().unwrap().val.read().clone();
-                                    let six = env.stack.pop().unwrap().val.read().clone();
-                                    let foy = env.stack.pop().unwrap().val.read().clone();
-                                    let thr = env.stack.pop().unwrap().val.read().clone();
-                                    let two = env.stack.pop().unwrap().val.read().clone();
-                                    let one = env.stack.pop().unwrap().val.read().clone();
-                                    let zer = env.stack.pop().unwrap().val.read().clone();
-                                    js_func.call8(&context, &zer.into(), &one.into(), &two.into(), &thr.into(), &foy.into(), &six.into(), &sev.into(), &eig.into())
-                                },
-                                9 => {
-                                    let nin = env.stack.pop().unwrap().val.read().clone();
-                                    let eig = env.stack.pop().unwrap().val.read().clone();
-                                    let sev = env.stack.pop().unwrap().val.read().clone();
-                                    let six = env.stack.pop().unwrap().val.read().clone();
-                                    let foy = env.stack.pop().unwrap().val.read().clone();
-                                    let thr = env.stack.pop().unwrap().val.read().clone();
-                                    let two = env.stack.pop().unwrap().val.read().clone();
-                                    let one = env.stack.pop().unwrap().val.read().clone();
-                                    let zer = env.stack.pop().unwrap().val.read().clone();
-                                    js_func.call9(&context, &zer.into(), &one.into(), &two.into(), &thr.into(), &foy.into(), &six.into(), &sev.into(), &eig.into(), &nin.into())
-                                },
-                                _ => {
-                                    Err(JsValue::from_str("outnumbered allotted argument count for JS/Stof interop"))
+                    if let Some(doc) = map.get(docid) {
+                        if let Some(lib) = doc.get(library) {
+                            if let Some(js_func) = lib.get(name) {
+                                match arg_count {
+                                    0 => {
+                                        js_func.call0(&context)
+                                    },
+                                    1 => {
+                                        js_func.call1(&context, &env.stack.pop().unwrap().val.read().clone().into())
+                                    },
+                                    2 => {
+                                        let one = env.stack.pop().unwrap().val.read().clone();
+                                        let zer = env.stack.pop().unwrap().val.read().clone();
+                                        js_func.call2(&context, &zer.into(), &one.into())
+                                    },
+                                    3 => {
+                                        let two = env.stack.pop().unwrap().val.read().clone();
+                                        let one = env.stack.pop().unwrap().val.read().clone();
+                                        let zer = env.stack.pop().unwrap().val.read().clone();
+                                        js_func.call3(&context, &zer.into(), &one.into(), &two.into())
+                                    },
+                                    4 => {
+                                        let thr = env.stack.pop().unwrap().val.read().clone();
+                                        let two = env.stack.pop().unwrap().val.read().clone();
+                                        let one = env.stack.pop().unwrap().val.read().clone();
+                                        let zer = env.stack.pop().unwrap().val.read().clone();
+                                        js_func.call4(&context, &zer.into(), &one.into(), &two.into(), &thr.into())
+                                    },
+                                    5 => {
+                                        let foy = env.stack.pop().unwrap().val.read().clone();
+                                        let thr = env.stack.pop().unwrap().val.read().clone();
+                                        let two = env.stack.pop().unwrap().val.read().clone();
+                                        let one = env.stack.pop().unwrap().val.read().clone();
+                                        let zer = env.stack.pop().unwrap().val.read().clone();
+                                        js_func.call5(&context, &zer.into(), &one.into(), &two.into(), &thr.into(), &foy.into())
+                                    },
+                                    6 => {
+                                        let six = env.stack.pop().unwrap().val.read().clone();
+                                        let foy = env.stack.pop().unwrap().val.read().clone();
+                                        let thr = env.stack.pop().unwrap().val.read().clone();
+                                        let two = env.stack.pop().unwrap().val.read().clone();
+                                        let one = env.stack.pop().unwrap().val.read().clone();
+                                        let zer = env.stack.pop().unwrap().val.read().clone();
+                                        js_func.call6(&context, &zer.into(), &one.into(), &two.into(), &thr.into(), &foy.into(), &six.into())
+                                    },
+                                    7 => {
+                                        let sev = env.stack.pop().unwrap().val.read().clone();
+                                        let six = env.stack.pop().unwrap().val.read().clone();
+                                        let foy = env.stack.pop().unwrap().val.read().clone();
+                                        let thr = env.stack.pop().unwrap().val.read().clone();
+                                        let two = env.stack.pop().unwrap().val.read().clone();
+                                        let one = env.stack.pop().unwrap().val.read().clone();
+                                        let zer = env.stack.pop().unwrap().val.read().clone();
+                                        js_func.call7(&context, &zer.into(), &one.into(), &two.into(), &thr.into(), &foy.into(), &six.into(), &sev.into())
+                                    },
+                                    8 => {
+                                        let eig = env.stack.pop().unwrap().val.read().clone();
+                                        let sev = env.stack.pop().unwrap().val.read().clone();
+                                        let six = env.stack.pop().unwrap().val.read().clone();
+                                        let foy = env.stack.pop().unwrap().val.read().clone();
+                                        let thr = env.stack.pop().unwrap().val.read().clone();
+                                        let two = env.stack.pop().unwrap().val.read().clone();
+                                        let one = env.stack.pop().unwrap().val.read().clone();
+                                        let zer = env.stack.pop().unwrap().val.read().clone();
+                                        js_func.call8(&context, &zer.into(), &one.into(), &two.into(), &thr.into(), &foy.into(), &six.into(), &sev.into(), &eig.into())
+                                    },
+                                    9 => {
+                                        let nin = env.stack.pop().unwrap().val.read().clone();
+                                        let eig = env.stack.pop().unwrap().val.read().clone();
+                                        let sev = env.stack.pop().unwrap().val.read().clone();
+                                        let six = env.stack.pop().unwrap().val.read().clone();
+                                        let foy = env.stack.pop().unwrap().val.read().clone();
+                                        let thr = env.stack.pop().unwrap().val.read().clone();
+                                        let two = env.stack.pop().unwrap().val.read().clone();
+                                        let one = env.stack.pop().unwrap().val.read().clone();
+                                        let zer = env.stack.pop().unwrap().val.read().clone();
+                                        js_func.call9(&context, &zer.into(), &one.into(), &two.into(), &thr.into(), &foy.into(), &six.into(), &sev.into(), &eig.into(), &nin.into())
+                                    },
+                                    _ => {
+                                        Err(JsValue::from_str("outnumbered allotted argument count for JS/Stof interop"))
+                                    }
                                 }
+                            } else {
+                                Err(JsValue::from_str(&format!("JS/Stof Function not found: {library}.{name}")))
                             }
                         } else {
                             Err(JsValue::from_str(&format!("JS/Stof Function not found: {library}.{name}")))

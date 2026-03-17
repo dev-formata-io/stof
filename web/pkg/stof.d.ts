@@ -54,6 +54,10 @@ export class Stof {
    */
   call(path: string, args: any): Promise<any>;
   /**
+   * Get the ID of this document as a string.
+   */
+  docid(): string;
+  /**
    * Parse Stof into this document, optionally within the specified node (pass null for root node).
    */
   parse(stof: string, node: any, profile: string): boolean;
@@ -78,7 +82,11 @@ export class StofFunc {
   /**
    * Create a new Stof function from a JS function.
    */
-  constructor(library: string, name: string, js_function: any, is_async: boolean);
+  constructor(docid: string, library: string, name: string, js_function: any, is_async: boolean);
+  /**
+   * Doc id for this function.
+   */
+  docid(): string;
 }
 
 export function start(): void;
@@ -93,6 +101,7 @@ export interface InitOutput {
   readonly stof_binaryExport: (a: number, b: number, c: number, d: any) => [number, number, number];
   readonly stof_binaryImport: (a: number, b: any, c: number, d: number, e: any, f: number, g: number) => [number, number, number];
   readonly stof_call: (a: number, b: number, c: number, d: any) => any;
+  readonly stof_docid: (a: number) => [number, number];
   readonly stof_get: (a: number, b: number, c: number, d: any) => any;
   readonly stof_js_library_function: (a: number, b: number) => void;
   readonly stof_new: () => number;
@@ -104,7 +113,8 @@ export interface InitOutput {
   readonly stof_stringImport: (a: number, b: number, c: number, d: number, e: number, f: any, g: number, h: number) => [number, number, number];
   readonly stof_sync_call: (a: number, b: number, c: number, d: any) => [number, number, number];
   readonly stof_sync_run: (a: number, b: any) => [number, number, number, number];
-  readonly stoffunc_new: (a: number, b: number, c: number, d: number, e: any, f: number) => number;
+  readonly stoffunc_docid: (a: number) => [number, number];
+  readonly stoffunc_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: any, h: number) => number;
   readonly wasm_bindgen__convert__closures_____invoke__h53d5cf04cab8438f: (a: number, b: number, c: any) => void;
   readonly wasm_bindgen__closure__destroy__h72b14ab7db8750ca: (a: number, b: number) => void;
   readonly wasm_bindgen__convert__closures_____invoke__ha84735728bfe97a9: (a: number, b: number, c: any, d: any) => void;

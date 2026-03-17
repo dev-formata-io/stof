@@ -415,6 +415,22 @@ export class Stof {
         return ret;
     }
     /**
+     * Get the ID of this document as a string.
+     * @returns {string}
+     */
+    docid() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.stof_docid(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Parse Stof into this document, optionally within the specified node (pass null for root node).
      * @param {string} stof
      * @param {any} node
@@ -494,20 +510,39 @@ export class StofFunc {
     }
     /**
      * Create a new Stof function from a JS function.
+     * @param {string} docid
      * @param {string} library
      * @param {string} name
      * @param {any} js_function
      * @param {boolean} is_async
      */
-    constructor(library, name, js_function, is_async) {
-        const ptr0 = passStringToWasm0(library, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    constructor(docid, library, name, js_function, is_async) {
+        const ptr0 = passStringToWasm0(docid, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passStringToWasm0(name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr1 = passStringToWasm0(library, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len1 = WASM_VECTOR_LEN;
-        const ret = wasm.stoffunc_new(ptr0, len0, ptr1, len1, js_function, is_async);
+        const ptr2 = passStringToWasm0(name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.stoffunc_new(ptr0, len0, ptr1, len1, ptr2, len2, js_function, is_async);
         this.__wbg_ptr = ret >>> 0;
         StofFuncFinalization.register(this, this.__wbg_ptr, this);
         return this;
+    }
+    /**
+     * Doc id for this function.
+     * @returns {string}
+     */
+    docid() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.stoffunc_docid(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
     }
 }
 if (Symbol.dispose) StofFunc.prototype[Symbol.dispose] = StofFunc.prototype.free;
@@ -980,8 +1015,8 @@ function __wbg_get_imports() {
         const ret = BigInt.asUintN(64, arg0);
         return ret;
     };
-    imports.wbg.__wbindgen_cast_93726e9b341af21e = function(arg0, arg1) {
-        // Cast intrinsic for `Closure(Closure { dtor_idx: 7039, function: Function { arguments: [Externref], shim_idx: 7040, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+    imports.wbg.__wbindgen_cast_79b583b6f4ba1f12 = function(arg0, arg1) {
+        // Cast intrinsic for `Closure(Closure { dtor_idx: 7050, function: Function { arguments: [Externref], shim_idx: 7051, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
         const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h72b14ab7db8750ca, wasm_bindgen__convert__closures_____invoke__h53d5cf04cab8438f);
         return ret;
     };

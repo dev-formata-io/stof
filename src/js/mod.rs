@@ -20,6 +20,7 @@ use std::{ops::Deref, sync::Arc};
 
 use bytes::Bytes;
 use js_sys::Uint8Array;
+use nanoid::nanoid;
 use rustc_hash::FxHashSet;
 use wasm_bindgen::prelude::*;
 use crate::{js::{func::StofFunc, value::to_stof_value}, model::{Graph, Profile, import::parse_json_object_value}, runtime::{Runtime, Val, Variable, instruction::Instruction, instructions::Base, proc::ProcEnv}};
@@ -45,11 +46,15 @@ fn start() {
 /// Stof Document.
 /// This is the entire interface for wasm/js (Runtime + Graph).
 pub struct Stof {
+    docid: String,
     graph: Graph,
 }
 impl From<Graph> for Stof {
     fn from(graph: Graph) -> Self {
-        Self { graph }
+        Self {
+            docid: nanoid!(10),
+            graph
+        }
     }
 }
 #[wasm_bindgen]
@@ -57,9 +62,17 @@ impl Stof {
     #[wasm_bindgen(constructor)]
     /// Construct a new document.
     pub fn new() -> Self {
-        Self { graph: Graph::default() }
+        Self {
+            docid: nanoid!(10),
+            graph: Graph::default()
+        }
     }
 
+    /// Get the ID of this document as a string.
+    pub fn docid(&self) -> String {
+        self.docid.clone()
+    }
+    
     /// Get a value from this graph using the Stof runtime (all language features supported).
     pub fn get(&mut self, path: &str, start: JsValue) -> JsValue {
         let instruction: Arc<dyn Instruction> = Arc::new(Base::LoadVariable(path.into(), false, false));
