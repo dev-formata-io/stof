@@ -198,12 +198,14 @@ impl Runtime {
                 }
             }
 
-            // any limit < 1 will progress the process as much as possible per process
-            let mut limit: i32 = 0;
-            if !self.sleeping.is_empty() || self.running.len() > 1 {
+            // any limit < 1 will progress the process as much as possible per process until yield
+            // kept at 0 for now, but might change with future optimization or priority scheduling
+            let limit: i32 = 0;
+            let yield_enabled = !self.sleeping.is_empty() || self.running.len() > 1;
+            /* if !self.sleeping.is_empty() || self.running.len() > 1 {
                 let len = (self.sleeping.len() + self.running.len()) as i32;
                 limit = i32::max(10, 500 / len);
-            }
+            } */
 
             for proc in self.running.iter_mut() {
 
@@ -217,6 +219,7 @@ impl Runtime {
                     }
                 }
 
+                proc.env.yield_enabled = yield_enabled;
                 match proc.progress(graph, limit) {
                     Ok(state) => {
                         match state {
@@ -425,11 +428,14 @@ impl Runtime {
             }
 
             // any limit < 1 will progress the process as much as possible per process
-            let mut limit: i32 = 100;
+            // kept at 0 for now, but might change with future optimization or priority scheduling
+            let limit: i32 = 0;
+            let yield_enabled = !self.sleeping.is_empty() || self.running.len() > 1;
+            /* let mut limit: i32 = 100;
             if !self.sleeping.is_empty() || self.running.len() > 1 {
                 let len = (self.sleeping.len() + self.running.len()) as i32;
                 limit = i32::max(10, 500 / len);
-            }
+            } */
 
             for proc in self.running.iter_mut() {
 
@@ -443,6 +449,7 @@ impl Runtime {
                     }
                 }
 
+                proc.env.yield_enabled = yield_enabled;
                 match proc.progress(graph, limit) {
                     Ok(state) => {
                         match state {

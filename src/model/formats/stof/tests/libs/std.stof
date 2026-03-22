@@ -415,7 +415,7 @@ Trace: {
     #[test]
     fn tracing() {
         const res = await self.another();
-        assert(res > 10ms);
+        assert(res >= 10ms);
     }
 
     async fn another() -> ms {

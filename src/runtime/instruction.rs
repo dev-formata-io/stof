@@ -290,6 +290,18 @@ impl Instructions {
                             // Used to spawn new processes as well
                             return Ok(ProcRes::More);
                         },
+                        Base::CtrlYield => {
+                            // Like suspend, but used for process switching
+                            // If multiple processes running or sleeping, go to the next
+                            if env.yield_enabled {
+                                if self.more() {
+                                    return Ok(ProcRes::More);
+                                } else {
+                                    return Ok(ProcRes::Done);
+                                }
+                            }
+                            continue 'exec_loop;
+                        },
                         Base::CtrlSleepFor(dur) => {
                             // Instruct this process to sleep for an amount of time
                             return Ok(ProcRes::SleepFor(dur.clone()));

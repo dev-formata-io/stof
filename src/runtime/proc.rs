@@ -51,6 +51,7 @@ pub struct ProcEnv {
     pub return_stack: Vec<ArcStr>,
     pub ret_valid_stack: Vec<usize>,
     pub try_stack: Vec<ArcStr>,
+    pub yield_enabled: bool,
 
     // Setting this will put the process into a waiting mode
     pub spawn: Option<Box<Process>>,
@@ -76,6 +77,7 @@ impl Default for ProcEnv {
             ret_valid_stack: Default::default(),
             try_stack: Default::default(),
             spawn: None,
+            yield_enabled: true,
 
             #[cfg(feature = "tokio")]
             tokio_runtime: None,

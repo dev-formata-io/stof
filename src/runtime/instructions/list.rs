@@ -692,8 +692,10 @@ impl Instruction for ListIns {
                                             return Err(Error::ListSortBy);
                                         }
                                     }
-
-                                    let env_cell = std::cell::RefCell::new(env);
+                                    
+                                    let mut cloned_env = env.clone();
+                                    cloned_env.yield_enabled = false;
+                                    let env_cell = std::cell::RefCell::new(cloned_env);
                                     let graph_cell = std::cell::RefCell::new(graph);
                                     list.sort_by(move |a, b| {
                                         let ins: Arc<dyn Instruction> = Arc::new(FuncCall {
@@ -710,10 +712,10 @@ impl Instruction for ListIns {
                                         });
                                         let mut env = env_cell.borrow_mut();
                                         let mut graph = graph_cell.borrow_mut();
-                                        match ins.exec(*env.deref_mut(), *graph.deref_mut()) {
+                                        match ins.exec(&mut env, *graph.deref_mut()) {
                                             Ok(res) => {
                                                 if let Some(mut func_ins) = res {
-                                                    match func_ins.exec(*env.deref_mut(), *graph.deref_mut(), -1) {
+                                                    match func_ins.exec(&mut env, *graph.deref_mut(), -1) {
                                                         Ok(_res) => {
                                                             if let Some(ret) = (*env.deref_mut()).stack.pop() {
                                                                 match ret.val.read().deref() {

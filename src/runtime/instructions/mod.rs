@@ -43,6 +43,7 @@ pub mod nullcheck;
 // static instructions for efficiency
 lazy_static! {
     pub static ref SUSPEND: Arc<dyn Instruction> = Arc::new(Base::CtrlSuspend);
+    pub static ref YIELD: Arc<dyn Instruction> = Arc::new(Base::CtrlYield);
     pub static ref AWAIT: Arc<dyn Instruction> = Arc::new(Base::CtrlAwait);
     pub static ref NOOP: Arc<dyn Instruction> = Arc::new(Base::CtrlNoOp);
     pub static ref EXIT: Arc<dyn Instruction> = Arc::new(Base::CtrlExit);
@@ -252,6 +253,11 @@ pub enum Base {
     XOR,
     SHL,
     SHR,
+
+    // Yeild instruction.
+    // Used to move into another processes instructions.
+    // Placed at end for rev compat w/bstf
+    CtrlYield,
 }
 #[typetag::serde(name = "Base")]
 impl Instruction for Base {
@@ -263,6 +269,7 @@ impl Instruction for Base {
              * Suspend.
              *****************************************************************************/
             Self::CtrlSuspend => {}, // Nothing here...
+            Self::CtrlYield => {}, // Nothing here...
             Self::CtrlAwait => {}, // Nothing here...
             Self::CtrlExit => {}, // Nothing here...
             Self::CtrlAwaitCast(_) => {}, // Nothing here...
@@ -360,6 +367,8 @@ impl Instruction for Base {
             Self::CtrlContinue => {}, // Nothing here...
             Self::CtrlLoopBackTo { top_tag: _, test, end_tag, ins, continue_tag, scope_count, loop_count, inc } => {
                 let mut instructions = Instructions::default();
+                instructions.push(YIELD.clone());
+
                 // Test if the value is truthy, go to end_tag if not
                 instructions.push(test.clone());
                 instructions.push(TRUTHY.clone());
