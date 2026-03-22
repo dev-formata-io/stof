@@ -19,61 +19,51 @@
 <br/>
 
 ## Overview
+
 Data and logic have always been separate. That makes things hard. Stof puts them together.
 
-A portable document format where validation, functions, and behavior live alongside the data they belong to, in one document, across any service, language, or runtime.
+A portable document format where validation, functions, and behavior live alongside the data they belong to — in one document, across any service, language, or runtime.
 
-> Works with JSON, YAML, TOML, etc. out of the box for seamless interchange. Add sandboxed logic as data where you need it for immediate eval/transforms.
+- **Superset of JSON** — valid JSON is always valid Stof. Works with YAML, TOML, and more out of the box.
+- **Sandboxed execution** — logic runs in a secure, isolated runtime. Safe to execute untrusted code from external sources.
+- **Built in Rust, runs everywhere** — native crate, WebAssembly for JS/TS (Node, Deno, Bun, browser), and Python bindings via PyPI.
 
-> Built with Stof: [Limitr](https://limitr.dev) is an open source pricing and enforcement engine. The entire policy - plans, credits, limits, validation logic - lives in a single Stof document.
+> Used in production: [Limitr](https://limitr.dev)'s pricing policy engine — plans, credits, limits, validation logic — runs entirely on Stof.
 
-## Define Data and Logic Together - Combine/Split as Needed
-`npm i @formata/stof`
+
+## Data That Does Things
+
+Stof starts where JSON ends. Add functions right next to the data they operate on.
+
 ```typescript
 import { stofAsync } from '@formata/stof';
 
-const doc = await stofAsync`{
-    json: '{"plans":{"pro":{"label":"Pro","price":{"amount":20},"entitlements":{"ai_chat":{"description":"AI Chat Feature","limit":{"credit":"chat-token","value":100000,"resets":true,"reset_inc":1.0}}}}}}'
-    yaml: ''
+const doc = await stofAsync`
+    name: "Alice"
+    age: 30
     
-    fn transform() {
-        const policy = new {};
-        parse(self.json, policy, 'json');
-        
-        policy.plans.pro.price.amount = 50;
-        const entitlements = policy.plans.pro.entitlements;
-        entitlements.ai_chat.limit.value *= 2;
-        
-        self.yaml = stringify('yaml', policy);
-        Std.pln(self.yaml);
+    fn greet() -> str {
+        'Hello, ' + self.name + '!'
     }
-}`;
-doc.lib('Std', 'pln', (...args: unknown[])=>console.log(...args));
+    
+    fn can_rent_car() -> bool {
+        self.age >= 25
+    }
+`;
 
-await doc.call('transform');
+console.log(await doc.call('greet'));        // Hello, Alice!
+console.log(await doc.call('can_rent_car')); // true
 ```
-```bash
-bun run transform.ts
-plans:
-  pro:
-    label: Pro
-    price:
-      amount: 50
-    entitlements:
-      ai_chat:
-        description: AI Chat Feature
-        limit:
-          credit: chat-token
-          value: 200000
-          resets: true
-          reset_inc: 1.0
-```
+
+No separate schema file. No external validator. The data knows its own rules.
+
 
 ## Units & Types
-Rich type system for accuracy and consistency across environments + conversions (time, memory e.g. GB or MiB, temperature, etc.).
+
+Rich type system with automatic unit conversions — time, distance, memory, temperature, and more.
 
 ```typescript
-import { stofAsync } from '../doc.ts';
+import { stofAsync } from '@formata/stof';
 
 const doc = await stofAsync`
 #[type]
@@ -102,10 +92,56 @@ const dist = await doc.call('distance', '{ "x": 3, "y": 4 }');
 console.log(dist); // 170.52
 ```
 
-## Self-Expanding Contexts
-Documents evolve over time. Stof can even parse itself for immediate use in the same call.
 
-Small surface area, always sandboxed (wasm + host libs), ultra portable, and quick.
+## Format Interop
+
+Combine JSON, YAML, TOML, and Stof in a single document. Parse one format, transform it, export as another.
+
+```typescript
+import { stofAsync } from '@formata/stof';
+
+const doc = await stofAsync`{
+    json: '{"plans":{"pro":{"label":"Pro","price":{"amount":20},"entitlements":{"ai_chat":{"description":"AI Chat Feature","limit":{"credit":"chat-token","value":100000,"resets":true,"reset_inc":1.0}}}}}}'
+    yaml: ''
+    
+    fn transform() {
+        const policy = new {};
+        parse(self.json, policy, 'json');
+        
+        policy.plans.pro.price.amount = 50;
+        const entitlements = policy.plans.pro.entitlements;
+        entitlements.ai_chat.limit.value *= 2;
+        
+        self.yaml = stringify('yaml', policy);
+        Std.pln(self.yaml);
+    }
+}`;
+doc.lib('Std', 'pln', (...args: unknown[])=>console.log(...args));
+
+await doc.call('transform');
+```
+```
+plans:
+  pro:
+    label: Pro
+    price:
+      amount: 50
+    entitlements:
+      ai_chat:
+        description: AI Chat Feature
+        limit:
+          credit: chat-token
+          value: 200000
+          resets: true
+          reset_inc: 1.0
+```
+
+
+## Self-Expanding Contexts
+
+This is the capability that changes everything.
+
+Stof documents can parse new Stof into themselves at runtime — receiving code over the network and immediately executing it. The program grows while it runs, always sandboxed.
 
 ```typescript
 import { stofAsync } from '@formata/stof';
@@ -114,9 +150,10 @@ const doc = await stofAsync`
 api: {}
 
 fn load_api(stof: str) {
-    parse(stof, self.api); // parses itself
+    parse(stof, self.api);
 }`;
 
+// Imagine this arriving over HTTP, from another service, or from an agent
 const api = `
 name: 'Stof'
 fn message() -> str { 'Hello, ' + self.name ?? 'World' + '!!' }
@@ -128,12 +165,14 @@ fn main() {
 
 doc.lib('Std', 'pln', (...args: unknown[])=>console.log(...args));
 await doc.call('load_api', api);
-await doc.run(); // calls #[main] funcs - see docs
+await doc.run(); // calls #[main] funcs
 
 // Hello, Stof
 ```
 
+
 ## CLI
+
 See [installation docs](https://docs.stof.dev/book/installation) for CLI instructions and more information.
 
 ```rust
@@ -147,11 +186,14 @@ fn say_hi() {
 Hello, world!
 ```
 
+
 ## Embedded
+
 Stof is written in Rust, but use it where you work. Join the project [Discord](https://discord.gg/Up5kxdeXZt) to contribute.
 
 ### Rust
-``` toml
+
+```toml
 [dependencies]
 stof = "0.9.*"
 ```
@@ -176,6 +218,7 @@ fn main() {
 ```
 
 ### Python
+
 `pip install stof`
 
 ```python
@@ -206,9 +249,11 @@ if __name__ == "__main__":
 ```
 
 ### JavaScript/TypeScript
+
 `npm i @formata/stof`
 
 #### Initialization
+
 Stof uses WebAssembly, so make sure to initialize it once.
 
 ```typescript
@@ -226,39 +271,39 @@ import { initStof } from '@formata/stof';
 import stofWasm from '@formata/stof/wasm';
 await initStof(await stofWasm());
 ```
+
+#### Usage
+
 ```typescript
 import { initStof, StofDoc } from '@formata/stof';
 
-// Initialize wasm once at startup
 await initStof();
 
-// Create and parse documents
 const doc = new StofDoc();
 doc.parse(`
     name: "Alice"
     age: 30
-    fn greet() -> string {
-        "Hello, " + self.name
+    fn greet() -> str {
+        'Hello, ' + self.name
     }
 `);
 
-// Call functions and access values
 const greeting = await doc.call('greet');
 console.log(greeting); // "Hello, Alice"
 console.log(doc.get('age')); // 30
 ```
 
 #### JavaScript Interop
+
 ```typescript
 await initStof();
 const doc = new StofDoc();
 
-// Register JS functions
 doc.lib('console', 'log', (...args: unknown[]) => console.log(...args));
 doc.lib('fetch', 'get', async (url: string) => {
     const res = await fetch(url);
     return await res.json();
-}, true); // true = async function - full support
+}, true); // true = async function
 
 doc.parse(`
     fn main() {
@@ -271,21 +316,24 @@ await doc.call('main');
 ```
 
 #### Parse & Export
+
 ```typescript
-// Parse from JSON
 doc.parse({ name: "Bob", age: 25 });
 
-// Export to different formats
 const json = doc.stringify('json');
-const obj = doc.record(); // JavaScript object
+const obj = doc.record();
 ```
 
 **Supports**: Node.js, Browser, Deno, Bun, Edge runtimes
 
+
 ## License
+
 Apache 2.0. See LICENSE for details.
 
+
 ## Feedback & Community
+
 - Open issues or discussions on [GitHub](https://github.com/dev-formata-io/stof)
 - Chat with us on [Discord](https://discord.gg/Up5kxdeXZt)
 - Star the project to support future development!
