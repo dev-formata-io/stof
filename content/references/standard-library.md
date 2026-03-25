@@ -1,472 +1,219 @@
-# Stof Standard Library Reference
+# Standard Library Reference
 
-Complete reference for all built-in library operations: Obj, List, Map, Set, Str, Num, Tuple, Ver, Prompt, Std, Md, Time, Http, Blob, Age, Fn, and Data.
+Complete reference for Stof's built-in library functions. Each type has linked methods that can be called on values of that type directly (e.g., `my_list.len()`) or via the library namespace (e.g., `List.len(my_list)`).
+
+For full API documentation with examples, see the [auto-generated library docs](../../docs/libs/).
 
 ---
 
-## Object Operations (Obj library)
+## Global Functions
 
 ```stof
-// Navigation
-self.name()                         // name of this object
-self.path()                         // full path ("root.Parent.MyObj")
-self.id()                           // unique internal ID string
-self.parent()                       // parent object
-self.root()                         // document root
-self.is_root()                      // bool
-self.children()                     // list of child objects
-self.dist(other_obj)                // distance in the DAG
-self.is_parent(child_obj)           // bool
-self.exists()                       // bool — does this node still exist?
-
-// Move (reparent)
-obj.move(new_parent)                // pointer update, no copy
-
-// Fields / functions
-self.fields()                       // list of (key, value) pairs
-self.funcs()                        // list of fn values on this obj
-self.funcs('my_attr')               // list of fns with matching attribute
-self.contains('field_name')         // bool
-self.len()                          // number of fields
-self.empty() / self.any()
-
-// Insert / remove
-self.insert('key', value)
-self.insert('sub.nested.key', val)  // creates sub-objects as needed
-self.remove('key')                  // shallow by default
-self.remove('key', shallow = false) // remove field + subtree
-
-// Move / rename fields
-self.move_field('old_name', 'new_name')
-self.move_field('self.src.field', 'dest.moved')
-
-// Attributes
-self.attributes()                   // map of attributes on this object
-self.attributes('field_name')       // map of attributes on a specific field
-
-// Convert
-self.to_map()                       // obj → map
-Obj.from_map(map)                   // map → obj
-Obj.from_id(id_str)                 // look up by ID
-
-// Prototype management
-self.create_type('TypeName')
-self.set_prototype('TypeName')
-self.remove_prototype()
-self.instance_of('TypeName')
-self.prototype()
-
-// Object.run()
-self.run()                          // run all #[run]-annotated fields/fns
+pln(...)                          // print with newline
+print(...)                        // print without newline
+err(...)                          // print to stderr
+typeof val                        // primitive type as string
+typename val                      // full type name (units/prototype)
+str(val)                          // convert to string
+stringify(format, obj)            // serialize: 'json', 'yaml', 'toml', 'stof:human', 'bstf'
+parse(source, dest, format)       // deserialize into dest object
+blobify(format, obj)              // serialize to binary blob
+copy(val)                         // deep copy (breaks references)
+nanoid()                          // generate unique ID
+swap(&a, &b)                      // swap by reference
+env("KEY") / set_env("KEY", "v")  // environment variables
+sleep(100ms)                      // sleep duration
+exit()                            // exit process
+min(a, b) / max(a, b)            // math
+lib('Http') / libs()             // check available libraries
+funcs('my_attr')                 // find functions by attribute
+funcs(attributes = key)          // find functions with specific attribute
+xml(content, tag)                // XML helper: xml('hello', 'msg') → '<msg>hello</msg>'
 ```
 
 ---
 
-## List Operations
+## Obj (Object Library)
 
-```stof
-// Access
-list.len()
-list.at(idx)
-list.front() / list.back()
-list[idx]
-&list.front()               // mutable reference
+Linked to the `obj` type. Core methods for inspecting and manipulating objects.
 
-// Modification
-list.push_back(item)
-list.push_front(item)
-list.pop_back() / list.pop_front()
-list.append(other)
-list.insert(idx, item)
-list.replace(idx, item)
-list.remove(idx)
-list.remove_first(val) / list.remove_last(val)
-list.remove_all(val)
-list.clear()
-list.reverse()
-list.reversed()             // returns reversed copy
-
-// Query
-list.contains(val)
-list.index_of(val)          // returns -1 if not found
-list.empty() / list.any()
-list.is_uniform()
-
-// Sort
-list.sort()
-list.sort_by((a, b): int => ...)   // custom comparator; return -1/0/1
-
-// Other
-list.join(', ')
-list.to_uniform('kg')
-```
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `any` | `() -> bool` | Has any data attached |
+| `at` | `(index: int) -> (str, unknown)` | Field (name, value) at index |
+| `attributes` | `(path?: str) -> map` | Get attributes map |
+| `children` | `() -> list` | List of child objects |
+| `contains` | `(name: str) -> bool` | Has data with given name |
+| `create_type` | `(typename: str) -> void` | Register as prototype programmatically |
+| `drop` | `(shallow?: bool) -> void` | Remove object from graph |
+| `fields` | `() -> list` | List of (name, value) tuples |
+| `funcs` | `(attributes?: str) -> list` | Functions, optionally filtered by attribute |
+| `get` | `(path: str) -> unknown` | Get field by dot-path |
+| `has` | `(path: str) -> bool` | Check if path exists |
+| `instance_of` | `(typename: str) -> bool` | Check prototype membership |
+| `len` | `() -> int` | Number of data components |
+| `name` | `() -> str` | Object name |
+| `parent` | `() -> obj` | Parent object |
+| `path` | `() -> str` | Full dot-path from root |
+| `remove` | `(name: str, shallow?: bool) -> void` | Remove data by name |
+| `rename` | `(name: str) -> void` | Rename this object |
+| `run` | `() -> unknown` | Execute `#[run]` workflow |
+| `schemafy` | `(obj) -> void` | Validate against this prototype's schema |
+| `set` | `(path: str, value) -> void` | Set field by dot-path |
 
 ---
 
-## Map Operations
+## List / Vec (Array Library)
 
-```stof
-let m = {'a': 0, 'b': 1};
-m.get('key')
-m.insert('key', val)        // returns old value if replaced
-m.remove('key')
-m.contains('key')
-m.keys()                    // returns a set
-m.values()                  // returns a list
-m.len()
-m.empty() / m.any()
-m.first() / m.last()        // returns (key, value) tuple
-m.at(idx)
-m.pop_first() / m.pop_last()
-m.append(other)
-m.clear()
-// Iterate: for (const pair in m) { pair[0]; pair[1]; }
-```
+Linked to the `list` type.
 
----
-
-## Set Operations
-
-```stof
-let s = {1, 2, 3};          // curly, no colons
-s.insert(val)               // returns true if newly inserted
-s.remove(val)
-s.contains(val)
-s.len()
-s.empty() / s.any()
-s.first() / s.last()        // sets are ordered
-s.at(idx)
-s.pop_first() / s.pop_last()
-s.append(other)
-s.clear()
-s.split(val)                // returns (before, after) tuple
-s.union(other) / s.difference(other)
-s.intersection(other) / s.symmetric_difference(other)
-s.disjoint(other)
-s.subset(other) / s.superset(other)
-s.is_uniform()
-s.to_uniform('kg')
-```
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `any` | `() -> bool` | Contains any values |
+| `append` | `(other: list) -> void` | Append another list |
+| `at` | `(index: int) -> unknown` | Get value at index (supports `&` reference) |
+| `back` | `() -> unknown` | Last element |
+| `clear` | `() -> void` | Remove all values |
+| `contains` | `(value) -> bool` | Check if value exists |
+| `empty` | `() -> bool` | Is empty |
+| `filter` | `(fn) -> list` | Filter by predicate |
+| `find` | `(fn) -> unknown` | Find first match |
+| `flat` | `() -> list` | Flatten nested lists |
+| `front` | `() -> unknown` | First element |
+| `iter` | `(fn) -> void` | Iterate with function |
+| `join` | `(sep: str) -> str` | Join elements as string |
+| `len` | `() -> int` | Length |
+| `map` | `(fn) -> list` | Transform elements |
+| `pop_back` | `() -> unknown` | Remove and return last |
+| `pop_front` | `() -> unknown` | Remove and return first |
+| `push_back` | `(value) -> void` | Add to end |
+| `push_front` | `(value) -> void` | Add to beginning |
+| `reduce` | `(fn, init) -> unknown` | Reduce to single value |
+| `remove` | `(index: int) -> unknown` | Remove at index |
+| `reverse` | `() -> void` | Reverse in place |
+| `sort` | `(fn?) -> void` | Sort (optional comparator) |
+| `unique` | `() -> list` | Remove duplicates |
 
 ---
 
-## String Operations
+## Map Library
 
-```stof
-str.len()
-str.at(idx)
-str.first() / str.last()
-str.push("append")
-str.contains("sub")
-str.starts_with("prefix") / str.ends_with("suffix")
-str.index_of("sub")         // -1 if not found
-str.replace("old", "new")   // returns new string
-str.split(".")              // returns list
-str.upper() / str.lower()
-str.trim() / str.trim_start() / str.trim_end()
-str.substring(start, end)   // slice [start, end)
-str.matches(regex)          // bool
-str.find_matches(regex)     // list of (match, start, end) tuples
-// Iterable: for (const c in my_str) { ... }
-```
+Linked to the `map` type.
 
-> **No `str.repeat()`** — write a manual loop:
-> ```stof
-> fn repeat(char: str, times: int) -> str {
->     let out = '';
->     for (let _ in times) out += char;
->     out
-> }
-> ```
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `any` | `() -> bool` | Contains any entries |
+| `at` | `(key) -> unknown` | Get value by key |
+| `clear` | `() -> void` | Remove all entries |
+| `contains` | `(key) -> bool` | Check if key exists |
+| `empty` | `() -> bool` | Is empty |
+| `get` | `(key) -> unknown` | Get value (null if missing) |
+| `insert` | `(key, value) -> void` | Insert or update |
+| `keys` | `() -> list` | List of keys |
+| `len` | `() -> int` | Number of entries |
+| `remove` | `(key) -> unknown` | Remove and return |
+| `values` | `() -> list` | List of values |
 
 ---
 
-## Number Operations
+## Set Library
 
-```stof
-val.abs()
-val.sqrt() / val.cbrt()
-val.floor() / val.ceil() / val.trunc() / val.fract()
-val.signum()
-val.exp() / val.exp2()
-val.ln() / val.log()
-val.pow(n)
-val.round(decimals)
-Num.atan2(y, x)
+Linked to the `set` type.
 
-val.to_string()
-val.hex() / val.oct() / val.bin()
-
-// Units
-val.has_units()
-val.is_angle() / val.is_temp() / val.is_length() / val.is_mass() / val.is_time() / val.is_memory()
-val.remove_units()
-val.to_units('g')
-```
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `any` | `() -> bool` | Contains any values |
+| `clear` | `() -> void` | Remove all |
+| `contains` | `(value) -> bool` | Check membership |
+| `empty` | `() -> bool` | Is empty |
+| `insert` | `(value) -> void` | Add value |
+| `len` | `() -> int` | Size |
+| `remove` | `(value) -> bool` | Remove value |
 
 ---
 
-## Tuple Operations
+## Str (String Library)
 
-```stof
-let t = (32, 43, true, 'hi');
-t.len()
-t[0] / t.at(0)
-let inner = &t[1][0];       // mutable reference into nested tuple
-```
+Linked to the `str` type.
 
----
-
-## Semantic Version (`ver`) Operations
-
-```stof
-let v = 4.5.6-release+build;
-v.major() / v.minor() / v.patch()
-v.release() / v.build()
-v.set_major(n) / v.set_minor(n) / v.set_patch(n)
-v.set_release('str') / v.set_build('str')
-v.clear_release() / v.clear_build()
-```
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `at` | `(index: int) -> str` | Character at index |
+| `contains` | `(seq: str) -> bool` | Contains substring |
+| `ends_with` | `(seq: str) -> bool` | Ends with |
+| `find_matches` | `(regex: str) -> list` | Regex matches |
+| `len` | `() -> int` | Length |
+| `lines` | `() -> list` | Split into lines |
+| `lower` | `() -> str` | Lowercase |
+| `replace` | `(from, to) -> str` | Replace all occurrences |
+| `split` | `(sep: str) -> list` | Split by separator |
+| `starts_with` | `(seq: str) -> bool` | Starts with |
+| `trim` | `() -> str` | Trim whitespace |
+| `upper` | `() -> str` | Uppercase |
 
 ---
 
-## Prompt Type
+## Num (Number Library)
 
-`prompt` is a tree of tagged strings for structured AI prompt management. Passes by reference (like a collection), casts to/from `str`.
+Static math functions.
 
-```stof
-// Creation
-const p = prompt();                      // empty
-const p: prompt = 'hello';              // from string
-const p = prompt('hello', 'greet');     // text + tag → <greet>hello</greet>
-const p = prompt('', 'outer',          // nested tree
-    prompt('first', 'a'),
-    prompt('second', 'b')
-);
-
-// As string
-p as str                                // → '<greet>hello</greet>'
-
-// Mutation
-p.push('text', 'tag')
-p += prompt('more', 'tag')
-p.pop() / p.insert(idx, 'text') / p.replace(idx, 'text')
-p.remove(idx) / p.reverse() / p.clear()
-
-// Inspection
-p.str() / p.text() / p.tag()
-p.prompts()                             // list of sub-prompts
-p.len() / p.any() / p.empty()
-p[idx]
-p.set_text('new text') / p.set_tag('new_tag')
-```
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `Num.abs` | `(n) -> float` | Absolute value |
+| `Num.ceil` | `(n) -> int` | Ceiling |
+| `Num.floor` | `(n) -> int` | Floor |
+| `Num.max` | `(a, b) -> float` | Maximum |
+| `Num.min` | `(a, b) -> float` | Minimum |
+| `Num.pow` | `(base, exp) -> float` | Power |
+| `Num.random` | `(min?, max?) -> float` | Random number |
+| `Num.round` | `(n) -> int` | Round |
+| `Num.sqrt` | `(n) -> float` | Square root |
+| `.pow` | `(exp) -> float` | Instance power |
 
 ---
 
-## Standard Library (`Std` / global)
+## Http (Network Library)
 
-All std functions work without a prefix (or with `Std.`):
+Requires the "http" feature flag. Adds a thread pool for async HTTP requests.
 
-```stof
-// Output
-pln(...) / print(...) / err(...) / dbg(...)
-
-// Asserts (snake_case)
-assert(cond) / assert_eq(a, b) / assert_neq(a, b)
-assert_not(cond) / assert_null(val)
-
-// Type inspection
-typeof val                  // underlying primitive type
-typename val                // full type name (unit or prototype)
-str(val)                    // cast to string
-
-// Serialization
-stringify(format, obj)      // 'json', 'toml', 'yaml', 'stof', 'stof:human', 'text', 'md', 'urlencoded', 'bytes'
-blobify(format, obj)        // 'bstf', 'bytes'
-parse(str_or_blob, obj, format)
-format('stof')              // bool — is format available?
-Std.formats()               // set of available formats
-
-// Object creation
-new {} / new TypeName { field: val } on parent
-copy(val)                   // deep copy
-
-// IDs
-nanoid() / nanoid(14)
-Std.graph_id()
-
-// Swap
-swap(&a, &b)
-
-// Environment
-env("KEY") / set_env("KEY", "val") / remove_env("KEY") / env_vars()
-
-// Process control
-sleep(100ms) / exit()
-
-// Libraries & formats
-lib('Http') / libs()
-
-// Functions by attribute
-funcs('my_attr') / funcs(attributes = key)
-
-// Other
-min(a, b, ...) / max(a, b, ...)
-xml('text', 'tag')
-Std.callstack()
-```
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `Http.fetch` | `async (url, method?, body?, headers?, timeout?, query?, bearer?) -> Promise<map>` | Make HTTP request |
+| `Http.text` | `(response: map) -> str` | Extract text body |
+| `Http.blob` | `(response: map) -> blob` | Extract binary body |
+| `Http.parse` | `(response: map, context?: obj) -> obj` | Parse response into object |
+| `Http.success` | `(response: map) -> bool` | Status 200-299 |
+| `Http.client_error` | `(response: map) -> bool` | Status 400-499 |
+| `Http.server_error` | `(response: map) -> bool` | Status 500-599 |
+| `Http.size` | `(response: map) -> bytes` | Response body size |
 
 ---
 
-## Md Library
+## Other Libraries
 
-```stof
-Md.html(markdown_str)   // convert Markdown to HTML string
-Md.json(markdown_str)   // convert Markdown to AST as JSON string (mdast format)
-```
+### Ver (Semantic Version)
+Methods: `major()`, `minor()`, `patch()`, `pre()`, `build()`, `compatible(other)`, `increment(part)`.
 
----
+### Time
+Methods: `Time.now()`, `Time.elapsed(start)`, `Time.millis()`, `Time.stamp()`, formatting functions.
 
-## Time Library
+### Tuple
+Methods: `at(index)`, `len()`, `set(index, value)`.
 
-```stof
-Time.now()                  // current timestamp as ms
-Time.now_ns()               // as ns
-Time.diff(start_ms)         // elapsed ms since start
-Time.diff_ns(start_ns)
-Time.sleep(20ms)
+### Prompt (AI Prompt)
+Tree of tagged strings. Casts to/from `str`. Methods: `push(tag, content)`, `get(tag)`, `to_str()`.
 
-// RFC formatting
-Time.now_rfc3339() / Time.from_rfc3339(str) / Time.to_rfc3339(ms)
-Time.now_rfc2822() / Time.from_rfc2822(str) / Time.to_rfc2822(ms)
+### Blob (Binary Data)
+Methods: `len()`, `at(index)`, `slice(start, end)`, `append(other)`.
 
-// Arithmetic
-time_a + 30days
-time_a - time_b             // → ms difference
-```
+### Data (Rich Data Components)
+For embedded PDFs, images, and other binary content: `Data.get(obj, type)`, `Data.set(obj, type, blob)`.
 
----
+### Fn (Function Library)
+Methods: `call(args...)`, `attributes()`, `has_attribute(name)`, `name()`.
 
-## Http Library
+### Age (Duration)
+Time duration library for working with age/elapsed time values.
 
-```stof
-if (lib('Http')) {
-    const resp = await Http.fetch('https://api.example.com/data');
-    Http.success(resp)          // bool — 2xx
-    Http.client_error(resp)     // bool — 4xx
-    Http.server_error(resp)     // bool — 5xx
-    Http.text(resp)             // response body as string
-    Http.size(resp)             // response size
-    Http.parse(resp, new {})    // parse body into object
-
-    // Parallel requests
-    let handles = [];
-    for (let i in 10) handles.push_back(Http.fetch(url));
-    for (const response in await handles) { ... }
-}
-```
-
----
-
-## Blob Library
-
-```stof
-let b: blob = 'hello, world'
-let b = |104, 101, 108, 108, 111|;  // raw byte literal
-
-b.len()                         // byte count
-b.size()                        // as memory unit
-b[idx]
-
-b.utf8() / Blob.from_utf8('hello')
-b.base64() / Blob.from_base64(str)
-b.url_base64() / Blob.from_url_base64(str)
-// Iterable: for (const byte in b) { ... }
-```
-
----
-
-## Age Encryption Library
-
-```stof
-if (lib('Age')) {
-    const identity = Age.generate()
-    const public_key = identity.public()
-
-    // Encrypt
-    const bin = Age.blobify(public_key, 'stof', payload_obj)
-    // or: Age.blobify([pub1, identity2], 'stof', payload_obj)
-
-    // Decrypt
-    const success = Age.parse(identity, bin, dest_obj, 'stof')
-
-    drop(identity)
-}
-```
-
----
-
-## Fn Library (Function Introspection)
-
-```stof
-const func = self.my_function;
-
-// Introspection
-func.name()                  // → 'my_function'
-func.params()                // [('a', 'int'), ('b', 'int')]
-func.return_type()           // → 'int'
-func.has_attribute('test')
-func.attributes()
-func.obj()                   // primary object attached to
-func.is_async()
-
-// Calling
-func(5, 5)
-func.call(5, 6)
-Fn.call(func, 9, 2)
-func.call_expanded([30, 12]) // expand list as positional args
-
-// Binding — rebind self to a different object
-func.bind(other_obj);
-
-// this — inside a function, refers to the function itself
-fn my_func() {
-    pln(this.name());        // → 'my_func'
-    this(...)                // recursive call
-}
-```
-
----
-
-## Data Library (Low-Level Data Handles)
-
-Every field and function is backed by a `Data` handle — a portable binary artifact.
-
-```stof
-// Get a data handle
-const field_data = Data.field('self.my_field')
-const func_data  = (self.my_func).data()
-const data       = Data.from_id(func.id())
-
-// Check / inspect
-data.exists()
-data.id()
-data.objs()                 // objects this data is attached to
-Data.libname(val)            // library name for Data<Lib> component
-
-// Blob serialization
-const blob = field_data.blob()
-const new_data = Data.load_blob(blob, dest_obj)
-
-// Attach / move / drop
-data.attach(other_obj)
-data.drop() / data.drop_from(obj)
-data.move(from_obj, to_obj)
-
-// Invalidation / validation
-data.invalidate('cache_key')
-data.validate('cache_key')
-
-// Inline binary data in a document
-data@v1 |20, 0, 0, 0, ...|
-```
+### Fs (File System)
+File operations (when enabled): `fs.read(path)`, `fs.write(path, content)`, `fs.exists(path)`.

@@ -1,198 +1,245 @@
-# Stof Formats, Interop & Patterns
+# Formats & Patterns Reference
 
-Detailed reference for format I/O, imports, rich data components, the `#[run]` workflow pattern, and common idioms.
+Detailed reference for format I/O, imports, rich data components, `#[run]` workflows, and common idioms in Stof.
 
 ---
 
-## Formats & Interop
+## Supported Formats
 
-Stof's underlying structure is an **entity-component system over a DAG**: nodes (objects) are entities, and data components (fields, functions, images, PDFs, etc.) are the components attached to them. Formats and libraries are just different lenses on that same flat structure.
+| Format | Full fidelity | Use case |
+|--------|:---:|---------|
+| `stof:human` | Yes | Readable roundtrip with functions, attributes, prototypes |
+| `bstf` | Yes | Binary transfer (includes binary data components) |
+| `json` | No | External system interop — data only, no functions |
+| `toml` | No | Configuration files |
+| `yaml` | No | Configuration files |
+| `text` / `md` | No | Plain text / Markdown content |
 
-**Format I/O is potentially lossy.** Round-trip fidelity depends on the format:
+**Full fidelity** means the format preserves functions, attributes, prototypes, and binary data. Non-fidelity formats export data only.
 
-| Format | Functions | Attributes | Unit types | Prototypes | Binary data |
-|--------|-----------|------------|------------|------------|-------------|
-| `stof` / `stof:human` | Yes | Yes | Yes | Yes | No |
-| `bstf` | Yes | Yes | Yes | Yes | Yes |
-| `json` | No | No | No | No | No |
-| `toml` | No | No | No | No | No |
-| `yaml` | No | No | No | No | No |
-| `text` / `md` | No | No | No | No | No |
-| `urlencoded` | No | No | No | No | No |
+---
 
-Use `stof:human` or `bstf` for full fidelity. Use `json`/`toml`/`yaml` for interop with external systems.
-
-### Serialization
+## Import
 
 ```stof
-// stringify — serialize an object to a string
-stringify('json', obj)          // → JSON string
-stringify('stof:human', obj)    // → human-readable Stof (preserves all)
-stringify('md', obj)            // → Markdown (reads obj.md field)
-stringify('urlencoded', obj)    // → URL-encoded form data
-
-// blobify — serialize to binary blob
-blobify('bstf', obj)            // fully roundtrips types, functions, attributes
-
-// parse — deserialize into an existing object
-parse(str_or_blob, dest, 'json')
-parse(str_or_blob, dest, 'stof')
-parse(stof_string)              // parse into current context
-```
-
-**Format notes:**
-- `'stof'` vs `'stof:human'` — compact omits whitespace; `stof:human` is readable with full fidelity
-- `'bstf'` — binary Stof for over-the-wire transfer
-- `'bytes'` — `obj.bytes` field must be a `blob`
-- `'urlencoded'` / `'www-form'` — nested objects encode as bracket notation (`sub[val]=42`)
-
-### Imports
-
-```stof
-// Path-only (format inferred from extension)
+// Import Stof files
 import './config.stof' as self.Config
+import './other.stof' as self.Other
+
+// Import JSON/YAML/TOML — parsed into objects
 import './data.json' as self.Data
-import './test.json'               // parsed into self directly
+import './config.yaml' as self.Config
+import './settings.toml' as self.Settings
 
-// Explicit format override
-import json './test.json' as self.Imported
-import text './test.json' as self.Raw   // imports raw text into dest.text
-import pkg './path'                    // import a package (@ prefix = stof/ directory)
+// Import binary/rich data — creates Data<T> components
+import './file.pdf'                 // → Data<Pdf> component on current object
+import './image.png'                // → Data<Image> component
+import './document.pdf' as self.Doc // → Data<Pdf> on self.Doc
 
-// Binary / rich formats — loaded as data components
-import './file.pdf'                 // → self.pdf as Data<Pdf>
-import './image.png'                // → self.image as Data<Image>
-
-// Runtime parse
-parse(str_or_blob, target_obj, 'stof')
+// Import from URL
+import 'https://example.com/data.json' as self.Remote
 ```
 
-### Rich data components (`Data<Lib>`)
+### Import Behavior
 
-When a format loads binary data, the result is a `data` value typed as `Data<LibName>`:
+- `import` merges the imported content into the target object
+- If the target already has fields with the same names, they are overwritten
+- `as self.Path` controls where the imported data lands in the document graph
+- Without `as`, content is imported into the current object
+- Rich data (PDFs, images) become `Data<Type>` components accessible via the Data library
+
+---
+
+## Serialization & Deserialization
 
 ```stof
-if (lib('Pdf')) {
-    assert_eq(typename self.pdf, 'Data<Pdf>');
-    const text = self.pdf.extract_text();
-    const images = self.pdf.extract_images();
-}
+// Serialize to string
+stringify('json', obj)            // JSON string
+stringify('yaml', obj)            // YAML string
+stringify('toml', obj)            // TOML string
+stringify('stof:human', obj)      // Full fidelity Stof string
 
-if (lib('Image')) {
-    const clone = copy(self.image);
-    clone.width()               // → 1200
-    clone.resize(500, 500)
-    clone.bmp()                 // → blob
-    const img = Image.from_blob(bmp_blob);
-}
+// Serialize to binary
+blobify('bstf', obj)              // Binary Stof blob
 
-// Cast to a typed data handle
-let dta: data = self.pdf as Data<Pdf>;
-assert_eq(Data.libname(dta), 'Pdf');
+// Deserialize from string
+parse(json_str, dest, 'json')     // Parse JSON into dest object
+parse(yaml_str, dest, 'yaml')     // Parse YAML into dest
+parse(stof_str, dest, 'stof')     // Parse Stof into dest
+
+// Roundtrip example
+const serialized = stringify('stof:human', self.data);
+const restored = new {};
+parse(serialized, restored, 'stof');
 ```
 
-### Stof export/import notes
+---
 
-- `stringify('stof:human', obj)` + `parse(str, dest, 'stof')` fully roundtrips including functions and prototype definitions
-- Attributes that hold function values (e.g. `#[schema(...)]`) roundtrip correctly
-- **Avoid export/import within the same graph** — IDs may collide. Use `copy(obj)` instead
-- Package imports: `import pkg './@geo'` resolves `@` to the `stof/` directory
+## Rich Data Components
+
+Stof documents can contain binary data components alongside fields and functions:
+
+```stof
+// Import creates data components
+import './diagram.pdf'              // Data<Pdf>
+import './photo.png'                // Data<Image>
+
+// Access via Data library
+const pdf_data = Data.get(self, 'Pdf');
+const img_data = Data.get(self, 'Image');
+
+// Set data programmatically
+Data.set(self, 'Pdf', pdf_blob);
+```
+
+Data components travel with objects — when you serialize with `bstf` (binary Stof), all data components are included.
+
+---
+
+## Export Control
+
+```stof
+// Exclude from export/stringify
+#[no-export]
+internal_config: {
+    secret_key: 'abc123'
+}
+
+// Only this object is excluded — children can still be exported individually
+```
 
 ---
 
 ## `#[run]` Workflow Pattern
+
+The `#[run]` attribute creates ordered, composable workflow pipelines within objects.
+
+### Basic Workflow
 
 ```stof
 workflow: {
     #[run(1)]
     step_one: {
         #[run]
-        fn execute() { pln("step 1") }
+        fn execute() { pln("step 1: initialize") }
     }
-
     #[run(2)]
     step_two: {
         #[run]
-        fn execute() { pln("step 2") }
+        fn execute() { pln("step 2: process") }
     }
-
-    // Run with arguments
-    #[run({'args': [42]})]
-    fn setup(val: int) { self.configured = val; }
-
-    // Run on lists — each element is run
-    #[run]
-    list_run: [
-        () => { self.done = true; },
-        { #[run] fn inner() { super.sub_done = true; } }
-    ]
+    #[run(3)]
+    step_three: {
+        #[run]
+        fn execute() { pln("step 3: finalize") }
+    }
 }
 
 #[main]
-fn main() { self.workflow.run() }
+fn main() {
+    self.workflow.run()   // executes steps in order: 1, 2, 3
+}
+```
+
+### Run with Arguments
+
+```stof
+#[run({'args': [42]})]
+fn step(value: int) {
+    pln(`Processing: ${value}`)
+}
+```
+
+### Prototype Run Behavior
+
+Control whether prototype `#[run]` functions execute on instances:
+
+```stof
+#[run({'prototype': 'none'})]    // skip prototype's run functions
+#[run({'prototype': 'first'})]   // run prototype's functions first
+#[run({'prototype': 'last'})]    // run prototype's functions last
 ```
 
 ---
 
-## Common Idioms & Patterns
+## Common Patterns
 
-**Guard-and-return:**
-```stof
-const policy = self.get();
-if (policy == null) return;
-```
+### Guard-and-Return
 
-**Null-safe dynamic dispatch:**
 ```stof
-?self.get().valid() ?? false
-?App.event_handler(key, val)
-```
-
-**Dynamic object insertion:**
-```stof
-const item = new {} on parent_obj;
-try {
-    parse(stof_str, item, 'stof');
-} catch {
-    drop(item);
-    return null;
+fn process() {
+    const policy = self.get();
+    if (policy == null) return;
+    // ... continue with valid policy
 }
-const id = item.id ?? nanoid();
-item.id = id;
-parent_obj.remove(id, shallow = false);
-parent_obj.insert(id, item as MyType);
 ```
 
-**Attribute-driven event dispatch:**
+### Dynamic Object Insertion with Validation
+
 ```stof
-for (const func in funcs(attributes = key)) {
-    const count = func.params().len();
-    if (count == 1) func(value);
-    else if (count < 1) func();
+fn safe_insert(stof_str: str) -> obj {
+    const item = new {} on parent;
+    try {
+        parse(stof_str, item, 'stof');
+    } catch {
+        drop(item);
+        return null;
+    }
+    item
 }
-
-#[my-event]
-fn on_event(value: obj) { ... }
 ```
 
-**Traverse parent chain to find a typed ancestor:**
+### Attribute-Driven Event Dispatch
+
 ```stof
-fn get_root_policy(child: obj) -> Policy {
-    if (child.instance_of('Policy')) return child;
+// Find and call all functions with a specific attribute
+fn dispatch(key: str, value: unknown) {
+    for (const func in funcs(attributes = key)) {
+        func(value);
+    }
+}
+```
+
+### Traverse Parent Chain
+
+```stof
+fn find_ancestor(child: obj, target_type: str) -> obj {
     let parent = child.parent();
     loop {
-        if (parent == null) break;
-        if (parent.instance_of('Policy')) return parent;
+        if (parent == null || parent.instance_of(target_type)) break;
         parent = parent.parent();
     }
-    null
+    parent
 }
 ```
 
-**send_tmp pattern (fire event then drop temp object):**
+### HTTP Fetch and Parse
+
 ```stof
-await <Event>.send_tmp('plan-changed', new {
-    previous: prev_plan,
-    current: new_plan,
-});
+fn fetch_json(url: str) -> obj {
+    const resp = await Http.fetch(url);
+    if (!Http.success(resp)) throw(`HTTP error`);
+    const data = new {};
+    Http.parse(resp, data);
+    data
+}
+```
+
+### Configuration with Validation
+
+```stof
+#[type]
+AppConfig: {
+    str! name: '';
+    #[schema((v) => v > 0 && v < 65536)]
+    int! port: 8080;
+    str! env: 'development';
+
+    fn is_production() -> bool { self.env == 'production' }
+}
+
+// Validate external config
+const raw = new {};
+parse(config_json, raw, 'json');
+<AppConfig>.schemafy(raw);   // throws if invalid
 ```

@@ -1,12 +1,12 @@
-# Stof Functions, Attributes, Prototypes & Schemas
+# Functions & Prototypes Reference
 
-Detailed reference for function declaration, async patterns, attributes, prototype types, and schema validation.
+Detailed reference for function declaration, async patterns, attributes, prototypes, and schemas in Stof.
 
 ---
 
-## Functions
+## Function Declaration
 
-Functions are first-class data, attached to objects just like fields, and referenced via dot-path. `self` = the object the function lives on; `super` = parent; `root` = document root.
+Functions are first-class data attached to objects, referenced via dot-path. `self` = owning object, `super` = parent, `root` = document root.
 
 ```stof
 // Standard declaration — return type uses ->
@@ -29,7 +29,8 @@ fn allow(value: float | str = 0) -> bool {
 }
 ```
 
-**Return value rules:**
+### Return Value Rules
+
 - Last expression **without** `;` = implicit return
 - `return expr;` = explicit early return
 - A **void** function (no `->`) must not have a bare expression as its last line — add `;` to suppress
@@ -39,34 +40,46 @@ fn allow(value: float | str = 0) -> bool {
 fn no_stmt() -> str { 'hello, world' }         // implicit return ✓
 fn ret_stmt() -> str { return 'hello, world'; } // explicit return ✓
 fn void_fn() { assert(true) }                   // fine — assert returns void
-fn not_void() { 42 }                            // ✗ error: bare expression in void fn
-fn no_ret() -> str { 42; }                      // ✗ error: semicolon consumed return value
+// fn not_void() { 42 }                         // ERROR: bare expression in void fn
+// fn no_ret() -> str { 42; }                   // ERROR: semicolon consumed value
 ```
 
-**Arrow functions:**
-```stof
-fn func: (a: int, b: int) -> int => a + b;     // named field
-double: (x: int): int => x * 2                  // plain field
-async_fn: async (): void => {}                   // async arrow
+### Arrow Functions
 
-let func = (): int => { return 53; };            // local variable
+```stof
+// Stored as a named field using fn keyword
+fn func: (a: int, b: int) -> int => a + b;
+
+// Stored as a plain field (no fn keyword)
+double: (x: int): int => x * 2
+stacked: () -> str => { super.exists }
+async_fn: async (): void => {}
+
+// Arrow function as a local variable
+let func = (): int => { return 53; };
 func()   // → 53
 
 // Arrow functions capture self from their owning object
-const created = new { visit: (): obj => self; };
+const created = new {
+    visit: (): obj => self;   // self = created
+};
 created.visit()   // → created
 
 // Immediately-invoked expression
 const res = ((a: int): int => a + 42)(10);   // → 52
 ```
 
-**Named parameters (keyword arguments):**
+### Named Parameters (Keyword Arguments)
+
 ```stof
 fn func(a: int, b: int) -> int { a + b }
 func(b = 30, a = 12)   // → 42
 ```
 
-**`this` — the function refers to itself; used for recursion:**
+### `this` — Self-Reference and Recursion
+
+`this` inside a function refers to the function data itself. `this(...)` = recursive call.
+
 ```stof
 fn fibonacci(n: int) -> int {
     if (n <= 1) { n }
@@ -74,12 +87,19 @@ fn fibonacci(n: int) -> int {
 }
 ```
 
-### Async
+---
+
+## Async
 
 Stof is **single-threaded but async by default**. Every function can use `await` regardless of whether it's marked `async` — `await` on a non-promise is a passthrough. The `async` keyword (and `#[async]` attribute — they're identical) spawns a new process.
 
+`Promise<T>` is optional as a type annotation — it matches its inner type.
+
 ```stof
+// async keyword and #[async] attribute are identical
 async fn this_is_async() -> str { 'hello, async' }
+#[async]
+fn this_is_also_async() -> str { 'async is actually just an attribute' }
 
 // ANY function can await — not just async ones
 fn takes_promise_param(param: Promise<str>) -> str {
@@ -93,62 +113,49 @@ await 'hello'   // → 'hello'
 const promise = async self.some_regular_fn();
 assert_eq(await promise, 578);
 
-// Async block expression
+// Async block expression — returns a promise for the block's value
 const res = async { let v = 7; v * 2 };
 assert_eq(await res, 14);
 
-// Await a list of handles
+// Await a list of handles — returns a list of results
 const results = await [self.fn_a(), self.fn_b()];
 
-// Casting promises
+// Casting promises — cast the promise to change what it resolves to
 let promise = (async { return '100'; }) as Promise<str>;
-promise = promise as int;       // now resolves to int
-assert_eq(await promise, 100);
+promise = promise as int;
+assert_eq(await promise, 100);   // '100' cast to int on resolve
 ```
 
 ---
 
-## Attributes
-
-Attributes attach metadata to fields and functions. Custom string attributes serve as **event keys**.
+## Special Function Attributes
 
 ```stof
-#[main]                        // run on document execution
-#[main(42)]                    // run with argument 42
-#[test]                        // test function
-#[test(expected_value)]        // parameterized test
-#[errors]                      // combined with #[test]: pass if it throws
-#[init]                        // run once at end of parsing
-#[type]                        // marks an object as a prototype
-#[extends(self.OtherProto)]    // prototype inheritance
-#[static]                      // callable on the prototype itself (not instances)
-#[constructor]                 // run automatically on new TypeName {}
-#[dropped]                     // run automatically when the object is drop()ed
-#[no-export]                   // exclude from export/stringify
-#[type_ignore]                 // ignore when type-casting
-#[readonly]                    // field can be read anywhere, but not written
-#[private]                     // field only visible to the object it's defined on
-#[schema(fn_expr)]             // field-level validation function
-#[schema_optional]             // field not required for schema validation
-#[field]                       // expose a function as a named field
-#[run] / #[run(N)]             // ordered workflow execution via obj.run()
-#[run({'args': [42]})]         // run with arguments
-#[run({'prototype': 'none'|'first'|'last'})]  // control prototype run behavior
-#[custom({'key': true})]       // arbitrary metadata
-#[my-event-key]                // custom string — used for event dispatch
-```
-
-**Any attribute name is valid** — `#[static]` is a human convention. Attributes are inspectable at runtime:
-```stof
-func.attributes()           // → {'custom': 42, 'test': null}
-func.has_attribute('test')  // → true
-this.attributes()           // read own attributes from inside the function
+#[main]                  // run on document execution
+#[main(42)]              // run with argument
+#[init]                  // run once at end of parsing (parse context dropped)
+#[test]                  // test function
+#[test(expected_value)]  // parameterized test
+#[errors]                // with #[test]: pass only if it throws
+#[constructor]           // run automatically on new TypeName {}
+#[dropped]               // run automatically when the object is drop()ed
+#[run] / #[run(N)]       // ordered workflow execution via obj.run()
+#[my_custom_attr]        // any string — pure metadata, readable at runtime
 ```
 
 `#[init]` fires once when the parse context is dropped (end of file/import):
 ```stof
 #[init]
-fn initialization() { self.initialized = true; }
+fn initialization() {
+    self.initialized = true;
+}
+```
+
+**Attributes are just metadata — any attribute name is valid.** `#[static]` is a human convention signalling that a function doesn't use `self`/`super`. Attributes are inspectable at runtime:
+```stof
+func.attributes()           // → {'custom': 42, 'test': null}
+func.has_attribute('test')  // → true
+this.attributes()           // read own attributes from inside the function
 ```
 
 ---
@@ -163,32 +170,45 @@ Customer: {
     str! id: '';
     str! plan: '';
     list! refs: [];
+    obj! meters: {};
     obj metadata: null;
 
-    fn greeting() -> str { `Hello, ${self.id}` }
+    fn greeting() -> str {
+        `Hello, ${self.id}`
+    }
 }
 ```
 
-**`<TypeName>`** — path shortcut to the prototype object:
+### `<TypeName>` Path Shortcut
+
+Can be a short name, dot-path, or `self.super.`-relative path:
 ```stof
-<Customer>.schemafy(obj)                  // validate against schema
-<Point2D>.add(1, 2)                       // call function on prototype
+<Customer>.schemafy(obj)                  // validate obj against Customer schema
+<Point2D>.add(1, 2)                       // call a function on the prototype
 <Geometry.Point>                          // dot-path to disambiguate
 <self.super.Geometry.Point2D>.add(1, 2)   // relative path
 ```
 
-**Typed fields on a prototype** — assigning a plain `{}` auto-casts it:
+### Typed Fields on Prototypes
+
+If a field is declared with a prototype type, assigning a plain `{}` auto-casts it:
 ```stof
 #[type]
 SuperType: {
     SubType sub: new SubType {}    // field has a prototype type
+    str msg: ''
 }
 
-const o = new SuperType { sub: new { one: 'ONE' } };
-assert_eq(typename o.sub, 'SubType');   // auto-cast
+const o = new SuperType {
+    msg: 'hi',
+    sub: new { one: 'ONE' }       // auto-cast to SubType, merging defaults
+};
+assert_eq(typename o.sub, 'SubType');
 ```
 
-**`#[constructor]`** — runs automatically on instance creation. Base constructor runs first with inheritance:
+### Constructor and Dropped
+
+**`#[constructor]`** runs automatically when a new instance is created. With inheritance, base constructor runs first:
 ```stof
 #[type]
 Point2D: {
@@ -198,25 +218,30 @@ Point2D: {
 }
 
 #[type]
-#[extends('Point2D')]
+#[extends(self.Point2D)]
 Point: {
     float z: 0;
     #[constructor]
-    fn init() { self.initialized = true; }  // Point2D init already ran
+    fn init() {
+        assert(self.isapoint);   // Point2D constructor already ran
+        self.initialized = true;
+    }
 }
 ```
 
-**`#[dropped]`** — runs automatically when the object is dropped:
+**`#[dropped]`** runs automatically when the object is dropped:
 ```stof
 #[type]
 Point: {
     #[dropped]
     fn on_drop() { super.point_dropped = true; }
 }
-drop(point);   // triggers #[dropped]
+drop(point);   // triggers #[dropped] functions
 ```
 
-**`#[extends]`** — prototype inheritance:
+### Inheritance (`#[extends]`)
+
+Accepts an object reference or a name string:
 ```stof
 #[type]
 #[extends(self.Point2D)]   // object reference
@@ -227,7 +252,9 @@ SubProto: { ... }
 SubProto: { ... }
 ```
 
-**`#[static]`** — function callable on the prototype itself:
+### `#[static]` Functions
+
+Callable on the prototype itself (not instances). `self` inside refers to the prototype object:
 ```stof
 #[type]
 Helpers: {
@@ -238,101 +265,52 @@ Helpers: {
 // Usage: <Helpers>.error("oops")
 ```
 
-**Calling a specific prototype's method on an instance:**
+### Type-Dispatch
+
+Call a specific prototype's method on an instance:
 ```stof
-point.length<Point2D>()    // dispatches to Point2D.length()
+point.length<Point2D>()    // dispatches to Point2D.length() with point as self
 ```
 
-### Creating instances
+### Creating Instances
 
-**Style A — `TypeName fieldname: { ... }` (preferred for clarity):**
+Two equivalent styles for typed instantiation:
+
+**Style A — `TypeName fieldname: { }` (preferred):**
 ```stof
 roster: {
     const Character aurora: {
-        name: 'Aurora', class: 'Mage', level: 5,
-        Resources resources: { max_hp: 48, current_hp: 48 };
-        items: [
-            { name: 'Arcane Staff', rarity: 'Rare' } as Item,
-        ];
+        name: 'Aurora',
+        class: 'Mage',
+        level: 5,
+        stats: {
+            Stat STR: { name: 'Strength', base: 7  };
+            Stat DEX: { name: 'Dexterity', base: 14 };
+        };
     };
 }
 ```
 
-**Style B — `new TypeName { ... }`:**
+**Style B — `new TypeName { }` / `const name: new TypeName { }`:**
 ```stof
-// Document-level — use COLON (:), not equals (=)
-const aurora: new Character { name: 'Aurora' };   // ✓
-
-// Inside a function, = works fine
-fn example() {
-    const c = new Character { name: 'Test' };     // ✓
-}
-
-// new ... on parent_obj — attach to a specific parent
-const customer = new Customer { id, plan } on self.customers;
+const aurora: new Character { name: 'Aurora' };   // colon at document level
+let aurora = new Character { name: 'Aurora' };     // = syntax inside functions
 ```
 
-**Other creation patterns:**
-```stof
-const object = new { var };         // punning: { var: 42 }
-const plan = new {} on self.plans;  // create under target node
-new root MyRoot { fn hello() -> str { 'hello' } }  // new root node
+**Important:** at document level, use `:` (colon), not `=` (equals) for `new` assignments.
 
-// Programmatic prototype management
-obj.create_type('MyType');
-obj.set_prototype('MyType');
-obj.instance_of('MyType');
-obj.prototype();
-```
-
-**Custom object IDs:**
-```stof
-MyObj: { (my_custom_id) field: 42 }
-assert_eq(MyObj.id(), 'my_custom_id');
-```
-
----
-
-## Schemas
-
-`#[schema]` validates fields when `schemafy` is called. Receives `target_val` (the field value) and optionally `target` (the containing object). Multiple schema attributes form a pipeline (all must pass).
-
-> **`#[schema]` must be placed on a specific *field*, not on the prototype body itself.**
+### Schema Validation
 
 ```stof
 #[type]
-Limit: {
-    // Inline lambda
-    #[schema((target_val: str): bool => {
-        set('hard', 'soft', 'observe').contains(target_val) ? true :
-        <LimitrValidation>.error(`Invalid mode: "${target_val}"`)
-    })]
-    str! mode: 'hard';
-
-    // Two-argument form: target (the object) + target_val (the field value)
-    #[schema((target: obj, target_val: float): bool => {
-        target_val >= 0 ? true : <LimitrValidation>.error(`Negative amount`)
-    })]
-    float! amount: 0;
-
-    // Pipeline: multiple schema attributes
-    #[schema((target_value: unknown): bool => (typeof target_value) == 'str')]
-    #[schema((target_value: str): bool => target_value.contains('Dude'))]
-    str last: 'Doe';
-
-    // Reference a static helper
-    #[schema(<Helpers>.valid_credit_id)]
-    str! credit: '';
-
-    // Optional field: only validated if present
-    #[schema((target_val: obj): bool => <Price>.schemafy(target_val))]
+Config: {
+    str! name: '';
+    #[schema((v) => v > 0 && v < 65536)]
+    int! port: 8080;
     #[schema_optional]
-    Price price: null;
+    str description: null;
 }
-```
 
-**Running schema validation:**
-```stof
-<Limit>.schemafy(my_obj)                                        // returns bool
-<Schema>.schemafy(target, remove_invalid = true, remove_undefined = true)
+// Validate an object against the schema
+<Config>.schemafy(my_obj);   // throws if validation fails
 ```
