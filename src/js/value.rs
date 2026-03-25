@@ -17,22 +17,9 @@
 use imbl::{OrdMap, OrdSet, Vector};
 use js_sys::{Array, BigInt, Map, Set, Uint8Array};
 use wasm_bindgen::{JsCast, JsValue};
-use crate::{js::Stof, model::{Func, Graph, SId}, runtime::{Num, Type, Val, ValRef}};
+use crate::{model::{Func, Graph, SId}, runtime::{Num, Type, Val, ValRef}};
 
 
-impl From<(JsValue, &Stof)> for Val {
-    fn from(value: (JsValue, &Stof)) -> Self {
-        to_stof_value(value.0, value.1)
-    }
-}
-impl From<(JsValue, &mut Stof)> for Val {
-    fn from(value: (JsValue, &mut Stof)) -> Self {
-        to_stof_value(value.0, &value.1)
-    }
-}
-pub fn to_stof_value(js: JsValue, doc: &Stof) -> Val {
-    to_graph_value(js, &doc.graph)
-}
 pub fn to_graph_value(js: JsValue, doc: &Graph) -> Val {
     if js.is_null() { return Val::Null; }
     if js.is_undefined() { return Val::Void; }

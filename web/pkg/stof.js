@@ -301,6 +301,18 @@ export class Stof {
         return ret[0] !== 0;
     }
     /**
+     * Run functions with the given attribute(s) in this document.
+     * Attributes defaults to #[main] functions if null or undefined.
+     * @param {any} attributes
+     * @param {Function} acquire
+     * @param {Function} release
+     * @returns {Promise<string>}
+     */
+    run_with_gate(attributes, acquire, release) {
+        const ret = wasm.stof_run_with_gate(this.__wbg_ptr, attributes, acquire, release);
+        return ret;
+    }
+    /**
      * String export, using a format of choice.
      * @param {string} format
      * @param {any} node
@@ -348,6 +360,22 @@ export class Stof {
         return ret[0] !== 0;
     }
     /**
+     * Call a singular function in the document (by path).
+     * If no arguments, pass undefined as args.
+     * Otherwise, pass an array of arguments as args.
+     * @param {string} path
+     * @param {any} args
+     * @param {Function} acquire
+     * @param {Function} release
+     * @returns {Promise<any>}
+     */
+    call_with_gate(path, args, acquire, release) {
+        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.stof_call_with_gate(this.__wbg_ptr, ptr0, len0, args, acquire, release);
+        return ret;
+    }
+    /**
      * Insert a JS function as a library function, available in Stof.
      * @param {StofFunc} func
      */
@@ -378,16 +406,6 @@ export class Stof {
         return this;
     }
     /**
-     * Run functions with the given attribute(s) in this document.
-     * Attributes defaults to #[main] functions if null or undefined.
-     * @param {any} attributes
-     * @returns {Promise<string>}
-     */
-    run(attributes) {
-        const ret = wasm.stof_run(this.__wbg_ptr, attributes);
-        return ret;
-    }
-    /**
      * Set a value onto this graph using the Stof runtime.
      * @param {string} path
      * @param {any} value
@@ -399,20 +417,6 @@ export class Stof {
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.stof_set(this.__wbg_ptr, ptr0, len0, value, start);
         return ret !== 0;
-    }
-    /**
-     * Call a singular function in the document (by path).
-     * If no arguments, pass undefined as args.
-     * Otherwise, pass an array of arguments as args.
-     * @param {string} path
-     * @param {any} args
-     * @returns {Promise<any>}
-     */
-    call(path, args) {
-        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.stof_call(this.__wbg_ptr, ptr0, len0, args);
-        return ret;
     }
     /**
      * Get the ID of this document as a string.
@@ -1005,11 +1009,6 @@ function __wbg_get_imports() {
         const ret = arg0.versions;
         return ret;
     };
-    imports.wbg.__wbindgen_cast_19039c21a5ac44b6 = function(arg0, arg1) {
-        // Cast intrinsic for `Closure(Closure { dtor_idx: 7077, function: Function { arguments: [Externref], shim_idx: 7078, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-        const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h72b14ab7db8750ca, wasm_bindgen__convert__closures_____invoke__h53d5cf04cab8438f);
-        return ret;
-    };
     imports.wbg.__wbindgen_cast_2241b6af4c4b2941 = function(arg0, arg1) {
         // Cast intrinsic for `Ref(String) -> Externref`.
         const ret = getStringFromWasm0(arg0, arg1);
@@ -1018,6 +1017,11 @@ function __wbg_get_imports() {
     imports.wbg.__wbindgen_cast_4625c577ab2ec9ee = function(arg0) {
         // Cast intrinsic for `U64 -> Externref`.
         const ret = BigInt.asUintN(64, arg0);
+        return ret;
+    };
+    imports.wbg.__wbindgen_cast_4f41d4709fd67779 = function(arg0, arg1) {
+        // Cast intrinsic for `Closure(Closure { dtor_idx: 7056, function: Function { arguments: [Externref], shim_idx: 7057, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+        const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h72b14ab7db8750ca, wasm_bindgen__convert__closures_____invoke__h53d5cf04cab8438f);
         return ret;
     };
     imports.wbg.__wbindgen_cast_9ae0607507abb057 = function(arg0) {

@@ -19,6 +19,11 @@ export class Stof {
    */
   objImport(js_obj: any, node: any): boolean;
   /**
+   * Run functions with the given attribute(s) in this document.
+   * Attributes defaults to #[main] functions if null or undefined.
+   */
+  run_with_gate(attributes: any, acquire: Function, release: Function): Promise<string>;
+  /**
    * String export, using a format of choice.
    */
   stringExport(format: string, node: any): string;
@@ -26,6 +31,12 @@ export class Stof {
    * String import, using a format of choice (including stof).
    */
   stringImport(src: string, format: string, node: any, profile: string): boolean;
+  /**
+   * Call a singular function in the document (by path).
+   * If no arguments, pass undefined as args.
+   * Otherwise, pass an array of arguments as args.
+   */
+  call_with_gate(path: string, args: any, acquire: Function, release: Function): Promise<any>;
   /**
    * Insert a JS function as a library function, available in Stof.
    */
@@ -39,20 +50,9 @@ export class Stof {
    */
   constructor();
   /**
-   * Run functions with the given attribute(s) in this document.
-   * Attributes defaults to #[main] functions if null or undefined.
-   */
-  run(attributes: any): Promise<string>;
-  /**
    * Set a value onto this graph using the Stof runtime.
    */
   set(path: string, value: any, start: any): boolean;
-  /**
-   * Call a singular function in the document (by path).
-   * If no arguments, pass undefined as args.
-   * Otherwise, pass an array of arguments as args.
-   */
-  call(path: string, args: any): Promise<any>;
   /**
    * Get the ID of this document as a string.
    */
@@ -100,14 +100,14 @@ export interface InitOutput {
   readonly start: () => void;
   readonly stof_binaryExport: (a: number, b: number, c: number, d: any) => [number, number, number];
   readonly stof_binaryImport: (a: number, b: any, c: number, d: number, e: any, f: number, g: number) => [number, number, number];
-  readonly stof_call: (a: number, b: number, c: number, d: any) => any;
+  readonly stof_call_with_gate: (a: number, b: number, c: number, d: any, e: any, f: any) => any;
   readonly stof_docid: (a: number) => [number, number];
   readonly stof_get: (a: number, b: number, c: number, d: any) => any;
   readonly stof_js_library_function: (a: number, b: number) => void;
   readonly stof_new: () => number;
   readonly stof_objImport: (a: number, b: any, c: any) => [number, number, number];
   readonly stof_parse: (a: number, b: number, c: number, d: any, e: number, f: number) => [number, number, number];
-  readonly stof_run: (a: number, b: any) => any;
+  readonly stof_run_with_gate: (a: number, b: any, c: any, d: any) => any;
   readonly stof_set: (a: number, b: number, c: number, d: any, e: any) => number;
   readonly stof_stringExport: (a: number, b: number, c: number, d: any) => [number, number, number, number];
   readonly stof_stringImport: (a: number, b: number, c: number, d: number, e: number, f: any, g: number, h: number) => [number, number, number];

@@ -131,16 +131,30 @@ export async function stofAsync(strings: TemplateStringsArray, ...values: unknow
 
 
 /**
- * Internal gate to serialize WASM calls.
+ * Internal mutex for single linear WASM.
  * Prevents race conditions and memory issues.
  */
-class WasmGate {
-    private tail: Promise<unknown> = Promise.resolve();
-    
-    run<T>(fn: () => Promise<T> | T): Promise<T> {
-        const next = this.tail.then(fn, fn);
-        this.tail = next.catch(() => {});
-        return next;
+class WasmMutex {
+    private locked = false;
+    private waiters: (() => void)[] = [];
+
+    acquire(): Promise<void> {
+        if (!this.locked) {
+            this.locked = true;
+            return Promise.resolve();
+        }
+        return new Promise<void>((resolve) => {
+            this.waiters.push(resolve);
+        });
+    }
+
+    release(): void {
+        if (this.waiters.length > 0) {
+            const next = this.waiters.shift()!;
+            setTimeout(next, 0); // Resolve on next so frame completes
+        } else {
+            this.locked = false;
+        }
     }
 }
 
@@ -149,9 +163,9 @@ class WasmGate {
  * Stof document.
  */
 export class StofDoc {
-    static readonly VERSION = '0.9.14';
+    static readonly VERSION = '0.9.17';
     private static initialized?: Promise<unknown>;
-    private static wasmGate = new WasmGate();
+    private static wasmMutex = new WasmMutex();
     stof: Stof;
 
 
@@ -184,9 +198,11 @@ export class StofDoc {
     /**
      * Ensure stof is initialized before creating a new instance.
      */
-    static async new(): Promise<StofDoc> {
+    static async new(src?: string | Record<string, unknown> | Uint8Array, format: string = "stof", profile: 'prod' | 'test' = 'prod'): Promise<StofDoc> {
         await initStof();
-        return new StofDoc();
+        const doc = new StofDoc();
+        if (src) doc.parse(src, format, undefined, profile);
+        return doc;
     }
 
 
@@ -228,9 +244,10 @@ export class StofDoc {
      * Add JS library function.
      */
     // deno-lint-ignore ban-types
-    lib(library: string, name: string, func: Function, is_async: boolean = false) {
+    lib(library: string, name: string, func: Function, is_async?: boolean) {
         const docid = this.stof.docid();
-        this.stof.js_library_function(new StofFunc(docid, library, name, func, is_async));
+        const async_fn = is_async ?? func.constructor.name === "AsyncFunction";
+        this.stof.js_library_function(new StofFunc(docid, library, name, func, async_fn));
     }
 
 
@@ -239,7 +256,9 @@ export class StofDoc {
      * Will run all #[main] functions by default.
      */
     async run(attr: string | string[] = 'main'): Promise<string> {
-        return await StofDoc.wasmGate.run(() => this.stof.run(attr));
+        const acquire = () => StofDoc.wasmMutex.acquire();
+        const release = () => StofDoc.wasmMutex.release();
+        return await this.stof.run_with_gate(attr, acquire, release);
     }
 
 
@@ -258,7 +277,9 @@ export class StofDoc {
      */
     async call(path: string, ...args: unknown[]): Promise<unknown> {
         if (!path.includes('.')) path = 'root.' + path; // assume root node if not specified
-        return await StofDoc.wasmGate.run(() => this.stof.call(path, args));
+        const acquire = () => StofDoc.wasmMutex.acquire();
+        const release = () => StofDoc.wasmMutex.release();
+        return await this.stof.call_with_gate(path, args, acquire, release);
     }
 
 
@@ -334,40 +355,5 @@ export class StofDoc {
         const doc = await StofDoc.new();
         doc.stof.binaryImport(serialized, 'bstf', null, 'prod');
         return doc;
-    }
-
-
-    /*****************************************************************************
-     * Network.
-     *****************************************************************************/
-
-    /**
-     * Send Stof doc string body as an HTTP request.
-     */
-    static async send(url: string, stof: string, method: string = 'POST', bearer?: string, headers: Record<string, string> = {}): Promise<Response> {
-        headers['Content-Type'] = 'application/stof';
-        if (bearer !== undefined) headers['Authorization'] = `Bearer ${bearer}`;
-        return await fetch(url, {
-            method,
-            headers: headers as HeadersInit,
-            body: stof
-        });
-    }
-
-
-    /**
-     * Send this document ('bstf' format) as an HTTP request.
-     */
-    async send(url: string, method: string = 'POST', bearer?: string, headers: Record<string, string> = {}): Promise<Response> {
-        return await StofDoc.wasmGate.run(async () => {
-            headers['Content-Type'] = 'application/bstf';
-            if (bearer !== undefined) headers['Authorization'] = `Bearer ${bearer}`;
-            const body = this.stof.binaryExport('bstf', null); // Uint8Array
-            return await fetch(url, {
-                method,
-                headers: headers as HeadersInit,
-                body
-            });
-        });
     }
 }

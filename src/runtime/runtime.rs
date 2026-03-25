@@ -14,6 +14,8 @@
 // limitations under the License.
 //
 
+#[cfg(feature = "js")]
+use std::cell::RefCell;
 use std::sync::Arc;
 use web_time::{SystemTime, UNIX_EPOCH};
 use colored::Colorize;
@@ -617,7 +619,45 @@ impl Runtime {
         !self.running.is_empty() || !self.sleeping.is_empty()
     }
 
-    #[allow(unused)]
+    #[cfg(feature = "js")]
+    /// Single step async.
+    pub async fn async_single_step_with_gate(&mut self, graph: &RefCell<Graph>, yield_to_outer: bool, acquire: &js_sys::Function, release: &js_sys::Function) -> bool {
+        // Acquire the gate before touching WASM memory
+        let acquire_promise = acquire.call0(&wasm_bindgen::JsValue::NULL).expect("acquire failed");
+        wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(acquire_promise)).await.expect("acquire await failed");
+        
+        let res = {
+            let mut gr = graph.borrow_mut();
+            self.run_single_step(&mut *gr)
+        };
+
+        // Release the gate — WASM memory is safe for others
+        release.call0(&wasm_bindgen::JsValue::NULL).expect("release failed");
+        {
+            if yield_to_outer {
+                // Yield to the macrotask queue so async JS operations (fetch, etc.) can execute.
+                // Using setTimeout(0) instead of Promise microtasks ensures proper event loop yielding.
+                let promise = js_sys::Promise::new(&mut |resolve, _reject| {
+                    use wasm_bindgen::JsCast;
+                    let global = js_sys::global();
+
+                    // Get setTimeout from global (works in Node.js, Browser, Deno, Bun)
+                    let set_timeout = js_sys::Reflect::get(&global, &"setTimeout".into()).expect("setTimeout not available");
+                    let set_timeout_fn = set_timeout.dyn_into::<js_sys::Function>().expect("setTimeout is not a function");
+                    
+                    // Call setTimeout(resolve, 0)
+                    let args = js_sys::Array::new();
+                    args.push(&resolve);
+                    args.push(&0.into()); // 0ms - yields to macrotask queue
+                    
+                    set_timeout_fn.apply(&global, &args).expect("setTimeout failed");
+                });
+                wasm_bindgen_futures::JsFuture::from(promise).await.expect("setTimeout promise failed");
+            }
+        }
+        res
+    }
+    
     #[cfg(any(feature = "js", feature = "tokio"))]
     /// Single step async.
     pub async fn async_single_step(&mut self, graph: &mut Graph, yield_to_outer: bool) -> bool {
@@ -649,17 +689,125 @@ impl Runtime {
         res
     }
 
-    #[cfg(any(feature = "js", feature = "tokio"))]
-    /// Run every #[main] function within this graph.
-    /// If throw is false, this will only return Ok.
-    pub async fn async_run(graph: &mut Graph, context: Option<String>, throw: bool) -> Result<String, String> {
-        Self::async_run_functions(graph, context, Func::main_functions(graph), throw).await
+    #[cfg(feature = "js")]
+    /// Run functions with the given attributes in this graph.
+    pub async fn async_run_attribute_functions_with_gate(graph: &RefCell<Graph>, context: Option<String>, attributes: &Option<FxHashSet<String>>, throw: bool, acquire: &js_sys::Function, release: &js_sys::Function) -> Result<String, String> {
+        let functions;
+        {
+            let gr = graph.borrow();
+            functions = Func::all_functions(&gr, attributes);
+        }
+        Self::async_run_functions_with_gate(graph, context, functions, throw, acquire, release).await
     }
 
     #[cfg(any(feature = "js", feature = "tokio"))]
     /// Run functions with the given attributes in this graph.
     pub async fn async_run_attribute_functions(graph: &mut Graph, context: Option<String>, attributes: &Option<FxHashSet<String>>, throw: bool) -> Result<String, String> {
         Self::async_run_functions(graph, context, Func::all_functions(graph, attributes), throw).await
+    }
+
+    #[cfg(feature = "js")]
+    /// Run all given functions.
+    pub async fn async_run_functions_with_gate(graph: &RefCell<Graph>, context: Option<String>, functions: FxHashSet<DataRef>, throw: bool, acquire: &js_sys::Function, release: &js_sys::Function) -> Result<String, String> {
+        let mut rt = Self::default();
+        for func_ref in functions {
+            let mut gr = graph.borrow_mut();
+            if let Some(context) = &context {
+                for node in func_ref.data_nodes(&gr) {
+                    if let Some(node_path) = node.node_path(&gr, true) {
+                        let path = node_path.join(".");
+                        if path.contains(context) {
+                            let instruction = Arc::new(FuncCall {
+                                as_ref: false,
+                                cnull: false,
+                                stack: false,
+                                func: Some(func_ref),
+                                search: None,
+                                args: Default::default(),
+                                oself: None,
+                            }) as Arc<dyn Instruction>;
+                            let proc = Process::from(instruction);
+                            rt.push_running_proc(proc, &mut *gr);
+                            break;
+                        }
+                    }
+                }
+            } else {
+                let instruction = Arc::new(FuncCall {
+                    as_ref: false,
+                    cnull: false,
+                    stack: false,
+                    func: Some(func_ref),
+                    search: None,
+                    args: Default::default(),
+                    oself: None,
+                }) as Arc<dyn Instruction>;
+                let proc = Process::from(instruction);
+                rt.push_running_proc(proc, &mut *gr);
+            }
+        }
+
+        const YIELD_INTERVAL_MS: u64 = 20;
+        let mut yield_to_outer = false;
+        let mut last_yield = web_time::Instant::now();
+        while rt.async_single_step_with_gate(graph, yield_to_outer, acquire, release).await {
+            yield_to_outer = false;
+            if last_yield.elapsed().as_millis() as u64 >= YIELD_INTERVAL_MS {
+                yield_to_outer = true;
+                last_yield = web_time::Instant::now();
+            }
+        }
+
+        let mut output = String::from("");
+        for (_, success) in &rt.done {
+            if success.env.call_stack.len() < 1 && success.instructions.executed.len() > 0 {
+                let func = success.instructions.executed[0].clone();
+                if let Some(func) = func.as_dyn_any().downcast_ref::<Base>() {
+                    match func {
+                        Base::Literal(val) => {
+                            if let Some(func_ref) = val.try_func() {
+                                let gr = graph.borrow();
+                                if let Some(name) = func_ref.data_name(&gr) {
+                                    let mut func_path = String::from("<unknown>");
+                                    for node in func_ref.data_nodes(&gr) {
+                                        func_path = node.node_path(&gr, true).unwrap().join(".");
+                                    }
+                                    // Only print something if there's a result
+                                    if let Some(res) = &success.result {
+                                        let suc_str = res.val.read().print(&gr);
+                                        let msg = format!("{} {} {} {} {}\n", "main".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), suc_str.bold().bright_cyan());
+                                        if output.len() < 1 { output.push('\n'); }
+                                        output.push_str(&msg);
+                                    }
+                                }
+                            }
+                        },
+                        _ => {}
+                    }
+                }
+            }
+        }
+        for (_, errored) in &rt.errored {
+            if errored.env.call_stack.len() > 0 {
+                let gr = graph.borrow();
+                let func_ref = errored.env.call_stack.first().unwrap();
+                if let Some(name) = func_ref.data_name(&gr) {
+                    let mut func_path = String::from("<unknown>");
+                    for node in func_ref.data_nodes(&gr) {
+                        func_path = node.node_path(&gr, true).unwrap().join(".");
+                    }
+                    let err_str = errored.trace(&gr, 10);
+                    let msg = format!("{} {} {} {} {} {}\n{}\n", "main".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "failed".bold().red(), "@".dimmed(), err_str.bold().bright_cyan());
+                    output.push_str(&msg);
+                }
+            }
+        }
+
+        if throw && rt.errored.len() > 0 {
+            Err(output)
+        } else {
+            Ok(output)
+        }
     }
 
     #[cfg(any(feature = "js", feature = "tokio"))]
@@ -1071,6 +1219,23 @@ impl Runtime {
         Self::eval(graph, instruction)
     }
 
+    #[cfg(feature = "js")]
+    /// Call a singular function with this runtime.
+    pub async fn async_call_with_gate(graph: &RefCell<Graph>, search: &str, args: Vec<Val>, acquire: &js_sys::Function, release: &js_sys::Function) -> Result<Val, Error> {
+        let mut arguments: Vector<Arc<dyn Instruction>> = Vector::default();
+        for arg in args { arguments.push_back(Arc::new(Base::Literal(arg))); }
+        let instruction = Arc::new(FuncCall {
+            as_ref: false,
+            cnull: false,
+            stack: false,
+            func: None,
+            search: Some(search.into()),
+            args: arguments,
+            oself: None,
+        });
+        Self::async_eval_with_gate(graph, instruction, acquire, release).await
+    }
+
     #[cfg(any(feature = "js", feature = "tokio"))]
     /// Call a singular function with this runtime.
     pub async fn async_call(graph: &mut Graph, search: &str, args: Vec<Val>) -> Result<Val, Error> {
@@ -1135,6 +1300,48 @@ impl Runtime {
         }
     }
 
+    #[cfg(feature = "js")]
+    /// Evaluate a single instruction.
+    /// Creates a new runtime and process just for this (lightweight).
+    /// Use this while parsing if needed.
+    pub async fn async_eval_with_gate(graph: &RefCell<Graph>, instruction: Arc<dyn Instruction>, acquire: &js_sys::Function, release: &js_sys::Function) -> Result<Val, Error> {
+        let mut runtime = Self::default();
+        let proc = Process::from(instruction);
+        let pid = proc.env.pid.clone();
+        
+        {
+            let mut gr = graph.borrow_mut();
+            runtime.push_running_proc(proc, &mut *gr);
+        }
+        
+        const YIELD_INTERVAL_MS: u64 = 20;
+        let mut yield_to_outer = false;
+        let mut last_yield = web_time::Instant::now();
+        while runtime.async_single_step_with_gate(graph, yield_to_outer, acquire, release).await {
+            yield_to_outer = false;
+            if last_yield.elapsed().as_millis() as u64 >= YIELD_INTERVAL_MS {
+                yield_to_outer = true;
+                last_yield = web_time::Instant::now();
+            }
+        }
+
+        if let Some(proc) = runtime.done.remove(&pid) {
+            if let Some(res) = proc.result {
+                Ok(res.get())
+            } else {
+                Ok(Val::Void)
+            }
+        } else if let Some(proc) = runtime.errored.remove(&pid) {
+            if let Some(err) = proc.error {
+                Err(err)
+            } else {
+                Err(Error::NotImplemented)
+            }
+        } else {
+            Err(Error::NotImplemented)
+        }
+    }
+    
     #[cfg(any(feature = "js", feature = "tokio"))]
     /// Evaluate a single instruction.
     /// Creates a new runtime and process just for this (lightweight).
