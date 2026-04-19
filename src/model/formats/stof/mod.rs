@@ -176,7 +176,9 @@ impl Format for BstfFormat {
             Ok(mut imported) => {
                 // Insert types
                 for (k, v) in &imported.typemap {
-                    graph.typemap.insert(k.clone(), v.clone());
+                    for nref in v {
+                        graph.insert_type(k, nref);
+                    }
                 }
 
                 if let Some(node) = node {

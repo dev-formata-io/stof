@@ -54,3 +54,21 @@ fn declarations() {
     let g: obj = null;
     assert_eq(g, null);
 }
+
+
+#[test]
+fn test_trailing_operators() {
+    let a; let b; let c;
+    if (a ||
+        b ||
+        c ||
+        true) {
+        c = true;
+    }
+    assert(c);
+
+    let d = a ||
+        b ||
+        c;
+    assert(d);
+}

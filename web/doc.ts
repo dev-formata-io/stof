@@ -163,7 +163,7 @@ class WasmMutex {
  * Stof document.
  */
 export class StofDoc {
-    static readonly VERSION = '0.9.17';
+    static readonly VERSION = '0.9.18';
     private static initialized?: Promise<unknown>;
     private static wasmMutex = new WasmMutex();
     stof: Stof;

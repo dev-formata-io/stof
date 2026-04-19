@@ -15,7 +15,7 @@
 //
 
 use std::sync::Arc;
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, space0}, combinator::map, multi::{many0, many0_count}, sequence::preceded, IResult, Parser};
+use nom::{IResult, Parser, branch::alt, bytes::complete::tag, character::complete::{char, space0}, combinator::map, multi::{many0, many0_count}, sequence::{pair, preceded}};
 use crate::{parser::{doc::StofParseError, expr::{async_expr, await_expr, block_expr, fmt_str::formatted_string_expr, graph::graph_expr, list_expr, literal::literal_expr, map_expr, set_expr, switch_expr, tup_expr, typename_expr, typeof_expr, wrapped_expr}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, ops::{Op, OpIns}, Base, NOOP, NOT_TRUTHY, TRUTHY}, Num, Val}};
 
 
@@ -36,10 +36,10 @@ pub(self) fn logical(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofPar
     let (input, mut lhs) = compare(input)?;
     let (input, ops) = many0(
         alt((
-            map(preceded(tag("&&"), compare), |ins| {
+            map(preceded(pair(tag("&&"), whitespace), compare), |ins| {
                 OpIns { lhs: NOOP.clone(), op: Op::And, rhs: ins }
             }),
-            map(preceded(tag("||"), compare), |ins| {
+            map(preceded(pair(tag("||"), whitespace), compare), |ins| {
                 OpIns { lhs: NOOP.clone(), op: Op::Or, rhs: ins }
             })
         ))
@@ -56,22 +56,22 @@ pub(self) fn compare(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofPar
     let (input, mut lhs) = add_sub(input)?;
     let (input, ops) = many0(
         alt((
-            map(preceded(tag("=="), add_sub), |ins| {
+            map(preceded(pair(tag("=="), whitespace), add_sub), |ins| {
                 OpIns { lhs: NOOP.clone(), op: Op::Eq, rhs: ins }
             }),
-            map(preceded(tag("!="), add_sub), |ins| {
+            map(preceded(pair(tag("!="), whitespace), add_sub), |ins| {
                 OpIns { lhs: NOOP.clone(), op: Op::Neq, rhs: ins }
             }),
-            map(preceded(tag(">="), add_sub), |ins| {
+            map(preceded(pair(tag(">="), whitespace), add_sub), |ins| {
                 OpIns { lhs: NOOP.clone(), op: Op::GreaterOrEq, rhs: ins }
             }),
-            map(preceded(tag("<="), add_sub), |ins| {
+            map(preceded(pair(tag("<="), whitespace), add_sub), |ins| {
                 OpIns { lhs: NOOP.clone(), op: Op::LessOrEq, rhs: ins }
             }),
-            map(preceded(char('>'), add_sub), |ins| {
+            map(preceded(pair(char('>'), whitespace), add_sub), |ins| {
                 OpIns { lhs: NOOP.clone(), op: Op::Greater, rhs: ins }
             }),
-            map(preceded(char('<'), add_sub), |ins| {
+            map(preceded(pair(char('<'), whitespace), add_sub), |ins| {
                 OpIns { lhs: NOOP.clone(), op: Op::Less, rhs: ins }
             })
         ))
@@ -88,10 +88,10 @@ pub(self) fn add_sub(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofPar
     let (input, mut lhs) = mul_div(input)?;
     let (input, ops) = many0(
         alt((
-            map(preceded(char('-'), mul_div), |ins| {
+            map(preceded(pair(char('-'), whitespace), mul_div), |ins| {
                 OpIns { lhs: NOOP.clone(), op: Op::Sub, rhs: ins }
             }),
-            map(preceded(char('+'), mul_div), |ins| {
+            map(preceded(pair(char('+'), whitespace), mul_div), |ins| {
                 OpIns { lhs: NOOP.clone(), op: Op::Add, rhs: ins }
             })
         ))
@@ -108,13 +108,13 @@ pub(self) fn mul_div(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofPar
     let (input, mut lhs) = bitwise(input)?;
     let (input, ops) = many0(
         alt((
-            map(preceded(char('*'), bitwise), |ins| {
+            map(preceded(pair(char('*'), whitespace), bitwise), |ins| {
                 OpIns { lhs: NOOP.clone(), op: Op::Mul, rhs: ins }
             }),
-            map(preceded(char('/'), bitwise), |ins| {
+            map(preceded(pair(char('/'), whitespace), bitwise), |ins| {
                 OpIns { lhs: NOOP.clone(), op: Op::Div, rhs: ins }
             }),
-            map(preceded(char('%'), bitwise), |ins| {
+            map(preceded(pair(char('%'), whitespace), bitwise), |ins| {
                 OpIns { lhs: NOOP.clone(), op: Op::Mod, rhs: ins }
             })
         ))
@@ -131,19 +131,19 @@ pub(self) fn bitwise(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofPar
     let (input, mut lhs) = primary(input)?;
     let (input, ops) = many0(
         alt((
-            map(preceded(char('&'), primary), |ins| {
+            map(preceded(pair(char('&'), whitespace), primary), |ins| {
                 OpIns { lhs: NOOP.clone(), op: Op::BAND, rhs: ins }
             }),
-            map(preceded(char('|'), primary), |ins| {
+            map(preceded(pair(char('|'), whitespace), primary), |ins| {
                 OpIns { lhs: NOOP.clone(), op: Op::BOR, rhs: ins }
             }),
-            map(preceded(char('^'), primary), |ins| {
+            map(preceded(pair(char('^'), whitespace), primary), |ins| {
                 OpIns { lhs: NOOP.clone(), op: Op::BXOR, rhs: ins }
             }),
-            map(preceded(tag("<<"), primary), |ins| {
+            map(preceded(pair(tag("<<"), whitespace), primary), |ins| {
                 OpIns { lhs: NOOP.clone(), op: Op::BSHL, rhs: ins }
             }),
-            map(preceded(tag(">>"), primary), |ins| {
+            map(preceded(pair(tag(">>"), whitespace), primary), |ins| {
                 OpIns { lhs: NOOP.clone(), op: Op::BSHR, rhs: ins }
             })
         ))

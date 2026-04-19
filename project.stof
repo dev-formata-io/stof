@@ -5,7 +5,7 @@ import '@cargo' as Rust;
 import pkg '@github' as GitHub;
 
 /// Current version.
-const version: 0.9.17
+const version: 0.9.18
 
 /// Cargo.toml definition.
 Cargo cargo: {
