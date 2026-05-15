@@ -1,6 +1,6 @@
 {
     "name": "@formata/stof",
-    "version": "0.9.18",
+    "version": "0.9.19",
     "type": "module",
     "main": "./dist/doc.js",
     "types": "./dist/doc.d.ts",

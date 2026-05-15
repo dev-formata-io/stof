@@ -71,3 +71,310 @@ fn rfc2822() {
     assert_eq(ts.round(5), ots.round(5));
     assert(now.len() > 0);
 }
+
+
+// Fixed UTC timestamp used for deterministic calendar tests:
+// 2026-03-15 14:30:00 UTC (Sunday, 15th March 2026)
+// ms = 1773585000000
+const ms TEST_TS: 1773585000000;
+
+
+// ── Component extraction ──────────────────────────────────────────────────────
+
+#[test]
+fn year() {
+    assert_eq(Time.year(self.TEST_TS), 2026);
+}
+
+#[test]
+fn month() {
+    assert_eq(Time.month(self.TEST_TS), 3);
+}
+
+#[test]
+fn day_of_month() {
+    assert_eq(Time.day_of_month(self.TEST_TS), 15);
+}
+
+#[test]
+fn day_of_week() {
+    // 2026-03-15 is a Sunday — ISO: 0=Mon..6=Sun
+    assert_eq(Time.day_of_week(self.TEST_TS), 6);
+}
+
+#[test]
+fn days_in_month() {
+    // March has 31 days
+    assert_eq(Time.days_in_month(self.TEST_TS), 31);
+    // February 2026 (not a leap year) has 28 days
+    const feb: ms = 1769817600000ms; // 2026-01-31, add_months will give Feb — use Jan 31 ts
+    // Use start of Feb directly: 2026-02-01 = 1769904000000ms
+    assert_eq(Time.days_in_month(1769904000000ms), 28);
+}
+
+#[test]
+fn hour() {
+    assert_eq(Time.hour(self.TEST_TS), 14);
+}
+
+#[test]
+fn minute() {
+    assert_eq(Time.minute(self.TEST_TS), 30);
+}
+
+#[test]
+fn second() {
+    assert_eq(Time.second(self.TEST_TS), 0);
+}
+
+#[test]
+fn components_live() {
+    // Component functions work on live timestamps without throwing
+    const now = Time.now();
+    const y = Time.year(now);
+    const mo = Time.month(now);
+    const d = Time.day_of_month(now);
+    const dow = Time.day_of_week(now);
+    const h = Time.hour(now);
+    const m = Time.minute(now);
+    const s = Time.second(now);
+
+    assert(y >= 2026);
+    assert(mo >= 1 && mo <= 12);
+    assert(d >= 1 && d <= 31);
+    assert(dow >= 0 && dow <= 6);
+    assert(h >= 0 && h <= 23);
+    assert(m >= 0 && m <= 59);
+    assert(s >= 0 && s <= 59);
+}
+
+
+// ── Boundary functions ────────────────────────────────────────────────────────
+
+#[test]
+fn start_of_day() {
+    // 2026-03-15 14:30 UTC -> midnight 2026-03-15 UTC
+    const sod = Time.start_of_day(self.TEST_TS);
+    assert_eq(sod, 1773532800000ms);
+    assert_eq(Time.hour(sod), 0);
+    assert_eq(Time.minute(sod), 0);
+    assert_eq(Time.second(sod), 0);
+    assert_eq(Time.day_of_month(sod), 15);
+
+    // Always <= now
+    assert(Time.start_of_day(Time.now()) <= Time.now());
+}
+
+#[test]
+fn start_of_month() {
+    // 2026-03-15 -> 2026-03-01 midnight UTC
+    const som = Time.start_of_month(self.TEST_TS);
+    assert_eq(som, 1772323200000ms);
+    assert_eq(Time.day_of_month(som), 1);
+    assert_eq(Time.month(som), 3);
+    assert_eq(Time.hour(som), 0);
+
+    // Always <= now
+    assert(Time.start_of_month(Time.now()) <= Time.now());
+}
+
+#[test]
+fn start_of_week_monday() {
+    // 2026-03-15 is Sunday — most recent Monday is 2026-03-09
+    const sow = Time.start_of_week(self.TEST_TS, 0);
+    assert_eq(sow, 1773014400000ms);
+    assert_eq(Time.day_of_week(sow), 0);  // Monday
+    assert_eq(Time.day_of_month(sow), 9);
+    assert_eq(Time.hour(sow), 0);
+}
+
+#[test]
+fn start_of_week_sunday() {
+    // 2026-03-15 is itself a Sunday — start_of_week with start=6 returns same day at midnight
+    const sow = Time.start_of_week(self.TEST_TS, 6);
+    assert_eq(sow, 1773532800000ms);  // 2026-03-15 midnight
+    assert_eq(Time.day_of_week(sow), 6);  // Sunday
+    assert_eq(Time.day_of_month(sow), 15);
+}
+
+#[test]
+fn start_of_week_default() {
+    // Default start_day = 0 (Monday)
+    const sow = Time.start_of_week(self.TEST_TS);
+    assert_eq(sow, Time.start_of_week(self.TEST_TS, 0));
+}
+
+#[test]
+fn start_of_week_live() {
+    // Live timestamp: start_of_week is always <= now
+    assert(Time.start_of_week(Time.now()) <= Time.now());
+}
+
+
+// ── Arithmetic ────────────────────────────────────────────────────────────────
+
+#[test]
+fn add_days_positive() {
+    // 2026-03-15 + 5 days = 2026-03-20
+    const result = Time.add_days(self.TEST_TS, 5);
+    assert_eq(result, 1774017000000ms);
+    assert_eq(Time.day_of_month(result), 20);
+    assert_eq(Time.month(result), 3);
+}
+
+#[test]
+fn add_days_negative() {
+    // 2026-03-15 - 5 days = 2026-03-10
+    const result = Time.add_days(self.TEST_TS, -5);
+    assert_eq(Time.day_of_month(result), 10);
+    assert_eq(Time.month(result), 3);
+}
+
+#[test]
+fn add_days_crosses_month() {
+    // 2026-03-15 + 20 days = 2026-04-04
+    const result = Time.add_days(self.TEST_TS, 20);
+    assert_eq(Time.day_of_month(result), 4);
+    assert_eq(Time.month(result), 4);
+}
+
+#[test]
+fn add_months_positive() {
+    // 2026-03-15 14:30 + 1 month = 2026-04-15 14:30
+    const result = Time.add_months(self.TEST_TS, 1);
+    assert_eq(result, 1776263400000ms);
+    assert_eq(Time.month(result), 4);
+    assert_eq(Time.day_of_month(result), 15);
+    // Time of day preserved
+    assert_eq(Time.hour(result), 14);
+    assert_eq(Time.minute(result), 30);
+}
+
+#[test]
+fn add_months_crosses_year() {
+    // 2026-03-15 + 10 months = 2027-01-15
+    const result = Time.add_months(self.TEST_TS, 10);
+    assert_eq(Time.year(result), 2027);
+    assert_eq(Time.month(result), 1);
+    assert_eq(Time.day_of_month(result), 15);
+}
+
+#[test]
+fn add_months_clamps_day() {
+    // 2026-01-31 + 1 month = 2026-02-28 (Feb has 28 days in 2026, not a leap year)
+    const jan31: ms = 1769817600000ms;
+    const result = Time.add_months(jan31, 1);
+    assert_eq(result, 1772236800000ms);
+    assert_eq(Time.month(result), 2);
+    assert_eq(Time.day_of_month(result), 28);
+}
+
+#[test]
+fn add_months_negative() {
+    // 2026-03-15 - 2 months = 2026-01-15
+    const result = Time.add_months(self.TEST_TS, -2);
+    assert_eq(Time.year(result), 2026);
+    assert_eq(Time.month(result), 1);
+    assert_eq(Time.day_of_month(result), 15);
+}
+
+
+// ── start_of_period ───────────────────────────────────────────────────────────
+
+#[test]
+fn start_of_period_monthly_1() {
+    // 2026-03-15 — period started on 2026-03-01 (already past the 1st)
+    const period = Time.start_of_period(self.TEST_TS, 'monthly:1');
+    assert_eq(period, 1772323200000ms);  // 2026-03-01 midnight
+    assert_eq(Time.day_of_month(period), 1);
+    assert_eq(Time.month(period), 3);
+    assert(period <= self.TEST_TS);
+}
+
+#[test]
+fn start_of_period_monthly_future_day() {
+    // 2026-03-15 — 20th not yet reached, period started 2026-02-20
+    const period = Time.start_of_period(self.TEST_TS, 'monthly:20');
+    assert_eq(period, 1771545600000ms);  // 2026-02-20 midnight
+    assert_eq(Time.day_of_month(period), 20);
+    assert_eq(Time.month(period), 2);
+    assert(period <= self.TEST_TS);
+}
+
+#[test]
+fn start_of_period_monthly_last() {
+    // 2026-03-15 — last day of March (31st) not yet reached, period started 2026-02-28
+    const period = Time.start_of_period(self.TEST_TS, 'monthly:last');
+    assert_eq(period, 1772236800000ms);  // 2026-02-28 midnight
+    assert_eq(Time.month(period), 2);
+    assert(period <= self.TEST_TS);
+}
+
+#[test]
+fn start_of_period_weekly_mon() {
+    // 2026-03-15 (Sunday) — most recent Monday was 2026-03-09
+    const period = Time.start_of_period(self.TEST_TS, 'weekly:mon');
+    assert_eq(period, 1773014400000ms);
+    assert_eq(Time.day_of_week(period), 0);  // Monday
+    assert(period <= self.TEST_TS);
+}
+
+#[test]
+fn start_of_period_weekly_sun() {
+    // 2026-03-15 is itself Sunday — period started today at midnight
+    const period = Time.start_of_period(self.TEST_TS, 'weekly:sun');
+    assert_eq(period, 1773532800000ms);  // 2026-03-15 midnight
+    assert_eq(Time.day_of_week(period), 6);  // Sunday
+    assert(period <= self.TEST_TS);
+}
+
+#[test]
+fn start_of_period_nth_weekday_first_tuesday() {
+    // First Tuesday of March 2026 = 2026-03-03
+    const period = Time.start_of_period(self.TEST_TS, 'nth_weekday:1:tue');
+    assert_eq(period, 1772496000000ms);
+    assert_eq(Time.day_of_month(period), 3);
+    assert_eq(Time.month(period), 3);
+    assert(period <= self.TEST_TS);
+}
+
+#[test]
+fn start_of_period_nth_weekday_second_friday() {
+    // Second Friday of March 2026 = 2026-03-13
+    const period = Time.start_of_period(self.TEST_TS, 'nth_weekday:2:fri');
+    assert_eq(period, 1773360000000ms);
+    assert_eq(Time.day_of_month(period), 13);
+    assert_eq(Time.month(period), 3);
+    assert(period <= self.TEST_TS);
+}
+
+#[test]
+fn start_of_period_nth_weekday_first_thursday() {
+    // First Thursday of March 2026 = 2026-03-05 (before Mar 15, so current month)
+    const period = Time.start_of_period(self.TEST_TS, 'nth_weekday:1:thu');
+    assert_eq(period, 1772668800000ms);
+    assert_eq(Time.day_of_month(period), 5);
+    assert_eq(Time.month(period), 3);
+    assert(period <= self.TEST_TS);
+}
+
+#[test]
+fn start_of_period_nth_weekday_rolls_back() {
+    // 4th Sunday of March 2026 = 2026-03-22, not yet reached from Mar 15
+    // Falls back to 4th Sunday of February 2026 = 2026-02-22
+    const period = Time.start_of_period(self.TEST_TS, 'nth_weekday:4:sun');
+    assert_eq(period, 1771718400000ms);
+    assert_eq(Time.day_of_month(period), 22);
+    assert_eq(Time.month(period), 2);
+    assert(period <= self.TEST_TS);
+}
+
+#[test]
+fn start_of_period_always_lte_now() {
+    // Invariant: regardless of schedule, period start is always <= current time
+    const now = Time.now();
+    assert(Time.start_of_period(now, 'monthly:1') <= now);
+    assert(Time.start_of_period(now, 'monthly:last') <= now);
+    assert(Time.start_of_period(now, 'weekly:mon') <= now);
+    assert(Time.start_of_period(now, 'nth_weekday:1:tue') <= now);
+}
