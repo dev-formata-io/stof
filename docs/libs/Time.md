@@ -193,6 +193,8 @@ Schedule formats:
   "monthly:last"          — Last day of every month
   "weekly:mon"            — Every Monday (mon|tue|wed|thu|fri|sat|sun)
   "nth_weekday:N:mon"     — Nth occurrence of weekday in the month (N = 1–4)
+  "yearly:M-D"            — Month M, day D of every year (e.g. "yearly:1-1" for Jan 1)
+  "quarterly:D"           — Day D of the first month of each quarter (Jan/Apr/Jul/Oct)
 
 All times are UTC. The returned timestamp is always midnight UTC on the period start day.
 
@@ -208,6 +210,14 @@ assert(week_start <= Time.now());
 // Resets on the first Tuesday of every month
 const billing = Time.start_of_period(Time.now(), 'nth_weekday:1:tue');
 assert(billing <= Time.now());
+
+// Resets every January 1st
+const annual = Time.start_of_period(Time.now(), 'yearly:1-1');
+assert(annual <= Time.now());
+
+// Resets on the 1st of each quarter (Jan, Apr, Jul, Oct)
+const quarterly = Time.start_of_period(Time.now(), 'quarterly:1');
+assert(quarterly <= Time.now());
 ```
 
 
@@ -220,6 +230,16 @@ assert(sow <= Time.now());
 
 const sun = Time.start_of_week(Time.now(), 6);    // week starting Sunday
 assert(sun <= Time.now());
+```
+
+
+# Time.start_of_year(ts: ms) -> ms
+Returns the UTC midnight timestamp for January 1st of the year containing the given timestamp.
+```rust
+const soy = Time.start_of_year(Time.now());
+assert(soy <= Time.now());
+assert(Time.month(soy) == 1);
+assert(Time.day_of_month(soy) == 1);
 ```
 
 
