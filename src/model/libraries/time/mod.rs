@@ -20,7 +20,7 @@ use arcstr::{literal, ArcStr};
 use chrono::{DateTime, Datelike, Days, NaiveDate, Timelike, Utc, Weekday};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{time::ops::{time_add_days, time_add_months, time_day_of_month, time_day_of_week, time_days_in_month, time_diff, time_diff_ns, time_from_rfc2822, time_from_rfc3339, time_hour, time_minute, time_month, time_now, time_now_ns, time_now_rfc2822, time_now_rfc3339, time_second, time_sleep, time_start_of_day, time_start_of_month, time_start_of_period, time_start_of_week, time_to_rfc2822, time_to_rfc3339, time_year}, Graph}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error, Num, Units, Val, Variable}};
+use crate::{model::{time::ops::{time_add_days, time_add_months, time_day_of_month, time_day_of_week, time_days_in_month, time_diff, time_diff_ns, time_from_rfc2822, time_from_rfc3339, time_hour, time_minute, time_month, time_now, time_now_ns, time_now_rfc2822, time_now_rfc3339, time_second, time_sleep, time_start_of_day, time_start_of_month, time_start_of_period, time_start_of_week, time_start_of_year, time_to_rfc2822, time_to_rfc3339, time_year}, Graph}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error, Num, Units, Val, Variable}};
 mod ops;
 
 
@@ -61,6 +61,7 @@ pub fn insert_time_lib(graph: &mut Graph) {
 
     // Start of week
     graph.insert_libfunc(time_start_of_week());
+    graph.insert_libfunc(time_start_of_year());
 }
 
 
@@ -87,6 +88,7 @@ lazy_static! {
     pub(self) static ref ADD_DAYS: Arc<dyn Instruction> = Arc::new(TimeIns::AddDays);
     pub(self) static ref START_OF_PERIOD: Arc<dyn Instruction> = Arc::new(TimeIns::StartOfPeriod);
     pub(self) static ref START_OF_WEEK: Arc<dyn Instruction> = Arc::new(TimeIns::StartOfWeek);
+    pub(self) static ref START_OF_YEAR: Arc<dyn Instruction> = Arc::new(TimeIns::StartOfYear);
     pub(self) static ref YEAR: Arc<dyn Instruction> = Arc::new(TimeIns::Year);
     pub(self) static ref MONTH: Arc<dyn Instruction> = Arc::new(TimeIns::Month);
     pub(self) static ref HOUR: Arc<dyn Instruction> = Arc::new(TimeIns::Hour);
@@ -120,6 +122,8 @@ fn push_datetime_as_ms(env: &mut ProcEnv, dt: DateTime<Utc>) {
 ///   "monthly:last"       — Last day of every month
 ///   "weekly:mon|tue|wed|thu|fri|sat|sun" — Every given weekday
 ///   "nth_weekday:N:mon|tue|..." — Nth occurrence of weekday in the month (1-4)
+///   "yearly:M-D"         — Month M, day D of every year (e.g. "yearly:1-1" for Jan 1)
+///   "quarterly:D"        — Day D of the first month of each quarter (Jan/Apr/Jul/Oct)
 pub fn start_of_period_for(ts: DateTime<Utc>, schedule: &str) -> Option<DateTime<Utc>> {
     let parts: Vec<&str> = schedule.splitn(3, ':').collect();
     if parts.is_empty() { return None; }
@@ -172,6 +176,54 @@ pub fn start_of_period_for(ts: DateTime<Utc>, schedule: &str) -> Option<DateTime
                 // Nth weekday this month hasn't arrived yet — use previous month
                 let (prev_year, prev_month) = prev_month(ts.year(), ts.month());
                 nth_weekday_of_month(prev_year, prev_month, n, target_wd)
+            } else {
+                Some(candidate)
+            }
+        },
+        "yearly" => {
+            // Format: "yearly:M-D" — resets on month M, day D each year
+            if parts.len() < 2 { return None; }
+            let date_parts: Vec<&str> = parts[1].splitn(2, '-').collect();
+            if date_parts.len() < 2 { return None; }
+            let target_month: u32 = date_parts[0].parse::<u32>().ok()?.max(1).min(12);
+            let target_day: u32 = date_parts[1].parse::<u32>().ok()?.max(1).min(31);
+            // Period start: target_month/target_day of this year at midnight UTC, clamped to month length
+            let dim = days_in_month(ts.year(), target_month);
+            let candidate = NaiveDate::from_ymd_opt(ts.year(), target_month, target_day.min(dim))?
+                .and_hms_opt(0, 0, 0)?
+                .and_utc();
+            if ts < candidate {
+                // Anniversary hasn't arrived yet this year — period started last year
+                let prev_dim = days_in_month(ts.year() - 1, target_month);
+                Some(NaiveDate::from_ymd_opt(ts.year() - 1, target_month, target_day.min(prev_dim))?
+                    .and_hms_opt(0, 0, 0)?
+                    .and_utc())
+            } else {
+                Some(candidate)
+            }
+        },
+        "quarterly" => {
+            // Format: "quarterly:D" — resets on day D of the first month of each quarter
+            // Quarters start: Jan (1), Apr (4), Jul (7), Oct (10)
+            if parts.len() < 2 { return None; }
+            let target_day: u32 = parts[1].parse::<u32>().ok()?.max(1).min(31);
+            let current_quarter_month: u32 = ((ts.month() - 1) / 3) * 3 + 1; // 1, 4, 7, or 10
+            let dim = days_in_month(ts.year(), current_quarter_month);
+            let day = target_day.min(dim);
+            let candidate = NaiveDate::from_ymd_opt(ts.year(), current_quarter_month, day)?
+                .and_hms_opt(0, 0, 0)?
+                .and_utc();
+            if ts < candidate {
+                // Haven't reached the start day in this quarter yet — use previous quarter
+                let (prev_year, prev_quarter_month) = if current_quarter_month == 1 {
+                    (ts.year() - 1, 10u32)
+                } else {
+                    (ts.year(), current_quarter_month - 3)
+                };
+                let prev_dim = days_in_month(prev_year, prev_quarter_month);
+                Some(NaiveDate::from_ymd_opt(prev_year, prev_quarter_month, target_day.min(prev_dim))?
+                    .and_hms_opt(0, 0, 0)?
+                    .and_utc())
             } else {
                 Some(candidate)
             }
@@ -264,6 +316,9 @@ pub enum TimeIns {
 
     // Start of week
     StartOfWeek,
+
+    // Start of year
+    StartOfYear,
 }
 #[typetag::serde(name = "TimeIns")]
 impl Instruction for TimeIns {
@@ -580,6 +635,21 @@ impl Instruction for TimeIns {
                     }
                 }
                 Err(Error::Custom("Time.start_of_week: invalid arguments".into()))
+            },
+
+            // ── Start of year ──────────────────────────────────────────────
+
+            Self::StartOfYear => {
+                if let Some(dt) = pop_ms_as_datetime(env) {
+                    if let Some(soy) = NaiveDate::from_ymd_opt(dt.year(), 1, 1)
+                        .and_then(|d| d.and_hms_opt(0, 0, 0))
+                        .map(|ndt| ndt.and_utc())
+                    {
+                        push_datetime_as_ms(env, soy);
+                        return Ok(None);
+                    }
+                }
+                Err(Error::Custom("Time.start_of_year: invalid timestamp".into()))
             },
         }
     }

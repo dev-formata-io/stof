@@ -378,3 +378,143 @@ fn start_of_period_always_lte_now() {
     assert(Time.start_of_period(now, 'weekly:mon') <= now);
     assert(Time.start_of_period(now, 'nth_weekday:1:tue') <= now);
 }
+
+
+// ── start_of_year ─────────────────────────────────────────────────────────────
+
+#[test]
+fn start_of_year() {
+    // 2026-03-15 14:30 UTC -> 2026-01-01 midnight UTC
+    const soy = Time.start_of_year(self.TEST_TS);
+    assert_eq(soy, 1767225600000ms);
+    assert_eq(Time.month(soy), 1);
+    assert_eq(Time.day_of_month(soy), 1);
+    assert_eq(Time.hour(soy), 0);
+    assert_eq(Time.minute(soy), 0);
+    assert_eq(Time.year(soy), 2026);
+    assert(soy <= self.TEST_TS);
+}
+
+#[test]
+fn start_of_year_live() {
+    // Invariant: always <= now
+    assert(Time.start_of_year(Time.now()) <= Time.now());
+}
+
+
+// ── start_of_period yearly ────────────────────────────────────────────────────
+
+#[test]
+fn start_of_period_yearly_jan1() {
+    // 2026-03-15 — already past Jan 1, period started 2026-01-01
+    const period = Time.start_of_period(self.TEST_TS, 'yearly:1-1');
+    assert_eq(period, 1767225600000ms);  // 2026-01-01 midnight
+    assert_eq(Time.month(period), 1);
+    assert_eq(Time.day_of_month(period), 1);
+    assert_eq(Time.year(period), 2026);
+    assert(period <= self.TEST_TS);
+}
+
+#[test]
+fn start_of_period_yearly_future_in_year() {
+    // 2026-03-15 — Jul 1 not yet reached this year, period started 2025-07-01
+    const period = Time.start_of_period(self.TEST_TS, 'yearly:7-1');
+    assert_eq(period, 1751328000000ms);  // 2025-07-01 midnight
+    assert_eq(Time.month(period), 7);
+    assert_eq(Time.day_of_month(period), 1);
+    assert_eq(Time.year(period), 2025);
+    assert(period <= self.TEST_TS);
+}
+
+#[test]
+fn start_of_period_yearly_same_day() {
+    // 2026-03-15 14:30 — anniversary is Mar 15, which started at midnight today
+    const period = Time.start_of_period(self.TEST_TS, 'yearly:3-15');
+    assert_eq(period, 1773532800000ms);  // 2026-03-15 midnight
+    assert_eq(Time.month(period), 3);
+    assert_eq(Time.day_of_month(period), 15);
+    assert_eq(Time.year(period), 2026);
+    assert(period <= self.TEST_TS);
+}
+
+#[test]
+fn start_of_period_yearly_future_day_this_month() {
+    // 2026-03-15 — Mar 20 not yet reached, period started 2025-03-20
+    const period = Time.start_of_period(self.TEST_TS, 'yearly:3-20');
+    assert_eq(period, 1742428800000ms);  // 2025-03-20 midnight
+    assert_eq(Time.month(period), 3);
+    assert_eq(Time.day_of_month(period), 20);
+    assert_eq(Time.year(period), 2025);
+    assert(period <= self.TEST_TS);
+}
+
+#[test]
+fn start_of_period_yearly_leap_day_clamp() {
+    // yearly:2-29 on 2026 (not a leap year) — Feb 29 clamps to Feb 28
+    // 2026-03-15 is after Feb 28 2026, so period started 2026-02-28
+    const period = Time.start_of_period(self.TEST_TS, 'yearly:2-29');
+    assert_eq(period, 1772236800000ms);  // 2026-02-28 midnight
+    assert_eq(Time.month(period), 2);
+    assert_eq(Time.day_of_month(period), 28);
+    assert_eq(Time.year(period), 2026);
+    assert(period <= self.TEST_TS);
+}
+
+
+// ── start_of_period quarterly ─────────────────────────────────────────────────
+
+#[test]
+fn start_of_period_quarterly_1() {
+    // 2026-03-15 — in Q1 (Jan-Mar), quarter started 2026-01-01
+    const period = Time.start_of_period(self.TEST_TS, 'quarterly:1');
+    assert_eq(period, 1767225600000ms);  // 2026-01-01 midnight
+    assert_eq(Time.month(period), 1);
+    assert_eq(Time.day_of_month(period), 1);
+    assert_eq(Time.year(period), 2026);
+    assert(period <= self.TEST_TS);
+}
+
+#[test]
+fn start_of_period_quarterly_day_past_in_quarter() {
+    // 2026-03-15 — in Q1, Jan 20 already passed, period started 2026-01-20
+    const period = Time.start_of_period(self.TEST_TS, 'quarterly:20');
+    assert_eq(period, 1768867200000ms);  // 2026-01-20 midnight
+    assert_eq(Time.month(period), 1);
+    assert_eq(Time.day_of_month(period), 20);
+    assert_eq(Time.year(period), 2026);
+    assert(period <= self.TEST_TS);
+}
+
+#[test]
+fn start_of_period_quarterly_rolls_back() {
+    // 2026-01-10 14:30 — in Q1, Jan 20 not yet reached, rolls back to Q4 2025: 2025-10-20
+    const jan10_ts: ms = 1768055400000ms;
+    const period = Time.start_of_period(jan10_ts, 'quarterly:20');
+    assert_eq(period, 1760918400000ms);  // 2025-10-20 midnight
+    assert_eq(Time.month(period), 10);
+    assert_eq(Time.day_of_month(period), 20);
+    assert_eq(Time.year(period), 2025);
+    assert(period <= jan10_ts);
+}
+
+#[test]
+fn start_of_period_quarterly_year_boundary() {
+    // 2026-01-05 14:30 — Q1, Jan 15 not yet reached, rolls back to Q4 2025: 2025-10-15
+    const jan5_ts: ms = 1767623400000ms;
+    const period = Time.start_of_period(jan5_ts, 'quarterly:15');
+    assert_eq(period, 1760486400000ms);  // 2025-10-15 midnight
+    assert_eq(Time.month(period), 10);
+    assert_eq(Time.day_of_month(period), 15);
+    assert_eq(Time.year(period), 2025);
+    assert(period <= jan5_ts);
+}
+
+#[test]
+fn start_of_period_always_lte_now_extended() {
+    // Extend the invariant test from above to cover yearly and quarterly
+    const now = Time.now();
+    assert(Time.start_of_period(now, 'yearly:1-1') <= now);
+    assert(Time.start_of_period(now, 'yearly:7-1') <= now);
+    assert(Time.start_of_period(now, 'quarterly:1') <= now);
+    assert(Time.start_of_period(now, 'quarterly:15') <= now);
+}

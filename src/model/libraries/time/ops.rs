@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use imbl::vector;
-use crate::{model::{time::{ADD_DAYS, ADD_MONTHS, DAY_OF_MONTH, DAY_OF_WEEK, DAYS_IN_MONTH, DIFF, DIFF_NANO, FROM_RFC2822, FROM_RFC3339, HOUR, MINUTE, MONTH, NOW, NOW_NANO, NOW_RFC2822, NOW_RFC3339, SECOND, SLEEP, START_OF_DAY, START_OF_MONTH, START_OF_PERIOD, START_OF_WEEK, TIME_LIB, TO_RFC2822, TO_RFC3339, YEAR}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Num, NumT, Type, Val}};
+use crate::{model::{time::{ADD_DAYS, ADD_MONTHS, DAY_OF_MONTH, DAY_OF_WEEK, DAYS_IN_MONTH, DIFF, DIFF_NANO, FROM_RFC2822, FROM_RFC3339, HOUR, MINUTE, MONTH, NOW, NOW_NANO, NOW_RFC2822, NOW_RFC3339, SECOND, SLEEP, START_OF_DAY, START_OF_MONTH, START_OF_PERIOD, START_OF_WEEK, START_OF_YEAR, TIME_LIB, TO_RFC2822, TO_RFC3339, YEAR}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Num, NumT, Type, Val}};
 
 
 /// Now.
@@ -526,6 +526,8 @@ Schedule formats:
   "monthly:last"          — Last day of every month
   "weekly:mon"            — Every Monday (mon|tue|wed|thu|fri|sat|sun)
   "nth_weekday:N:mon"     — Nth occurrence of weekday in the month (N = 1–4)
+  "yearly:M-D"            — Month M, day D of every year (e.g. "yearly:1-1" for Jan 1)
+  "quarterly:D"           — Day D of the first month of each quarter (Jan/Apr/Jul/Oct)
 
 All times are UTC. The returned timestamp is always midnight UTC on the period start day.
 
@@ -541,6 +543,14 @@ assert(week_start <= Time.now());
 // Resets on the first Tuesday of every month
 const billing = Time.start_of_period(Time.now(), 'nth_weekday:1:tue');
 assert(billing <= Time.now());
+
+// Resets every January 1st
+const annual = Time.start_of_period(Time.now(), 'yearly:1-1');
+assert(annual <= Time.now());
+
+// Resets on the 1st of each quarter (Jan, Apr, Jul, Oct)
+const quarterly = Time.start_of_period(Time.now(), 'quarterly:1');
+assert(quarterly <= Time.now());
 ```
 "#.into(),
         params: vector![
@@ -720,6 +730,36 @@ assert(sun <= Time.now());
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(START_OF_WEEK.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+
+/// Start of year (UTC midnight on Jan 1).
+pub fn time_start_of_year() -> LibFunc {
+    LibFunc {
+        library: TIME_LIB.clone(),
+        name: "start_of_year".into(),
+        is_async: false,
+        docs: r#"# Time.start_of_year(ts: ms) -> ms
+Returns the UTC midnight timestamp for January 1st of the year containing the given timestamp.
+```rust
+const soy = Time.start_of_year(Time.now());
+assert(soy <= Time.now());
+assert(Time.month(soy) == 1);
+assert(Time.day_of_month(soy) == 1);
+```
+"#.into(),
+        params: vector![
+            Param { name: "ts".into(), param_type: Type::Num(NumT::Float), default: None }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(START_OF_YEAR.clone());
             Ok(instructions)
         })
     }
