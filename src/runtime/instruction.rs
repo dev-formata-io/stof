@@ -152,13 +152,10 @@ impl Instructions {
         'fast_forward: while let Some(ins) = self.instructions.pop_front() {
             self.executed.push_back(ins.clone());
             if let Some(base) = ins.as_dyn_any().downcast_ref::<Base>() {
-                match base {
-                    Base::Tag(tagged) => {
-                        if tagged == tag {
-                            break 'fast_forward;
-                        }
-                    },
-                    _ => {}
+                if let Base::Tag(tagged) = base {
+                    if tagged == tag {
+                        break 'fast_forward;
+                    }
                 }
             }
         }

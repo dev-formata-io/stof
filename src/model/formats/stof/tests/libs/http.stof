@@ -24,7 +24,8 @@ fn get_request() {
         assert_not(Http.server_error(resp));
 
         const size = Http.size(resp) as KiB;
-        assert(size > 100KiB);
+        //assert(size > 100KiB);
+        assert(size > 0); // API has been deprecated...
 
         const body = Http.parse(resp, new {});
         for (const country in body.field) {

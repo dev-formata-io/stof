@@ -94,3 +94,89 @@ fn complex_try_return() {
     }
     assert(cpx);
 }
+
+
+fn load_plugin(src: str, data: unknown) -> obj {
+    const sandbox = new { data: data };
+    parse(src, sandbox);
+    sandbox
+}
+
+#[test]
+fn try_catch_from_example_plugin() {
+    const good_plugin = "fn transform() -> str { self.data.upper() }";
+    const good = self.load_plugin(good_plugin, "hello, plugin");
+    assert_eq(good.transform(), 'HELLO, PLUGIN');
+
+    const bad_plugin = "fn transform() -> str { HttpDNE.fetch('https://evil.example') }";
+    const bad = self.load_plugin(bad_plugin, "hello, plugin");
+
+    let gothere = false;
+    try bad.transform();
+    catch gothere = true;
+    assert(gothere);
+}
+
+
+fn poison(x: str) -> str { x }
+fn throws() -> str { throw('boom'); }
+
+#[type]
+Widget: {
+    label: 'widget'
+    fn describe() -> str { self.label }
+}
+
+#[test]
+fn try_catch_arg_eval_throw_does_not_corrupt_state() {
+    const w = new Widget {};
+
+    let caught = false;
+    try {
+        self.poison(self.throws());
+    } catch {
+        caught = true;
+    }
+    assert(caught);
+
+    // If call_stack/self_stack/ret_valid_stack got corrupted by the catch, one of these
+    // would misbehave or throw a spurious FuncInvalidReturn/SelfStackError - not because
+    // this code is wrong, but because of leftover state from the aborted poison() call.
+    assert_eq(self.poison('still fine'), 'still fine');
+    assert_eq(w.describe(), 'widget');
+}
+
+
+#[if(lib('Age'))]
+ExampleContext: {
+    #[type]
+    ShareLink: {
+        ms expires: 0
+        payload: null
+    
+        fn valid() -> bool {
+            Time.now() < self.expires
+        }
+    
+        fn open(passphrase: str) -> obj {
+            if (!self.valid()) throw('link expired');
+    
+            const decrypted = new {};
+            Age.pass_parse(passphrase, self.payload, decrypted);
+            decrypted
+        }
+    }
+    
+    #[test]
+    fn example_age_context() {
+        const secret = new { file: "quarterly-report.pdf" };
+        const payload = Age.pass_blobify("open-sesame", context = secret);
+    
+        const link = new ShareLink { expires: Time.now() + 1hr, payload: payload };
+        pln(link.open("open-sesame").file);
+    
+        const stale = new ShareLink { expires: Time.now() - 1hr, payload: payload };
+        try { stale.open("open-sesame"); }
+        catch (msg: str) { pln('blocked:', msg); }
+    }
+}

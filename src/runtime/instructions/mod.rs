@@ -258,6 +258,12 @@ pub enum Base {
     // Used to move into another processes instructions.
     // Placed at end for rev compat w/bstf
     CtrlYield,
+
+    // Pop until depth instructions for try-catch - added at the end for rev-compatability
+    PopReturnUntilDepth(usize),
+    PopSelfUntilDepth(usize),
+    PopCallUntilDepth(usize),
+    PopRetValidUntilDepth(usize),
 }
 #[typetag::serde(name = "Base")]
 impl Instruction for Base {
@@ -316,6 +322,11 @@ impl Instruction for Base {
                 return Err(Error::CallStackError);
             },
             Self::PopReturn => { env.return_stack.pop(); },
+            Self::PopReturnUntilDepth(depth) => {
+                while env.return_stack.len() > *depth {
+                    env.return_stack.pop();
+                }
+            },
 
             /*****************************************************************************
              * Special stacks.
@@ -330,6 +341,11 @@ impl Instruction for Base {
                 return Err(Error::SelfStackError);
             },
             Self::PopSelf => { env.self_stack.pop(); },
+            Self::PopSelfUntilDepth(depth) => {
+                while env.self_stack.len() > *depth {
+                    env.self_stack.pop();
+                }
+            },
 
             Self::PushCall => {
                 if let Some(var) = env.stack.pop() {
@@ -341,6 +357,11 @@ impl Instruction for Base {
                 return Err(Error::CallStackError);
             },
             Self::PopCall => { env.call_stack.pop(); },
+            Self::PopCallUntilDepth(depth) => {
+                while env.call_stack.len() > *depth {
+                    env.call_stack.pop();
+                }
+            },
             
             Self::PushNew => {
                 if let Some(var) = env.stack.pop() {
@@ -876,6 +897,11 @@ impl Instruction for Base {
                     if env.stack.len() != size {
                         return Err(Error::FuncInvalidReturn);
                     }
+                }
+            },
+            Self::PopRetValidUntilDepth(depth) => {
+                while env.ret_valid_stack.len() > *depth {
+                    env.ret_valid_stack.pop();
                 }
             },
             Self::Cast(target) => {

@@ -37,6 +37,11 @@ impl Instruction for TryCatchIns {
         let size = env.stack.len();
         let try_depth = env.try_stack.len();
 
+        let call_depth = env.call_stack.len();
+        let return_depth = env.return_stack.len();
+        let self_depth = env.self_stack.len();
+        let ret_valid_depth = env.ret_valid_stack.len();
+
         let mut instructions = Instructions::default();
         instructions.push(Arc::new(Base::Try(catch_tag.clone()))); // Go here when theres an error & inc try count
         instructions.append(&self.try_ins);
@@ -45,6 +50,14 @@ impl Instruction for TryCatchIns {
         
         instructions.push(Arc::new(Base::Tag(catch_tag))); // now theres an error on the stack!
         instructions.push(Arc::new(Base::PopTryUntilDepth(try_depth))); // should be redundant!
+
+        // Truncate any call/return/self/ret-valid entries left over from an in-flight call
+        // that got unwound by the error rather than completing normally.
+        instructions.push(Arc::new(Base::PopCallUntilDepth(call_depth)));
+        instructions.push(Arc::new(Base::PopReturnUntilDepth(return_depth)));
+        instructions.push(Arc::new(Base::PopSelfUntilDepth(self_depth)));
+        instructions.push(Arc::new(Base::PopRetValidUntilDepth(ret_valid_depth)));
+        
         instructions.append(&self.err_ins);
         instructions.push(Arc::new(Base::PopUntilStackCount(size)));
         instructions.append(&self.catch_ins);
