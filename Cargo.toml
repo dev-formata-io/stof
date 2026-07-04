@@ -10,6 +10,7 @@ repository = "https://github.com/dev-formata-io/stof"
 homepage = "https://stof.dev"
 keywords = ["format", "runtime", "async", "validation", "embedded"]
 categories = ["compilers", "data-structures", "development-tools", "template-engine", "asynchronous"]
+exclude = ["content/*", "web/*", "docs/*", "stof/*", ".github/*", ".vscode/*", "*.gif", "*.png"]
 edition = "2024"
 
 [lib]

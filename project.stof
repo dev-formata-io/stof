@@ -34,6 +34,16 @@ Cargo cargo: {
             'template-engine',
             'asynchronous',
         ]
+        exclude: [
+            "content/*",
+            "web/*",
+            "docs/*",
+            "stof/*",
+            ".github/*",
+            ".vscode/*",
+            "*.gif",
+            "*.png",
+        ]
     }
 
     Target lib: {
