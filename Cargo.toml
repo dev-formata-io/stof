@@ -2,12 +2,12 @@
 # RUN "stof run project.stof" TO REGENERATE.
 [package]
 name = "stof"
-version = "0.9.20"
+version = "0.9.21"
 authors = ["CJ Cummings <cj@formata.io>"]
-description = "Data that carries its own logic."
+description = "Data Runtime. JSON that runs."
 license = "Apache-2.0"
 repository = "https://github.com/dev-formata-io/stof"
-homepage = "https://docs.stof.dev"
+homepage = "https://stof.dev"
 keywords = ["format", "runtime", "async", "validation", "embedded"]
 categories = ["compilers", "data-structures", "development-tools", "template-engine", "asynchronous"]
 edition = "2024"

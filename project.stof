@@ -5,7 +5,7 @@ import '@cargo' as Rust;
 import pkg '@github' as GitHub;
 
 /// Current version.
-const version: 0.9.20
+const version: 0.9.21
 
 /// Cargo.toml definition.
 Cargo cargo: {
@@ -16,10 +16,10 @@ Cargo cargo: {
         authors: [
             'CJ Cummings <cj@formata.io>'
         ]
-        description: 'Data that carries its own logic.'
+        description: 'Data Runtime. JSON that runs.'
         license: 'Apache-2.0'
         repository: 'https://github.com/dev-formata-io/stof'
-        homepage: 'https://docs.stof.dev'
+        homepage: 'https://stof.dev'
         keywords: [
             'format',
             'runtime',
@@ -320,7 +320,6 @@ pyproject: {
         ]
         urls: {
             Documentation: <CargoPackage>.homepage
-            Playground: 'https://play.stof.dev'
             Repository: <CargoPackage>.repository
         }
     }
