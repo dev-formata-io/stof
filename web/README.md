@@ -1,293 +1,111 @@
-# Stof
-### One document, any runtime. Send functions over the wire. Documents that validate themselves.
-
-<p align="left">
-    <a href="https://docs.stof.dev" style="margin: 3px"><img src="https://img.shields.io/badge/docs-docs.stof.dev-purple?logo=gitbook&logoColor=white"></a>
-    <a href="https://github.com/dev-formata-io/stof" style="margin: 3px"><img src="https://img.shields.io/github/stars/dev-formata-io/stof"></a>
-    <a href="https://github.com/dev-formata-io/stof/actions" style="margin: 3px"><img src="https://img.shields.io/github/actions/workflow/status/dev-formata-io/stof/rust.yml"></a>
+<h1 align="center">
+    <a href="https://stof.dev">
+        <picture>
+            <source height="125" media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/dev-formata-io/stof/main/content/stof.png">
+            <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/dev-formata-io/stof/main/content/image_dark.png">
+            <img height="125" alt="Stof" src="https://raw.githubusercontent.com/dev-formata-io/stof/main/content/image_dark.png">
+        </picture>
+    </a>
+    <br>
+    <a href="https://stof.dev"><img src="https://img.shields.io/badge/docs-stof.dev-purple?logo=gitbook&logoColor=white"></a>
+    <a href="https://github.com/dev-formata-io/stof"><img src="https://img.shields.io/github/stars/dev-formata-io/stof"></a>
+    <a href="https://github.com/dev-formata-io/stof/actions"><img src="https://img.shields.io/github/actions/workflow/status/dev-formata-io/stof/rust.yml"></a>
     <a href="https://www.npmjs.com/package/@formata/stof"><img src="https://img.shields.io/npm/d18m/%40formata%2Fstof?label=npm%3A%40formata%2Fstof&color=orange"></a>
-    <a href="https://crates.io/crates/stof" style="margin: 3px"><img src="https://img.shields.io/crates/d/stof?label=crate%20downloads&color=aqua"></a>
-    <a href="https://crates.io/crates/stof" style="margin: 3px"><img src="https://img.shields.io/crates/l/stof?color=maroon"></a>
+    <a href="https://crates.io/crates/stof"><img src="https://img.shields.io/crates/d/stof?label=crate%20downloads&color=aqua"></a>
+    <a href="https://crates.io/crates/stof"><img src="https://img.shields.io/crates/l/stof?color=maroon"></a>
+</h1>
+
+<p align="center">
+    <em><b>Stof</b> is a <b>Data Runtime</b> built on top of Rust & WebAssembly. Designed to <b>combine data and logic</b> together in a portable & lightweight context that runs anywhere, <b>sandboxed</b>.</em>
 </p>
 
-[Playground](https://play.stof.dev) · [Docs](https://docs.stof.dev) · [Discord](https://discord.gg/Up5kxdeXZt) · [Site](https://stof.dev)
+<p align="center">
+  <a href="https://stof.dev">
+    <img src="https://raw.githubusercontent.com/dev-formata-io/stof/main/content/stof_gif.gif" alt="Stof: JSON to Stof" />
+  </a>
+</p>
 
----
+## Install
 
-Stof is a portable document format where functions, validation, and behavior live alongside the data they belong to. It's a superset of JSON - your existing data works as-is. Add logic only where you need it.
-
-```typescript
-server: {
-    str host: "0.0.0.0"
-    int port: 8080
-    MiB memory: 2GB
-
-    fn url() -> str { `https://${self.host}:${self.port}` }
-    fn valid() -> bool { self.memory > 200MB }
-}
+```bash
+npm i @formata/stof     # TypeScript / JavaScript
+cargo add stof          # Rust
+pip install stof        # Python
 ```
 
-Built in Rust. Runs natively, in WASM (Node, Deno, Bun, browser), and in Python. Sandboxed execution - safe to run untrusted Stof from external sources.
+Full setup for every language, the complete standard library, and worked end-to-end examples: **[stof.dev](https://stof.dev)**
 
-## Why Stof?
+## Quickstart
 
-Interoperability is the reality of modern software. JSON alone no longer cuts it - too much ambiguity, too much brittleness, and every API has its own flavor of interchange format or DSL. There is no single correct way in distributed systems.
-
-Stof doesn't try to replace them. It's the layer that works with all of them - parse JSON, YAML, TOML, STOF, binary, etc. into one document, add the logic that belongs with the data (functions), and send it anywhere. Export to any format as needed internally.
-
-Here's what that looks like in practice:
+Every JSON document you have is already a Stof document. Start with the data you have, add logic where you need it, and export back to JSON - or YAML, or TOML - any time.
 
 ```typescript
 import { stofAsync } from '@formata/stof';
 
 const doc = await stofAsync`
-#[type]
-Server: {
-    port: 8080
-    host: 'localhost'
-    secure: false
-    MiB memory: 500GiB
-
-    fn url() -> str {
-        let url = self.secure ? 'https://' : 'http://';
-        url += self.host + ':' + self.port;
-        url
-    }
+{
+    "name": "Stof"
+    "hello": ():str => \`Hello, \${self.name}!\`
 }`;
 
-// Parse STOF, JSON, YAML, binary, etc. into the same document
-doc.parse(`Server "prod": {
-    "host": "prod.example.com",
-    "port": 443,
-    "secure": true,
-    "memory": "2GB"
+console.log(await doc.call('hello')); // Hello, Stof!
+```
+
+```typescript
+import { StofDoc } from '@formata/stof';
+
+const doc = await StofDoc.parse({
+    first: 'John',
+    last: 'Doe',
+    domain: 'example.com'
+});
+
+doc.parse(`
+fn fill(domain: str = 'example.com') {
+    self.domain = domain;
+    self.email = \`\${self.first.lower()}.\${self.last.lower()}@\${self.domain}\`;
 }`);
 
-console.log(await doc.call('prod.url'));     // https://prod.example.com:443
-console.log(doc.get('prod.memory'));         // ~1907 MiB (auto-converted from GB)
-```
+await doc.call('fill', 'stof.dev');
+console.log(doc.record());
 
-## Runtime Self-Assembly
-
-Stof documents can parse new Stof into themselves at runtime, receiving code over the network and executing it immediately. The document grows while it runs, always sandboxed.
-
-```typescript
-import { stofAsync } from '@formata/stof';
-
-const doc = await stofAsync`
-    fn loaded() -> str {
-        const stof = await Ext.fetch();
-        parse(stof, self);
-        self.say_hello()
-    }
-`;
-
-doc.lib('Ext', 'fetch', async () => {
-    return `fn say_hello() -> str { 'Hello, world!' }`;
-});
-
-console.log(await doc.call('loaded'));      // Hello, world!
-```
-
-This is how [Limitr](https://limitr.dev) dynamically assembles API capabilities across services, a document receives new code, parses it in, and executes it with full type safety.
-
-## Units & Types
-
-Rich type system with automatic unit conversions — time, distance, memory, temperature, and more.
-
-```typescript
-import { stofAsync } from '@formata/stof';
-
-const doc = await stofAsync`
-#[type]
-Point: {
-    meters x: 0
-    meters y: 0
-    
-    fn dist(other: Point) -> m {
-        Num.sqrt((other.x - self.x).pow(2) + (other.y - self.y).pow(2))
-    }
+/*
+{
+    first: 'John',
+    last: 'Doe',
+    domain: 'stof.dev',
+    email: 'john.doe@stof.dev',
 }
-
-Point reference: {
-    x: 1ft
-    y: 2ft
-}
-
-fn distance(imported_json: str) -> inches {
-    const imported = new {};
-    parse(imported_json, imported, 'json');
-    (self.reference.dist(imported) as inches).round(2)
-}
-`;
-
-const dist = await doc.call('distance', '{ "x": 3, "y": 4 }');
-console.log(dist); // 170.52
+*/
 ```
 
-## CLI
+## What Stof Is
 
-See [installation docs](https://docs.stof.dev/book/installation) for CLI instructions and more information.
+Stof is a data runtime — not a data format, not a programming language, not a database.
 
-```rust
-#[main]
-fn say_hi() {
-    pln("Hello, world!");
-}
-```
-```
-> stof run example.stof
-Hello, world!
-```
+The same way a JavaScript runtime executes JavaScript, a data runtime executes data. A Stof document doesn't just describe something; it validates itself, transforms itself, and acts, wherever the runtime lands.
 
-## Get Started
+Concretely: valid JSON is already valid Stof. You're not migrating to a new format — you're handing your existing data a place to keep the logic that used to live somewhere else.
 
-Stof is written in Rust, but use it where you work. Join the project [Discord](https://discord.gg/Up5kxdeXZt) to contribute.
+## Why it's different
 
-### Rust
+- **Data and logic belong together.** Splitting them across a data file and a separate codebase creates schema drift, versioning hell, and is a limitation for modern distributed systems. Stof documents carry both, as one unit.
+- **Portable means portable.** The same document runs native, in WebAssembly, or embedded in another host, with the same behavior every time. If it doesn't run everywhere, it isn't portable — it's just convenient sometimes.
+- **Sandboxed by default.** A document can only see and manipulate itself unless you explicitly hand it more. Logic that arrives over the wire has to be safe to run without a review cycle first.
+- **Documents should be able to grow.** A running document parsing new fields, new types, even new functions into itself isn't an edge case — it's the model working as intended. Data that can only be replaced, never extended, is still just a snapshot.
+- **Interop with all data formats.** A superset of JSON that is compatible with every other data format, even ones that don't exist yet — binary, images, PDFs, DOCX, YAML, TOML, JSON, etc.
 
-```toml
-[dependencies]
-stof = "0.9.*"
-```
-```rust
-use stof::model::Graph;
+## Where This Came From
 
-fn main() {
-    let mut graph = Graph::default();
-    
-    graph.parse_stof_src(r#"
-        #[main]
-        fn main() {
-            pln("Hello, world!");
-        }
-    "#, None).unwrap();
+Stof comes out of a decade spent building parametric and geometry formats for CAD and graphics systems. That's where the core architectural insights come from: represent everything as a flat graph of nodes and data components (ECS + DAG), connected by pointers rather than nested copies, and moving or transforming part of the document stops being expensive. Everything — fields, functions, PDFs, images, binaries — become data components on a graph of nodes. Allow function components to manipulate the graph, and you have Stof.
 
-    match graph.run(None, true) {
-        Ok(res) => println!("{res}"),
-        Err(err) => panic!("{err}"),
-    }
-}
-```
-
-### Python
-
-`pip install stof`
-
-```python
-from pystof import Doc
-
-STOF = """
-#[main]
-fn main() {
-    const name = Example.name('Stof,', 'with Python');
-    pln(`Hello, ${name}!!`)
-}
-"""
-
-def name(first, last):
-    return first + ' ' + last
-
-def main():
-    doc = Doc()
-    doc.lib('Example', 'name', name)
-    doc.parse(STOF)
-    doc.run()
-
-if __name__ == "__main__":
-    main()
-
-# Output:
-# Hello, Stof, with Python!!
-```
-
-### JavaScript/TypeScript
-
-`npm i @formata/stof`
-
-#### Initialization
-
-Stof uses WebAssembly, so make sure to initialize it once.
-
-```typescript
-// Node.js, Deno, & Bun - Auto-detects and loads WASM
-import { initStof } from '@formata/stof';
-await initStof();
-
-// Vite
-import { initStof } from '@formata/stof';
-import stofWasm from '@formata/stof/wasm?url';
-await initStof(stofWasm);
-
-// Browser with bundler - Pass WASM explicitly (e.g. @rollup/plugin-wasm)
-import { initStof } from '@formata/stof';
-import stofWasm from '@formata/stof/wasm';
-await initStof(await stofWasm());
-```
-
-#### Usage
-
-```typescript
-import { initStof, StofDoc } from '@formata/stof';
-
-await initStof();
-
-const doc = new StofDoc();
-doc.parse(`
-    name: "Alice"
-    age: 30
-    fn greet() -> str {
-        'Hello, ' + self.name
-    }
-`);
-
-const greeting = await doc.call('greet');
-console.log(greeting); // "Hello, Alice"
-console.log(doc.get('age')); // 30
-```
-
-#### JavaScript Interop
-
-```typescript
-await initStof();
-const doc = new StofDoc();
-
-doc.lib('console', 'log', (...args: unknown[]) => console.log(...args));
-doc.lib('fetch', 'get', async (url: string) => {
-    const res = await fetch(url);
-    return await res.json();
-});
-
-doc.parse(`
-    fn main() {
-        const data = await fetch.get("https://api.example.com/data");
-        console.log(data);
-    }
-`);
-
-await doc.call('main');
-```
-
-#### Parse & Export
-
-```typescript
-doc.parse({ name: "Bob", age: 25 });
-
-const json = doc.stringify('json');
-const obj = doc.record();
-```
-
-**Supports**: Node.js, Browser, Deno, Bun, Edge runtimes
-
+Stof started as a solo project while trying to send wasm over the wire, and it's been running in production since — including as the policy engine underneath [Limitr](https://limitr.dev), where every plan, credit limit, and validation rule is a live Stof document.
 
 ## Learn More
 
-- [Docs](https://docs.stof.dev) - core concepts, standard library, and format reference
-- [GitHub Issues](https://github.com/dev-formata-io/stof) - bugs and feature requests
-- [Discord](https://discord.gg/Up5kxdeXZt) - talk to the team and community
-- [Playground](https://play.stof.dev) - try Stof in your browser, no install required
-
-VS Code extension available - search "Stof" in your editor's extension marketplace.
+- [stof.dev](https://stof.dev) — install docs, the full standard library, and examples
+- [Discord](https://discord.gg/Up5kxdeXZt) — talk to the team and community
+- [GitHub Issues](https://github.com/dev-formata-io/stof/issues) — bugs and feature requests
 
 ## License
 
