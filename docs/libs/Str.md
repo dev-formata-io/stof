@@ -51,7 +51,7 @@ assert_eq(val.first(), "h");
 
 
 # Str.index_of(val: str, seq: str) -> int
-Find the first occurrance of the given sequence in this string, returning the index of the first char. If not found, returns -1.
+Find the first occurrence of the given sequence in this string, returning the index of the first char. If not found, returns -1.
 ```rust
 const val = "hello, world";
 assert_eq(val.index_of(", w"), 5);
@@ -100,7 +100,7 @@ assert_eq(val, "hello, world");
 
 
 # Str.replace(val: str, find: str, replace: str = "") -> str
-Replace all occurrances of a find string with a replace string (default removes all occurrances). This will return a new string, without modifying the original.
+Replace all occurrences of a find string with a replace string (default removes all occurrences). This will return a new string, without modifying the original.
 ```rust
 const val = "hello john";
 assert_eq(val.replace(" ", ", "), "hello, john");
