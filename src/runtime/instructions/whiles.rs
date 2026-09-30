@@ -164,4 +164,55 @@ mod tests {
         let res = Runtime::eval(&mut graph, Arc::new(outer_block)).expect("expected pass");
         assert_eq!(res, 100.into());
     }
+
+
+    #[test]
+    /// Looping must not wipe the process's execution history: the first executed
+    /// instruction is how the test/main reporters identify which function finished.
+    fn loop_keeps_execution_history() {
+        use crate::runtime::{instruction::Instructions, proc::{ProcEnv, ProcRes}};
+
+        let mut test_block = Block::default();
+        test_block.ins.push_back(Arc::new(OpIns {
+            lhs: Arc::new(Base::LoadVariable(literal!("i"), false, false)),
+            op: Op::Less,
+            rhs: Arc::new(Base::Literal(Val::Num(Num::Int(5)))),
+        }));
+        let mut declare = Block::default();
+        declare.ins.push_back(Arc::new(Base::Literal(Val::Num(Num::Int(0)))));
+        declare.ins.push_back(Arc::new(Base::DeclareVar(literal!("i"), Type::Void)));
+        let mut inc_block = Block::default();
+        inc_block.ins.push_back(Arc::new(OpIns {
+            lhs: Arc::new(Base::LoadVariable(literal!("i"), false, false)),
+            op: Op::Add,
+            rhs: Arc::new(Base::Literal(Val::Num(Num::Int(1)))),
+        }));
+        inc_block.ins.push_back(Arc::new(Base::SetVariable(literal!("i"))));
+        let while_loop = WhileIns {
+            tag: None,
+            test: Arc::new(test_block),
+            ins: Default::default(),
+            declare: Some(Arc::new(declare)),
+            inc: Some(Arc::new(inc_block)),
+        };
+
+        let marker = literal!("history_start");
+        let mut instructions = Instructions::default();
+        instructions.push(Arc::new(Base::Tag(marker.clone())));
+        instructions.push(Arc::new(while_loop));
+
+        let mut env = ProcEnv::default();
+        let mut graph = Graph::default();
+        env.self_stack.push(graph.ensure_main_root()); // as the runtime does for every process
+        loop {
+            match instructions.exec(&mut env, &mut graph, 0).expect("loop runs") {
+                ProcRes::More => continue,
+                _ => break,
+            }
+        }
+        match instructions.executed.front().and_then(|ins| ins.as_dyn_any().downcast_ref::<Base>().cloned()) {
+            Some(Base::Tag(tag)) => assert_eq!(tag, marker),
+            other => panic!("execution history lost its start after a loop: {:?}", other),
+        }
+    }
 }

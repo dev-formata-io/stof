@@ -232,6 +232,31 @@ mod tests {
     }
 
     #[test]
+    /// #[main] (and #[test]) reporting must name every finished function, including ones that loop.
+    fn main_reports_functions_that_loop() {
+        let mut graph = Graph::default();
+        graph.parse_stof_src(r#"
+            #[main]
+            fn straight_line() -> int { 1 }
+
+            #[main]
+            fn looping() -> int {
+                let total = 0;
+                for (const i in 3) total += i;
+                total
+            }
+
+            #[main]
+            fn calls_a_loop() -> int { self.helper() }
+            fn helper() -> int { let t = 0; while (t < 4) t += 1; t }
+        "#, None, Profile::default()).expect("parses");
+        let output = graph.run(None, true).expect("runs");
+        for name in ["straight_line", "looping", "calls_a_loop"] {
+            assert!(output.contains(name), "missing a report line for {name}:\n{output}");
+        }
+    }
+
+    #[test]
     fn stof_docs() {
         let mut graph = Graph::default();
         graph.insert_lib_docs();

@@ -131,19 +131,22 @@ impl Instructions {
     }
 
     /// Backup to a specific tag in these instructions, killing all instructions.
+    /// If the tag isn't in the executed history, nothing is removed (never wipe history
+    /// that doesn't belong to the tag's scope).
     pub fn kill_back_to(&mut self, tag: &ArcStr) {
-        'unwind: while let Some(ins) = self.executed.pop_back() {
-            if let Some(base) = ins.as_dyn_any().downcast_ref::<Base>() {
-                match base {
-                    Base::Tag(tagged) => {
-                        if tagged == tag {
-                            self.executed.push_back(ins);
-                            break 'unwind;
-                        }
-                    },
-                    _ => {}
+        let mut removed = Vec::new();
+        while let Some(ins) = self.executed.pop_back() {
+            if let Some(Base::Tag(tagged)) = ins.as_dyn_any().downcast_ref::<Base>() {
+                if tagged == tag {
+                    self.executed.push_back(ins);
+                    return;
                 }
             }
+            removed.push(ins);
+        }
+        // tag not found - restore what was popped
+        while let Some(ins) = removed.pop() {
+            self.executed.push_back(ins);
         }
     }
 
@@ -337,7 +340,13 @@ impl Instructions {
                             }
                         },
                         Base::CtrlLoopBackTo { top_tag, .. } => {
+                            // Trim this iteration's history back to the loop's top tag (keeping the tag)...
                             self.kill_back_to(top_tag);
+                            // ...then put this instruction back: the replacement step below pops the last
+                            // executed instruction (meant to be this one). Without this, it popped the top tag,
+                            // so the next iteration's kill_back_to wiped the entire history (including the
+                            // function literal the test/main reporters use to name a finished process).
+                            self.executed.push_back(ins.clone());
                             // don't continue...
                         },
                         Base::CtrlJumpTable(table, default, end) => {
