@@ -136,9 +136,10 @@ Units: {
     #[test]
     fn remove_units() {
         let x = 10kg;
-        x.remove_units();
-        assert(!x.has_units());
-        assert_eq(typeof x, 'float');
+        const y = x.remove_units();
+        assert(!y.has_units());
+        assert_eq(typeof y, 'float');
+        assert(x.has_units()); // numbers are values: x keeps its units
     }
 
     #[test]
@@ -290,4 +291,98 @@ fn units_gen_type() {
     const val = 54kg;
     assert_eq(typename val, 'kg');
     assert_eq(typeof val, 'float');
+}
+
+
+/// Numbers are values: a method call returns a new number and never changes the
+/// variable it was called on (locals, params, consts and fields alike).
+Values: {
+    #[test]
+    fn methods_leave_locals_unchanged() {
+        let x = -2.567;
+        assert_eq(x.abs(), 2.567);
+        assert_eq(x, -2.567);
+
+        let y = 2.567;
+        assert_eq(y.round(1), 2.6);
+        assert_eq(y.round(), 3);
+        assert_eq(y, 2.567);
+
+        let w = 3.7;
+        assert_eq(w.floor(), 3);
+        assert_eq(w.ceil(), 4);
+        assert_eq(w.trunc(), 3);
+        assert_eq(w, 3.7);
+
+        let p = 16;
+        p.sqrt(); // result discarded
+        assert_eq(p, 16);
+        assert_eq(p.pow(2), 256);
+        assert_eq(p.log(2), 4);
+        assert_eq(p, 16);
+
+        let m = 5.5m;
+        assert_eq(m.remove_units(), 5.5);
+        assert(m.has_units());
+    }
+
+    #[test]
+    fn method_result_in_expression_leaves_local_unchanged() {
+        let w = 3.7;
+        const r = w.floor() + 1; // the `+` must not write through to `w` either
+        assert_eq(r, 4);
+        assert_eq(w, 3.7);
+
+        let n = -4;
+        let total = n.abs() * 2 - 1;
+        assert_eq(total, 7);
+        assert_eq(n, -4);
+    }
+
+    #[test]
+    fn methods_leave_consts_unchanged() {
+        const c = -1;
+        const d = c.abs();
+        assert_eq(d, 1);
+        assert_eq(c, -1);
+    }
+
+    fn rounded(v: float) -> float {
+        const r = v.round(2);
+        assert_eq(v, 1.23456); // param unchanged inside the callee
+        return r;
+    }
+
+    #[test]
+    fn methods_leave_params_unchanged() {
+        const v = 1.23456;
+        assert_eq(self.rounded(v), 1.23);
+        assert_eq(v, 1.23456);
+    }
+
+    field: -9.5
+
+    #[test]
+    fn methods_leave_fields_unchanged() {
+        assert_eq(self.field.abs(), 9.5);
+        assert_eq(self.field, -9.5);
+    }
+
+    #[test]
+    fn lib_and_method_forms_agree() {
+        let x = -0.1234567891234;
+        assert_eq(Num.round(x, 9), x.round(9));
+        assert_eq(Num.abs(x), x.abs());
+        assert_eq(x, -0.1234567891234);
+    }
+
+    #[test]
+    fn repeated_calls_are_stable() {
+        let x = -3;
+        let a = x.abs();
+        let b = x.abs();
+        assert_eq(a, b);
+        assert_eq(x.abs().abs(), 3);
+        assert_eq(x, -3);
+    }
 }

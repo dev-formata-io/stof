@@ -18,7 +18,7 @@ use std::sync::Arc;
 use arcstr::{literal, ArcStr};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{Graph, num::{iter::{num_at, num_len}, maxmin::{num_max, num_min}, ops::{num_abs, num_acos, num_acosh, num_asin, num_asinh, num_atan, num_atan2, num_atanh, num_bin, num_cbrt, num_ceil, num_cos, num_cosh, num_exp, num_exp2, num_floor, num_fract, num_has_units, num_hex, num_inf, num_is_angle, num_is_length, num_is_mass, num_is_memory, num_is_temp, num_is_time, num_ln, num_log, num_nan, num_oct, num_pow, num_remove_units, num_round, num_signum, num_sin, num_sinh, num_sqrt, num_string, num_tan, num_tanh, num_to_units, num_trunc}}}, parser::types::parse_type_complete, runtime::{Error, NumT, Type, Val, Variable, instruction::{Instruction, Instructions}, proc::ProcEnv}};
+use crate::{model::{Graph, num::{iter::{num_at, num_len}, maxmin::{num_max, num_min}, ops::{num_abs, num_acos, num_acosh, num_asin, num_asinh, num_atan, num_atan2, num_atanh, num_bin, num_cbrt, num_ceil, num_cos, num_cosh, num_exp, num_exp2, num_floor, num_fract, num_has_units, num_hex, num_inf, num_is_angle, num_is_length, num_is_mass, num_is_memory, num_is_temp, num_is_time, num_ln, num_log, num_nan, num_oct, num_pow, num_remove_units, num_round, num_signum, num_sin, num_sinh, num_sqrt, num_string, num_tan, num_tanh, num_to_units, num_trunc}}}, parser::types::parse_type_complete, runtime::{Error, NumT, Type, Val, ValRef, Variable, instruction::{Instruction, Instructions}, proc::ProcEnv}};
 
 mod ops;
 mod maxmin;
@@ -80,6 +80,17 @@ pub fn insert_number_lib(graph: &mut Graph) {
     graph.insert_libfunc(num_pow());
     graph.insert_libfunc(num_log());
     graph.insert_libfunc(num_atan2());
+}
+
+
+/// Owned copy of a number operand.
+/// Number ops compute into their operand and push it back as the result. Loading a local
+/// or param as a method receiver (`x.abs()`) puts the variable's own value on the stack, so
+/// without a copy the op would overwrite the variable (and any later `+`/`-` on the result
+/// would too). Numbers are values: the result is always a new value.
+fn owned(var: Variable) -> Variable {
+    let copy = ValRef::new(var.val.read().clone());
+    Variable { val: copy, mutable: true, vtype: var.vtype }
 }
 
 
@@ -202,7 +213,7 @@ impl Instruction for NumIns {
     fn exec(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions> , Error> {
         match self {
             Self::Abs => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     if let Some(num) = var.val.write().try_num() {
                         num.abs()?;
                     } else {
@@ -214,7 +225,7 @@ impl Instruction for NumIns {
                 }
             },
             Self::Sqrt => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(num) = var.val.write().try_num() {
                         num.sqrt()?;
@@ -228,7 +239,7 @@ impl Instruction for NumIns {
                 return Err(Error::NumSqrt);
             },
             Self::Cbrt => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(num) = var.val.write().try_num() {
                         num.cbrt()?;
@@ -242,7 +253,7 @@ impl Instruction for NumIns {
                 return Err(Error::NumCbrt);
             },
             Self::Floor => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(num) = var.val.write().try_num() {
                         num.floor()?;
@@ -256,7 +267,7 @@ impl Instruction for NumIns {
                 return Err(Error::NumFloor);
             },
             Self::Ceil => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(num) = var.val.write().try_num() {
                         num.ceil()?;
@@ -270,7 +281,7 @@ impl Instruction for NumIns {
                 return Err(Error::NumCeil);
             },
             Self::Trunc => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(num) = var.val.write().try_num() {
                         num.trunc()?;
@@ -284,7 +295,7 @@ impl Instruction for NumIns {
                 return Err(Error::NumTrunc);
             },
             Self::Fract => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(num) = var.val.write().try_num() {
                         num.fract()?;
@@ -298,7 +309,7 @@ impl Instruction for NumIns {
                 return Err(Error::NumFract);
             },
             Self::Signum => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(num) = var.val.write().try_num() {
                         num.signum()?;
@@ -312,7 +323,7 @@ impl Instruction for NumIns {
                 return Err(Error::NumSignum);
             },
             Self::Exp => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(num) = var.val.write().try_num() {
                         num.exp()?;
@@ -326,7 +337,7 @@ impl Instruction for NumIns {
                 return Err(Error::NumExp);
             },
             Self::Exp2 => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(num) = var.val.write().try_num() {
                         num.exp2()?;
@@ -340,7 +351,7 @@ impl Instruction for NumIns {
                 return Err(Error::NumExp2);
             },
             Self::Ln => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(num) = var.val.write().try_num() {
                         num.ln()?;
@@ -355,7 +366,7 @@ impl Instruction for NumIns {
             },
 
             Self::Sin => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(num) = var.val.write().try_num() {
                         num.sin()?;
@@ -369,7 +380,7 @@ impl Instruction for NumIns {
                 return Err(Error::NumSin);
             },
             Self::Cos => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(num) = var.val.write().try_num() {
                         num.cos()?;
@@ -383,7 +394,7 @@ impl Instruction for NumIns {
                 return Err(Error::NumCos);
             },
             Self::Tan => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(num) = var.val.write().try_num() {
                         num.tan()?;
@@ -397,7 +408,7 @@ impl Instruction for NumIns {
                 return Err(Error::NumTan);
             },
             Self::ASin => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(num) = var.val.write().try_num() {
                         num.asin()?;
@@ -411,7 +422,7 @@ impl Instruction for NumIns {
                 return Err(Error::NumASin);
             },
             Self::ACos => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(num) = var.val.write().try_num() {
                         num.acos()?;
@@ -425,7 +436,7 @@ impl Instruction for NumIns {
                 return Err(Error::NumACos);
             },
             Self::ATan => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(num) = var.val.write().try_num() {
                         num.atan()?;
@@ -439,7 +450,7 @@ impl Instruction for NumIns {
                 return Err(Error::NumATan);
             },
             Self::SinH => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(num) = var.val.write().try_num() {
                         num.sinh()?;
@@ -453,7 +464,7 @@ impl Instruction for NumIns {
                 return Err(Error::NumSinH);
             },
             Self::CosH => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(num) = var.val.write().try_num() {
                         num.cosh()?;
@@ -467,7 +478,7 @@ impl Instruction for NumIns {
                 return Err(Error::NumCosH);
             },
             Self::TanH => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(num) = var.val.write().try_num() {
                         num.tanh()?;
@@ -481,7 +492,7 @@ impl Instruction for NumIns {
                 return Err(Error::NumTanH);
             },
             Self::ASinH => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(num) = var.val.write().try_num() {
                         num.asinh()?;
@@ -495,7 +506,7 @@ impl Instruction for NumIns {
                 return Err(Error::NumASinH);
             },
             Self::ACosH => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(num) = var.val.write().try_num() {
                         num.acosh()?;
@@ -509,7 +520,7 @@ impl Instruction for NumIns {
                 return Err(Error::NumACosH);
             },
             Self::ATanH => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(num) = var.val.write().try_num() {
                         num.atanh()?;
@@ -706,7 +717,7 @@ impl Instruction for NumIns {
                 return Err(Error::NumIsMemory);
             },
             Self::RemoveUnits => {
-                if let Some(val) = env.stack.pop() {
+                if let Some(val) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(val) = val.val.write().try_num() {
                         val.remove_units();
@@ -756,7 +767,7 @@ impl Instruction for NumIns {
             },
 
             Self::Round => {
-                if let Some(var) = env.stack.pop() {
+                if let Some(var) = env.stack.pop().map(owned) {
                     let mut push = false;
                     if let Some(num) = var.val.write().try_num() {
                         num.round()?;
@@ -771,7 +782,7 @@ impl Instruction for NumIns {
             },
             Self::Round2 => {
                 if let Some(places_var) = env.stack.pop() {
-                    if let Some(val_var) = env.stack.pop() {
+                    if let Some(val_var) = env.stack.pop().map(owned) {
                         let mut push = false;
                         if let Some(digits) = places_var.val.write().try_num() {
                             if let Some(val) = val_var.val.write().try_num() {
@@ -789,7 +800,7 @@ impl Instruction for NumIns {
             },
             Self::Pow => {
                 if let Some(to_var) = env.stack.pop() {
-                    if let Some(val_var) = env.stack.pop() {
+                    if let Some(val_var) = env.stack.pop().map(owned) {
                         let mut push = false;
                         if let Some(to) = to_var.val.write().try_num() {
                             if let Some(val) = val_var.val.write().try_num() {
@@ -807,7 +818,7 @@ impl Instruction for NumIns {
             },
             Self::Log => {
                 if let Some(base_var) = env.stack.pop() {
-                    if let Some(val_var) = env.stack.pop() {
+                    if let Some(val_var) = env.stack.pop().map(owned) {
                         let mut push = false;
                         if let Some(base) = base_var.val.write().try_num() {
                             if let Some(val) = val_var.val.write().try_num() {
@@ -825,7 +836,7 @@ impl Instruction for NumIns {
             },
             Self::ATan2 => {
                 if let Some(base_var) = env.stack.pop() {
-                    if let Some(val_var) = env.stack.pop() {
+                    if let Some(val_var) = env.stack.pop().map(owned) {
                         let mut push = false;
                         if let Some(base) = base_var.val.write().try_num() {
                             if let Some(val) = val_var.val.write().try_num() {
