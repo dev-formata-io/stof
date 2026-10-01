@@ -424,7 +424,7 @@ impl Instruction for AgeIns {
                             let mut recipients = vec![];
                             match recipients_var.val.read().deref() {
                                 Val::Str(pubkey) => {
-                                    recipients.push(age::x25519::Recipient::from_str(pubkey.as_str()).expect("could not parse age public key string"));
+                                    recipients.push(age::x25519::Recipient::from_str(pubkey.as_str()).map_err(|error| Error::StdBlobify(format!("invalid age public key '{pubkey}': {error}")))?);
                                 },
                                 Val::Data(dref) => {
                                     if let Some(identity) = graph.get_stof_data::<AgeIdentity>(dref) {
@@ -435,7 +435,7 @@ impl Instruction for AgeIns {
                                     for val in vals {
                                         match val.read().deref() {
                                             Val::Str(pubkey) => {
-                                                recipients.push(age::x25519::Recipient::from_str(pubkey.as_str()).expect("could not parse age public key string"));
+                                                recipients.push(age::x25519::Recipient::from_str(pubkey.as_str()).map_err(|error| Error::StdBlobify(format!("invalid age public key '{pubkey}': {error}")))?);
                                             },
                                             Val::Data(dref) => {
                                                 if let Some(identity) = graph.get_stof_data::<AgeIdentity>(dref) {

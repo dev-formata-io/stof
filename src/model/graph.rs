@@ -1311,11 +1311,12 @@ impl Graph {
         use std::io::Write;
 
         let mut bytes = self.binary_export(format, node)?;
-        let encryptor = age::Encryptor::with_recipients(recipients).expect("age encryption requires recipients");
+        let age_error = |error: String| Error::StdBlobify(format!("age encryption: {error}"));
+        let encryptor = age::Encryptor::with_recipients(recipients).map_err(|_| age_error("at least one recipient (public key) is required".into()))?;
         let mut encrypted = vec![];
-        let mut writer = encryptor.wrap_output(&mut encrypted).expect("age could not wrap output");
-        writer.write_all(&bytes).expect("age could not write encrypted output");
-        writer.finish().expect("age could not finish encryption");
+        let mut writer = encryptor.wrap_output(&mut encrypted).map_err(|error| age_error(error.to_string()))?;
+        writer.write_all(&bytes).map_err(|error| age_error(error.to_string()))?;
+        writer.finish().map_err(|error| age_error(error.to_string()))?;
 
         bytes = Bytes::from(encrypted);
         Ok(bytes)
@@ -1326,10 +1327,10 @@ impl Graph {
     pub fn age_decrypt_import<'a>(&mut self, format: &str, bytes: Bytes, node: Option<NodeRef>, identity: &'a dyn age::Identity, profile: Option<Profile>) -> Result<(), Error> {
         use std::io::Read;
 
-        let decryptor = age::Decryptor::new(bytes.as_ref()).expect("age could not create decryptor");
+        let decryptor = age::Decryptor::new(bytes.as_ref()).map_err(|error| Error::StdParse(format!("age decryption: not age encrypted data ({error})")))?;
         let mut decrypted = vec![];
         if let Ok(mut reader) = decryptor.decrypt(std::iter::once(identity)) {
-            reader.read_to_end(&mut decrypted).expect("age read decrypted error");
+            reader.read_to_end(&mut decrypted).map_err(|error| Error::StdParse(format!("age decryption: {error}")))?;
             self.binary_import(format, Bytes::from(decrypted), node, &profile.unwrap_or_default())
         } else {
             Err(Error::AgeNoMatchingKeys)
@@ -1485,8 +1486,11 @@ fn deserialize_data<'de, D>(deserializer: D) -> Result<FxHashMap<DataRef, Data>,
     let data: Vec<Vec<u8>> = Deserialize::deserialize(deserializer)?;
     let mut deserialized = FxHashMap::default();
     for bytes in data {
-        if let Ok(data) = bincode::deserialize::<Data>(&bytes) {
-            deserialized.insert(data.id.clone(), data);
+        match crate::model::cautious::bincode_deserialize::<Data>(&bytes) {
+            Ok(data) => { deserialized.insert(data.id.clone(), data); },
+            // unknown data types are skipped, but don't silently drop data that is too deep to decode
+            Err(error) if error.to_string().contains("nested too deeply") => return Err(serde::de::Error::custom(error)),
+            Err(_) => {},
         }
     }
     Ok(deserialized)
@@ -1510,7 +1514,7 @@ fn deserialize_nodes<'de, D>(deserializer: D) -> Result<FxHashMap<NodeRef, Node>
     let data: Vec<Vec<u8>> = Deserialize::deserialize(deserializer)?;
     let mut deserialized = FxHashMap::default();
     for bytes in data {
-        if let Ok(node) = bincode::deserialize::<Node>(&bytes) {
+        if let Ok(node) = crate::model::cautious::bincode_deserialize::<Node>(&bytes) {
             deserialized.insert(node.id.clone(), node);
         }
     }

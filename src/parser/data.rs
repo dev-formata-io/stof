@@ -49,7 +49,7 @@ pub fn parse_data<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a
     let (input, _) = opt(preceded(space0, alt((char(';'), char(','))))).parse(input)?;
 
     let self_ptr = context.self_ptr();
-    if let Ok(mut data) = bincode::deserialize::<Data>(&bytes) {
+    if let Ok(mut data) = crate::model::cautious::bincode_deserialize::<Data>(&bytes) {
         // avoid colliding with existing data
         if data.id.data_exists(&context.graph) {
             data.id = SId::default();
@@ -64,7 +64,7 @@ pub fn parse_data<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a
     }
     
     // Do not throw an error here - failing to load data should be allowed for various reasons...
-    let path = self_ptr.node_path(&context.graph, true).unwrap().join(".");
+    let path = self_ptr.node_path(&context.graph, true).map(|path| path.join(".")).unwrap_or_default();
     println!("{} {} {}", "failed to deserialize stof data @".dimmed(), path.purple(), "missing data".red());
     return Ok((input, ()));
 }

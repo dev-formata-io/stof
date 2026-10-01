@@ -17,7 +17,7 @@
 use imbl::{OrdMap, OrdSet, Vector};
 use js_sys::{Array, BigInt, Map, Set, Uint8Array};
 use wasm_bindgen::{JsCast, JsValue};
-use crate::{model::{Func, Graph, SId}, runtime::{Num, Type, Val, ValRef}};
+use crate::{model::{Func, Graph, SId}, runtime::{Num, Val, ValRef}};
 
 
 pub fn to_graph_value(js: JsValue, doc: &Graph) -> Val {
@@ -44,7 +44,7 @@ pub fn to_graph_value(js: JsValue, doc: &Graph) -> Val {
             let id_type = val.split("_pr:_ms").collect::<Vec<_>>();
             if id_type.len() == 2 {
                 let pid = SId::from(id_type[0]);
-                let ty = Type::from(id_type[1]);
+                let Ok(ty) = crate::parser::types::parse_type_complete(id_type[1]) else { return Val::Str(val.into()); };
                 return Val::Promise(pid, ty);
             }
         }

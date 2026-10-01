@@ -18,7 +18,7 @@ use std::sync::Arc;
 use arcstr::ArcStr;
 use imbl::Vector;
 use nom::{bytes::complete::tag, branch::alt, character::complete::{char, multispace0}, combinator::{not, recognize}, multi::separated_list1, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{parser::{doc::StofParseError, expr::expr, ident::ident, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{assign::SetFieldIns, block::Block, Base, ADD, BIT_AND, BIT_OR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_XOR, DIVIDE, MODULUS, MULTIPLY, SUBTRACT}}};
+use crate::{parser::statement::declare::note_declared, parser::{doc::StofParseError, expr::expr, ident::ident, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{assign::SetFieldIns, block::Block, Base, ADD, BIT_AND, BIT_OR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_XOR, DIVIDE, MODULUS, MULTIPLY, SUBTRACT}}};
 
 
 /// Assign statement.
@@ -76,6 +76,7 @@ pub(self) fn assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instru
     let (input, varname) = delimited(multispace0, recognize(separated_list1(char('.'), ident)), multispace0).parse(input)?;
     let (input, _) = terminated(char('='), multispace0).parse(input)?;
     let (input, expr) = expr(input)?;
+    if !varname.contains('.') { note_declared(varname); } // Ex. "Name = new root {}" creates the name
 
     let mut block = Vector::default();
     block.push_back(expr);

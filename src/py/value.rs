@@ -17,7 +17,7 @@
 use bytes::Bytes;
 use imbl::{OrdMap, OrdSet, Vector};
 use pyo3::{Bound, PyAny, Python, types::{PyAnyMethods, PyBool, PyBoolMethods, PyByteArray, PyByteArrayMethods, PyBytes, PyBytesMethods, PyComplex, PyComplexMethods, PyDict, PyDictMethods, PyFloat, PyFloatMethods, PyFrozenSet, PyInt, PyList, PyNone, PyRange, PySet, PyString, PyStringMethods, PyTuple}};
-use crate::{model::{Func, Graph, SId}, runtime::{Num, Type, Val, ValRef}};
+use crate::{model::{Func, Graph, SId}, runtime::{Num, Val, ValRef}};
 
 
 pub fn py_any_to_val(py: &Bound<'_, PyAny>, graph: &Graph) -> Val {
@@ -45,7 +45,7 @@ pub fn py_any_to_val(py: &Bound<'_, PyAny>, graph: &Graph) -> Val {
                     let id_type = value.split("_pr:_ms").collect::<Vec<_>>();
                     if id_type.len() == 2 {
                         let pid = SId::from(id_type[0]);
-                        let ty = Type::from(id_type[1]);
+                        let Ok(ty) = crate::parser::types::parse_type_complete(id_type[1]) else { return Val::Str(value.into()); };
                         return Val::Promise(pid, ty);
                     }
                 }
@@ -166,7 +166,7 @@ pub fn py_any_to_raw_val(py: &Bound<'_, PyAny>) -> Val {
                     let id_type = value.split("_pr:_ms").collect::<Vec<_>>();
                     if id_type.len() == 2 {
                         let pid = SId::from(id_type[0]);
-                        let ty = Type::from(id_type[1]);
+                        let Ok(ty) = crate::parser::types::parse_type_complete(id_type[1]) else { return Val::Str(value.into()); };
                         return Val::Promise(pid, ty);
                     }
                 }

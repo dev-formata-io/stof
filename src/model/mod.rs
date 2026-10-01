@@ -40,6 +40,9 @@ pub mod formats;
 pub use formats::*;
 
 pub mod libraries;
+
+/// Safe decoding of untrusted binary data.
+pub mod cautious;
 pub use libraries::*;
 
 

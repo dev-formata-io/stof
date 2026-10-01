@@ -250,7 +250,7 @@ fn deserialize_data_field<'de, D>(deserializer: D) -> Result<Box<dyn StofData>, 
     if data.is_container() {
         let any = data.as_dyn_any();
         if let Some(container) = any.downcast_ref::<StofDataContainer>() {
-            if let Ok(res) = bincode::deserialize::<Box<dyn StofData>>(container.contained.as_ref()) {
+            if let Ok(res) = crate::model::cautious::bincode_deserialize::<Box<dyn StofData>>(container.contained.as_ref()) {
                 data = res;
             }
         }

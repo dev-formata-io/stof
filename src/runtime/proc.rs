@@ -125,7 +125,7 @@ impl ProcEnv {
                     }
                 }
                 let prefix = format!("{index}.");
-                let signature = format!("{} {}.{}({params}) -> {};", prefix.dimmed(), func_path.cyan().dimmed(), func.data_name(graph).unwrap().as_ref().bright_purple(), this.return_type.rt_type_of(graph).as_str().blue());
+                let signature = format!("{} {}.{}({params}) -> {};", prefix.dimmed(), func_path.cyan().dimmed(), func.data_name(graph).map(|n| n.as_ref().to_string()).unwrap_or_default().bright_purple(), this.return_type.rt_type_of(graph).as_str().blue());
                 callstack.push_str(&format!("\n\t\t{}", signature));
             }
         }

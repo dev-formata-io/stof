@@ -18,7 +18,7 @@ use std::sync::Arc;
 use arcstr::{literal, ArcStr};
 use imbl::{vector, Vector};
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{model::stof_std::COPY, parser::{doc::StofParseError, expr::expr, ident::ident, statement::{noscope_block, statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FuncCall, nullcheck::NullcheckIns, ops::{Op, OpIns}, whiles::WhileIns, Base}, Num, NumT, Type, Val}};
+use crate::{parser::statement::declare::note_declared, model::stof_std::COPY, parser::{doc::StofParseError, expr::expr, ident::ident, statement::{noscope_block, statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FuncCall, nullcheck::NullcheckIns, ops::{Op, OpIns}, whiles::WhileIns, Base}, Num, NumT, Type, Val}};
 
 
 /// For in loop.
@@ -28,6 +28,7 @@ pub fn for_in_loop(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, S
 
     let (input, loop_tag) = opt(terminated(preceded(char('^'), ident), multispace0)).parse(input)?;
     let (input, inner) = preceded(terminated(tag("for"), multispace0), delimited(char('('), inner_loop, char(')'))).parse(input)?;
+    for name in [inner.varname.as_str(), "iterable", "length", "index", "first", "last"] { note_declared(name); } // loop variables
     let (input, ins) = alt((
         noscope_block,
         statement

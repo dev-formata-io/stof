@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use nom::{branch::alt, bytes::complete::{tag, take_while1}, character::complete::one_of, combinator::{opt, recognize, value}, multi::{many0, many1}, IResult, Parser};
+use nom::{branch::alt, bytes::complete::{tag, take_while1}, character::complete::one_of, combinator::{opt, recognize, value}, error::ParseError, multi::{many0, many1}, IResult, Parser};
 use crate::{parser::{doc::StofParseError, whitespace::whitespace}, runtime::{Num, Units, Val}};
 
 
@@ -31,7 +31,8 @@ pub fn number(input: &str) -> IResult<&str, Val, StofParseError> {
             let (input, digits) = take_while1(|c: char| c == '_' || c.is_digit(radix)).parse(digits_input)?;
             let digits = digits.replace('_', "");
             let Ok(magnitude) = u128::from_str_radix(&digits, radix) else {
-                return Err(nom::Err::Failure(StofParseError::from(format!("number literal {prefix}{digits} is too large"))));
+                let problem = if digits.is_empty() { "has no digits" } else { "is too large" };
+                return Err(nom::Err::Failure(StofParseError::from(format!("number literal {prefix}{digits} {problem}"))));
             };
             let num = whole_number(magnitude, negative);
 
@@ -62,7 +63,10 @@ pub fn number(input: &str) -> IResult<&str, Val, StofParseError> {
     ).parse(input)?;
 
     let cleaned_string = recognized_float_str.replace("_", "");
-    let float_value = cleaned_string.parse::<f64>().expect("could not parse floating point number");
+    let Ok(float_value) = cleaned_string.parse::<f64>() else {
+        // Ex. "_" or "._" (digit separators only): not a number
+        return Err(nom::Err::Error(StofParseError::from_error_kind(input, nom::error::ErrorKind::Float)));
+    };
 
     let (input, units) = units(input)?;
     if let Some(units) = units {

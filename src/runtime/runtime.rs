@@ -772,7 +772,7 @@ impl Runtime {
                                 if let Some(name) = func_ref.data_name(&gr) {
                                     let mut func_path = String::from("<unknown>");
                                     for node in func_ref.data_nodes(&gr) {
-                                        func_path = node.node_path(&gr, true).unwrap().join(".");
+                                        func_path = node.node_path(&gr, true).map(|path| path.join(".")).unwrap_or_default();
                                     }
                                     // Only print something if there's a result
                                     if let Some(res) = &success.result {
@@ -796,7 +796,7 @@ impl Runtime {
                 if let Some(name) = func_ref.data_name(&gr) {
                     let mut func_path = String::from("<unknown>");
                     for node in func_ref.data_nodes(&gr) {
-                        func_path = node.node_path(&gr, true).unwrap().join(".");
+                        func_path = node.node_path(&gr, true).map(|path| path.join(".")).unwrap_or_default();
                     }
                     let err_str = errored.error_report(&gr);
                     let msg = format!("{} {} {} {} {}\n{}\n", "main".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "failed".bold().red(), err_str);
@@ -874,7 +874,7 @@ impl Runtime {
                                 if let Some(name) = func_ref.data_name(graph) {
                                     let mut func_path = String::from("<unknown>");
                                     for node in func_ref.data_nodes(graph) {
-                                        func_path = node.node_path(graph, true).unwrap().join(".");
+                                        func_path = node.node_path(graph, true).map(|path| path.join(".")).unwrap_or_default();
                                     }
                                     // Only print something if there's a result
                                     if let Some(res) = &success.result {
@@ -897,7 +897,7 @@ impl Runtime {
                 if let Some(name) = func_ref.data_name(graph) {
                     let mut func_path = String::from("<unknown>");
                     for node in func_ref.data_nodes(graph) {
-                        func_path = node.node_path(graph, true).unwrap().join(".");
+                        func_path = node.node_path(graph, true).map(|path| path.join(".")).unwrap_or_default();
                     }
                     let err_str = errored.error_report(graph);
                     let msg = format!("{} {} {} {} {}\n{}\n", "main".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "failed".bold().red(), err_str);
@@ -980,7 +980,7 @@ impl Runtime {
                                 if let Some(name) = func_ref.data_name(graph) {
                                     let mut func_path = String::from("<unknown>");
                                     for node in func_ref.data_nodes(graph) {
-                                        func_path = node.node_path(graph, true).unwrap().join(".");
+                                        func_path = node.node_path(graph, true).map(|path| path.join(".")).unwrap_or_default();
                                     }
                                     // Only print something if there's a result
                                     if let Some(res) = &success.result {
@@ -1003,7 +1003,7 @@ impl Runtime {
                 if let Some(name) = func_ref.data_name(graph) {
                     let mut func_path = String::from("<unknown>");
                     for node in func_ref.data_nodes(graph) {
-                        func_path = node.node_path(graph, true).unwrap().join(".");
+                        func_path = node.node_path(graph, true).map(|path| path.join(".")).unwrap_or_default();
                     }
                     let err_str = errored.error_report(graph);
                     let msg = format!("{} {} {} {} {}\n{}\n", "main".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "failed".bold().red(), err_str);
@@ -1086,7 +1086,7 @@ impl Runtime {
                                             if !func.attributes.contains_key("silent") {
                                                 let mut func_path = String::from("<unknown>");
                                                 for node in func_ref.data_nodes(graph) {
-                                                    func_path = node.node_path(graph, true).unwrap().join(".");
+                                                    func_path = node.node_path(graph, true).map(|path| path.join(".")).unwrap_or_default();
                                                 }
                                                 println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "failed".bold().red());
                                             }
@@ -1094,7 +1094,7 @@ impl Runtime {
                                         } else if !func.attributes.contains_key("silent") {
                                             let mut func_path = String::from("<unknown>");
                                             for node in func_ref.data_nodes(graph) {
-                                                func_path = node.node_path(graph, true).unwrap().join(".");
+                                                func_path = node.node_path(graph, true).map(|path| path.join(".")).unwrap_or_default();
                                             }
                                             println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "ok".bold().green());
                                         }
@@ -1118,7 +1118,7 @@ impl Runtime {
                             if !func.attributes.contains_key("silent") {
                                 let mut func_path = String::from("<unknown>");
                                 for node in func_ref.data_nodes(graph) {
-                                    func_path = node.node_path(graph, true).unwrap().join(".");
+                                    func_path = node.node_path(graph, true).map(|path| path.join(".")).unwrap_or_default();
                                 }
                                 println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "ok".bold().green());
                             }
@@ -1126,7 +1126,7 @@ impl Runtime {
                         } else if !func.attributes.contains_key("silent") {
                             let mut func_path = String::from("<unknown>");
                             for node in func_ref.data_nodes(graph) {
-                                func_path = node.node_path(graph, true).unwrap().join(".");
+                                func_path = node.node_path(graph, true).map(|path| path.join(".")).unwrap_or_default();
                             }
                             println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "failed".bold().red());
                         }
@@ -1140,7 +1140,7 @@ impl Runtime {
         println!("{} {} {} {}", "running".bold(), count, "tests".bold(), "...".dimmed());
         let start = SystemTime::now();
         rt.run_to_complete(graph);
-        let duration = start.elapsed().unwrap();
+        let duration = start.elapsed().unwrap_or_default();
 
         // Gather results and output
         let mut output = "\n".to_string();
@@ -1182,7 +1182,7 @@ impl Runtime {
                 if let Some(name) = func_ref.data_name(graph) {
                     let mut func_path = String::from("<unknown>");
                     for node in func_ref.data_nodes(graph) {
-                        func_path = node.node_path(graph, true).unwrap().join(".");
+                        func_path = node.node_path(graph, true).map(|path| path.join(".")).unwrap_or_default();
                     }
                     output.push_str(&format!("\n{}: {}{}{} ...\n{}\n", "failed".bold().red(), func_path.italic().purple(), " @ ".dimmed(), name.as_ref().italic().blue(), err_str));
                 }

@@ -37,7 +37,10 @@ pub fn switch_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction
     let mut context = ParseContext::new(&mut graph, Profile::default()); // need an eval context for values
     let mut stacked_values = Vec::new();
     for case in cases {
-        let val = context.eval(case.expr).expect("failed to evaluate switch statement value expr");
+        let val = match context.eval(case.expr) {
+            Ok(val) => val,
+            Err(error) => return Err(nom::Err::Failure(StofParseError::from(format!("switch case values must be constants: {error}")))),
+        };
         if let Some(ins) = case.ins {
             let block = Arc::new(Block { ins }) as Arc<dyn Instruction>;
             for sv in stacked_values.drain(..) {

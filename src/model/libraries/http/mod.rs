@@ -599,7 +599,9 @@ impl Instruction for HttpIns {
                             for (k, v) in header_map {
                                 let key = k.read().print(&graph);
                                 if let Ok(name) = HeaderName::from_str(&key) {
-                                    headers.insert(name, v.read().print(&graph).parse().unwrap());
+                                    if let Ok(value) = v.read().print(&graph).parse() { // invalid header values are skipped
+                                        headers.insert(name, value);
+                                    }
                                 }
                             }
                         },

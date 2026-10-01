@@ -23,10 +23,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 /// Parse error.
-/// Errors from nom combinators are cheap (no formatting or allocation): they record what failed and how much
-/// input was left. `document()` turns that into a location and code frame once, only for the error reported.
+/// Errors from nom combinators are cheap (no formatting or allocation): they record what failed and where.
+/// `document()` turns that into a location and code frame once, only for the error reported.
+/// Kept small: one is returned by value from every parser, so its size is stack used per nesting level.
 pub struct StofParseError {
-    pub file_path: Option<String>,
     /// Explicit message (custom errors). Empty for combinator errors (see `describe`).
     pub message: String,
 
@@ -34,10 +34,6 @@ pub struct StofParseError {
     /// Resolved to a line and column by `document()`; positions outside the text are ignored.
     #[serde(skip)]
     pub pos: Option<usize>,
-
-    /// The error is at the end of the input.
-    #[serde(default)]
-    pub at_end: bool,
 
     /// Character that was expected (Ex. '}').
     #[serde(default)]
@@ -47,13 +43,34 @@ pub struct StofParseError {
     #[serde(skip)]
     pub kind: Option<ErrorKind>,
 
-    /// Location (line, column), once located by `document()`.
+    /// The error is at the end of the input.
     #[serde(default)]
-    pub location: Option<(usize, usize)>,
+    pub at_end: bool,
 
-    /// Code frame for the location.
+    /// File and location details (boxed to keep the error small).
     #[serde(default)]
+    pub info: Option<Box<ParseErrorInfo>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+/// Where a parse error is: file, (line, column), and a code frame.
+pub struct ParseErrorInfo {
+    pub file_path: Option<String>,
+    pub location: Option<(usize, usize)>,
     pub frame: String,
+}
+impl StofParseError {
+    /// File the error is in, if known.
+    pub fn file_path(&self) -> Option<&str> { self.info.as_ref().and_then(|info| info.file_path.as_deref()) }
+
+    /// (line, column), once located.
+    pub fn location(&self) -> Option<(usize, usize)> { self.info.as_ref().and_then(|info| info.location) }
+
+    /// Set the file if not already known (the innermost file wins).
+    pub fn set_file_if_unknown(&mut self, path: String) {
+        let info = self.info.get_or_insert_with(Default::default);
+        if info.file_path.is_none() { info.file_path = Some(path); }
+    }
 }
 impl From<&str> for StofParseError {
     fn from(value: &str) -> Self {
@@ -88,6 +105,22 @@ impl StofParseError {
         }
     }
 }
+/// Enter one level of recursive parsing (see `source::NestingGuard`), failing on input nested too deeply.
+pub(crate) fn nest(input: &str) -> Result<source::NestingGuard, nom::Err<StofParseError>> {
+    source::NestingGuard::enter().ok_or_else(|| nom::Err::Failure(StofParseError {
+        message: format!("nested too deeply (more than {} levels)", source::MAX_NESTING),
+        pos: Some(input.as_ptr() as usize),
+        ..Default::default()
+    }))
+}
+
+/// Run a recursive parser one nesting level deeper: errors past MAX_NESTING, and makes sure there's stack.
+#[inline]
+pub(crate) fn nested<'a, T>(input: &'a str, f: impl FnOnce() -> IResult<&'a str, T, StofParseError>) -> IResult<&'a str, T, StofParseError> {
+    let _depth = nest(input)?;
+    source::grow(f)
+}
+
 /// Map a Stof error from an error to a failure.
 /// Used in making sure things fail at the document level.
 pub fn err_fail(e: nom::Err<StofParseError>) -> nom::Err<StofParseError> {
@@ -154,7 +187,7 @@ fn take_furthest() -> Option<StofParseError> {
 /// Locate a parse error in the document text it came from: line, column, and a code frame.
 /// `statement` is the input at the start of the statement that failed (fallback position).
 fn locate_parse_error(text: &str, statement: &str, mut error: StofParseError) -> StofParseError {
-    if error.location.is_some() { return error; } // from an imported document (already located)
+    if error.location().is_some() { return error; } // from an imported document (already located)
     let start = text.as_ptr() as usize;
     let statement_offset = text.len() - statement.len();
     let offset_of = |error: &StofParseError| error.pos.and_then(|pos| {
@@ -166,7 +199,7 @@ fn locate_parse_error(text: &str, statement: &str, mut error: StofParseError) ->
     if let Some(furthest) = take_furthest() {
         if let Some(further) = offset_of(&furthest) {
             if error.message.is_empty() && offset_of(&error).map(|offset| further >= offset).unwrap_or(true) {
-                error = StofParseError { file_path: error.file_path, ..furthest };
+                error = StofParseError { info: error.info, ..furthest };
             }
         }
     }
@@ -185,8 +218,9 @@ fn locate_parse_error(text: &str, statement: &str, mut error: StofParseError) ->
     error.at_end = text[offset..].trim().is_empty();
 
     let (line, col, line_text) = source::line_col(text, offset);
-    error.location = Some((line, col));
-    error.frame = source::code_frame(line, col, line_text);
+    let info = error.info.get_or_insert_with(Default::default);
+    info.location = Some((line, col));
+    info.frame = source::code_frame(line, col, line_text);
     error
 }
 
@@ -214,6 +248,7 @@ pub fn document(mut input: &str, context: &mut ParseContext) -> Result<(), Error
             }
         }
     }
+    context.finish_name_checks();
     Ok(())
 }
 
@@ -370,10 +405,13 @@ fn root_statements<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
 
     context.push_root(name, cid);
     loop {
-        take_furthest(); // per statement
         let res = document_statement(input, context);
         match res {
             Ok((rest, _)) => {
+                if rest.is_empty() || rest.len() == input.len() {
+                    context.pop_self();
+                    return Err(nom::Err::Failure(StofParseError::from_char(rest, '}')));
+                }
                 input = rest;
                 if input.starts_with('}') {
                     break;
@@ -394,10 +432,13 @@ fn root_statements<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
 fn json_statements<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, (), StofParseError> {
     let (mut input, _) = char('{')(input)?;
     loop {
-        take_furthest(); // per statement
         let res = document_statement(input, context);
         match res {
             Ok((rest, _)) => {
+                if rest.is_empty() || rest.len() == input.len() {
+                    // end of input (or no progress) before the closing brace: was an endless loop
+                    return Err(nom::Err::Failure(StofParseError::from_char(rest, '}')));
+                }
                 input = rest;
                 if input.starts_with('}') {
                     break;
@@ -439,6 +480,23 @@ mod tests {
 
         let err = parse_err("fn f() -> str { `hi ${ 1 + }` }");
         assert!(err.starts_with("parse error: invalid expression in template string") && err.contains("column 17"), "{err}");
+
+        // input that used to hang, crash, or panic is a parse error
+        assert!(parse_err("a: new {").contains("expected '}'"));                     // endless loop
+        assert!(parse_err("a: { b: 1").contains("expected '}'"));                    // endless loop
+        assert!(parse_err("root X { b: 1").contains("expected '}'"));                // endless loop
+        assert!(parse_err(&format!("a: {}{}", "[".repeat(3000), "]".repeat(3000))).contains("nested too deeply")); // stack overflow
+        assert!(parse_err(&format!("fn f() {{ {}1{} }}", "(".repeat(3000), ")".repeat(3000))).contains("nested too deeply"));
+        assert!(parse_err("a: |300|").contains("blob values are bytes"));            // panic
+        assert!(parse_err("fn f() { switch (1) { case (1 / 'x').nope(): 1 } }").contains("switch case values must be constants")); // panic
+
+        // nested parentheses parse in linear time (each level was parsed 3 times: 12 levels took seconds)
+        let start = std::time::Instant::now();
+        let mut graph = Graph::default();
+        let depth = crate::parser::source::MAX_NESTING - 4;
+        graph.parse_stof_src(&format!("fn f() -> int {{ {}1{} }}", "(".repeat(depth), ")".repeat(depth)), None, Profile::default()).unwrap();
+        assert!(start.elapsed().as_secs() < 2);
+        assert_eq!(Runtime::call(&mut graph, "root.f", vec![]).unwrap(), Val::from(1));
 
         // "letter" is not "let ter"; "return x" needs a ';'
         assert!(parse_err("fn f() {\n    return 5\n}").contains("expected ';'"));

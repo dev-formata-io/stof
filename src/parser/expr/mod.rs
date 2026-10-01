@@ -30,6 +30,9 @@ pub mod new_obj;
 
 /// Parse an expression.
 pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
+    crate::parser::doc::nested(input, || expr_inner(input))
+}
+fn expr_inner(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, mut ins) = alt([
         new_obj_expr,
         func_expr,
@@ -37,7 +40,6 @@ pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> 
         async_expr,
         typename_expr,
         typeof_expr,
-        tup_expr,
         list_expr,
         blob_expr,
         set_expr,
@@ -49,7 +51,6 @@ pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> 
         literal_expr,
         formatted_string_expr,
         graph_expr,
-        wrapped_expr,
     ]).parse(input)?;
 
     // Peek at the next value, if its async, then don't do the as below...
@@ -150,7 +151,9 @@ pub fn blob_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseEr
 pub fn blob_number(input: &str) -> IResult<&str, u8, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, recognized) = recognize(many1(one_of("0123456789"))).parse(input)?;
-    let value = recognized.parse::<u8>().expect("could not parse floating point number");
+    let Ok(value) = recognized.parse::<u8>() else {
+        return Err(nom::Err::Failure(StofParseError::from(format!("blob values are bytes (0-255), found {recognized}"))));
+    };
     Ok((input, value))
 }
 
@@ -201,7 +204,9 @@ pub fn tup_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseErr
     if exprs.len() < 2 {
         return Err(nom::Err::Error(StofParseError::from(format!("tuple constructor requires at least 2 values"))));
     }
-
+    finish_tuple(input, exprs)
+}
+fn finish_tuple(input: &str, exprs: Vec<Arc<dyn Instruction>>) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     // Optional chained calls here
     // Ex. (3, 4).at(0)
     let (input, additional) = opt(preceded(char('.'), separated_list1(char('.'), chained_var_func))).parse(input)?;
@@ -314,7 +319,10 @@ pub fn async_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseE
 /// Wrapped expression.
 pub fn wrapped_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = whitespace(input)?;
-    let (input, mut ins) = delimited(char('('), delimited(multispace0, expr, multispace0), char(')')).parse(input)?;
+    let (input, ins) = delimited(char('('), delimited(multispace0, expr, multispace0), char(')')).parse(input)?;
+    finish_wrapped(input, ins)
+}
+fn finish_wrapped(input: &str, mut ins: Arc<dyn Instruction>) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (mut input, additional) = opt(preceded(char('.'), separated_list1(char('.'), chained_var_func))).parse(input)?;
 
     if additional.is_some() {
@@ -348,6 +356,27 @@ pub fn wrapped_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofPars
     }
 
     Ok((input, ins))
+}
+
+
+/// Parenthesized expression or tuple: "(expr)" or "(a, b, ..)".
+/// The first expression is parsed once (trying a tuple, then a wrapped expression, parsed nested parens
+/// three times per level: exponential, Ex. 12 levels took seconds).
+pub fn paren_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
+    let (input, _) = whitespace(input)?;
+    let (input, first) = preceded(char('('), delimited(multispace0, expr, whitespace)).parse(input)?;
+    if input.starts_with(',') {
+        let (input, mut rest) = nom::multi::many0(preceded(char(','), delimited(whitespace, expr, whitespace))).parse(input)?;
+        let (input, _) = terminated(opt(char(',')), whitespace).parse(input)?;
+        let (input, _) = char(')').parse(input)?;
+        if rest.is_empty() {
+            return Err(nom::Err::Error(StofParseError::from(format!("tuple constructor requires at least 2 values"))));
+        }
+        rest.insert(0, first);
+        return finish_tuple(input, rest);
+    }
+    let (input, _) = char(')').parse(input)?;
+    finish_wrapped(input, first)
 }
 
 

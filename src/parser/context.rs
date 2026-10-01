@@ -20,7 +20,8 @@ use imbl::vector;
 use lazy_static::lazy_static;
 use nanoid::nanoid;
 use rustc_hash::{FxHashMap, FxHashSet};
-use crate::{model::{DataRef, Graph, NodeRef, PROTOTYPE_EXTENDS_ATTR, PROTOTYPE_TYPE_ATTR, Profile, SId, libraries::prof::insert_profile_lib}, runtime::{Error, Runtime, Type, Val, Variable, instruction::Instruction, instructions::call::FuncCall, proc::Process}};
+use arcstr::literal;
+use crate::{parser::source::{self, SrcLoc}, model::{DataRef, Graph, NodeRef, PROTOTYPE_EXTENDS_ATTR, PROTOTYPE_TYPE_ATTR, Profile, SId, libraries::prof::insert_profile_lib}, runtime::{Error, Runtime, Type, Val, Variable, instruction::Instruction, instructions::call::FuncCall, proc::Process}};
 
 
 lazy_static! {
@@ -43,6 +44,10 @@ pub struct ParseContext<'ctx> {
 
     /// Parse warnings, printed (stderr) when the context is dropped.
     pub warnings: Vec<String>,
+
+    /// Unknown names found in functions, checked against roots when the document is done:
+    /// (function, name, is call, location).
+    pending_names: Vec<(String, String, bool, Option<SrcLoc>)>,
 
 }
 impl<'ctx> ParseContext<'ctx> {
@@ -71,6 +76,7 @@ impl<'ctx> ParseContext<'ctx> {
             seen_import_paths: Default::default(),
             file_stack: Default::default(),
             warnings: Default::default(),
+            pending_names: Default::default(),
         }
     }
 
@@ -95,7 +101,7 @@ impl<'ctx> ParseContext<'ctx> {
 
         if let Err(mut error) = res {
             if let Error::ParseError(error) = &mut error {
-                if error.file_path.is_none() { error.file_path = Some(path); } // keep the innermost file
+                error.set_file_if_unknown(path); // keep the innermost file
             }
             return Err(error);
         }
@@ -166,6 +172,40 @@ impl<'ctx> ParseContext<'ctx> {
             if self.is_lib_name(name) {
                 self.warn(format!("variable '{name}' in fn {func} shadows the {name} library: {name}.func(..) in this function calls through the variable (use {name}::func(..) to always call the library)"));
             }
+        }
+    }
+
+    /// Check the bare names a function uses against its variables (params, locals, loop/catch variables).
+    /// A bare name can only be a variable, a graph root, or (when called) a standard library function, so
+    /// anything else is a mistake that silently reads null at runtime (Ex. a misspelled variable).
+    pub fn check_names(&mut self, func: &str, vars: &[String], referenced: Vec<(String, bool, usize)>) {
+        let mut seen = FxHashSet::default();
+        let func_path = match self.self_ptr().node_path(&self.graph, true) {
+            Some(path) => format!("{}.{func}", path.join(".")),
+            None => func.to_string(),
+        };
+        for (name, call, addr) in referenced {
+            if vars.iter().any(|var| var == &name) || !seen.insert(name.clone()) { continue; }
+            if call {
+                if self.graph.libfunc(&literal!("Std"), &name).is_some() { continue; }
+            } else if self.is_lib_name(&name) {
+                continue; // Ex. Num.abs(x)
+            }
+            self.pending_names.push((func_path.clone(), name, call, source::locate_addr(addr)));
+        }
+    }
+
+    /// Warn for unknown names once the document is parsed (roots can be declared after the function).
+    pub(crate) fn finish_name_checks(&mut self) {
+        for (func, name, call, loc) in std::mem::take(&mut self.pending_names) {
+            if !call && self.graph.find_root_named(name.as_str()).is_some() { continue; }
+            let place = loc.map(|loc| format!(" ({})", loc.display())).unwrap_or_default();
+            let message = if call {
+                format!("unknown function '{name}' in fn {func}{place}: not a variable or standard library function (use self.{name}() for a function on this object)")
+            } else {
+                format!("unknown name '{name}' in fn {func}{place}: not a parameter, variable, or root, so it is always null (use self.{name} for a field)")
+            };
+            if !self.warnings.contains(&message) { self.warnings.push(message); }
         }
     }
 
@@ -479,14 +519,9 @@ impl<'ctx> Drop for ParseContext<'ctx> {
                     let func_ref = errored.env.call_stack.first().unwrap();
                     if let Some(name) = func_ref.data_name(graph) {
                         let mut func_path = String::from("<unknown>");
-                        for node in func_ref.data_nodes(graph) { func_path = node.node_path(graph, true).unwrap().join("."); }
-                        
-                        let mut err_str = String::from("<unknown>");
-                        if let Some(err) = &errored.error {
-                            err_str = err.to_string();
-                        }
-
-                        println!("{} {} {} {} {}\n\t{}\n", "init".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "failed".bold().red(), err_str.bold().bright_cyan());
+                        for node in func_ref.data_nodes(graph) { func_path = node.node_path(graph, true).map(|path| path.join(".")).unwrap_or_default(); }
+                        let err_str = errored.error_report(graph);
+                        println!("{} {} {} {} {}\n{}\n", "init".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "failed".bold().red(), err_str);
                     }
                 }
                 true

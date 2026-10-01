@@ -510,13 +510,15 @@ impl Display for Error {
                 //  7 |     let x = 5
                 //    |              ^
                 write!(f, "parse error: {}", error.describe())?;
-                match (&error.file_path, error.location) {
+                match (error.file_path(), error.location()) {
                     (Some(path), Some((line, col))) => write!(f, "\n  --> {path}:{line}:{col}")?,
                     (None, Some((line, col))) => write!(f, "\n  --> line {line}, column {col}")?,
                     (Some(path), None) => write!(f, "\n  --> {path}")?,
                     (None, None) => {},
                 }
-                if !error.frame.is_empty() { write!(f, "\n{}", error.frame)?; }
+                if let Some(info) = &error.info {
+                    if !info.frame.is_empty() { write!(f, "\n{}", info.frame)?; }
+                }
                 Ok(())
             },
             Self::Located(error, stack) => {

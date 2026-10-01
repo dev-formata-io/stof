@@ -41,7 +41,7 @@ pub fn import<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str
         Ok(_) => {
             Ok((input, ()))
         },
-        Err(Error::ParseError(error)) if error.location.is_some() => {
+        Err(Error::ParseError(error)) if error.location().is_some() => {
             Err(nom::Err::Failure(error)) // located in the imported file: report it as is
         },
         Err(error) => {

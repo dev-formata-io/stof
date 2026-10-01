@@ -297,7 +297,7 @@ impl Instruction for DataIns {
                 if let Some(var) = env.stack.pop() {
                     match var.val.read().deref() {
                         Val::Blob(bytes) => {
-                            if let Ok(mut data) = bincode::deserialize::<Data>(bytes) {
+                            if let Ok(mut data) = crate::model::cautious::bincode_deserialize::<Data>(bytes) {
                                 // avoid colliding with existing data
                                 if data.id.data_exists(&graph) {
                                     data.id = SId::default();

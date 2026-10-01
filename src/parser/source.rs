@@ -59,6 +59,48 @@ thread_local! {
 }
 
 
+thread_local! {
+    /// Current nesting depth of recursive parsers (expressions, blocks, object values).
+    static NESTING: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Max nesting of expressions/blocks/objects while parsing. Recursive descent uses the stack for each level,
+/// so very deep (usually malicious or broken) input would overflow it and abort (wasm: trap the engine).
+/// Real documents stay far below it (the Stof test suite peaks at 9, Limitr at 13). Release builds use ~2.5KB
+/// of stack per level (128 levels fit in 512KB; wasm has 1MB); unoptimized builds use 10x more.
+/// With the `stacker` feature (native builds), deep levels continue on a fresh stack segment instead of
+/// overflowing, so this is the same for every build type and thread size (128 is also serde_json's limit).
+pub const MAX_NESTING: usize = 128;
+
+/// Run a recursive step with enough stack: with the `stacker` feature (all native feature sets), when less than
+/// 128KB of stack is left, continue on a new 2MB segment (heap allocated). Otherwise (wasm) just run it: release
+/// wasm uses ~2.5KB per level, so MAX_NESTING levels fit easily in its 1MB stack.
+#[inline(always)]
+pub fn grow<R>(f: impl FnOnce() -> R) -> R {
+    #[cfg(feature = "stacker")]
+    { stacker::maybe_grow(128 * 1024, 2 * 1024 * 1024, f) }
+    #[cfg(not(feature = "stacker"))]
+    { f() }
+}
+
+/// One level of parser nesting, released when dropped. None when the input is nested too deeply.
+pub struct NestingGuard;
+impl NestingGuard {
+    pub fn enter() -> Option<Self> {
+        NESTING.with(|depth| {
+            if depth.get() >= MAX_NESTING { return None; }
+            depth.set(depth.get() + 1);
+            Some(NestingGuard)
+        })
+    }
+}
+impl Drop for NestingGuard {
+    fn drop(&mut self) {
+        NESTING.with(|depth| depth.set(depth.get().saturating_sub(1)));
+    }
+}
+
+
 /// Registration of a source text, removed when dropped.
 pub struct SourceGuard;
 impl Drop for SourceGuard {
@@ -92,7 +134,11 @@ pub fn markers_enabled() -> bool {
 /// Location of a position (a slice starting there) in a registered source.
 /// Columns are byte based (exact for ASCII).
 pub fn locate(position: &str) -> Option<SrcLoc> {
-    let addr = position.as_ptr() as usize;
+    locate_addr(position.as_ptr() as usize)
+}
+
+/// Location of a position address (see `locate`).
+pub fn locate_addr(addr: usize) -> Option<SrcLoc> {
     SOURCES.with(|sources| {
         let sources = sources.borrow();
         for source in sources.iter().rev() {
@@ -128,6 +174,21 @@ pub fn line_col(text: &str, offset: usize) -> (usize, usize, &str) {
 ///    |              ^
 /// ```
 pub fn code_frame(line: usize, col: usize, line_text: &str) -> String {
+    // long lines (Ex. minified input): show a window around the column
+    const WINDOW: usize = 60;
+    let chars: Vec<char> = line_text.chars().collect();
+    let (line_text, col) = if chars.len() > WINDOW * 2 {
+        let start = col.saturating_sub(1).saturating_sub(WINDOW).min(chars.len());
+        let end = (col + WINDOW).min(chars.len());
+        let mut window: String = chars[start..end].iter().collect();
+        let mut col = col - start;
+        if start > 0 { window.insert_str(0, "..."); col += 3; }
+        if end < chars.len() { window.push_str("..."); }
+        (window, col)
+    } else {
+        (line_text.to_string(), col)
+    };
+    let line_text = line_text.as_str();
     let number = line.to_string();
     let pad = " ".repeat(number.len());
     // keep tabs so the caret lines up with the source

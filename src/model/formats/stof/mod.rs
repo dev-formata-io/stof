@@ -172,7 +172,7 @@ impl Format for BstfFormat {
     }
     fn binary_import(&self, graph: &mut Graph, _format: &str, bytes: bytes::Bytes, node: Option<NodeRef>, _profile: &Profile) -> Result<(), Error> {
         if bytes.is_empty() { return Ok(()); }
-        match bincode::deserialize::<Graph>(bytes.as_ref()) {
+        match crate::model::cautious::bincode_deserialize::<Graph>(bytes.as_ref()) {
             Ok(mut imported) => {
                 // Insert types
                 for (k, v) in &imported.typemap {
@@ -366,6 +366,34 @@ mod tests {
             assert!(!warned(quiet), "unexpected warning for {quiet}: {warnings:?}");
         }
         assert_eq!(warnings.len(), 3, "{warnings:?}");
+    }
+
+    #[test]
+    /// Bare names that can't be a variable, root, or std function are always null: warn where they are.
+    fn warns_on_unknown_names() {
+        let mut graph = Graph::default();
+        let mut context = ParseContext::new(&mut graph, Profile::prod());
+        document(r#"
+            config: { rate: 4 }
+            fn total(items: list) -> int {
+                let sum = 0;
+                for (const item in items) { sum += item * index; }   // loop variables are known
+                try { sum += 1; } catch (err: str) { pln(err); }     // catch variable
+                const double = (x: int): int => x * 2 + sum;         // arrow params & enclosing locals
+                NewRoot = new root {};                               // assignment creates the name
+                const r = Other.x + <Cfg>.v + Num.abs(-1) + max(1, 2) + ?maybe;
+                sum + totl + double(1)                               // warn: totl
+            }
+            fn calls() { helper(); self.total([]); }                 // warn: helper (not std)
+            root Other { x: 1 }                                      // roots declared later are fine
+            #[type] Cfg: { v: 1 }
+        "#, &mut context).expect("parses");
+        let warnings = context.take_warnings();
+        drop(context);
+
+        assert!(warnings.iter().any(|w| w.contains("unknown name 'totl' in fn root.total (line") || w.contains("unknown name 'totl' in fn root.total (10:")), "{warnings:?}");
+        assert!(warnings.iter().any(|w| w.contains("unknown function 'helper' in fn root.calls")), "{warnings:?}");
+        assert_eq!(warnings.len(), 2, "{warnings:?}");
     }
 
     #[test]

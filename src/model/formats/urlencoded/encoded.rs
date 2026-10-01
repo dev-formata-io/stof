@@ -139,8 +139,10 @@ fn decode_into_tuples(encoded: &str) -> Vec<(String, Value)> {
         if vals.len() == 2 {
             let name = vals[0];
             let value = vals[1];
-            let decoded_name = urlencoding::decode(name).unwrap().into_owned();
-            let decoded_value = urlencoding::decode(value).unwrap().into_owned();
+            // percent-encoded bytes that aren't UTF-8 decode lossily (was a panic)
+            let decode = |text: &str| String::from_utf8_lossy(&urlencoding::decode_binary(text.as_bytes())).into_owned();
+            let decoded_name = decode(name);
+            let decoded_value = decode(value);
 
             let decoded_int: Result<i64, _> = decoded_value.parse();
             match decoded_int {

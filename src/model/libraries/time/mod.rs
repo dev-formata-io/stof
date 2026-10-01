@@ -239,8 +239,10 @@ fn days_in_month(year: i32, month: u32) -> u32 {
     } else {
         NaiveDate::from_ymd_opt(year, month + 1, 1)
     };
-    let first = NaiveDate::from_ymd_opt(year, month, 1).unwrap();
-    (next.unwrap() - first).num_days() as u32
+    match (NaiveDate::from_ymd_opt(year, month, 1), next) {
+        (Some(first), Some(next)) => (next - first).num_days() as u32,
+        _ => 30, // outside the supported date range
+    }
 }
 
 /// Previous (year, month).

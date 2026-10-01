@@ -176,8 +176,9 @@ impl NodeRef {
         if !other.node_exists(graph) { return -2; }
         if self == other { return 0; }
 
-        let mut node_a_id_path = self.node_path(graph, false).unwrap().path;
-        let mut node_b_id_path = other.node_path(graph, false).unwrap().path;
+        let (Some(path_a), Some(path_b)) = (self.node_path(graph, false), other.node_path(graph, false)) else { return -1; };
+        let mut node_a_id_path = path_a.path;
+        let mut node_b_id_path = path_b.path;
         if node_a_id_path.len() < 1 || node_b_id_path.len() < 1 {
             return -1;
         }

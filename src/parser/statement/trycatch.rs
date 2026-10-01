@@ -18,7 +18,7 @@ use std::sync::Arc;
 use arcstr::ArcStr;
 use imbl::{vector, Vector};
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded}, IResult, Parser};
-use crate::{model::{Param, SId}, parser::{doc::StofParseError, ident::ident, statement::{block, statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{trycatch::TryCatchIns, Base, POP_STACK}, Type}};
+use crate::{parser::statement::declare::note_declared, model::{Param, SId}, parser::{doc::StofParseError, ident::ident, statement::{block, statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{trycatch::TryCatchIns, Base, POP_STACK}, Type}};
 
 
 /// Try catch statement.
@@ -45,6 +45,7 @@ pub fn try_catch_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruct
 
     let mut err_ins = vector![];
     if let Some(error_param) = error_param {
+        note_declared(error_param.name.as_ref());
         // declare const variable that is the error (type irrelivant)
         err_ins.push_back(Arc::new(Base::Cast(error_param.param_type.clone())) as Arc<dyn Instruction>);
         err_ins.push_back(Arc::new(Base::DeclareConstVar(ArcStr::from(error_param.name.as_ref()), error_param.param_type)));

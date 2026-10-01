@@ -5,7 +5,7 @@ import '@cargo' as Rust;
 import pkg '@github' as GitHub;
 
 /// Current version.
-const version: 0.9.21
+const version: 0.10.0
 
 /// Cargo.toml definition.
 Cargo cargo: {
@@ -60,13 +60,16 @@ Cargo cargo: {
 
     features: {
         default: ['basic']
-        basic: ['stof_std', 'system', 'pkg', 'log']
-        full: ['stof_std', 'system', 'pkg', 'log', 'image', 'docx', 'pdf', 'http', 'tokio', 'age_encrypt']
+        basic: ['stof_std', 'system', 'pkg', 'log', 'stacker']
+        full: ['stof_std', 'system', 'pkg', 'log', 'stacker', 'image', 'docx', 'pdf', 'http', 'tokio', 'age_encrypt']
 
         stof_std: ['dep:regex']
         system: []
         pkg: ['dep:zip', 'dep:regex', 'dep:walkdir']
         log: ['dep:log']
+
+        /// grow the stack for deeply nested documents instead of overflowing (native targets; not wasm)
+        stacker: ['dep:stacker']
         image: ['dep:image']
         docx: ['dep:docx-rs']
         pdf: ['dep:lopdf', 'image']
@@ -199,6 +202,10 @@ Cargo cargo: {
         }
         log: {
             version: 0.4.34
+            optional: true
+        }
+        stacker: {
+            version: 0.1.25
             optional: true
         }
         web-time: {

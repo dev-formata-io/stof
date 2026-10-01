@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, recognize}, multi::{many0, separated_list0, separated_list1}, sequence::{delimited, preceded}, IResult, Parser};
-use crate::{model::SId, parser::{doc::StofParseError, expr::expr, ident::{ident, ident_type}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, call::{FuncCall, NamedArg}, Base}}};
+use crate::{model::SId, parser::{statement::declare::note_referenced, doc::StofParseError, expr::expr, ident::{ident, ident_type}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, call::{FuncCall, NamedArg}, Base}}};
 
 
 /// Graph interaction expression.
@@ -125,6 +125,7 @@ pub(self) fn var_func(input: &str, chained: bool, as_ref: bool, check_null: bool
     }
 
     // Variable portion is not optional
+    let start = input;
     let (input, path) = variable_expr(input)?;
     let mut path = path.to_string();
 
@@ -138,6 +139,14 @@ pub(self) fn var_func(input: &str, chained: bool, as_ref: bool, check_null: bool
             path.push_str(".at");
             input = inner;
             call = idx;
+        }
+    }
+
+    // Bare names (not self/super/this) are checked against the function's variables after it's parsed
+    if !chained && !check_null {
+        let first = path.split(['.', '?']).next().unwrap_or_default();
+        if !first.is_empty() && !first.starts_with('<') && !KEYWORDS.contains(&first) {
+            note_referenced(first, call.is_some() && !path.contains('.'), start);
         }
     }
 
@@ -160,6 +169,12 @@ pub(self) fn var_func(input: &str, chained: bool, as_ref: bool, check_null: bool
         Ok((input, Arc::new(Base::LoadVariable(path.into(), chained, as_ref))))
     }
 }
+
+
+/// Words that are never variables (other parsers handle them; a failed alternative can still see them as names).
+const KEYWORDS: [&str; 31] = ["self", "super", "this", "let", "const", "return", "if", "else", "while", "loop", "for", "in", "switch",
+    "case", "default", "try", "catch", "break", "continue", "async", "await", "new", "typeof", "typename", "fn", "as", "null",
+    "true", "false", "void", "on"];
 
 
 /// Variable expression.

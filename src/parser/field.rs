@@ -18,7 +18,7 @@ use std::ops::Deref;
 use colored::Colorize;
 use imbl::vector;
 use nanoid::nanoid;
-use nom::{branch::alt, bytes::complete::{tag, take_until}, character::complete::{char, multispace0, multispace1, space0}, combinator::{map, opt, peek, recognize}, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
+use nom::{branch::alt, bytes::complete::{tag, take_until}, character::complete::{char, multispace0, multispace1, space0}, combinator::{map, opt, peek, recognize}, error::ParseError, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
 use rustc_hash::FxHashMap;
 use crate::{model::{Field, FieldDoc, SId, NOFIELD_FIELD_ATTR}, parser::{context::ParseContext, doc::{document_statement, err_fail, StofParseError}, expr::expr, ident::ident, parse_attributes, string::{double_string, single_string}, types::parse_type, whitespace::{doc_comment, whitespace}}, runtime::{Val, Variable}};
 
@@ -103,7 +103,9 @@ pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
     // Instert the new field in the current parse context
     let field = Field::new(value, Some(attributes));
     let self_ptr = context.self_ptr();
-    let field_ref = context.graph.insert_stof_data(&self_ptr, &name, Box::new(field), None).expect("failed to insert a parsed field into this context");
+    let Some(field_ref) = context.graph.insert_stof_data(&self_ptr, &name, Box::new(field), None) else {
+        return Err(nom::Err::Failure(StofParseError::from(format!("could not create field '{name}': the object it belongs to no longer exists"))));
+    };
 
     // Insert the field doc comments also if requested
     if context.profile.docs && comments.len() > 0 {
@@ -119,6 +121,9 @@ pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
 
 /// Parse a field value.
 fn value<'a>(input: &'a str, name: &str, context: &mut ParseContext, attributes: &mut FxHashMap<String, Val>) -> IResult<&'a str, Variable, StofParseError> {
+    crate::parser::doc::nested(input, || value_inner(input, name, context, attributes))
+}
+fn value_inner<'a>(input: &'a str, name: &str, context: &mut ParseContext, attributes: &mut FxHashMap<String, Val>) -> IResult<&'a str, Variable, StofParseError> {
     // Try an object value first
     let obj_res = object_value(input, name, context, attributes);
     match obj_res {
@@ -213,6 +218,11 @@ fn object_value<'a>(input: &'a str, name: &str, context: &mut ParseContext, attr
             let res = document_statement(input, context);
             match res {
                 Ok((rest, _)) => {
+                    if rest.is_empty() || rest.len() == input.len() {
+                        // end of input (or no progress) before the closing brace: was an endless loop
+                        context.pop_self();
+                        return Err(nom::Err::Failure(StofParseError::from_char(rest, '}')));
+                    }
                     input = rest;
                     if input.starts_with('}') {
                         break;
@@ -225,7 +235,9 @@ fn object_value<'a>(input: &'a str, name: &str, context: &mut ParseContext, attr
         }
     }
     context.pop_self();
-    context.post_init_obj(&value, attributes).expect("error initializing new object field value");
+    if let Err(error) = context.post_init_obj(&value, attributes) {
+        return Err(nom::Err::Failure(StofParseError::from(format!("'{name}' could not be initialized: {error}"))));
+    }
     let (input, _) = char('}')(input)?;
 
     // Peek at the next value, if its async, then don't do the as below...

@@ -31,8 +31,26 @@ pub(crate) fn take_declared_names() -> Vec<String> {
     DECLARED_NAMES.with(|names| std::mem::take(&mut *names.borrow_mut()))
 }
 
-fn note_declared(name: &str) {
+/// Note a variable name declared in a function body (let/const, loop and catch variables, arrow params).
+pub(crate) fn note_declared(name: &str) {
     DECLARED_NAMES.with(|names| names.borrow_mut().push(name.to_string()));
+}
+
+
+thread_local! {
+    /// Bare names read or called in function bodies since the last take: (name, is call, source address).
+    /// Checked against the function's variables after it is parsed (unknown names are always null).
+    static REFERENCED_NAMES: RefCell<Vec<(String, bool, usize)>> = RefCell::new(Vec::new());
+}
+
+/// Note a bare name used in an expression (Ex. "total" in "total + 1", "foo" in "foo()").
+pub(crate) fn note_referenced(name: &str, call: bool, position: &str) {
+    REFERENCED_NAMES.with(|names| names.borrow_mut().push((name.to_string(), call, position.as_ptr() as usize)));
+}
+
+/// Take (and clear) the names referenced since the last call.
+pub(crate) fn take_referenced_names() -> Vec<(String, bool, usize)> {
+    REFERENCED_NAMES.with(|names| std::mem::take(&mut *names.borrow_mut()))
 }
 
 

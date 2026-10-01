@@ -2,7 +2,7 @@
 # RUN "stof run project.stof" TO REGENERATE.
 [package]
 name = "stof"
-version = "0.9.21"
+version = "0.10.0"
 authors = ["CJ Cummings <cj@formata.io>"]
 description = "Data Runtime. JSON that runs."
 license = "Apache-2.0"
@@ -20,12 +20,13 @@ doctest = false
 
 [features]
 default = ["basic"]
-basic = ["stof_std", "system", "pkg", "log"]
-full = ["stof_std", "system", "pkg", "log", "image", "docx", "pdf", "http", "tokio", "age_encrypt"]
+basic = ["stof_std", "system", "pkg", "log", "stacker"]
+full = ["stof_std", "system", "pkg", "log", "stacker", "image", "docx", "pdf", "http", "tokio", "age_encrypt"]
 stof_std = ["dep:regex"]
 system = []
 pkg = ["dep:zip", "dep:regex", "dep:walkdir"]
 log = ["dep:log"]
+stacker = ["dep:stacker"]
 image = ["dep:image"]
 docx = ["dep:docx-rs"]
 pdf = ["dep:lopdf", "image"]
@@ -135,6 +136,10 @@ features = ["web-sys"]
 
 [dependencies.log]
 version = "0.4.34"
+optional = true
+
+[dependencies.stacker]
+version = "0.1.25"
 optional = true
 
 [dependencies.web-time]

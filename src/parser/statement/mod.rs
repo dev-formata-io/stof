@@ -79,7 +79,7 @@ fn multistatements(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, S
 
 /// Parse a singular statement into instructions.
 pub fn statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
-    let res = statement_inner(input);
+    let res = crate::parser::doc::nested(input, || statement_inner(input));
     if let Err(nom::Err::Error(error)) = &res {
         note_statement_error(error); // blocks drop this error: keep the furthest for the report
     }
