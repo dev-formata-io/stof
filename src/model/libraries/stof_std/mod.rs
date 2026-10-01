@@ -23,7 +23,7 @@ use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "log")]
 use crate::model::stof_std::print::{std_log_debug, std_log_error, std_log_info, std_log_trace, std_log_warn};
-use crate::{model::{Field, Func, Graph, Profile, Prototype, SELF_STR_KEYWORD, SPath, SUPER_STR_KEYWORD, stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, assert_not_null, assert_null, throw}, containers::{std_copy, std_drop, std_funcs, std_list, std_map, std_set, std_shallow_drop, std_swap}, exit::stof_exit, ops::{std_blobify, std_callstack, std_format_content_type, std_formats, std_graph_id, std_has_format, std_has_lib, std_libs, std_max, std_min, std_nanoid, std_parse, std_peek, std_stringify, std_trace, std_tracestack}, print::{dbg, err, pln, prompt, string, xmltag}, sleep::stof_sleep}}, runtime::{Error, Prompt, Type, Units, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{Base, DUPLICATE, EXIT, call::FuncCall, list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}}, proc::ProcEnv}};
+use crate::{model::{Field, Func, Graph, Profile, Prototype, SELF_STR_KEYWORD, SPath, SUPER_STR_KEYWORD, stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, assert_not_null, assert_null, throw}, containers::{std_copy, std_drop, std_funcs, std_list, std_map, std_set, std_shallow_drop, std_swap}, exit::stof_exit, ops::{std_blobify, std_callstack, std_format_content_type, std_formats, std_graph_id, std_has_format, std_has_lib, std_libs, std_max, std_min, std_inf, std_nan, std_nanoid, std_parse, std_peek, std_stringify, std_trace, std_tracestack}, print::{dbg, err, pln, prompt, string, xmltag}, sleep::stof_sleep}}, runtime::{Error, Prompt, Type, Units, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{Base, DUPLICATE, EXIT, call::FuncCall, list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}}, proc::ProcEnv}};
 
 #[cfg(feature = "system")]
 use crate::model::stof_std::ops::{std_env, std_set_env, std_remove_env, std_env_vars};
@@ -79,6 +79,8 @@ pub fn stof_std_lib(graph: &mut Graph) {
 
     graph.insert_libfunc(std_nanoid());
     graph.insert_libfunc(std_graph_id());
+    graph.insert_libfunc(std_inf());
+    graph.insert_libfunc(std_nan());
 
     graph.insert_libfunc(std_max());
     graph.insert_libfunc(std_min());
@@ -1015,16 +1017,10 @@ impl Instruction for StdIns {
                 for _ in 0..*arg_count {
                     if let Some(var) = env.stack.pop() {
                         let min_var = var.val.read().minimum(graph)?;
-                        if let Some(current) = res {
-                            let lt = min_var.lt(&current, &graph)?;
-                            if lt.truthy() {
-                                res = Some(min_var);
-                            } else {
-                                res = Some(current);
-                            }
-                        } else {
-                            res = Some(min_var);
-                        }
+                        res = Some(match res {
+                            Some(current) => Val::min_of(current, min_var, graph)?,
+                            None => min_var,
+                        });
                     }
                 }
                 if let Some(res) = res {
@@ -1038,16 +1034,10 @@ impl Instruction for StdIns {
                 for _ in 0..*arg_count {
                     if let Some(var) = env.stack.pop() {
                         let max_var = var.val.read().maximum(graph)?;
-                        if let Some(current) = res {
-                            let gt = max_var.gt(&current, &graph)?;
-                            if gt.truthy() {
-                                res = Some(max_var);
-                            } else {
-                                res = Some(current);
-                            }
-                        } else {
-                            res = Some(max_var);
-                        }
+                        res = Some(match res {
+                            Some(current) => Val::max_of(current, max_var, graph)?,
+                            None => max_var,
+                        });
                     }
                 }
                 if let Some(res) = res {

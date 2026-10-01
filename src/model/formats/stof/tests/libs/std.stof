@@ -472,3 +472,18 @@ fn assert_not_null_fails() {
     assert_not_null(null);
 }
 
+
+#[test]
+fn inf_and_nan() {
+    assert_eq(inf(), 1.0 / 0.0);
+    assert_eq(-inf(), -1.0 / 0.0);
+    assert(inf().inf());                       // Num.inf(val) checks for infinity
+    assert(nan().nan());
+    assert_neq(nan(), nan());                  // NaN never equals anything
+    assert_eq(typeof inf(), 'float');
+    assert_eq(min(5, inf()), 5);
+    const inf = 3;                             // a local named inf doesn't shadow the Std function
+    assert_eq(inf() > inf, true);
+    assert_eq(Std::inf(), inf());
+}
+

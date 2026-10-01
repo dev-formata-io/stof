@@ -34,6 +34,11 @@ pub const ASYNC_FUNC_ATTR: ArcStr = literal!("async");
 /// If present, the function will not add its location to the self stack when called.
 pub const UNSELF_FUNC_ATTR: ArcStr = literal!("unself");
 
+/// Arrow function attribute (set by the parser on arrow functions).
+/// Arrow functions see the variables of the function they're called from (normally the one that defines
+/// them, Ex. `(x) => x + offset`); named functions only see their own (lexical boundary).
+pub const ARROW_FUNC_ATTR: ArcStr = literal!("arrow");
+
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 /// Function.

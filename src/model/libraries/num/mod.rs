@@ -579,16 +579,10 @@ impl Instruction for NumIns {
                 for _ in 0..*stack_count {
                     if let Some(var) = env.stack.pop() {
                         let max_var = var.val.read().maximum(graph)?;
-                        if let Some(current) = res {
-                            let gt = max_var.gt(&current, &graph)?;
-                            if gt.truthy() {
-                                res = Some(max_var);
-                            } else {
-                                res = Some(current);
-                            }
-                        } else {
-                            res = Some(max_var);
-                        }
+                        res = Some(match res {
+                            Some(current) => Val::max_of(current, max_var, graph)?,
+                            None => max_var,
+                        });
                     }
                 }
                 if let Some(res) = res {
@@ -602,16 +596,10 @@ impl Instruction for NumIns {
                 for _ in 0..*stack_count {
                     if let Some(var) = env.stack.pop() {
                         let min_var = var.val.read().minimum(graph)?;
-                        if let Some(current) = res {
-                            let lt = min_var.lt(&current, &graph)?;
-                            if lt.truthy() {
-                                res = Some(min_var);
-                            } else {
-                                res = Some(current);
-                            }
-                        } else {
-                            res = Some(min_var);
-                        }
+                        res = Some(match res {
+                            Some(current) => Val::min_of(current, min_var, graph)?,
+                            None => min_var,
+                        });
                     }
                 }
                 if let Some(res) = res {

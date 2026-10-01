@@ -457,6 +457,22 @@ impl Num {
     }
 
     /// Greater than another number?
+    /// Total order for sorting, sets and maps: NaN equals NaN and sorts after every other number
+    /// (like f64::total_cmp); everything else orders like < and >. The < > == operators keep IEEE NaN behavior.
+    pub fn total_cmp(&self, other: &Self) -> std::cmp::Ordering {
+        use std::cmp::Ordering;
+        match (self.nan(), other.nan()) {
+            (true, true) => Ordering::Equal,
+            (true, false) => Ordering::Greater,
+            (false, true) => Ordering::Less,
+            (false, false) => {
+                if self.gt(other) { Ordering::Greater }
+                else if self.lt(other) { Ordering::Less }
+                else { Ordering::Equal }
+            },
+        }
+    }
+
     pub fn gt(&self, other: &Self) -> bool {
         match self {
             Self::Int(val) => {
@@ -642,7 +658,8 @@ impl Num {
             Self::Int(val) => {
                 match other {
                     Self::Int(bval) => {
-                        Self::Int(*val + *bval)
+                        // overflow becomes a float instead of wrapping
+                        val.checked_add(*bval).map(Self::Int).unwrap_or(Self::Float(*val as f64 + *bval as f64))
                     },
                     Self::Float(bval) => {
                         Self::Float(*val as f64 + *bval)
@@ -731,7 +748,7 @@ impl Num {
             Self::Int(val) => {
                 match other {
                     Self::Int(bval) => {
-                        Self::Int(*val - *bval)
+                        val.checked_sub(*bval).map(Self::Int).unwrap_or(Self::Float(*val as f64 - *bval as f64))
                     },
                     Self::Float(bval) => {
                         Self::Float(*val as f64 - *bval)
@@ -820,7 +837,7 @@ impl Num {
             Self::Int(val) => {
                 match other {
                     Self::Int(bval) => {
-                        Self::Int(*val * *bval)
+                        val.checked_mul(*bval).map(Self::Int).unwrap_or(Self::Float(*val as f64 * *bval as f64))
                     },
                     Self::Float(bval) => {
                         Self::Float(*val as f64 * *bval)
@@ -909,7 +926,8 @@ impl Num {
             Self::Int(val) => {
                 match other {
                     Self::Int(bval) => {
-                        Self::Int(*val / *bval)
+                        // division by zero (inf/-inf/NaN) and i64::MIN / -1 become floats instead of panicking
+                        val.checked_div(*bval).map(Self::Int).unwrap_or(Self::Float(*val as f64 / *bval as f64))
                     },
                     Self::Float(bval) => {
                         Self::Float(*val as f64 / *bval)
@@ -998,7 +1016,8 @@ impl Num {
             Self::Int(val) => {
                 match other {
                     Self::Int(bval) => {
-                        Self::Int(*val % *bval)
+                        // remainder by zero is NaN (like floats) instead of panicking; i64::MIN % -1 is 0
+                        val.checked_rem(*bval).map(Self::Int).unwrap_or(if *bval == 0 { Self::Float(f64::NAN) } else { Self::Int(0) })
                     },
                     Self::Float(bval) => {
                         Self::Float(*val as f64 % *bval)
@@ -1233,7 +1252,11 @@ impl Num {
                 *v = v.abs();
             },
             Self::Int(v) => {
-                *v = v.abs();
+                // abs(i64::MIN) doesn't fit: becomes a float instead of overflowing
+                match v.checked_abs() {
+                    Some(abs) => *v = abs,
+                    None => *self = Self::Float((*v as f64).abs()),
+                }
             },
             Self::Units(v, _) => {
                 *v = v.abs();

@@ -193,7 +193,7 @@ impl From<Val> for JsValue {
             Val::Ver(..) => Self::from_str(&value.to_string()),
             Val::Num(num) => {
                 match num {
-                    Num::Int(val) => Self::from(val as i32),
+                    Num::Int(val) => Self::from(val as f64), // a JS number: exact to 2^53 (i32 truncated timestamps and anything over ~2.1 billion)
                     Num::Float(val) => Self::from(val),
                     Num::Units(val, _) => Self::from(val),
                 }

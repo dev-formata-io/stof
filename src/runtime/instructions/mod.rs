@@ -68,6 +68,7 @@ lazy_static! {
     pub static ref PUSH_RETURN: Arc<dyn Instruction> = Arc::new(Base::PushReturn);
 
     pub static ref PUSH_SYMBOL_SCOPE: Arc<dyn Instruction> = Arc::new(Base::PushSymbolScope);
+    pub static ref PUSH_FUNCTION_SCOPE: Arc<dyn Instruction> = Arc::new(Base::PushFunctionScope);
     pub static ref POP_SYMBOL_SCOPE: Arc<dyn Instruction> = Arc::new(Base::PopSymbolScope);
 
     pub static ref BREAK_LOOP: Arc<dyn Instruction> = Arc::new(Base::CtrlBreak);
@@ -265,6 +266,9 @@ pub enum Base {
     PopSelfUntilDepth(usize),
     PopCallUntilDepth(usize),
     PopRetValidUntilDepth(usize),
+
+    // Function call scope: a lexical boundary (lookups don't continue into the caller's variables) - at the end for rev-compatibility
+    PushFunctionScope,
 }
 #[typetag::serde(name = "Base")]
 impl Instruction for Base {
@@ -456,6 +460,7 @@ impl Instruction for Base {
              *****************************************************************************/
             
             Self::PushSymbolScope => env.table.push(),
+            Self::PushFunctionScope => env.table.push_boundary(),
             Self::PopSymbolScope => { env.table.pop(); },
             Self::PopSymbolScopeUntilDepth(depth) => {
                 while env.table.scopes.len() > *depth {

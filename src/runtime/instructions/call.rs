@@ -18,7 +18,7 @@ use std::{ops::Deref, sync::Arc};
 use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use serde::{Deserialize, Serialize};
-use crate::{model::{ASYNC_FUNC_ATTR, DataRef, Field, Func, Graph, LibFunc, NodeRef, PROTOTYPE_TYPE_ATTR, Prototype, SELF_STR_KEYWORD, SId, SUPER_STR_KEYWORD, UNSELF_FUNC_ATTR}, runtime::{Error, Type, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{Base, DUPLICATE, POP_CALL, POP_RETURN, POP_SELF, PUSH_CALL, PUSH_RETURN, PUSH_SELF, PUSH_SYMBOL_SCOPE, PUSH_VAL_RET, PUSH_VOID_RET, SUSPEND, VALIDATE_FN_RET, YIELD}, proc::ProcEnv}};
+use crate::{model::{ARROW_FUNC_ATTR, ASYNC_FUNC_ATTR, DataRef, Field, Func, Graph, LibFunc, NodeRef, PROTOTYPE_TYPE_ATTR, Prototype, SELF_STR_KEYWORD, SId, SUPER_STR_KEYWORD, UNSELF_FUNC_ATTR}, runtime::{Error, Type, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{Base, DUPLICATE, POP_CALL, POP_RETURN, POP_SELF, PUSH_CALL, PUSH_RETURN, PUSH_FUNCTION_SCOPE, PUSH_SELF, PUSH_SYMBOL_SCOPE, PUSH_VAL_RET, PUSH_VOID_RET, SUSPEND, VALIDATE_FN_RET, YIELD}, proc::ProcEnv}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -348,9 +348,7 @@ impl FuncCall {
         let while_depth = env.loop_stack.len();
         let try_depth = env.try_stack.len();
         
-        // Push call stack, start a new scope, and add self if needed
         let mut instructions = Instructions::default();
-        instructions.push(PUSH_SYMBOL_SCOPE.clone());
 
         let params = func.params;
         let rtype = func.return_type;
@@ -417,6 +415,7 @@ impl FuncCall {
         if !unbounded && (args.len() != params.len()) {
             return Err(Error::FuncArgs);
         }
+        // Evaluate every argument in the caller's scope first, then start the library function's scope
         for index in 0..args.len() {
             let arg = &args[index];
             instructions.push(arg.clone());
@@ -426,9 +425,14 @@ impl FuncCall {
                 if !param.param_type.empty() {
                     instructions.push(Arc::new(Base::Cast(param.param_type.clone())));
                 }
-                if func.args_to_symbol_table {
-                    instructions.push(Arc::new(Base::DeclareVar(param.name.to_string().into(), param.param_type.clone()))); // these must keep their type
-                }
+            }
+        }
+        instructions.push(PUSH_SYMBOL_SCOPE.clone());
+        if func.args_to_symbol_table {
+            // bind from the stack: the last argument is on top
+            for index in (0..args.len().min(params.len())).rev() {
+                let param = &params[index];
+                instructions.push(Arc::new(Base::DeclareVar(param.name.to_string().into(), param.param_type.clone()))); // these must keep their type
             }
         }
 
@@ -509,6 +513,7 @@ impl Instruction for FuncCall {
         let rtype;
         let is_async;
         let unself;
+        let arrow;
         if let Some(func) = graph.get_stof_data::<Func>(&func) {
             params = func.params.clone();
             func_instructions = func.instructions.clone();
@@ -519,6 +524,9 @@ impl Instruction for FuncCall {
 
             // Should this function add itself to the self stack?
             unself = func.attributes.contains_key(UNSELF_FUNC_ATTR.as_str());
+
+            // Arrow functions see the caller's variables (closure-like); named functions start a boundary
+            arrow = func.attributes.contains_key(ARROW_FUNC_ATTR.as_str());
         } else {
             if self.cnull {
                 let mut instructions = Instructions::default();
@@ -536,23 +544,22 @@ impl Instruction for FuncCall {
         let while_depth = env.loop_stack.len();
         let try_depth = env.try_stack.len();
        
-        // Push call stack, start a new scope, and add self if needed
         let mut instructions = Instructions::default();
-        instructions.push(Arc::new(Base::Literal(Val::Fn(func.clone()))));
-        instructions.push(DUPLICATE.clone());
-        instructions.push(PUSH_CALL.clone());
-        instructions.push(PUSH_RETURN.clone());
-        instructions.push(PUSH_SYMBOL_SCOPE.clone());
 
-        // Proto self instruction needs to come before args, because of a potential collision in names
-        // From bug, where cont.push(cont: Container) caused an issue (test: root.Lang.Control.For.list_of_outputs).
+        // A self override (prototype self or oself) is evaluated first, in the caller's scope; it stays on the
+        // stack under the arguments until PUSH_SELF, after the parameters are bound.
+        let mut self_on_stack = false;
         if let Some(proto_self) = &func_context.prototype_self {
             instructions.push(proto_self.clone());
+            self_on_stack = true;
+        } else if let Some(oself) = &self.oself {
+            instructions.push(oself.clone());
+            self_on_stack = true;
         }
-        
-        // Arguments
+
+        // Arguments: Some(explicit arg) or None (use the param's default)
         let mut named_args = Vec::new();
-        let mut args = Vec::new();
+        let mut args: Vec<Option<Arc<dyn Instruction>>> = Vec::new();
         for arg in &self.args {
             if let Some(named) = arg.as_dyn_any().downcast_ref::<NamedArg>() {
                 let mut index = 0;
@@ -568,57 +575,68 @@ impl Instruction for FuncCall {
                     return Err(Error::FuncArgs);
                 }
             } else {
-                args.push(arg.clone());
+                args.push(Some(arg.clone()));
             }
         }
         if !named_args.is_empty() {
             named_args.sort_by(|a, b| a.0.cmp(&b.0));
             for (index, ins) in named_args {
                 while index > args.len() {
-                    if let Some(param) = params.get(args.len()) {
-                        if let Some(default) = &param.default {
-                            args.push(default.clone());
-                        } else {
-                            return Err(Error::FuncArgs);
-                        }
+                    if params.get(args.len()).map(|param| param.default.is_some()).unwrap_or(false) {
+                        args.push(None);
                     } else {
                         return Err(Error::FuncArgs);
                     }
                 }
-                args.insert(index, ins);
+                args.insert(index, Some(ins));
             }
         }
-        if args.len() < params.len() {
-            let mut index = args.len();
-            while index < params.len() {
-                let param = &params[index];
-                if let Some(default) = &param.default {
-                    args.push(default.clone());
-                } else {
-                    break;
-                }
-                index += 1;
-            }
+        while args.len() < params.len() && params[args.len()].default.is_some() {
+            args.push(None);
         }
         if args.len() != params.len() {
             return Err(Error::FuncArgs);
         }
-        for index in 0..args.len() {
-            let param = &params[index];
-            let arg = &args[index];
-            instructions.push(arg.clone());
-            instructions.push(Arc::new(Base::Cast(param.param_type.clone())));
-            instructions.push(Arc::new(Base::DeclareVar(param.name.to_string().into(), param.param_type.clone()))); // these must keep their type
+
+        // Evaluate the explicit arguments in the caller's scope, before the call starts (an argument never
+        // sees the callee's parameters, and "this" is still the caller).
+        for (index, arg) in args.iter().enumerate() {
+            if let Some(arg) = arg {
+                instructions.push(arg.clone());
+                instructions.push(Arc::new(Base::Cast(params[index].param_type.clone())));
+            }
         }
 
-        // Add self to self stack if not a prototype function
+        // Start the call: call stack, return, and the function's own scope (a boundary: the function never
+        // sees its caller's variables)
+        instructions.push(Arc::new(Base::Literal(Val::Fn(func.clone()))));
+        instructions.push(DUPLICATE.clone());
+        instructions.push(PUSH_CALL.clone());
+        instructions.push(PUSH_RETURN.clone());
+        instructions.push(if arrow { PUSH_SYMBOL_SCOPE.clone() } else { PUSH_FUNCTION_SCOPE.clone() });
+
+        // Bind the explicit parameters from the stack (the last argument is on top)
+        for (index, arg) in args.iter().enumerate().rev() {
+            if arg.is_some() {
+                let param = &params[index];
+                instructions.push(Arc::new(Base::DeclareVar(param.name.to_string().into(), param.param_type.clone()))); // these must keep their type
+            }
+        }
+        // Then defaults, in order, inside the function (a default can use earlier params, Ex. fn f(a, b = a * 2))
+        for (index, arg) in args.iter().enumerate() {
+            if arg.is_none() {
+                let param = &params[index];
+                if let Some(default) = &param.default {
+                    instructions.push(default.clone());
+                    instructions.push(Arc::new(Base::Cast(param.param_type.clone())));
+                    instructions.push(Arc::new(Base::DeclareVar(param.name.to_string().into(), param.param_type.clone())));
+                }
+            }
+        }
+
+        // Add self to self stack
         let mut pushed_self = false;
-        if let Some(_proto_self) = &func_context.prototype_self {
-            //instructions.push(proto_self); // happens before the arg instructions
-            instructions.push(PUSH_SELF.clone());
-            pushed_self = true;
-        } else if let Some(oself) = &self.oself {
-            instructions.push(oself.clone());
+        if self_on_stack {
             instructions.push(PUSH_SELF.clone());
             pushed_self = true;
         } else if !unself {

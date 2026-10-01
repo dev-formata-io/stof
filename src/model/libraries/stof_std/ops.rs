@@ -277,6 +277,61 @@ assert_neq(nanoid(), nanoid(33));
 }
 
 #[inline(always)]
+/// Infinity.
+pub fn std_inf() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "inf".into(),
+        is_async: false,
+        docs: r#"# Std.inf() -> float
+Positive infinity (negate it for negative infinity). To check whether a number is infinite, use Num.inf(val) (Ex. val.inf()).
+```rust
+const limit = inf();
+assert(limit > 1e308);
+assert(-inf() < -1e308);
+assert(limit.inf());
+```
+"#.into(),
+        params: vector![],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(Base::Literal(Val::Num(Num::Float(f64::INFINITY)))));
+            Ok(instructions)
+        })
+    }
+}
+
+#[inline(always)]
+/// NaN (not a number).
+pub fn std_nan() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "nan".into(),
+        is_async: false,
+        docs: r#"# Std.nan() -> float
+Not a number (NaN). NaN never equals anything, including itself: check for it with Num.nan(val) (Ex. val.nan()).
+```rust
+const value = nan();
+assert(value.nan());
+assert_neq(value, value);
+```
+"#.into(),
+        params: vector![],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(Base::Literal(Val::Num(Num::Float(f64::NAN)))));
+            Ok(instructions)
+        })
+    }
+}
+
+#[inline(always)]
 /// Graph ID.
 pub fn std_graph_id() -> LibFunc {
     LibFunc {

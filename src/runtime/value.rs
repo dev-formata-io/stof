@@ -234,10 +234,11 @@ impl PartialOrd for Val {
     }
 }
 impl Ord for Val {
+    /// Total order (sorting, sets and maps): must be consistent, so a value always equals itself.
     fn cmp(&self, other: &Self) -> Ordering {
         match self {
-            Self::Void => Ordering::Less,
-            Self::Null => Ordering::Greater,
+            Self::Void => if let Self::Void = other { Ordering::Equal } else { Ordering::Less },
+            Self::Null => if let Self::Null = other { Ordering::Equal } else { Ordering::Greater },
             Self::Bool(v) => {
                 match other {
                     Self::Bool(ov) => v.cmp(ov),
@@ -247,15 +248,7 @@ impl Ord for Val {
             },
             Self::Num(v) => {
                 match other {
-                    Self::Num(ov) => {
-                        if v.gt(ov) {
-                            Ordering::Greater
-                        } else if v.lt(ov) {
-                            Ordering::Less
-                        } else {
-                            Ordering::Equal
-                        }
-                    },
+                    Self::Num(ov) => v.total_cmp(ov),
                     Self::Bool(_) |
                     Self::Void => Ordering::Greater,
                     _ => Ordering::Less,
@@ -2861,78 +2854,58 @@ impl Val {
     /// Get the max value from this value.
     pub fn maximum(&self, graph: &Graph) -> Result<Self, Error> {
         match self {
-            Self::List(vals) => {
-                let mut res = Self::Void;
-                for val in vals {
-                    let gt = val.read().gt(&res, graph)?;
-                    if gt.truthy() || res.empty() {
-                        res = val.read().clone();
-                    }
-                }
-                Ok(res)
-            },
-            Self::Tup(vals) => {
-                let mut res = Self::Void;
-                for val in vals {
-                    let gt = val.read().gt(&res, graph)?;
-                    if gt.truthy() || res.empty() {
-                        res = val.read().clone();
-                    }
-                }
-                Ok(res)
-            },
-            Self::Set(set) => {
-                let mut res = Self::Void;
-                for val in set {
-                    let gt = val.read().gt(&res, graph)?;
-                    if gt.truthy() || res.empty() {
-                        res = val.read().clone();
-                    }
-                }
-                Ok(res)
-            },
-            _ => {
-                Ok(self.clone())
-            }
+            Self::List(vals) | Self::Tup(vals) => Self::fold_max(vals.iter().map(|val| val.read().clone()), graph),
+            Self::Set(set) => Self::fold_max(set.iter().map(|val| val.read().clone()), graph),
+            _ => Ok(self.clone()),
         }
     }
 
     /// Get the min value from this value.
     pub fn minimum(&self, graph: &Graph) -> Result<Self, Error> {
         match self {
-            Self::List(vals) => {
-                let mut res = Self::Null;
-                for val in vals {
-                    let lt = val.read().lt(&res, graph)?;
-                    if lt.truthy() || res.empty() {
-                        res = val.read().clone();
-                    }
-                }
-                Ok(res)
-            },
-            Self::Tup(vals) => {
-                let mut res = Self::Null;
-                for val in vals {
-                    let lt = val.read().lt(&res, graph)?;
-                    if lt.truthy() || res.empty() {
-                        res = val.read().clone();
-                    }
-                }
-                Ok(res)
-            },
-            Self::Set(set) => {
-                let mut res = Self::Null;
-                for val in set {
-                    let lt = val.read().lt(&res, graph)?;
-                    if lt.truthy() || res.empty() {
-                        res = val.read().clone();
-                    }
-                }
-                Ok(res)
-            },
-            _ => {
-                Ok(self.clone())
-            }
+            Self::List(vals) | Self::Tup(vals) => Self::fold_min(vals.iter().map(|val| val.read().clone()), graph),
+            Self::Set(set) => Self::fold_min(set.iter().map(|val| val.read().clone()), graph),
+            _ => Ok(self.clone()),
         }
+    }
+
+    /// Is this a NaN number?
+    pub fn is_nan(&self) -> bool {
+        match self {
+            Self::Num(num) => num.nan(),
+            _ => false,
+        }
+    }
+
+    /// The larger of two values (max). NaN propagates, like JS Math.max: any NaN makes the result NaN.
+    /// Ties keep the first value.
+    pub fn max_of(first: Self, second: Self, graph: &Graph) -> Result<Self, Error> {
+        if first.is_nan() { return Ok(first); }
+        if second.is_nan() { return Ok(second); }
+        if first.empty() { return Ok(second); } // null/void are skipped
+        if second.empty() { return Ok(first); }
+        Ok(if second.gt(&first, graph)?.truthy() { second } else { first })
+    }
+
+    /// The smaller of two values (min). NaN propagates, like JS Math.min: any NaN makes the result NaN.
+    /// Ties keep the first value.
+    pub fn min_of(first: Self, second: Self, graph: &Graph) -> Result<Self, Error> {
+        if first.is_nan() { return Ok(first); }
+        if second.is_nan() { return Ok(second); }
+        if first.empty() { return Ok(second); } // null/void are skipped
+        if second.empty() { return Ok(first); }
+        Ok(if second.lt(&first, graph)?.truthy() { second } else { first })
+    }
+
+    fn fold_max(vals: impl Iterator<Item = Self>, graph: &Graph) -> Result<Self, Error> {
+        let mut res = Self::Void;
+        for val in vals { res = Self::max_of(res, val, graph)?; }
+        Ok(res)
+    }
+
+    fn fold_min(vals: impl Iterator<Item = Self>, graph: &Graph) -> Result<Self, Error> {
+        let mut res = Self::Null;
+        for val in vals { res = Self::min_of(res, val, graph)?; }
+        Ok(res)
     }
 }

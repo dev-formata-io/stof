@@ -179,6 +179,16 @@ assert(graph_id().len() > 10);
 ```
 
 
+# Std.inf() -> float
+Positive infinity (negate it for negative infinity). To check whether a number is infinite, use Num.inf(val) (Ex. val.inf()).
+```rust
+const limit = inf();
+assert(limit > 1e308);
+assert(-inf() < -1e308);
+assert(limit.inf());
+```
+
+
 # Std.lib(lib: str, func?: str) -> bool
 Is the given library (and optional function) loaded/available to use?
 ```rust
@@ -256,6 +266,15 @@ assert_eq(max(1km, 2m, 3mm), 1km);
 Return the minimum value of all given arguments. If an argument is a collection, the min value within the collection will be considered only.
 ```rust
 assert_eq(min(1km, 2m, 3mm), 3mm);
+```
+
+
+# Std.nan() -> float
+Not a number (NaN). NaN never equals anything, including itself: check for it with Num.nan(val) (Ex. val.nan()).
+```rust
+const value = nan();
+assert(value.nan());
+assert_neq(value, value);
 ```
 
 

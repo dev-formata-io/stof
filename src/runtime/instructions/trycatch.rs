@@ -41,6 +41,8 @@ impl Instruction for TryCatchIns {
         let return_depth = env.return_stack.len();
         let self_depth = env.self_stack.len();
         let ret_valid_depth = env.ret_valid_stack.len();
+        let scope_depth = env.table.scopes.len();
+        let loop_depth = env.loop_stack.len();
 
         let mut instructions = Instructions::default();
         instructions.push(Arc::new(Base::Try(catch_tag.clone()))); // Go here when theres an error & inc try count
@@ -57,6 +59,10 @@ impl Instruction for TryCatchIns {
         instructions.push(Arc::new(Base::PopReturnUntilDepth(return_depth)));
         instructions.push(Arc::new(Base::PopSelfUntilDepth(self_depth)));
         instructions.push(Arc::new(Base::PopRetValidUntilDepth(ret_valid_depth)));
+        // ...and symbol scopes and loops: an unwound call's function scope would otherwise hide this
+        // function's variables from the catch block (function scopes are lookup boundaries)
+        instructions.push(Arc::new(Base::PopSymbolScopeUntilDepth(scope_depth)));
+        instructions.push(Arc::new(Base::PopLoopUntilDepth(loop_depth)));
         
         instructions.append(&self.err_ins);
         instructions.push(Arc::new(Base::PopUntilStackCount(size)));

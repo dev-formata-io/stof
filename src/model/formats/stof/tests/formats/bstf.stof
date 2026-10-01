@@ -76,3 +76,15 @@ Types: {
         drop(dest);
     }
 }
+
+#[test]
+/// BSTF keeps infinity and NaN exactly (including units).
+fn bstf_non_finite() {
+    const inf = 1.0 / 0.0;
+    const o = new {};
+    parse(blobify('bstf', new { a: inf, b: -inf, c: 0.0 / 0.0, d: inf as kg }), o, 'bstf');
+    assert_eq(o.a, inf);
+    assert_eq(o.b, -inf);
+    assert(o.c.nan());
+    assert_eq(o.d, inf as kg);
+}

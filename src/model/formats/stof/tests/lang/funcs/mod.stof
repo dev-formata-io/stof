@@ -23,6 +23,7 @@
 import './init' as self.Init;
 import './return' as self.Return;
 import './libcalls' as self.LibCalls;
+import './scoping' as self.Scoping;
 
 
 #[test]

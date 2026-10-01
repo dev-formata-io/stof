@@ -57,3 +57,14 @@ Imports: {
         assert_eq(self.Imported.person.age, 42);
     }
 }
+
+#[test]
+/// TOML has inf and nan: they round trip.
+fn toml_non_finite() {
+    const inf = 1.0 / 0.0;
+    const o = new {};
+    parse(stringify('toml', new { a: inf, b: -inf, c: 0.0 / 0.0 }), o, 'toml');
+    assert_eq(o.a, inf);
+    assert_eq(o.b, -inf);
+    assert(o.c.nan());
+}

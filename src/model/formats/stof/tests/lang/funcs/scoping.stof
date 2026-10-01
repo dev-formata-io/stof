@@ -1,0 +1,81 @@
+//
+// Copyright 2025 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+/*!
+ * Variable scoping in function calls.
+ * Scope: root.Lang.Funcs.Scoping
+ */
+
+fn reads_secret() -> unknown { return secret; }           // "secret" isn't declared here
+fn calls_reader() -> unknown { const secret = 'caller'; return self.reads_secret(); }
+
+#[test]
+/// A named function only sees its own variables, never its caller's.
+fn no_dynamic_scoping() {
+    assert_null(self.calls_reader());
+}
+
+fn typo(total: int) -> unknown { return totl; }            // typo for "total"
+fn calls_typo() -> unknown { const totl = 100; return self.typo(5); }
+
+#[test]
+/// A misspelled name doesn't silently bind to a caller's variable.
+fn typos_do_not_bind_to_callers() {
+    assert_null(self.calls_typo());
+}
+
+fn second(q: int, r: int) -> int { return r; }
+
+#[test]
+/// Arguments are evaluated in the caller's scope: a later argument never sees the callee's earlier params.
+fn arguments_use_the_callers_variables() {
+    const q = 7;
+    assert_eq(self.second(1, q), 7);                        // used to be 1 (the callee's q)
+    assert_eq(self.second(q = 2, r = q), 7);
+}
+
+fn doubled(a: int, b: int = a * 2) -> int { return b; }
+
+#[test]
+/// A default value can use earlier parameters.
+fn defaults_use_earlier_params() {
+    assert_eq(self.doubled(3), 6);
+    assert_eq(self.doubled(3, 1), 1);
+}
+
+#[test]
+/// Arrow functions see the variables of the function they're used in (closure-like).
+fn arrow_functions_see_enclosing_variables() {
+    const offset = 10;
+    const add = (x: int): int => x + offset;
+    assert_eq(add(1), 11);
+
+    let list = [3, 1, 2];
+    list.sort_by((a: int, b: int): int => (a - b) * offset);  // through a library function
+    assert_eq(list, [1, 2, 3]);
+}
+
+fn throws() -> str { const inner = 'x'; throw('boom'); }
+
+#[test]
+/// After catching an error from a call, the catch block sees this function's variables again.
+fn catch_restores_scope() {
+    let caught = false;
+    try { self.throws(); }
+    catch { caught = true; }
+    assert(caught);
+    assert_null(?inner);
+}

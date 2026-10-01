@@ -23,44 +23,24 @@ pub fn number(input: &str) -> IResult<&str, Val, StofParseError> {
     let (input , _) = whitespace(input)?;
     let input = input.trim_start_matches("+");
 
-    // binary
-    if input.starts_with("0b") || input.starts_with("-0b") {
-        let (input, binary) = take_while1(|c| c == '1' || c == '0' || c == 'b' || c == '_' || c == '-').parse(input)?;
-        let bin_input = binary.replace("0b", "").replace('_', "");
-        let val = i64::from_str_radix(&bin_input, 2).expect("failed to parse binary number");
+    // binary, octal, hex: an optional leading sign, the prefix, then digits (and "_")
+    for (prefix, radix) in [("0b", 2u32), ("0o", 8), ("0x", 16)] {
+        let negative = input.starts_with('-');
+        let unsigned = if negative { &input[1..] } else { input };
+        if let Some(digits_input) = unsigned.strip_prefix(prefix) {
+            let (input, digits) = take_while1(|c: char| c == '_' || c.is_digit(radix)).parse(digits_input)?;
+            let digits = digits.replace('_', "");
+            let Ok(magnitude) = u128::from_str_radix(&digits, radix) else {
+                return Err(nom::Err::Failure(StofParseError::from(format!("number literal {prefix}{digits} is too large"))));
+            };
+            let num = whole_number(magnitude, negative);
 
-        let (input, units) = units(input)?;
-        if let Some(units) = units {
-            return Ok((input, Val::Num(Num::Units(val as f64, units))));
+            let (input, units) = units(input)?;
+            if let Some(units) = units {
+                return Ok((input, Val::Num(Num::Units(num.float(None), units))));
+            }
+            return Ok((input, Val::Num(num)));
         }
-        return Ok((input, Val::Num(Num::Int(val))));
-    }
-    // oct
-    if input.starts_with("0o") || input.starts_with("-0o") {
-        let (input, oct) = take_while1(|c|
-            c == '0' || c == '1' || c == '2' || c == '3' || c == '4' || c == '5' || c == '6' || c == '7' || c == 'o' || c == '_' || c == '-').parse(input)?;
-        let oct_input = oct.replace("0o", "").replace('_', "");
-        let val = i64::from_str_radix(&oct_input, 8).expect("failed to parse oct number");
-
-        let (input, units) = units(input)?;
-        if let Some(units) = units {
-            return Ok((input, Val::Num(Num::Units(val as f64, units))));
-        }
-        return Ok((input, Val::Num(Num::Int(val))));
-    }
-    // hex
-    if input.starts_with("0x") || input.starts_with("-0x") {
-        let (input, hex) = take_while1(|c|
-            c == '0' || c == '1' || c == '2' || c == '3' || c == '4' || c == '5' || c == '6' || c == '7' || c == '8' || c == '9' ||
-            c == 'a' || c == 'A' || c == 'b' || c == 'B' || c == 'c' || c == 'C' || c == 'd' || c == 'D' || c == 'e' || c == 'E' || c == 'f' || c == 'F' || c == 'x' || c == '_' || c == '-').parse(input)?;
-        let hex_input = hex.replace("0x", "").replace('_', "");
-        let val = i64::from_str_radix(&hex_input, 16).expect("failed to parse hex number");
-        
-        let (input, units) = units(input)?;
-        if let Some(units) = units {
-            return Ok((input, Val::Num(Num::Units(val as f64, units))));
-        }
-        return Ok((input, Val::Num(Num::Int(val))));
     }
 
     let (input, recognized_float_str) = recognize(
@@ -88,10 +68,26 @@ pub fn number(input: &str) -> IResult<&str, Val, StofParseError> {
     if let Some(units) = units {
         return Ok((input, Val::Num(Num::Units(float_value, units))));
     }
-    if !recognized_float_str.contains('.') && float_value.fract().abs() < 1e-10 {
-        Ok((input, Val::Num(Num::Int(float_value.trunc() as i64))))
+    if !cleaned_string.contains(['.', 'e', 'E']) {
+        // Integers parse exactly (f64 only holds integers exactly up to 2^53); too large for an int is a float
+        match cleaned_string.parse::<i64>() {
+            Ok(int) => Ok((input, Val::Num(Num::Int(int)))),
+            Err(_) => Ok((input, Val::Num(Num::Float(float_value)))),
+        }
+    } else if !recognized_float_str.contains('.') && float_value.fract() == 0. && float_value.abs() < 9007199254740992. {
+        // exponent form of a whole number (Ex. 1e3) is an int, as before
+        Ok((input, Val::Num(Num::Int(float_value as i64))))
     } else {
         Ok((input, Val::Num(Num::Float(float_value))))
+    }
+}
+
+/// A whole number from a literal: an int when it fits, otherwise a float.
+fn whole_number(magnitude: u128, negative: bool) -> Num {
+    let signed = if negative { -(magnitude as i128) } else { magnitude as i128 };
+    match i64::try_from(signed) {
+        Ok(int) => Num::Int(int),
+        Err(_) => Num::Float(signed as f64),
     }
 }
 

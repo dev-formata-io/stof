@@ -32,6 +32,19 @@ impl SymbolTable {
     }
 
     #[inline(always)]
+    /// Push a function scope: a boundary that lookups don't continue past (a function never sees its
+    /// caller's variables).
+    pub fn push_boundary(&mut self) {
+        self.scopes.push(Scope { boundary: true, ..Default::default() });
+    }
+
+    /// Scopes visible from the current one, innermost first: up to and including the nearest function scope.
+    fn visible_mut(&mut self) -> impl Iterator<Item = &mut Scope> {
+        let start = self.scopes.iter().rposition(|scope| scope.boundary).unwrap_or(0);
+        self.scopes[start..].iter_mut().rev()
+    }
+
+    #[inline(always)]
     /// Clear this table.
     pub fn clear(&mut self) {
         self.scopes.clear();
@@ -62,7 +75,7 @@ impl SymbolTable {
     /// Will only drop one if multiple exist (closest).
     pub fn drop_var(&mut self, name: impl AsRef<str>) -> Option<Variable> {
         let name = name.as_ref();
-        for scope in self.scopes.iter_mut().rev() {
+        for scope in self.visible_mut() {
             if let Some(var) = scope.remove(name) {
                 return Some(var);
             }
@@ -74,7 +87,8 @@ impl SymbolTable {
     /// Will find the closest if it exists.
     pub fn get(&self, name: impl AsRef<str>) -> Option<&Variable> {
         let name = name.as_ref();
-        for scope in self.scopes.iter().rev() {
+        let start = self.scopes.iter().rposition(|scope| scope.boundary).unwrap_or(0);
+        for scope in self.scopes[start..].iter().rev() {
             if let Some(var) = scope.get(name) {
                 return Some(var);
             }
@@ -86,7 +100,7 @@ impl SymbolTable {
     /// Will return an error if the var exists but is const.
     pub fn set(&mut self, name: impl AsRef<str>, var: &Variable, graph: &mut Graph, context: Option<NodeRef>) -> Result<bool, Error> {
         let name = name.as_ref();
-        for scope in self.scopes.iter_mut().rev() {
+        for scope in self.visible_mut() {
             if scope.set(name, var, graph, context.clone())? {
                 return Ok(true);
             }
@@ -116,6 +130,10 @@ impl SymbolTable {
 /// Symbol table scope.
 pub struct Scope {
     variables: FxHashMap<String, Variable>,
+
+    /// Function scope: lookups stop here (no dynamic scoping into the caller).
+    #[serde(default)]
+    pub boundary: bool,
 }
 impl Scope {
     #[inline(always)]
