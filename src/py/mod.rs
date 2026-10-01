@@ -39,7 +39,6 @@ impl Doc {
 
     /// Get a value from this document by path with an optional starting object (string obj id).
     pub fn get<'py>(&mut self, path: &str, start: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let instruction: Arc<dyn Instruction> = Arc::new(Base::LoadVariable(path.into(), false, false));
         let mut proc_env = ProcEnv::default();
         if let Some(main) = self.graph.main_root() {
             proc_env.self_stack.push(main);
@@ -50,6 +49,8 @@ impl Doc {
             },
             _ => {}
         }
+        let path = self.graph.host_path(path, proc_env.self_stack.last());
+        let instruction: Arc<dyn Instruction> = Arc::new(Base::LoadVariable(path.into(), false, false));
         let _ = instruction.exec(&mut proc_env, &mut self.graph); // don't care about res
         if let Some(var) = proc_env.stack.pop() {
             Ok(val_to_py(start.py(), var.val.read().clone()))
@@ -71,6 +72,7 @@ impl Doc {
             _ => {}
         }
         proc_env.stack.push(Variable::val(py_any_to_val(value, &self.graph)));
+        let path = self.graph.host_path(path, proc_env.self_stack.last());
         let instruction: Arc<dyn Instruction> = Arc::new(Base::SetVariable(path.into()));
         match instruction.exec(&mut proc_env, &mut self.graph) {
             Ok(_res) => Ok(true),

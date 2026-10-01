@@ -81,7 +81,6 @@ impl Stof {
     
     /// Get a value from this graph using the Stof runtime (all language features supported).
     pub fn get(&self, path: &str, start: JsValue) -> JsValue {
-        let instruction: Arc<dyn Instruction> = Arc::new(Base::LoadVariable(path.into(), false, false));
         let mut proc_env = ProcEnv::default();
         let mut graph = self.graph_mut();
         if let Some(main) = graph.main_root() {
@@ -93,6 +92,8 @@ impl Stof {
             },
             _ => {}
         }
+        let path = graph.host_path(path, proc_env.self_stack.last());
+        let instruction: Arc<dyn Instruction> = Arc::new(Base::LoadVariable(path.into(), false, false));
 
         let _ = instruction.exec(&mut proc_env, &mut *graph); // don't care about res
         
@@ -117,6 +118,7 @@ impl Stof {
             _ => {}
         }
         proc_env.stack.push(Variable::val(to_graph_value(value, &graph)));
+        let path = graph.host_path(path, proc_env.self_stack.last());
         let instruction: Arc<dyn Instruction> = Arc::new(Base::SetVariable(path.into()));
         match instruction.exec(&mut proc_env, &mut *graph) {
             Ok(_res) => true,

@@ -121,6 +121,32 @@ impl Graph {
         self.find_root_named(ROOT_NODE_NAME)
     }
 
+    /// Path for host (embedder) APIs: get, set, and call from JS, Python, or Rust.
+    /// Inside Stof, a path without self/super starts at a graph root. From the host, a path is relative to
+    /// the start object (the main root by default) when its first segment names a field, function, or child
+    /// there, so `doc.get('config.port')` and `doc.call('hello')` work. Otherwise the path is unchanged
+    /// (roots, types, libraries), except a single name, which is always relative (Ex. setting a new field).
+    pub fn host_path(&self, path: &str, start: Option<&NodeRef>) -> String {
+        let first = path.split('.').next().unwrap_or_default().trim_end_matches('?');
+        if first.is_empty() || first.starts_with('<') || path.contains("::") || first == "self" || first == "super" {
+            return path.to_string();
+        }
+        let base = match start {
+            Some(start) => Some(start.clone()),
+            None => self.main_root(),
+        };
+        if let Some(base) = base {
+            if let Some(node) = base.node(self) {
+                let local = node.data.contains_key(first) ||
+                    node.children.iter().any(|child| child.node(self).map(|c| c.name.as_ref() == first).unwrap_or(false));
+                if local || !path.contains('.') {
+                    return format!("self.{path}");
+                }
+            }
+        }
+        path.to_string()
+    }
+
     /// Find a root node with a given name.
     pub fn find_root_named(&self, name: impl Into<SId>) -> Option<NodeRef> {
         let name = name.into();
@@ -1495,6 +1521,33 @@ fn deserialize_nodes<'de, D>(deserializer: D) -> Result<FxHashMap<NodeRef, Node>
 #[cfg(test)]
 mod tests {
     use crate::{model::{Data, Graph, ROOT_NODE_NAME, SPath, StofData}, runtime::Variable};
+
+    #[test]
+    /// Host APIs (JS/Python/Rust get, set, call) resolve paths from the main root (or start object) when the
+    /// first segment is there; roots, types, and libraries keep working.
+    fn host_paths_are_relative_to_main_root() {
+        use crate::runtime::{Runtime, Val};
+        let mut graph = Graph::default();
+        graph.parse_stof_src(r#"
+            config: { port: 8080, fn double() -> int { self.port * 2 } }
+            fn hello() -> str { 'hi' }
+            #[type] Vars: { v: 3 }
+        "#, None, crate::model::Profile::default()).unwrap();
+        graph.parse_stof_src("root Other { x: 1 }", None, crate::model::Profile::default()).unwrap();
+
+        assert_eq!(graph.host_path("config.port", None), "self.config.port");
+        assert_eq!(graph.host_path("hello", None), "self.hello");
+        assert_eq!(graph.host_path("newfield", None), "self.newfield");
+        assert_eq!(graph.host_path("Other.x", None), "Other.x");
+        assert_eq!(graph.host_path("root.config", None), "root.config");
+        assert_eq!(graph.host_path("<Vars>.v", None), "<Vars>.v");
+        assert_eq!(graph.host_path("Num::abs", None), "Num::abs");
+
+        assert_eq!(Runtime::call(&mut graph, "hello", vec![]).unwrap(), Val::from("hi"));
+        assert_eq!(Runtime::call(&mut graph, "config.double", vec![]).unwrap(), Val::from(16160));
+        assert_eq!(Runtime::call(&mut graph, "root.config.double", vec![]).unwrap(), Val::from(16160));
+        assert_eq!(Runtime::call(&mut graph, "Num.abs", vec![Val::from(-2)]).unwrap(), Val::from(2));
+    }
 
     #[test]
     /// Same-named types resolve deterministically: nearest to the context (the main root without one),

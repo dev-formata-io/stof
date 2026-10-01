@@ -1204,7 +1204,9 @@ impl Runtime {
      *****************************************************************************/
     
     /// Call a singular function with this runtime.
+    /// The search path is a host path (see `Graph::host_path`): relative to the main root when it names something there.
     pub fn call(graph: &mut Graph, search: &str, args: Vec<Val>) -> Result<Val, Error> {
+        let search = &graph.host_path(search, None);
         let mut arguments: Vector<Arc<dyn Instruction>> = Vector::default();
         for arg in args { arguments.push_back(Arc::new(Base::Literal(arg))); }
         let instruction = Arc::new(FuncCall {
@@ -1222,6 +1224,7 @@ impl Runtime {
     #[cfg(feature = "js")]
     /// Call a singular function with this runtime.
     pub async fn async_call_with_gate(graph: &RefCell<Graph>, search: &str, args: Vec<Val>, acquire: &js_sys::Function, release: &js_sys::Function) -> Result<Val, Error> {
+        let search = &graph.borrow().host_path(search, None);
         let mut arguments: Vector<Arc<dyn Instruction>> = Vector::default();
         for arg in args { arguments.push_back(Arc::new(Base::Literal(arg))); }
         let instruction = Arc::new(FuncCall {
@@ -1239,6 +1242,7 @@ impl Runtime {
     #[cfg(any(feature = "js", feature = "tokio"))]
     /// Call a singular function with this runtime.
     pub async fn async_call(graph: &mut Graph, search: &str, args: Vec<Val>) -> Result<Val, Error> {
+        let search = &graph.host_path(search, None);
         let mut arguments: Vector<Arc<dyn Instruction>> = Vector::default();
         for arg in args { arguments.push_back(Arc::new(Base::Literal(arg))); }
         let instruction = Arc::new(FuncCall {

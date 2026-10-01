@@ -96,24 +96,32 @@ Cargo cargo: {
         ]
     }
 
+    /// Release builds: whole-program optimization (smaller binaries and wasm, slightly faster).
+    profile: {
+        release: {
+            lto: 'fat'
+            codegen-units: 1
+        }
+    }
+
     dependencies: {
         base64: 0.22.1
         bincode: 1.3.3
         indexmap: {
-            version: 2.12.1
+            version: 2.14.2
             features: ['serde']
         }
         bytes: {
-            version: 1.11.0
+            version: 1.12.1
             features: ['serde']
         }
-        colored: 3.0.0
+        colored: 3.1.1
         docx-rs: {
-            version: 0.4.18
+            version: 0.4.22
             optional: true
         }
         image: {
-            version: 0.25.6
+            version: 0.25.10
             features: ['serde']
             optional: true
         }
@@ -124,55 +132,55 @@ Cargo cargo: {
         }
         nanoid: 0.4.0
         compact_str: {
-            version: 0.9.0
+            version: 0.9.1
             features: ['serde']
         }
         lopdf: {
-            version: 0.37.0
+            version: 0.45.0
             features: ['serde']
             optional: true
         }
         regex: {
-            version: 1.12.2
+            version: 1.13.1
             optional: true
         }
         serde: {
-            version: 1.0.228
+            version: 1.0.229
             features: ['derive', 'rc']
         }
         serde_json: {
-            version: 1.0.145
+            version: 1.0.151
             features: ['preserve_order']
         }
         serde_yaml: 0.9.34
         toml: {
-            version: 0.9.8
+            version: 0.9.12
             features: ['preserve_order']
         }
-        typetag: 0.2.21
+        typetag: 0.2.23
         urlencoding: 2.1.3
         walkdir: {
             version: 2.5.0
             optional: true
         }
         zip: {
-            version: 4.5.0
+            version: 4.6.1
             optional: true
         }
-        chrono: 0.4.42
+        chrono: 0.4.45
         tokio: {
-            version: 1.48.0
+            version: 1.53.1
             features: ['full']
             optional: true
         }
         reqwest: {
-            version: 0.12.25
+            version: 0.12.28
             optional: true
             features: ['blocking']
         }
-        rustc-hash: 2.1.1
+        rustc-hash: 2.1.3
         imbl: {
-            version: 6.1.0
+            version: 7.0.2
             features: ['serde', 'triomphe']
         }
         arcstr: {
@@ -185,12 +193,12 @@ Cargo cargo: {
             features: ['serde']
         }
         age: {
-            version: 0.11.2
+            version: 0.11.5
             optional: true
             features: ['web-sys'] // use web_sys::SystemTime when wasm target
         }
         log: {
-            version: 0.4.29
+            version: 0.4.34
             optional: true
         }
         web-time: {
@@ -202,7 +210,7 @@ Cargo cargo: {
          * Python features.
          *****************************************************************************/
         pyo3: {
-            version: 0.27.2
+            version: 0.29.3
             optional: true
             features: [
                 'macros',
@@ -219,11 +227,11 @@ Cargo cargo: {
          * JS features.
          *****************************************************************************/
         wasm-bindgen: {
-            version: 0.2.106
+            version: 0.2.129
             optional: true
         }
         wasm-bindgen-futures: {
-            version: 0.4.56
+            version: 0.4.79
             optional: true
         }
         serde-wasm-bindgen: {
@@ -231,16 +239,16 @@ Cargo cargo: {
             optional: true
         }
         js-sys: {
-            version: 0.3.83
+            version: 0.3.106
             optional: true
         }
         getrandom: {
-            version: 0.2.15
+            version: 0.2.17
             optional: true
             features: ['js']
         }
         web-sys: {
-            version: 0.3.83
+            version: 0.3.106
             optional: true
             features: ['console', 'Window']
         }
