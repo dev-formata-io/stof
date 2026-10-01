@@ -17,8 +17,8 @@
 use std::sync::Arc;
 use arcstr::ArcStr;
 use imbl::Vector;
-use nom::{bytes::complete::tag, branch::alt, character::complete::{char, multispace0}, combinator::{not, recognize}, multi::separated_list1, sequence::{delimited, terminated}, IResult, Parser};
-use crate::{parser::{doc::StofParseError, expr::{expr, graph::graph_expr}, ident::ident, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{assign::SetFieldIns, block::Block, Base, ADD, BIT_AND, BIT_OR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_XOR, DIVIDE, MODULUS, MULTIPLY, SUBTRACT}}};
+use nom::{bytes::complete::tag, branch::alt, character::complete::{char, multispace0}, combinator::{not, recognize}, multi::separated_list1, sequence::{delimited, preceded, terminated}, IResult, Parser};
+use crate::{parser::{doc::StofParseError, expr::expr, ident::ident, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{assign::SetFieldIns, block::Block, Base, ADD, BIT_AND, BIT_OR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_XOR, DIVIDE, MODULUS, MULTIPLY, SUBTRACT}}};
 
 
 /// Assign statement.
@@ -35,39 +35,39 @@ pub fn assign(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofPa
         bor_assign_variable,
         bxor_assign_variable,
         bshl_assign_variable,
-        bshr_assign_variable,
-        assign_computed_target,
+        bshr_assign_variable
     )).parse(input)
 }
 
 
 /// Assign to a field of a computed object (Ex. `self.customer(id).type = x`, `list[0].name = 'a'`).
-/// The left side is a normal expression ending in a field (after a call or index); the object is evaluated
-/// first, then the value, then the field is set on that object (created if needed).
-pub(self) fn assign_computed_target(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
-    let (rest, target) = delimited(multispace0, graph_expr, multispace0).parse(input)?;
-    let not_assignable = || nom::Err::Error(StofParseError::from("not an assignable target"));
-
+/// Called by the expression statement after it parsed `target` (so the left side is parsed once, no backtracking):
+/// if `=` (not `==`) follows and the target ends in a field after a call or index, this is an assignment.
+/// The object is evaluated first, then the value, then the field is set on that object (created if needed).
+pub(crate) fn computed_target_assign<'a>(target: &Arc<dyn Instruction>, rest: &'a str) -> Option<IResult<&'a str, Vector<Arc<dyn Instruction>>, StofParseError>> {
     // Ex. [call self.customer(id), load chained "type"]: the object steps, then the field path
-    let Some(block) = target.as_dyn_any().downcast_ref::<Block>() else { return Err(not_assignable()) };
-    if block.ins.len() < 2 { return Err(not_assignable()); }
+    let block = target.as_dyn_any().downcast_ref::<Block>()?;
+    if block.ins.len() < 2 { return None; }
     let Some(Base::LoadVariable(path, true, false)) = block.ins.last().and_then(|ins| ins.as_dyn_any().downcast_ref::<Base>()) else {
-        return Err(not_assignable());
+        return None;
     };
     let path = path.clone();
+    let parsed: IResult<&str, &str, StofParseError> = delimited(multispace0, recognize(terminated(char('='), not(char('=')))), multispace0).parse(rest);
+    let Ok((rest, _)) = parsed else { return None };
 
-    let (rest, _) = terminated(terminated(char('='), not(char('='))), multispace0).parse(rest)?;
-    let (rest, value) = expr(rest)?;
+    Some((|| {
+        let (rest, value) = expr(rest)?;
+        let (rest, _) = preceded(multispace0, char(';')).parse(rest)?;
+        let mut object = Block::default();
+        object.ins = block.ins.clone();
+        object.ins.pop_back();
 
-    let mut object = Block::default();
-    object.ins = block.ins.clone();
-    object.ins.pop_back();
-
-    let mut instructions = Vector::default();
-    instructions.push_back(Arc::new(object) as Arc<dyn Instruction>);
-    instructions.push_back(value);
-    instructions.push_back(Arc::new(SetFieldIns { path }));
-    Ok((rest, instructions))
+        let mut instructions = Vector::default();
+        instructions.push_back(Arc::new(object) as Arc<dyn Instruction>);
+        instructions.push_back(value);
+        instructions.push_back(Arc::new(SetFieldIns { path }) as Arc<dyn Instruction>);
+        Ok((rest, instructions))
+    })())
 }
 
 

@@ -17,9 +17,9 @@
 use std::sync::Arc;
 use arcstr::ArcStr;
 use imbl::Vector;
-use nanoid::nanoid;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
+use crate::runtime::instructions::unique_tag;
 use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error, Val}};
 
 
@@ -35,17 +35,17 @@ impl Instruction for SwitchIns {
         let mut table = FxHashMap::default();
         let mut default = None;
 
-        let end_tag: ArcStr = nanoid!(12).into();
+        let end_tag: ArcStr = unique_tag();
         let mut table_instructions = Instructions::default();
         for (v, ins) in &self.map {
-            let tag: ArcStr = nanoid!(12).into();
+            let tag: ArcStr = unique_tag();
             table_instructions.push(Arc::new(Base::Tag(tag.clone())));
             table_instructions.push(ins.clone());
             table_instructions.push(Arc::new(Base::CtrlForwardTo(end_tag.clone())));
             table.insert(v.clone(), tag);
         }
         if let Some(def) = &self.def {
-            let tag: ArcStr = nanoid!(12).into();
+            let tag: ArcStr = unique_tag();
             table_instructions.push(Arc::new(Base::Tag(tag.clone())));
             table_instructions.append(def);
             default = Some(tag);

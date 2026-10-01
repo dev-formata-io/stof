@@ -17,8 +17,8 @@
 use std::sync::Arc;
 use arcstr::ArcStr;
 use imbl::Vector;
-use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
+use crate::runtime::instructions::unique_tag;
 use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error}};
 
 
@@ -32,8 +32,8 @@ pub struct TryCatchIns {
 #[typetag::serde(name = "TryCatchIns")]
 impl Instruction for TryCatchIns {
     fn exec(&self, env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
-        let catch_tag: ArcStr = nanoid!(10).into();
-        let end_tag: ArcStr = nanoid!(10).into();
+        let catch_tag: ArcStr = unique_tag();
+        let end_tag: ArcStr = unique_tag();
         let size = env.stack.len();
         let try_depth = env.try_stack.len();
 

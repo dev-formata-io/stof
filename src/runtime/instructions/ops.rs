@@ -16,8 +16,8 @@
 
 use std::sync::Arc;
 use arcstr::ArcStr;
-use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
+use crate::runtime::instructions::unique_tag;
 use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack, ADD, BIT_AND, BIT_OR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_XOR, DIVIDE, EQUAL, GREATER_THAN, GREATER_THAN_OR_EQ, LESS_THAN, LESS_THAN_OR_EQ, MODULUS, MULTIPLY, NOT_EQUAL, SUBTRACT, TRUTHY}, proc::ProcEnv, Error}};
 
 
@@ -84,7 +84,7 @@ impl Instruction for OpIns {
                 instructions.pop();
                 instructions.push(self.lhs.clone());
 
-                let end_tag: ArcStr = nanoid!(11).into();
+                let end_tag: ArcStr = unique_tag();
                 instructions.push(TRUTHY.clone()); // put truthy onto stack
                 instructions.push(Arc::new(Base::CtrlForwardToIfNotTruthy(end_tag.clone(), ConsumeStack::IfTrue)));
                 instructions.push(self.rhs.clone());
@@ -96,7 +96,7 @@ impl Instruction for OpIns {
                 instructions.pop();
                 instructions.push(self.lhs.clone());
 
-                let end_tag: ArcStr = nanoid!(11).into();
+                let end_tag: ArcStr = unique_tag();
                 instructions.push(TRUTHY.clone()); // put truthy onto stack
                 instructions.push(Arc::new(Base::CtrlForwardToIfTruthy(end_tag.clone(), ConsumeStack::IfTrue)));
                 instructions.push(self.rhs.clone());

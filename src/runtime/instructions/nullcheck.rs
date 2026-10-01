@@ -16,8 +16,8 @@
 
 use std::sync::Arc;
 use arcstr::ArcStr;
-use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
+use crate::runtime::instructions::unique_tag;
 use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack, DUPLICATE, IS_NULL, POP_STACK}, proc::ProcEnv, Error}};
 
 
@@ -35,7 +35,7 @@ impl Instruction for NullcheckIns {
         instructions.push(self.ins.clone());
 
         // Duplicate the value, check if its null, and go to end if not
-        let end_tag: ArcStr = nanoid!(10).into();
+        let end_tag: ArcStr = unique_tag();
         instructions.push(DUPLICATE.clone());
         instructions.push(IS_NULL.clone());
         instructions.push(Arc::new(Base::CtrlForwardToIfNotTruthy(end_tag.clone(), ConsumeStack::Consume)));

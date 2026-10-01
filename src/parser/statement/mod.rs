@@ -125,7 +125,11 @@ fn return_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, 
 /// Otherwise, it functions as a return statement.
 fn expr_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, _) = whitespace(input)?;
-    let (input, ins) = pair(expr, opt(char(';'))).parse(input)?;
+    let (rest, target) = expr(input)?;
+    if let Some(assignment) = assign::computed_target_assign(&target, rest) {
+        return assignment; // Ex. self.customer(id).type = x;
+    }
+    let (input, ins) = pair(|i| Ok((i, target.clone())), opt(char(';'))).parse(rest)?;
     
     let mut res = Vector::default();
     if ins.1.is_some() {

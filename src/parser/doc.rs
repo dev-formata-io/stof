@@ -49,10 +49,26 @@ pub fn err_fail(e: nom::Err<StofParseError>) -> nom::Err<StofParseError> {
         _ => e
     }
 }
+/// The start of the remaining input, for error messages.
+/// nom creates an error for every alternative that fails, so copying the whole remaining input made
+/// parsing quadratic in the file size (90% of parse time was memcpy).
+fn error_snippet(input: &str) -> &str {
+    const MAX_LINES: usize = 4;
+    const MAX_CHARS: usize = 240;
+    // bounded: never scan past MAX_CHARS (this runs for every failed alternative)
+    let mut end = input.len().min(MAX_CHARS);
+    while !input.is_char_boundary(end) { end -= 1; }
+    let head = &input[..end];
+    match head.match_indices('\n').nth(MAX_LINES - 1) {
+        Some((index, _)) => &head[..index],
+        None => head,
+    }
+}
+
 impl ParseError<&str> for StofParseError {
     // on one line, we show the error code and the input that caused it
     fn from_error_kind(input: &str, kind: ErrorKind) -> Self {
-        let message = format!("{:?}: {input}\n", kind, );
+        let message = format!("{:?}: {}\n", kind, error_snippet(input));
         StofParseError { message, file_path: None }
     }
 
@@ -64,7 +80,7 @@ impl ParseError<&str> for StofParseError {
     }
 
     fn from_char(input: &str, c: char) -> Self {
-        let message = format!("expected char '{c}':\n{input}");
+        let message = format!("expected char '{c}':\n{}", error_snippet(input));
         StofParseError { message, file_path: None }
     }
 

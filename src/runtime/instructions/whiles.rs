@@ -17,8 +17,8 @@
 use std::sync::Arc;
 use arcstr::ArcStr;
 use imbl::Vector;
-use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
+use crate::runtime::instructions::unique_tag;
 use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack, PUSH_SYMBOL_SCOPE, TRUTHY}, proc::ProcEnv, Error}};
 
 
@@ -40,7 +40,7 @@ pub struct WhileIns {
 impl Instruction for WhileIns {
     fn exec(&self, env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         // Create a tag for this loop (control statements)
-        let mut tag: ArcStr = nanoid!(10).into();
+        let mut tag: ArcStr = unique_tag();
         if let Some(ctag) = &self.tag {
             tag = ctag.clone();
         }
@@ -60,8 +60,8 @@ impl Instruction for WhileIns {
             instructions.push(declare.clone());
         }
         
-        let top_tag: ArcStr = nanoid!(10).into();
-        let end_tag: ArcStr = nanoid!(10).into();
+        let top_tag: ArcStr = unique_tag();
+        let end_tag: ArcStr = unique_tag();
 
         instructions.push(Arc::new(Base::Tag(top_tag.clone())));
         {

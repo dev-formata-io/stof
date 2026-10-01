@@ -1161,6 +1161,17 @@ impl Instruction for Base {
 }
 
 
+/// A unique jump tag for control flow (if/else, loops, try, switch, && / ||).
+/// Tags only need to be unique within a run, so a counter is enough: random nanoids here cost an RNG call and
+/// formatting on every evaluation of these expressions. "#" can't appear in an identifier, so these never collide
+/// with user loop labels.
+pub(crate) fn unique_tag() -> arcstr::ArcStr {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    format!("#{}", NEXT.fetch_add(1, Ordering::Relaxed)).into()
+}
+
+
 /// Assign a value to the field at `path`, starting at `context` (or a graph root without one).
 /// Sets an existing field (if it can be set), otherwise creates it (and any missing objects on the path).
 pub(crate) fn assign_path(graph: &mut Graph, mut path: SPath, context: Option<crate::model::NodeRef>, mut var: Variable) -> Result<(), Error> {

@@ -132,9 +132,9 @@ pub fn for_in_loop(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, S
     let while_ins: Arc<dyn Instruction> = Arc::new(WhileIns {
         tag,
         test,
-        ins: inner_instructions.instructions,
-        declare: Some(Arc::new(Block { ins: declare_instructions.instructions })),
-        inc: Some(Arc::new(Block { ins: inc_instructions.instructions })),
+        ins: inner_instructions.instructions.into_iter().collect(),
+        declare: Some(Arc::new(Block { ins: declare_instructions.instructions.into_iter().collect() })),
+        inc: Some(Arc::new(Block { ins: inc_instructions.instructions.into_iter().collect() })),
     });
     Ok((input, vector![while_ins]))
 }

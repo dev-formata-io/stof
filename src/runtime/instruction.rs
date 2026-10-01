@@ -14,10 +14,10 @@
 // limitations under the License.
 //
 
-use std::{any::Any, ops::Deref, sync::Arc};
+use std::{any::Any, collections::VecDeque, ops::Deref, sync::Arc};
 use arcstr::ArcStr;
 use colored::Colorize;
-use imbl::{vector, Vector};
+use imbl::Vector;
 use serde::{Deserialize, Serialize};
 use crate::{model::Graph, runtime::{instructions::{list::{NEW_LIST, PUSH_LIST}, Base, ConsumeStack, AWAIT}, proc::{ProcEnv, ProcRes}, Error, Val, Variable}};
 
@@ -27,13 +27,15 @@ use crate::{model::Graph, runtime::{instructions::{list::{NEW_LIST, PUSH_LIST}, 
 pub struct Instructions {
     /// Uses structural sharing, then only copies the Arc when needed lazily.
     /// Store instructions in a Func, then clone into the proc without any copies.
-    pub instructions: Vector<Arc<dyn Instruction>>,
-    pub executed: Vector<Arc<dyn Instruction>>,
+    /// Runtime queue and history of a process: plain deques (cheap push/pop at both ends). Static storage
+    /// (Func, Block, ...) stays an imbl Vector (structural sharing), copied in by Arc on use.
+    pub instructions: VecDeque<Arc<dyn Instruction>>,
+    pub executed: VecDeque<Arc<dyn Instruction>>,
 }
 impl From<Arc<dyn Instruction>> for Instructions {
     fn from(value: Arc<dyn Instruction>) -> Self {
         Self {
-            instructions: vector![value],
+            instructions: VecDeque::from([value]),
             ..Default::default()
         }
     }
@@ -41,7 +43,7 @@ impl From<Arc<dyn Instruction>> for Instructions {
 impl From<Vector<Arc<dyn Instruction>>> for Instructions {
     fn from(value: Vector<Arc<dyn Instruction>>) -> Self {
         Self {
-            instructions: value,
+            instructions: value.into_iter().collect(),
             ..Default::default()
         }
     }
@@ -50,7 +52,7 @@ impl Instructions {
     #[inline(always)]
     /// Create a new Instructions.
     pub fn new(instructions: Vector<Arc<dyn Instruction>>) -> Self {
-        Self { instructions, ..Default::default() }
+        Self { instructions: instructions.into_iter().collect(), ..Default::default() }
     }
 
     #[inline]
@@ -69,7 +71,7 @@ impl Instructions {
     /// Trace out the last N instructions that were executed.
     pub fn trace_n(&self, n: usize) -> String {
         let mut count = 0;
-        let mut ins = Vector::default();
+        let mut ins = VecDeque::new();
         for exec in self.executed.iter().rev() {
             ins.push_front(exec.clone());
             count += 1;
@@ -92,7 +94,7 @@ impl Instructions {
     /// Trace out the next N instructions that are going to be executed.
     pub fn peek_n(&self, n: usize) -> String {
         let mut count = 0;
-        let mut ins = Vector::default();
+        let mut ins = VecDeque::new();
         for exec in self.instructions.iter() {
             ins.push_back(exec.clone());
             count += 1;
@@ -172,6 +174,7 @@ impl Instructions {
             env.start_time = Some(web_time::Instant::now());
         }
         let keep_count = limit > 0;
+        let mut since_clock_check: u32 = 0;
         'exec_loop: loop {
             if keep_count {
                 if limit <= 0 {
@@ -184,11 +187,15 @@ impl Instructions {
                 limit -= 1;
             }
 
-            // enforce max execution time
-            if let Some(max) = &env.max_execution_time {
-                if let Some(start) = &env.start_time {
-                    if &start.elapsed() > max {
-                        return Err(Error::ExecutionTimeout);
+            // enforce max execution time (reading the clock every instruction was a measurable cost: check every 256)
+            since_clock_check += 1;
+            if since_clock_check >= 256 {
+                since_clock_check = 0;
+                if let Some(max) = &env.max_execution_time {
+                    if let Some(start) = &env.start_time {
+                        if &start.elapsed() > max {
+                            return Err(Error::ExecutionTimeout);
+                        }
                     }
                 }
             }
@@ -458,8 +465,8 @@ impl Instructions {
 
     #[inline(always)]
     /// Append instructions.
-    pub fn append(&mut self, instructions: &Vector<Arc<dyn Instruction>>) {
-        self.instructions.append(instructions.clone());
+    pub fn append<'a>(&mut self, instructions: impl IntoIterator<Item = &'a Arc<dyn Instruction>>) {
+        self.instructions.extend(instructions.into_iter().cloned());
     }
 
     #[inline(always)]

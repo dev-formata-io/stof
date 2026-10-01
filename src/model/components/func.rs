@@ -100,7 +100,7 @@ impl Func {
         Self {
             params,
             return_type,
-            instructions: instructions.instructions,
+            instructions: instructions.instructions.into_iter().collect(),
             attributes,
         }
     }

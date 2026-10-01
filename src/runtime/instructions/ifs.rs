@@ -17,8 +17,8 @@
 use std::sync::Arc;
 use arcstr::ArcStr;
 use imbl::Vector;
-use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
+use crate::runtime::instructions::unique_tag;
 use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack}, proc::ProcEnv, Error}};
 
 
@@ -37,8 +37,8 @@ impl Instruction for IfIns {
             instructions.push(test.clone());
         }
         
-        let if_tag: ArcStr = nanoid!(10).into();
-        let else_tag: ArcStr = nanoid!(10).into();
+        let if_tag: ArcStr = unique_tag();
+        let else_tag: ArcStr = unique_tag();
         instructions.push(Arc::new(Base::CtrlForwardToIfNotTruthy(else_tag.clone(), ConsumeStack::Consume)));
         instructions.append(&self.if_ins);
         instructions.push(Arc::new(Base::CtrlForwardTo(if_tag.clone())));

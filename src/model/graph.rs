@@ -225,10 +225,13 @@ impl Graph {
     /// The candidate type nearest to the context (the main root when there's no context).
     /// Ties (and anything without a distance) are broken by path name, then id, so the choice is deterministic.
     fn nearest_type(&self, candidates: impl Iterator<Item = NodeRef>, context: Option<NodeRef>) -> Option<NodeRef> {
+        // Fast path: one candidate (the common case) needs no distance or path work
+        let candidates = candidates.filter(|ty| ty.node_exists(self)).collect::<Vec<_>>();
+        if candidates.len() < 2 { return candidates.into_iter().next(); }
+
         let origin = context.or_else(|| self.main_root());
         let mut best: Option<(i32, String, String, NodeRef)> = None;
         for ty in candidates {
-            if !ty.node_exists(self) { continue; }
             let dist = origin.as_ref().map(|origin| origin.distance_to(self, &ty)).filter(|dist| *dist >= 0).unwrap_or(i32::MAX);
             let named = ty.node_path(self, true).map(|path| path.join(".")).unwrap_or_default();
             let key = (dist, named, ty.as_ref().to_string(), ty);
