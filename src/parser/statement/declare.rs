@@ -48,6 +48,22 @@ pub(crate) fn note_referenced(name: &str, call: bool, position: &str) {
     REFERENCED_NAMES.with(|names| names.borrow_mut().push((name.to_string(), call, position.as_ptr() as usize)));
 }
 
+thread_local! {
+    /// First names of assignment targets anywhere in the document (Ex. "Storage" in "Storage.graph = map()").
+    /// Assigning to a name that doesn't exist creates a root, which other functions can then use.
+    static ASSIGNED_NAMES: RefCell<Vec<String>> = RefCell::new(Vec::new());
+}
+
+/// Note the first name of an assignment target.
+pub(crate) fn note_assigned(name: &str) {
+    ASSIGNED_NAMES.with(|names| names.borrow_mut().push(name.to_string()));
+}
+
+/// Take (and clear) the assignment target names noted so far.
+pub(crate) fn take_assigned_names() -> Vec<String> {
+    ASSIGNED_NAMES.with(|names| std::mem::take(&mut *names.borrow_mut()))
+}
+
 /// Take (and clear) the names referenced since the last call.
 pub(crate) fn take_referenced_names() -> Vec<(String, bool, usize)> {
     REFERENCED_NAMES.with(|names| std::mem::take(&mut *names.borrow_mut()))

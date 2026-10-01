@@ -185,7 +185,7 @@ pub fn num_fract() -> LibFunc {
 Return the fractional part of this number.
 ```rust
 const v = 2.4;
-assert_eq(v.trunc(), 0.4);
+assert_eq(v.fract().round(2), 0.4); // 0.3999999999999999 before rounding (float precision)
 ```"#.into(),
         params: vector![
             Param { name: "val".into(), param_type: Type::Void, default: None }

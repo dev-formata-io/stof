@@ -157,7 +157,7 @@ Set the tag portion of this prompt. Set to null to clear the tag.
 ```rust
 const p = prompt('hello', 'greet');
 p.set_tag('msg');
-assert_eq(p.str(), '<msg>hello, world</msg>');
+assert_eq(p.str(), '<msg>hello</msg>');
 ```"#.into(),
         params: vector![
             Param { name: "prompt".into(), param_type: Type::Prompt, default: None },

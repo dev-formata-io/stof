@@ -319,10 +319,10 @@ const test = prof('test');
 # Std.prompt(text: str = '', tag?: str) -> prompt
 A helper function to create a prompt.
 ```rust
-const prompt = prompt(tag = 'instruction');
-prompt += prompt('do a thing', 'sub');
-prompt += prompt('another thing', 'sub');
-assert_eq(prompt as str, '<instruction><sub>do a thing</sub><sub>another thing</sub></instruction>');
+let p = prompt(tag = 'instruction');
+p += prompt('do a thing', 'sub');
+p += prompt('another thing', 'sub');
+assert_eq(p as str, '<instruction><sub>do a thing</sub><sub>another thing</sub></instruction>');
 ```
 
 
@@ -374,8 +374,8 @@ assert_eq(str("hello, world"), "hello, world");
 # Std.stringify(format: str = "json", context: obj = null) -> str
 Use a loaded format to export a string from the given context (or entire graph/document). The default format is json, and the standard implementation only exports object fields. Export results will vary depending on the format, some support more than others (it is up to the format implementation to decide how it exports data). You can always create your own to use.
 ```rust
-const object = new { x: 3.14km, y: 42m };
-assert_eq(stringify("json", object), "{\"x\":3.14,\"y\":42}"); // lossy as json doesn't have a units concept
+const object = new { x: 3.14km, y: 42.5m };
+assert_eq(stringify("json", object), "{\"x\":3.14,\"y\":42.5}"); // lossy as json doesn't have a units concept
 ```
 
 

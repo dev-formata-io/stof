@@ -79,3 +79,15 @@ fn catch_restores_scope() {
     assert(caught);
     assert_null(?inner);
 }
+
+fn takes_two(units: int, rate: float = 2) -> float { units * rate }
+
+#[test]
+fn argument_errors_catch_as_func_args() {
+    let caught = [];
+    try { self.takes_two(); } catch (e: str) { caught.push_back(e); }
+    try { self.takes_two(1, 2, 3); } catch (e: str) { caught.push_back(e); }
+    try { self.takes_two(nope = 1); } catch (e: str) { caught.push_back(e); }
+    try { Num::abs(); } catch (e: str) { caught.push_back(e); }
+    assert_eq(caught, ['FuncArgs', 'FuncArgs', 'FuncArgs', 'FuncArgs']);
+}

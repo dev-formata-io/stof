@@ -103,10 +103,10 @@ pub fn prompt() -> LibFunc {
         docs: r#"# Std.prompt(text: str = '', tag?: str) -> prompt
 A helper function to create a prompt.
 ```rust
-const prompt = prompt(tag = 'instruction');
-prompt += prompt('do a thing', 'sub');
-prompt += prompt('another thing', 'sub');
-assert_eq(prompt as str, '<instruction><sub>do a thing</sub><sub>another thing</sub></instruction>');
+let p = prompt(tag = 'instruction');
+p += prompt('do a thing', 'sub');
+p += prompt('another thing', 'sub');
+assert_eq(p as str, '<instruction><sub>do a thing</sub><sub>another thing</sub></instruction>');
 ```
 "#.into(),
         params: vector![

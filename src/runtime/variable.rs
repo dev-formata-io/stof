@@ -292,36 +292,46 @@ impl Variable {
     #[inline]
     /// Add.
     pub fn add(&self, rhs: Self, graph: &mut Graph) -> Result<(), Error> {
-        self.val.write().add(rhs.val.read().clone(), graph)?;
-        Ok(())
+        let rhs = rhs.val.read().clone();
+        let mut lhs = self.val.write();
+        if lhs.empty() || rhs.empty() { return Err(null_arithmetic(lhs.empty(), rhs.empty(), "add")); }
+        lhs.add(rhs, graph)
     }
 
     #[inline]
     /// Subtract.
     pub fn sub(&self, rhs: Self, graph: &mut Graph) -> Result<(), Error> {
-        self.val.write().sub(rhs.val.read().clone(), graph)?;
-        Ok(())
+        let rhs = rhs.val.read().clone();
+        let mut lhs = self.val.write();
+        if lhs.empty() || rhs.empty() { return Err(null_arithmetic(lhs.empty(), rhs.empty(), "subtract")); }
+        lhs.sub(rhs, graph)
     }
 
     #[inline]
     /// Multiply.
     pub fn mul(&self, rhs: Self, graph: &mut Graph) -> Result<(), Error> {
-        self.val.write().mul(rhs.val.read().clone(), graph)?;
-        Ok(())
+        let rhs = rhs.val.read().clone();
+        let mut lhs = self.val.write();
+        if lhs.empty() || rhs.empty() { return Err(null_arithmetic(lhs.empty(), rhs.empty(), "multiply")); }
+        lhs.mul(rhs, graph)
     }
 
     #[inline]
     /// Divide.
     pub fn div(&self, rhs: Self, graph: &mut Graph) -> Result<(), Error> {
-        self.val.write().div(rhs.val.read().clone(), graph)?;
-        Ok(())
+        let rhs = rhs.val.read().clone();
+        let mut lhs = self.val.write();
+        if lhs.empty() || rhs.empty() { return Err(null_arithmetic(lhs.empty(), rhs.empty(), "divide")); }
+        lhs.div(rhs, graph)
     }
 
     #[inline]
     /// Mod.
     pub fn rem(&self, rhs: Self, graph: &mut Graph) -> Result<(), Error> {
-        self.val.write().rem(rhs.val.read().clone(), graph)?;
-        Ok(())
+        let rhs = rhs.val.read().clone();
+        let mut lhs = self.val.write();
+        if lhs.empty() || rhs.empty() { return Err(null_arithmetic(lhs.empty(), rhs.empty(), "take the remainder of")); }
+        lhs.rem(rhs, graph)
     }
 
     #[inline]
@@ -358,4 +368,12 @@ impl Variable {
         self.val.write().bit_shr(rhs.val.read().clone())?;
         Ok(())
     }
+}
+
+
+#[cold]
+/// Arithmetic with a null operand is an error (use ?? to give a default).
+fn null_arithmetic(left: bool, right: bool, op: &str) -> Error {
+    let side = if left && right { "both values are" } else if left { "the left value is" } else { "the right value is" };
+    Error::NullArithmetic(format!("cannot {op} null: {side} null or missing (use ?? to give a default)"))
 }

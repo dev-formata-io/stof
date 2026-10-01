@@ -932,6 +932,8 @@ impl Runtime {
     /// Run all given functions.
     pub fn run_functions(graph: &mut Graph, context: Option<String>, functions: FxHashSet<DataRef>, throw: bool) -> Result<String, String> {
         let mut rt = Self::default();
+        // the function each process starts with (errors before the call starts have no call stack)
+        let mut entry_funcs: FxHashMap<SId, DataRef> = FxHashMap::default();
         for func_ref in functions {
             if let Some(context) = &context {
                 for node in func_ref.data_nodes(&graph) {
@@ -942,13 +944,14 @@ impl Runtime {
                                 as_ref: false,
                                 cnull: false,
                                 stack: false,
-                                func: Some(func_ref),
+                                func: Some(func_ref.clone()),
                                 search: None,
                                 args: Default::default(),
                                 oself: None,
                             }) as Arc<dyn Instruction>;
                             let proc = Process::from(instruction);
-                            rt.push_running_proc(proc, graph);
+                            let pid = rt.push_running_proc(proc, graph);
+                entry_funcs.insert(pid, func_ref.clone());
                             break;
                         }
                     }
@@ -958,13 +961,14 @@ impl Runtime {
                     as_ref: false,
                     cnull: false,
                     stack: false,
-                    func: Some(func_ref),
+                    func: Some(func_ref.clone()),
                     search: None,
                     args: Default::default(),
                     oself: None,
                 }) as Arc<dyn Instruction>;
                 let proc = Process::from(instruction);
-                rt.push_running_proc(proc, graph);
+                let pid = rt.push_running_proc(proc, graph);
+                entry_funcs.insert(pid, func_ref.clone());
             }
         }
 
@@ -998,8 +1002,8 @@ impl Runtime {
             }
         }
         for (_, errored) in &rt.errored {
-            if errored.env.call_stack.len() > 0 {
-                let func_ref = errored.env.call_stack.first().unwrap();
+            let func_ref = errored.env.call_stack.first().cloned().or_else(|| entry_funcs.get(&errored.env.pid).cloned());
+            if let Some(func_ref) = &func_ref {
                 if let Some(name) = func_ref.data_name(graph) {
                     let mut func_path = String::from("<unknown>");
                     for node in func_ref.data_nodes(graph) {
@@ -1030,6 +1034,8 @@ impl Runtime {
     pub fn test(graph: &mut Graph, context: Option<String>, throw: bool) -> Result<String, String> {
         // Create a fresh runtime
         let mut rt = Self::default();
+        // the function each process starts with (errors before the call starts have no call stack)
+        let mut entry_funcs: FxHashMap<SId, DataRef> = FxHashMap::default();
 
         // Load all processes for all test functions
         let mut count = 0;
@@ -1043,14 +1049,15 @@ impl Runtime {
                                 as_ref: false,
                                 cnull: false,
                                 stack: false,
-                                func: Some(func_ref),
+                                func: Some(func_ref.clone()),
                                 search: None,
                                 args: Default::default(),
                                 oself: None,
                             }) as Arc<dyn Instruction>;
                             let proc = Process::from(instruction);
                             count += 1;
-                            rt.push_running_proc(proc, graph);
+                            let pid = rt.push_running_proc(proc, graph);
+                entry_funcs.insert(pid, func_ref.clone());
                             break;
                         }
                     }
@@ -1060,14 +1067,15 @@ impl Runtime {
                     as_ref: false,
                     cnull: false,
                     stack: false,
-                    func: Some(func_ref),
+                    func: Some(func_ref.clone()),
                     search: None,
                     args: Default::default(),
                     oself: None,
                 }) as Arc<dyn Instruction>;
                 let proc = Process::from(instruction);
                 count += 1;
-                rt.push_running_proc(proc, graph);
+                let pid = rt.push_running_proc(proc, graph);
+                entry_funcs.insert(pid, func_ref.clone());
             }
         }
 
@@ -1108,10 +1116,11 @@ impl Runtime {
             }
             true
         }));
-        rt.err_callback = Some(Box::new(|graph, errored| {
+        let callback_entries = entry_funcs.clone();
+        rt.err_callback = Some(Box::new(move |graph, errored| {
             // if this is top-level and executed something, print out an error message
-            if errored.env.call_stack.len() > 0 {
-                let func_ref = errored.env.call_stack.first().unwrap();
+            let func_ref = errored.env.call_stack.first().cloned().or_else(|| callback_entries.get(&errored.env.pid).cloned());
+            if let Some(func_ref) = &func_ref {
                 if let Some(name) = func_ref.data_name(graph) {
                     if let Some(func) = graph.get_stof_data::<Func>(&func_ref) {
                         if func.attributes.contains_key("errors") {
@@ -1156,6 +1165,10 @@ impl Runtime {
                     if let Some(_err) = &failure.error {
                         err_str = failure.error_report(graph);
                     }
+                } else if failure.error.is_some() && entry_funcs.contains_key(&failure.env.pid) {
+                    // failed before the call started (Ex. a missing required argument)
+                    func_ref = entry_funcs[&failure.env.pid].clone();
+                    err_str = failure.error_report(graph);
                 } else if failure.env.call_stack.len() < 1 && failure.instructions.executed.len() > 0 {
                     let func = failure.instructions.executed[0].clone();
                     if let Some(func) = func.as_dyn_any().downcast_ref::<Base>() {

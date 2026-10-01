@@ -37,39 +37,35 @@ impl Doc {
         Self { graph: Graph::default() }
     }
 
+    #[pyo3(signature = (path, start = None))]
     /// Get a value from this document by path with an optional starting object (string obj id).
-    pub fn get<'py>(&mut self, path: &str, start: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    pub fn get<'py>(&mut self, py: Python<'py>, path: &str, start: Option<&Bound<'py, PyAny>>) -> PyResult<Bound<'py, PyAny>> {
         let mut proc_env = ProcEnv::default();
         if let Some(main) = self.graph.main_root() {
             proc_env.self_stack.push(main);
         }
-        match py_any_to_val(start, &self.graph) {
-            Val::Obj(start) => {
-                proc_env.self_stack.push(start);
-            },
-            _ => {}
+        if let Some(Val::Obj(start)) = start.map(|start| py_any_to_val(start, &self.graph)) {
+            proc_env.self_stack.push(start);
         }
         let path = self.graph.host_path(path, proc_env.self_stack.last());
         let instruction: Arc<dyn Instruction> = Arc::new(Base::LoadVariable(path.into(), false, false));
         let _ = instruction.exec(&mut proc_env, &mut self.graph); // don't care about res
         if let Some(var) = proc_env.stack.pop() {
-            Ok(val_to_py(start.py(), var.val.read().clone()))
+            Ok(val_to_py(py, var.val.read().clone()))
         } else {
-            Ok(val_to_py(start.py(), Val::Null))
+            Ok(val_to_py(py, Val::Null))
         }
     }
 
+    #[pyo3(signature = (path, value, start = None))]
     /// Set a value in this document by path with an optional starting object (string obj id).
-    pub fn set<'py>(&mut self, path: &str, value: &Bound<'py, PyAny>, start: &Bound<'py, PyAny>) -> PyResult<bool> {
+    pub fn set<'py>(&mut self, path: &str, value: &Bound<'py, PyAny>, start: Option<&Bound<'py, PyAny>>) -> PyResult<bool> {
         let mut proc_env = ProcEnv::default();
         if let Some(main) = self.graph.main_root() {
             proc_env.self_stack.push(main);
         }
-        match py_any_to_val(start, &self.graph) {
-            Val::Obj(start) => {
-                proc_env.self_stack.push(start);
-            },
-            _ => {}
+        if let Some(Val::Obj(start)) = start.map(|start| py_any_to_val(start, &self.graph)) {
+            proc_env.self_stack.push(start);
         }
         proc_env.stack.push(Variable::val(py_any_to_val(value, &self.graph)));
         let path = self.graph.host_path(path, proc_env.self_stack.last());
@@ -126,12 +122,12 @@ impl Doc {
         }
     }
 
+    #[pyo3(signature = (path, args = None))]
     /// Call a singular function in the document by path.
-    /// If no arguments, pass None as args.
-    /// Otherwise, pass a list of arguments.
-    pub fn call<'py>(&mut self, path: &str, args: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    /// Arguments are a list (Ex. `doc.call('total', [21])`), a single value, or omitted/None for no arguments.
+    pub fn call<'py>(&mut self, py: Python<'py>, path: &str, args: Option<&Bound<'py, PyAny>>) -> PyResult<Bound<'py, PyAny>> {
         let mut arguments = vec![];
-        match py_any_to_val(args, &self.graph) {
+        match args.map(|args| py_any_to_val(args, &self.graph)).unwrap_or(Val::Null) {
             Val::List(vals) => {
                 for val in vals {
                     arguments.push(val.read().clone());
@@ -144,7 +140,7 @@ impl Doc {
             }
         }
         match Runtime::call(&mut self.graph, path, arguments) {
-            Ok(res) => Ok(val_to_py(args.py(), res)),
+            Ok(res) => Ok(val_to_py(py, res)),
             Err(err) => Err(PyValueError::new_err(err.to_string()))
         }
     }
@@ -294,9 +290,10 @@ impl Doc {
         }
     }
 
-    /// Binary export, using a format of choice.
-    pub fn binary_export<'py>(&self, format: &str, node: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let val = py_any_to_val(node, &self.graph);
+    #[pyo3(signature = (format = "bstf", node = None))]
+    /// Binary export, using a format of choice (the main root by default).
+    pub fn binary_export<'py>(&self, py: Python<'py>, format: &str, node: Option<&Bound<'py, PyAny>>) -> PyResult<Bound<'py, PyAny>> {
+        let val = node.map(|node| py_any_to_val(node, &self.graph)).unwrap_or(Val::Null);
         let exp_node;
         match val {
             Val::Obj(node) => {
@@ -319,7 +316,7 @@ impl Doc {
             }
         }
         match self.graph.binary_export(format, Some(exp_node)) {
-            Ok(val) => Ok(val_to_py(node.py(), Val::Blob(val))),
+            Ok(val) => Ok(val_to_py(py, Val::Blob(val))),
             Err(err) => Err(PyValueError::new_err(err.to_string()))
         }
     }

@@ -499,6 +499,12 @@ pub enum Error {
     /// An error returned to a host (Runtime::call), with the Stof call stack where it happened.
     /// Added at the end for rev-compatibility.
     Located(Box<Self>, String),
+
+    /// Arithmetic (+ - * / %) with a null operand. Added at the end for rev-compatibility.
+    NullArithmetic(String),
+
+    /// Invalid call arguments, with what's wrong (catch blocks still see 'FuncArgs'). Added at the end for rev-compatibility.
+    FuncArgsInfo(String),
 }
 impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -598,6 +604,7 @@ impl Error {
             Self::Thrown(val) => val.clone(),
             Self::ParseError(_) => Val::Str(self.to_string().into()),
             Self::Located(error, _) => error.catch_value(),
+            Self::FuncArgsInfo(_) => Val::Str("FuncArgs".into()),
             _ => Val::Str(format!("{:?}", self).into()),
         }
     }
@@ -672,6 +679,8 @@ impl Error {
 
             Self::AwaitError(error) => format!("awaited process failed: {}", error.message()),
             Self::Custom(message) => message.to_string(),
+            Self::NullArithmetic(message) => message.clone(),
+            Self::FuncArgsInfo(message) => message.clone(),
             Self::NotImplemented => "not implemented".into(),
             Self::ParseError(_) => self.to_string(),
             Self::Located(error, _) => error.message(),
@@ -742,5 +751,27 @@ mod tests {
         let located = Error::Located(Box::new(Error::AssignConst), "  at root.main (1:1)".into());
         assert_eq!(located.to_string(), "cannot assign to a const variable\n  at root.main (1:1)");
         assert_eq!(located.code(), "AssignConst");
+    }
+
+    #[test]
+    /// Argument errors say what's wrong, and catch blocks still see 'FuncArgs'.
+    fn argument_errors() {
+        use crate::{model::Graph, runtime::Runtime};
+        let mut graph = Graph::default();
+        graph.parse_stof_src(r#"
+            fn total(units: int, rate: float = 2) -> float { units * rate }
+            #[main]
+            fn needs_arg(v: int) { }
+        "#, None, Default::default()).unwrap();
+        let error = Runtime::call(&mut graph, "total", vec![]).unwrap_err();
+        assert_eq!(error.inner().to_string(), "missing argument 'units' for total(units: int, rate?: float)");
+        assert_eq!(error.inner().catch_value(), Val::from("FuncArgs"));
+        let error = Runtime::call(&mut graph, "total", vec![Val::from(1i64), Val::from(2i64), Val::from(3i64)]).unwrap_err();
+        assert_eq!(error.inner().to_string(), "too many arguments (3 given, 2 expected) for total(units: int, rate?: float)");
+
+        // a main function that fails before its call starts is still reported
+        let report = Runtime::run(&mut graph, None, true).unwrap_err();
+        assert!(report.contains("needs_arg"), "{report}");
+        assert!(report.contains("missing argument 'v' for needs_arg(v: int)"), "{report}");
     }
 }

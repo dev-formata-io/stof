@@ -63,8 +63,8 @@ pub fn std_stringify() -> LibFunc {
         docs: r#"# Std.stringify(format: str = "json", context: obj = null) -> str
 Use a loaded format to export a string from the given context (or entire graph/document). The default format is json, and the standard implementation only exports object fields. Export results will vary depending on the format, some support more than others (it is up to the format implementation to decide how it exports data). You can always create your own to use.
 ```rust
-const object = new { x: 3.14km, y: 42m };
-assert_eq(stringify("json", object), "{\"x\":3.14,\"y\":42}"); // lossy as json doesn't have a units concept
+const object = new { x: 3.14km, y: 42.5m };
+assert_eq(stringify("json", object), "{\"x\":3.14,\"y\":42.5}"); // lossy as json doesn't have a units concept
 ```
 "#.into(),
         params: vector![

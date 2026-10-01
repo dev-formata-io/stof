@@ -64,9 +64,12 @@ impl Instruction for TryCatchIns {
         instructions.push(Arc::new(Base::PopSymbolScopeUntilDepth(scope_depth)));
         instructions.push(Arc::new(Base::PopLoopUntilDepth(loop_depth)));
         
+        // the catch variable lives in its own scope (a second "catch (e)" in the same function is fine)
+        instructions.push(Arc::new(Base::PushSymbolScope));
         instructions.append(&self.err_ins);
         instructions.push(Arc::new(Base::PopUntilStackCount(size)));
         instructions.append(&self.catch_ins);
+        instructions.push(Arc::new(Base::PopSymbolScopeUntilDepth(scope_depth)));
 
         instructions.push(Arc::new(Base::Tag(end_tag)));
         Ok(Some(instructions))

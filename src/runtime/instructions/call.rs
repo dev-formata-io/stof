@@ -18,8 +18,32 @@ use std::{ops::Deref, sync::Arc};
 use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use serde::{Deserialize, Serialize};
-use crate::{model::{ARROW_FUNC_ATTR, ASYNC_FUNC_ATTR, DataRef, Field, Func, Graph, LibFunc, NodeRef, PROTOTYPE_TYPE_ATTR, Prototype, SELF_STR_KEYWORD, SId, SUPER_STR_KEYWORD, UNSELF_FUNC_ATTR}, runtime::{Error, Type, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{Base, DUPLICATE, POP_CALL, POP_RETURN, POP_SELF, PUSH_CALL, PUSH_RETURN, PUSH_FUNCTION_SCOPE, PUSH_SELF, PUSH_SYMBOL_SCOPE, PUSH_VAL_RET, PUSH_VOID_RET, SUSPEND, VALIDATE_FN_RET, YIELD}, proc::ProcEnv}};
+use crate::{model::{Param, ARROW_FUNC_ATTR, ASYNC_FUNC_ATTR, DataRef, Field, Func, Graph, LibFunc, NodeRef, PROTOTYPE_TYPE_ATTR, Prototype, SELF_STR_KEYWORD, SId, SUPER_STR_KEYWORD, UNSELF_FUNC_ATTR}, runtime::{Error, Type, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{Base, DUPLICATE, POP_CALL, POP_RETURN, POP_SELF, PUSH_CALL, PUSH_RETURN, PUSH_FUNCTION_SCOPE, PUSH_SELF, PUSH_SYMBOL_SCOPE, PUSH_VAL_RET, PUSH_VOID_RET, SUSPEND, VALIDATE_FN_RET, YIELD}, proc::ProcEnv}};
 
+
+
+/// A descriptive argument error, Ex. "missing argument 'units' for total(units: int)".
+fn args_error(name: &str, params: &Vector<Param>, problem: String) -> Error {
+    let signature = params.iter()
+        .map(|param| {
+            let optional = if param.default.is_some() { "?" } else { "" };
+            let type_name = param.param_type.type_of();
+            if type_name == "void" { format!("{}{optional}", param.name.as_ref()) } // untyped (library params)
+            else { format!("{}{optional}: {type_name}", param.name.as_ref()) }
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    Error::FuncArgsInfo(format!("{problem} for {name}({signature})"))
+}
+
+/// The argument problem once binding is done: missing (the first param without a value) or too many.
+fn count_problem(given: usize, params: &Vector<Param>) -> String {
+    if given < params.len() {
+        format!("missing argument '{}'", params[given].name.as_ref())
+    } else {
+        format!("too many arguments ({given} given, {} expected)", params.len())
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// Call a function instruction (expr).
@@ -374,7 +398,7 @@ impl FuncCall {
                 }
                 if !found {
                     if !unbounded {
-                        return Err(Error::FuncArgs);
+                        return Err(args_error(&format!("{}.{}", func.library, func.name), &params, format!("unknown argument '{}'", named.name)));
                     } else {
                         args.push(arg.clone());
                     }
@@ -391,10 +415,10 @@ impl FuncCall {
                         if let Some(default) = &param.default {
                             args.push(default.clone());
                         } else {
-                            return Err(Error::FuncArgs);
+                            return Err(args_error(&format!("{}.{}", func.library, func.name), &params, format!("missing argument '{}'", param.name.as_ref())));
                         }
                     } else {
-                        return Err(Error::FuncArgs);
+                        return Err(args_error(&format!("{}.{}", func.library, func.name), &params, count_problem(args.len(), &params)));
                     }
                 }
                 args.insert(index, ins);
@@ -413,7 +437,7 @@ impl FuncCall {
             }
         }
         if !unbounded && (args.len() != params.len()) {
-            return Err(Error::FuncArgs);
+            return Err(args_error(&format!("{}.{}", func.library, func.name), &params, count_problem(args.len(), &params)));
         }
         // Evaluate every argument in the caller's scope first, then start the library function's scope
         for index in 0..args.len() {
@@ -557,6 +581,8 @@ impl Instruction for FuncCall {
             self_on_stack = true;
         }
 
+        // only computed when the arguments are invalid
+        let func_name = || func.data_name(graph).map(|name| name.to_string()).unwrap_or_else(|| "fn".to_string());
         // Arguments: Some(explicit arg) or None (use the param's default)
         let mut named_args = Vec::new();
         let mut args: Vec<Option<Arc<dyn Instruction>>> = Vec::new();
@@ -572,7 +598,7 @@ impl Instruction for FuncCall {
                     index += 1;
                 }
                 if !found {
-                    return Err(Error::FuncArgs);
+                    return Err(args_error(&func_name(), &params, format!("unknown argument '{}'", named.name)));
                 }
             } else {
                 args.push(Some(arg.clone()));
@@ -585,7 +611,7 @@ impl Instruction for FuncCall {
                     if params.get(args.len()).map(|param| param.default.is_some()).unwrap_or(false) {
                         args.push(None);
                     } else {
-                        return Err(Error::FuncArgs);
+                        return Err(args_error(&func_name(), &params, count_problem(args.len(), &params)));
                     }
                 }
                 args.insert(index, Some(ins));
@@ -595,7 +621,7 @@ impl Instruction for FuncCall {
             args.push(None);
         }
         if args.len() != params.len() {
-            return Err(Error::FuncArgs);
+            return Err(args_error(&func_name(), &params, count_problem(args.len(), &params)));
         }
 
         // Evaluate the explicit arguments in the caller's scope, before the call starts (an argument never

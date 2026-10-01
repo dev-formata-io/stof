@@ -110,7 +110,7 @@ assert_eq(v.floor(), 2);
 Return the fractional part of this number.
 ```rust
 const v = 2.4;
-assert_eq(v.trunc(), 0.4);
+assert_eq(v.fract().round(2), 0.4); // 0.3999999999999999 before rounding (float precision)
 ```
 
 # Num.has_units(val: int | float) -> bool

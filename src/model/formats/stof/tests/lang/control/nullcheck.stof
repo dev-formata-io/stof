@@ -123,3 +123,24 @@ fn null_check_mid_path_call() {
 fn null_check_keeps_inner_errors() {
     self.boomobj?.boom();
 }
+
+
+#[test]
+/// Arithmetic with null is an error: a missing or misspelled value never turns into a plausible number.
+fn null_arithmetic_errors() {
+    const missing = null;
+    let caught = 0;
+    try { const x = 3 * missing; } catch (e: str) { caught += 1; assert(e.contains('NullArithmetic')); }
+    try { const x = missing + 1; } catch { caught += 1; }
+    try { const x = 10 - self.rate_typo; } catch { caught += 1; }
+    try { const x = 'total: ' + missing; } catch { caught += 1; }
+    try { let total; total += 5; } catch { caught += 1; }
+    assert_eq(caught, 5);
+
+    // ?? gives an explicit default
+    assert_eq(3 * (missing ?? 2), 6);
+    assert_eq((self.rate_typo ?? 0) + 1, 1);
+    let total = 0;
+    total += 5;
+    assert_eq(total, 5);
+}

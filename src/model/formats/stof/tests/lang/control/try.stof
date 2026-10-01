@@ -180,3 +180,14 @@ ExampleContext: {
         catch (msg: str) { pln('blocked:', msg); }
     }
 }
+
+
+#[test]
+/// The catch variable is scoped to its catch block: the same name can be caught again later.
+fn catch_variable_scope() {
+    let seen = [];
+    try { throw('a'); } catch (e: str) { seen.push_back(e); }
+    try { throw('b'); } catch (e: str) { seen.push_back(e); }
+    assert_eq(seen, ['a', 'b']);
+    assert_null(?e);
+}

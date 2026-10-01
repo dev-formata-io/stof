@@ -197,8 +197,9 @@ impl<'ctx> ParseContext<'ctx> {
 
     /// Warn for unknown names once the document is parsed (roots can be declared after the function).
     pub(crate) fn finish_name_checks(&mut self) {
+        let assigned = crate::parser::statement::declare::take_assigned_names();
         for (func, name, call, loc) in std::mem::take(&mut self.pending_names) {
-            if !call && self.graph.find_root_named(name.as_str()).is_some() { continue; }
+            if !call && (self.graph.find_root_named(name.as_str()).is_some() || assigned.contains(&name)) { continue; }
             let place = loc.map(|loc| format!(" ({})", loc.display())).unwrap_or_default();
             let message = if call {
                 format!("unknown function '{name}' in fn {func}{place}: not a variable or standard library function (use self.{name}() for a function on this object)")
