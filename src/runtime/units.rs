@@ -297,19 +297,13 @@ impl Units {
             return Err(format!("Cannot convert {:?} to {:?}", units, to));
         }
 
-        // Length conversion?
-        if units.is_length() && to.is_length() {
-            let mm = Self::to_mm(value, units);
-            return Ok(Self::from_mm(mm, to));
-        } else if units.is_length() || to.is_length() {
-            return Err(format!("Cannot convert {:?} to {:?}", units, to));
-        }
-
-        // Time conversion?
-        if units.is_time() && to.is_time() {
-            let ms = Self::to_ms(value, units);
-            return Ok(Self::from_ms(ms, to));
-        } else if units.is_time() || to.is_time() {
+        // Ratio units (length, time, mass, memory): one exact rational factor between the two units
+        if let (Some((dim, from_num, from_den)), Some((to_dim, to_num, to_den))) = (units.factor(), to.factor()) {
+            if dim != to_dim {
+                return Err(format!("Cannot convert {:?} to {:?}", units, to));
+            }
+            return Ok(Self::scale(value, from_num * to_den, from_den * to_num));
+        } else if units.factor().is_some() || to.factor().is_some() {
             return Err(format!("Cannot convert {:?} to {:?}", units, to));
         }
 
@@ -318,22 +312,6 @@ impl Units {
             let celc = Self::to_c(value, units);
             return Ok(Self::from_c(celc, to));
         } else if units.is_temperature() || to.is_temperature() {
-            return Err(format!("Cannot convert {:?} to {:?}", units, to));
-        }
-
-        // Mass conversion?
-        if units.is_mass() && to.is_mass() {
-            let grams = Self::to_grams(value, units);
-            return Ok(Self::from_grams(grams, to));
-        } else if units.is_mass() || to.is_mass() {
-            return Err(format!("Cannot convert {:?} to {:?}", units, to));
-        }
-
-        // Memory conversion?
-        if units.is_memory() && to.is_memory() {
-            let gb = Self::to_gib(value, units);
-            return Ok(Self::from_gib(gb, to));
-        } else if units.is_memory() || to.is_memory() {
             return Err(format!("Cannot convert {:?} to {:?}", units, to));
         }
 
@@ -537,6 +515,97 @@ impl Units {
         }
     }
 
+    /// Are two values in different units equal? Conversions round (Ex. 1.1km is 1100.0000000000002m), so values
+    /// in different units compare equal within a relative 1e-14 (~45 ulps): far below any meaningful difference
+    /// (1TB and 1TB + 1 byte differ by 1e-12). Values in the same units compare exactly.
+    pub fn approx_eq(a: f64, b: f64) -> bool {
+        a == b || (a - b).abs() <= 1e-14 * a.abs().max(b.abs())
+    }
+
+    /// Exact factor of a ratio unit relative to its dimension's base unit: (dimension, numerator, denominator).
+    /// Bases: meters (length), seconds (time), grams (mass), bits (memory).
+    fn factor(&self) -> Option<(u8, u128, u128)> {
+        const LENGTH: u8 = 1;
+        const TIME: u8 = 2;
+        const MASS: u8 = 3;
+        const MEMORY: u8 = 4;
+        const K: u128 = 1024;
+        Some(match self {
+            Self::Kilometers => (LENGTH, 1000, 1),
+            Self::Hectometers => (LENGTH, 100, 1),
+            Self::Decameters => (LENGTH, 10, 1),
+            Self::Meters => (LENGTH, 1, 1),
+            Self::Decimeters => (LENGTH, 1, 10),
+            Self::Centimeters => (LENGTH, 1, 100),
+            Self::Millimeters => (LENGTH, 1, 1_000),
+            Self::Micrometers => (LENGTH, 1, 1_000_000),
+            Self::Nanometers => (LENGTH, 1, 1_000_000_000),
+            Self::Miles => (LENGTH, 1_609_344, 1_000),   // 1609.344m
+            Self::Yards => (LENGTH, 9_144, 10_000),      // 0.9144m
+            Self::Feet => (LENGTH, 3_048, 10_000),       // 0.3048m
+            Self::Inches => (LENGTH, 254, 10_000),       // 0.0254m
+
+            Self::Days => (TIME, 86_400, 1),
+            Self::Hours => (TIME, 3_600, 1),
+            Self::Minutes => (TIME, 60, 1),
+            Self::Seconds => (TIME, 1, 1),
+            Self::Milliseconds => (TIME, 1, 1_000),
+            Self::Microseconds => (TIME, 1, 1_000_000),
+            Self::Nanoseconds => (TIME, 1, 1_000_000_000),
+
+            Self::Gigatonnes => (MASS, 1_000_000_000_000_000, 1),
+            Self::Megatonnes => (MASS, 1_000_000_000_000, 1),
+            Self::Tonnes => (MASS, 1_000_000, 1),
+            Self::Kilograms => (MASS, 1_000, 1),
+            Self::Grams => (MASS, 1, 1),
+            Self::Milligrams => (MASS, 1, 1_000),
+            Self::Micrograms => (MASS, 1, 1_000_000),
+            Self::Nanograms => (MASS, 1, 1_000_000_000),
+            Self::Picograms => (MASS, 1, 1_000_000_000_000),
+            Self::Tons => (MASS, 90_718_474, 100),          // US short ton: 907184.74g
+            Self::Pounds => (MASS, 45_359_237, 100_000),     // 453.59237g
+            Self::Ounce => (MASS, 45_359_237, 1_600_000),    // 1/16 lb
+
+            Self::Bits => (MEMORY, 1, 1),
+            Self::Bytes => (MEMORY, 8, 1),
+            Self::Kilobytes => (MEMORY, 8 * 1_000, 1),
+            Self::Kibibytes => (MEMORY, 8 * K, 1),
+            Self::Megabytes => (MEMORY, 8 * 1_000_000, 1),
+            Self::Mebibytes => (MEMORY, 8 * K * K, 1),
+            Self::Gigabytes => (MEMORY, 8 * 1_000_000_000, 1),
+            Self::Gibibytes => (MEMORY, 8 * K * K * K, 1),
+            Self::Terabytes => (MEMORY, 8 * 1_000_000_000_000, 1),
+            Self::Tebibytes => (MEMORY, 8 * K * K * K * K, 1),
+            Self::Petabytes => (MEMORY, 8 * 1_000_000_000_000_000, 1),
+            Self::Pebibytes => (MEMORY, 8 * K * K * K * K * K, 1),
+            Self::Exabytes => (MEMORY, 8 * 1_000_000_000_000_000_000, 1),
+            Self::Exbibyte => (MEMORY, 8 * K * K * K * K * K * K, 1),
+            Self::Zettabytes => (MEMORY, 8 * 1_000_000_000_000_000_000_000, 1),
+            Self::Zebibytes => (MEMORY, 8 * K * K * K * K * K * K * K, 1),
+            Self::Yottabytes => (MEMORY, 8 * 1_000_000_000_000_000_000_000_000, 1),
+            Self::Yobibytes => (MEMORY, 8 * K * K * K * K * K * K * K * K, 1),
+            _ => return None,
+        })
+    }
+
+    /// Scale a value by the exact ratio num/den in one rounding when possible
+    /// (whole-number ratios multiply, unit-fraction ratios divide).
+    fn scale(value: f64, num: u128, den: u128) -> f64 {
+        fn gcd(mut a: u128, mut b: u128) -> u128 {
+            while b != 0 { let t = a % b; a = b; b = t; }
+            a
+        }
+        let g = gcd(num, den).max(1);
+        let (num, den) = (num / g, den / g);
+        if den == 1 {
+            value * num as f64
+        } else if num == 1 {
+            value / den as f64
+        } else {
+            value * num as f64 / den as f64
+        }
+    }
+
     /// Is mass?
     pub fn is_mass(&self) -> bool {
         match self {
@@ -582,43 +651,7 @@ impl Units {
         }
     }
 
-    /// To grams.
-    fn to_grams(value: f64, units: Self) -> f64 {
-        match units {
-            Self::Gigatonnes => value*1000000000000000.0,
-            Self::Megatonnes => value*1000000000000.0,
-            Self::Tonnes => value*1000000.0,
-            Self::Kilograms => value*1000.0,
-            Self::Grams => value,
-            Self::Milligrams => value/1000.0,
-            Self::Micrograms => value/1000000.0,
-            Self::Nanograms => value/1000000000.0,
-            Self::Picograms => value/1000000000000.0,
-            Self::Tons => (value*0.907)*1000000.0,
-            Self::Pounds => value*453.592,
-            Self::Ounce => value*28.3495,
-            _ => value,
-        }
-    }
 
-    /// From grams.
-    fn from_grams(value: f64, units: Self) -> f64 {
-        match units {
-            Self::Gigatonnes => value/1000000000000000.0,
-            Self::Megatonnes => value/1000000000000.0,
-            Self::Tonnes => value/1000000.0,
-            Self::Kilograms => value/1000.0,
-            Self::Grams => value,
-            Self::Milligrams => value*1000.0,
-            Self::Micrograms => value*1000000.0,
-            Self::Nanograms => value*1000000000.0,
-            Self::Picograms => value*1000000000000.0,
-            Self::Tons => value/1000000.0/0.907,
-            Self::Pounds => value/453.592,
-            Self::Ounce => value/28.3495,
-            _ => value,
-        }
-    }
 
     /// Is temperature?
     pub fn is_temperature(&self) -> bool {
@@ -664,33 +697,7 @@ impl Units {
         }
     }
 
-    /// To milliseconds.
-    fn to_ms(value: f64, units: Self) -> f64 {
-        match units {
-            Self::Days => value*24.0*60.0*60.0*1000.0,
-            Self::Hours => value*60.0*60.0*1000.0,
-            Self::Minutes => value*60.0*1000.0,
-            Self::Seconds => value*1000.0,
-            Self::Milliseconds => value,
-            Self::Microseconds => value/1000.0,
-            Self::Nanoseconds => value/1000000.0,
-            _ => value,
-        }
-    }
 
-    /// From milliseconds.
-    fn from_ms(value: f64, units: Self) -> f64 {
-        match units {
-            Self::Days => value/1000.0/60.0/60.0/24.0,
-            Self::Hours => value/1000.0/60.0/60.0,
-            Self::Minutes => value/1000.0/60.0,
-            Self::Seconds => value/1000.0,
-            Self::Milliseconds => value,
-            Self::Microseconds => value*1000.0,
-            Self::Nanoseconds => value*1000000.0,
-            _ => value,
-        }
-    }
 
     /// Is length?
     pub fn is_length(&self) -> bool {
@@ -739,46 +746,7 @@ impl Units {
         }
     }
 
-    /// From millimeters.
-    /// 1inch = 25.4mm
-    fn from_mm(value: f64, units: Self) -> f64 {
-        match units {
-            Self::Kilometers => value/1000000.0,
-            Self::Hectometers => value/100000.0,
-            Self::Decameters => value/10000.0,
-            Self::Meters => value/1000.0,
-            Self::Decimeters => value/100.0,
-            Self::Centimeters => value/10.0,
-            Self::Millimeters => value,
-            Self::Micrometers => value*1000.0,
-            Self::Nanometers => value*1000000.0,
-            Self::Miles => value/25.4/12.0/5280.0,
-            Self::Yards => value/25.4/12.0/3.0,
-            Self::Feet => value/25.4/12.0,
-            Self::Inches => value/25.4,
-            _ => value,
-        }
-    }
 
-    /// To millimeters.
-    fn to_mm(value: f64, units: Self) -> f64 {
-        match units {
-            Self::Kilometers => value*1000000.0,
-            Self::Hectometers => value*100000.0,
-            Self::Decameters => value*10000.0,
-            Self::Meters => value*1000.0,
-            Self::Decimeters => value*100.0,
-            Self::Centimeters => value*10.0,
-            Self::Millimeters => value,
-            Self::Micrometers => value/1000.0,
-            Self::Nanometers => value/1000000.0,
-            Self::Miles => value*5280.0*12.0*25.4,
-            Self::Yards => value*3.0*12.0*25.4,
-            Self::Feet => value*12.0*25.4,
-            Self::Inches => value*25.4,
-            _ => value,
-        }
-    }
 
     /// Is computer memory?
     pub fn is_memory(&self) -> bool {
@@ -805,69 +773,5 @@ impl Units {
         }
     }
 
-    /// From GiB
-    fn from_gib(gib: f64, units: Self) -> f64 {
-        match units {
-            Self::Bits => gib*1024.*1024.*1024.*8.,
-            Self::Bytes => gib*1024.*1024.*1024.,
 
-            Self::Kilobytes => gib*1024.*1024.*1.024,
-            Self::Kibibytes => gib*1024.*1024.,
-            
-            Self::Megabytes => gib*1024.*1.048576,
-            Self::Mebibytes => gib*1024.,
-
-            Self::Gigabytes => gib*1.073741824,
-            Self::Gibibytes => gib,
-
-            Self::Terabytes => gib/1024.*1.099511627776,
-            Self::Tebibytes => gib/1024.,
-
-            Self::Petabytes => gib/1024./1024.*1.1258999,
-            Self::Pebibytes => gib/1024./1024.,
-
-            Self::Exabytes => gib/1024./1024./1024.*1.1529215046068,
-            Self::Exbibyte => gib/1024./1024./1024.,
-
-            Self::Zettabytes => gib/1024./1024./1024./1024.*1.1805916207174,
-            Self::Zebibytes => gib/1024./1024./1024./1024.,
-
-            Self::Yottabytes => gib/1024./1024./1024./1024./1024.*1.2089258,
-            Self::Yobibytes => gib/1024./1024./1024./1024./1024.,
-            _ => gib,
-        }
-    }
-
-    /// To GiB
-    fn to_gib(u: f64, units: Self) -> f64 {
-        match units {
-            Self::Bits => u/8./1024./1024./1024.,
-            Self::Bytes => u/1024./1024./1024.,
-
-            Self::Kilobytes => u/1.024/1024./1024.,
-            Self::Kibibytes => u/1024./1024.,
-
-            Self::Megabytes => u/1.048576/1024.,
-            Self::Mebibytes => u/1024.,
-
-            Self::Gigabytes => u/1.073741824,
-            Self::Gibibytes => u,
-
-            Self::Terabytes => u/1.099511627776*1024.,
-            Self::Tebibytes => u*1024.,
-
-            Self::Petabytes => u/1.1258999*1024.*1024.,
-            Self::Pebibytes => u*1024.*1024.,
-
-            Self::Exabytes => u/1.1529215046068*1024.*1024.*1024.,
-            Self::Exbibyte => u*1024.*1024.*1024.,
-
-            Self::Zettabytes => u/1.1805916207174*1024.*1024.*1024.*1024.,
-            Self::Zebibytes => u*1024.*1024.*1024.*1024.,
-
-            Self::Yottabytes => u/1.2089258*1024.*1024.*1024.*1024.*1024.,
-            Self::Yobibytes => u*1024.*1024.*1024.*1024.*1024.,
-            _ => u,
-        }
-    }
 }

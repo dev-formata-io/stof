@@ -26,3 +26,37 @@ fn undefined_units() {
     assert_eq(val, 46);
     assert_not(val.has_units());
 }
+
+
+#[test]
+/// Conversions use exact factors, so whole conversions are exact (2GB used to be 1999.9999999999998MB).
+fn exact_conversions() {
+    assert_eq((2GB).to_units('MB'), 2000MB);
+    assert_eq(str((2GB).to_units('MB')), '2000MB');
+    assert_eq((1.5GiB).to_units('MiB'), 1536MiB);
+    assert_eq((1PB).to_units('bytes'), 1_000_000_000_000_000bytes);
+    assert_eq((1KiB).to_units('bits'), 8192bits);
+    assert_eq((1mi).to_units('ft'), 5280ft);
+    assert_eq((1in).to_units('cm'), 2.54cm);
+    assert_eq((1days).to_units('s'), 86400s);
+    assert_eq((1lb).to_units('oz'), 16oz);               // exact imperial constants
+    assert_eq((1lb).to_units('g'), 453.59237g);
+    assert_eq((1Ton).to_units('lb'), 2000lb);
+}
+
+#[test]
+/// Values in different units are equal when they're the same quantity (within conversion rounding).
+fn mixed_unit_equality() {
+    assert(2000MB == 2GB);
+    assert(2GB == 2000MB);
+    assert(1.1km == 1100m);
+    assert(1ft == 12in);
+    assert(1min == 60s);
+    assert_not(1TB == 1TB + 1bytes);                     // real differences still count
+    assert(1TB < 1TB + 1bytes);
+    assert_not(2000MB < 2GB);                            // ordering agrees with equality
+    assert_not(2000MB > 2GB);
+    assert(2000MB <= 2GB);
+    assert(2000MB >= 2GB);
+}
+

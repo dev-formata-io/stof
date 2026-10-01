@@ -155,6 +155,9 @@ impl PartialEq for Num {
                                     // Lower precision for angles 6 places
                                     return (a*1000000.).round() == (b*1000000.).round();
                                 }
+                                if units != ounits {
+                                    return Units::approx_eq(a, b); // conversion rounding
+                                }
                                 return a == b;
                             }
                         }
@@ -530,6 +533,9 @@ impl Num {
                                 if base.is_angle() {
                                     return (a*1000000.).round() > (b*1000000.).round();
                                 }
+                                if units != ounits {
+                                    return a > b && !Units::approx_eq(a, b); // consistent with ==
+                                }
                                 return a > b;
                             }
                         }
@@ -616,6 +622,9 @@ impl Num {
                             if let Ok(b) = Units::convert(*oval, *ounits, base) {
                                 if base.is_angle() {
                                     return (a*1000000.).round() < (b*1000000.).round();
+                                }
+                                if units != ounits {
+                                    return a < b && !Units::approx_eq(a, b); // consistent with ==
                                 }
                                 return a < b;
                             }

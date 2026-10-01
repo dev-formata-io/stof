@@ -43,7 +43,7 @@ fn convert_yobibytes() {
     assert_eq(res.round(2), 67.70YB);
 
     const giga = 56YiB as GB;
-    assert_eq(giga, 67_699_845_898_419_240GB);
+    assert_eq(giga, 67_699_845_898_419_230GB); // exactly 67,699,845,898,419,230.72GB (56 * 1024^8 / 10^9)
 }
 
 #[test]
