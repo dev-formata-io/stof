@@ -18,12 +18,13 @@ use std::sync::Arc;
 use imbl::vector;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, opt}, multi::separated_list0, sequence::{delimited, preceded, terminated}, IResult, Parser};
 use rustc_hash::FxHashMap;
-use crate::{model::{DataRef, Func, ARROW_FUNC_ATTR, ASYNC_FUNC_ATTR}, parser::{doc::StofParseError, expr::expr, func::{opt_parameter, parameter}, statement::block, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::func::FuncLit, Type, Val}};
+use crate::{model::{DataRef, Func, ARROW_FUNC_ATTR, ASYNC_FUNC_ATTR}, parser::{source, doc::StofParseError, expr::expr, func::{opt_parameter, parameter}, statement::block, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::func::FuncLit, Type, Val}};
 
 
 /// Arrow function "literal" value.
 pub fn func_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = whitespace(input)?;
+    let start = input;
     let (input, async_fn) = opt(terminated(tag("async"), multispace0)).parse(input)?;
     let (input, params) = delimited(char('('), separated_list0(char(','), alt((parameter, opt_parameter))), char(')')).parse(input)?;
     let (input, return_type) = opt(preceded(delimited(multispace0, alt((tag(":"), tag("->"))), multispace0), parse_type)).parse(input)?;
@@ -45,6 +46,7 @@ pub fn func_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseEr
     }
 
     let dref = DataRef::default();
-    let arrow_func = Func::new(params.into_iter().collect(), rtype, Instructions::from(instructions), Some(attrs));
+    let mut arrow_func = Func::new(params.into_iter().collect(), rtype, Instructions::from(instructions), Some(attrs));
+    arrow_func.src = source::locate(start);
     Ok((input, Arc::new(FuncLit { dref, func: arrow_func }) as Arc<dyn Instruction>))
 }

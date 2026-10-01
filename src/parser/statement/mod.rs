@@ -17,7 +17,7 @@
 use std::sync::Arc;
 use imbl::{vector, Vector};
 use nom::{branch::alt, combinator::map, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, value}, multi::fold_many0, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
-use crate::{parser::{doc::StofParseError, expr::expr, statement::{assign::assign, declare::declare_statement, forin::for_in_loop, fors::for_loop, ifs::if_statement, switch::switch_statement, trycatch::try_catch_statement, whiles::{break_statement, continue_statement, loop_statement, while_statement}}, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{empty::EmptyIns, ret::RetIns, Base, POP_STACK, POP_SYMBOL_SCOPE, PUSH_SYMBOL_SCOPE, SUSPEND}, Type}};
+use crate::{parser::{source, doc::{StofParseError, err_fail, note_statement_error}, expr::expr, statement::{assign::assign, declare::declare_statement, forin::for_in_loop, fors::for_loop, ifs::if_statement, switch::switch_statement, trycatch::try_catch_statement, whiles::{break_statement, continue_statement, loop_statement, while_statement}}, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{empty::EmptyIns, ret::RetIns, Base, POP_STACK, POP_SYMBOL_SCOPE, PUSH_SYMBOL_SCOPE, SUSPEND}, Type}};
 
 pub mod declare;
 pub mod assign;
@@ -79,7 +79,37 @@ fn multistatements(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, S
 
 /// Parse a singular statement into instructions.
 pub fn statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
-    let (input, statements) = alt((
+    let res = statement_inner(input);
+    if let Err(nom::Err::Error(error)) = &res {
+        note_statement_error(error); // blocks drop this error: keep the furthest for the report
+    }
+    res
+}
+fn statement_inner(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
+    let (input, _) = whitespace(input)?;
+
+    // Keyword statements: only that statement can match, and a failure after the keyword is an error in it
+    // (no backtracking into other statement kinds, Ex. "let x = 5" without ';' was read as expressions).
+    let word_len = input.bytes().take_while(|b| b.is_ascii_alphanumeric() || *b == b'_').count();
+    let keyword_res = match &input[..word_len] {
+        "let" | "const" => Some(terminated(declare_statement, preceded(multispace0, char(';'))).parse(input)),
+        "return" => Some(return_statement(input)),
+        "if" => Some(if_statement(input)),
+        "while" => Some(while_statement(input)),
+        "loop" => Some(loop_statement(input)),
+        "for" => Some(alt((for_in_loop, for_loop)).parse(input)),
+        "switch" => Some(switch_statement(input)),
+        "try" => Some(try_catch_statement(input)),
+        "continue" => Some(terminated(continue_statement, preceded(multispace0, char(';'))).parse(input)),
+        "break" => Some(terminated(break_statement, preceded(multispace0, char(';'))).parse(input)),
+        "" if input.starts_with('^') => Some(alt((while_statement, loop_statement, for_in_loop, for_loop)).parse(input)), // labeled loop
+        _ => None,
+    };
+    if let Some(res) = keyword_res {
+        return with_marker(input, res.map_err(err_fail));
+    }
+
+    let statements = alt((
         // control
         if_statement,
         while_statement,
@@ -103,8 +133,24 @@ pub fn statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, Sto
         block,
         expr_statement,
         value(Vector::default(), preceded(whitespace, char(';'))) // empty statement ";"
-    )).parse(input)?;
-    Ok((input, statements))
+    )).parse(input);
+    with_marker(input, statements)
+}
+
+#[inline]
+/// Debug profiles: put a source location marker (Base::Src) before each statement, so errors can say where.
+fn with_marker<'a>(start: &'a str, res: IResult<&'a str, Vector<Arc<dyn Instruction>>, StofParseError>) -> IResult<&'a str, Vector<Arc<dyn Instruction>>, StofParseError> {
+    match res {
+        Ok((rest, mut statements)) => {
+            if !statements.is_empty() && source::markers_enabled() {
+                if let Some(loc) = source::locate(start) {
+                    statements.push_front(Arc::new(Base::Src(loc.line, loc.col)));
+                }
+            }
+            Ok((rest, statements))
+        },
+        error => error,
+    }
 }
 
 

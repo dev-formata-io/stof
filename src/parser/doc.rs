@@ -14,30 +14,77 @@
 // limitations under the License.
 //
 
-use crate::{model::{InnerDoc, SId}, parser::{context::ParseContext, data::parse_data, field::parse_field, func::parse_function, ident::ident, import::import, string::{double_string, single_string}, whitespace::{parse_inner_doc_comment, whitespace, whitespace_fail}}, runtime::Error};
+use arcstr::ArcStr;
+use crate::{model::{InnerDoc, SId}, parser::{source, context::ParseContext, data::parse_data, field::parse_field, func::parse_function, ident::ident, import::import, string::{double_string, single_string}, whitespace::{parse_inner_doc_comment, whitespace, whitespace_fail}}, runtime::Error};
 use nanoid::nanoid;
 use nom::{branch::alt, bytes::complete::{tag, take_until}, character::complete::{char, multispace0, space0}, combinator::{eof, opt, map}, error::{ErrorKind, FromExternalError, ParseError}, sequence::{delimited, preceded}, Err, IResult, Parser};
 use serde::{Deserialize, Serialize};
 
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+/// Parse error.
+/// Errors from nom combinators are cheap (no formatting or allocation): they record what failed and how much
+/// input was left. `document()` turns that into a location and code frame once, only for the error reported.
 pub struct StofParseError {
     pub file_path: Option<String>,
+    /// Explicit message (custom errors). Empty for combinator errors (see `describe`).
     pub message: String,
+
+    /// Where the error happened: address of the input position (parsers work on slices of one text).
+    /// Resolved to a line and column by `document()`; positions outside the text are ignored.
+    #[serde(skip)]
+    pub pos: Option<usize>,
+
+    /// The error is at the end of the input.
+    #[serde(default)]
+    pub at_end: bool,
+
+    /// Character that was expected (Ex. '}').
+    #[serde(default)]
+    pub expected: Option<char>,
+
+    /// Combinator that failed.
+    #[serde(skip)]
+    pub kind: Option<ErrorKind>,
+
+    /// Location (line, column), once located by `document()`.
+    #[serde(default)]
+    pub location: Option<(usize, usize)>,
+
+    /// Code frame for the location.
+    #[serde(default)]
+    pub frame: String,
 }
 impl From<&str> for StofParseError {
     fn from(value: &str) -> Self {
-        Self {
-            file_path: None,
-            message: value.to_string(),
-        }
+        Self { message: value.to_string(), ..Default::default() }
     }
 }
 impl From<String> for StofParseError {
     fn from(value: String) -> Self {
-        Self {
-            file_path: None,
-            message: value,
+        Self { message: value, ..Default::default() }
+    }
+}
+impl StofParseError {
+    /// Human readable description of what went wrong (without the location).
+    pub fn describe(&self) -> String {
+        if !self.message.is_empty() {
+            return self.message.clone();
+        }
+        if self.at_end {
+            return match self.expected {
+                Some(c @ ('\'' | '"' | '`')) => format!("unterminated string (missing the closing {c})"),
+                Some(c) => format!("unexpected end of input (expected '{c}')"),
+                None => "unexpected end of input".into(),
+            };
+        }
+        if let Some(c) = self.expected {
+            return format!("expected '{c}'");
+        }
+        match self.kind {
+            Some(ErrorKind::Eof) => "unexpected input (expected the end of the document)".into(),
+            Some(ErrorKind::Digit) | Some(ErrorKind::HexDigit) | Some(ErrorKind::OctDigit) => "invalid number".into(),
+            _ => "invalid syntax".into(),
         }
     }
 }
@@ -49,57 +96,107 @@ pub fn err_fail(e: nom::Err<StofParseError>) -> nom::Err<StofParseError> {
         _ => e
     }
 }
-/// The start of the remaining input, for error messages.
-/// nom creates an error for every alternative that fails, so copying the whole remaining input made
-/// parsing quadratic in the file size (90% of parse time was memcpy).
-fn error_snippet(input: &str) -> &str {
-    const MAX_LINES: usize = 4;
-    const MAX_CHARS: usize = 240;
-    // bounded: never scan past MAX_CHARS (this runs for every failed alternative)
-    let mut end = input.len().min(MAX_CHARS);
-    while !input.is_char_boundary(end) { end -= 1; }
-    let head = &input[..end];
-    match head.match_indices('\n').nth(MAX_LINES - 1) {
-        Some((index, _)) => &head[..index],
-        None => head,
-    }
-}
 
 impl ParseError<&str> for StofParseError {
-    // on one line, we show the error code and the input that caused it
+    // nom creates one of these for every alternative that fails: keep it allocation free
     fn from_error_kind(input: &str, kind: ErrorKind) -> Self {
-        let message = format!("{:?}: {}\n", kind, error_snippet(input));
-        StofParseError { message, file_path: None }
+        StofParseError { pos: Some(input.as_ptr() as usize), kind: Some(kind), ..Default::default() }
     }
 
-    // if combining multiple errors, we show them one after the other
+    // keep the innermost error
     fn append(_input: &str, _kind: ErrorKind, other: Self) -> Self {
-        //let message = format!("{}{:?}:\t{:?}\n", other.message, kind, input);
-        //StofParseError { message, file_path: None }
         other
     }
 
     fn from_char(input: &str, c: char) -> Self {
-        let message = format!("expected char '{c}':\n{}", error_snippet(input));
-        StofParseError { message, file_path: None }
+        StofParseError { pos: Some(input.as_ptr() as usize), expected: Some(c), ..Default::default() }
     }
 
+    // between alternatives, report the one that got furthest (most likely what the author meant)
     fn or(self, other: Self) -> Self {
-        //let message = format!("{}\tOR\n{}\n", self.message, other.message);
-        //StofParseError { message, file_path: None }
-        other
+        match (self.pos, other.pos) {
+            (Some(mine), Some(theirs)) if mine > theirs => self,
+            (Some(mine), Some(theirs)) if mine == theirs && !self.message.is_empty() && other.message.is_empty() => self, // more specific
+            _ => other,
+        }
     }
 }
 impl FromExternalError<&str, std::num::ParseIntError> for StofParseError {
-    fn from_external_error(_input: &str, _kind: ErrorKind, e: std::num::ParseIntError) -> Self {
-        Self::from(e.to_string())
+    fn from_external_error(input: &str, _kind: ErrorKind, e: std::num::ParseIntError) -> Self {
+        StofParseError { message: e.to_string(), pos: Some(input.as_ptr() as usize), ..Default::default() }
     }
+}
+
+
+thread_local! {
+    /// Furthest statement error in the current document statement. Statement lists (blocks) stop at the
+    /// first statement that doesn't parse and drop its error, so the error that surfaces is usually a
+    /// generic "expected '}'"; the furthest statement error is what the author got wrong.
+    static FURTHEST: std::cell::RefCell<Option<StofParseError>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Record a statement error if it got further than any so far (cheap: no allocation for combinator errors).
+pub(crate) fn note_statement_error(error: &StofParseError) {
+    if error.pos.is_none() { return; }
+    FURTHEST.with(|furthest| {
+        let mut furthest = furthest.borrow_mut();
+        if furthest.as_ref().map(|current| error.pos > current.pos).unwrap_or(true) {
+            *furthest = Some(error.clone());
+        }
+    });
+}
+
+fn take_furthest() -> Option<StofParseError> {
+    FURTHEST.with(|furthest| furthest.borrow_mut().take())
+}
+
+
+/// Locate a parse error in the document text it came from: line, column, and a code frame.
+/// `statement` is the input at the start of the statement that failed (fallback position).
+fn locate_parse_error(text: &str, statement: &str, mut error: StofParseError) -> StofParseError {
+    if error.location.is_some() { return error; } // from an imported document (already located)
+    let start = text.as_ptr() as usize;
+    let statement_offset = text.len() - statement.len();
+    let offset_of = |error: &StofParseError| error.pos.and_then(|pos| {
+        // must be in this statement (sub-parsers of other strings report elsewhere)
+        if pos >= start + statement_offset && pos <= start + text.len() { Some(pos - start) } else { None }
+    });
+
+    // a deeper statement error is more precise than a generic error at the end of the block
+    if let Some(furthest) = take_furthest() {
+        if let Some(further) = offset_of(&furthest) {
+            if error.message.is_empty() && offset_of(&error).map(|offset| further >= offset).unwrap_or(true) {
+                error = StofParseError { file_path: error.file_path, ..furthest };
+            }
+        }
+    }
+
+    let mut offset = offset_of(&error).unwrap_or(statement_offset);
+    if error.expected.is_some() {
+        // "expected ';'": point right after the previous token, not at the next line
+        let before = text[..offset].trim_end();
+        if before.len() >= statement_offset { offset = before.len(); }
+    } else {
+        // point at the next token rather than the whitespace before it
+        let rest = &text[offset..];
+        let trimmed = rest.trim_start();
+        if !trimmed.is_empty() { offset += rest.len() - trimmed.len(); }
+    }
+    error.at_end = text[offset..].trim().is_empty();
+
+    let (line, col, line_text) = source::line_col(text, offset);
+    error.location = Some((line, col));
+    error.frame = source::code_frame(line, col, line_text);
+    error
 }
 
 
 /// Parse a Stof document into a context (graph).
 pub fn document(mut input: &str, context: &mut ParseContext) -> Result<(), Error> {
+    let text = input;
+    let _source = source::push_source(text, context.current_file().map(ArcStr::from), context.profile.debug_info);
     loop {
+        take_furthest(); // per statement
         let res = document_statement(input, context);
         match res {
             Ok((rest, _)) => {
@@ -108,17 +205,12 @@ pub fn document(mut input: &str, context: &mut ParseContext) -> Result<(), Error
             },
             Err(error) => {
                 // didn't match a singular statement (including whitespace)
-                match error {
-                    nom::Err::Error(e) => {
-                        return Err(Error::ParseError(e));
-                    },
-                    nom::Err::Failure(e) => {
-                        return Err(Error::ParseError(e));
-                    },
-                    nom::Err::Incomplete(_) => {
-                        return Err(Error::ParseError(StofParseError::from(error.to_string())));
-                    }
-                }
+                let error = match error {
+                    nom::Err::Error(e) |
+                    nom::Err::Failure(e) => e,
+                    nom::Err::Incomplete(_) => StofParseError::from("unexpected end of input"),
+                };
+                return Err(Error::ParseError(locate_parse_error(text, input, error)));
             }
         }
     }
@@ -278,6 +370,7 @@ fn root_statements<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
 
     context.push_root(name, cid);
     loop {
+        take_furthest(); // per statement
         let res = document_statement(input, context);
         match res {
             Ok((rest, _)) => {
@@ -301,6 +394,7 @@ fn root_statements<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
 fn json_statements<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, (), StofParseError> {
     let (mut input, _) = char('{')(input)?;
     loop {
+        take_furthest(); // per statement
         let res = document_statement(input, context);
         match res {
             Ok((rest, _)) => {
@@ -322,6 +416,36 @@ fn json_statements<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
 #[cfg(test)]
 mod tests {
     use crate::{model::{Graph, Profile}, parser::{context::ParseContext, doc::document}, runtime::{Runtime, Val}};
+
+    fn parse_err(src: &str) -> String {
+        let mut graph = Graph::default();
+        let err = graph.parse_stof_src(src, None, Profile::default()).unwrap_err();
+        err.to_string()
+    }
+
+    #[test]
+    /// Parse errors say what's wrong, where (line:col), and show the line with a caret.
+    fn parse_errors_are_located() {
+        let err = parse_err("a: 1\nfn main() {\n    let x = 5\n    pln(x);\n}");
+        assert!(err.starts_with("parse error: expected ';'"), "{err}");
+        assert!(err.contains("--> line 3, column 14"), "{err}");
+        assert!(err.contains(" 3 |     let x = 5\n   |              ^"), "{err}");
+
+        let err = parse_err("fn main() {\n    if (x > 2 {\n    }\n}");
+        assert!(err.starts_with("parse error: expected ')'") && err.contains("line 2, column 14"), "{err}");
+
+        let err = parse_err("a: {\n    b: 'x\n}");
+        assert!(err.starts_with("parse error: unterminated string"), "{err}");
+
+        let err = parse_err("fn f() -> str { `hi ${ 1 + }` }");
+        assert!(err.starts_with("parse error: invalid expression in template string") && err.contains("column 17"), "{err}");
+
+        // "letter" is not "let ter"; "return x" needs a ';'
+        assert!(parse_err("fn f() {\n    return 5\n}").contains("expected ';'"));
+        let mut graph = Graph::default();
+        graph.parse_stof_src("fn f() -> int { const letter = 3; letter }", None, Profile::default()).unwrap();
+        assert_eq!(Runtime::call(&mut graph, "root.f", vec![]).unwrap(), Val::from(3));
+    }
 
     #[test]
     fn basic_doc() {

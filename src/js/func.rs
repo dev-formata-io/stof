@@ -184,7 +184,12 @@ impl Instruction for JsLibFuncIns {
                                         let two = env.stack.pop().unwrap().val.read().clone();
                                         let one = env.stack.pop().unwrap().val.read().clone();
                                         let zer = env.stack.pop().unwrap().val.read().clone();
-                                        js_func.call9(&context, &zer.into(), &one.into(), &two.into(), &thr.into(), &foy.into(), &six.into(), &sev.into(), &eig.into(), &nin.into())
+                                        {
+                                            // call9 is deprecated in js-sys: apply with an argument array
+                                            let args = js_sys::Array::new();
+                                            for arg in [zer, one, two, thr, foy, six, sev, eig, nin] { args.push(&arg.into()); }
+                                            js_func.apply(&context, &args)
+                                        }
                                     },
                                     _ => {
                                         Err(JsValue::from_str("outnumbered allotted argument count for JS/Stof interop"))

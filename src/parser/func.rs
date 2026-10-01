@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use nom::{bytes::complete::tag, branch::alt, character::complete::{char, multispace0}, combinator::opt, multi::separated_list0, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{model::{Func, FuncDoc, Param, SId, ASYNC_FUNC_ATTR}, parser::{context::ParseContext, doc::{err_fail, StofParseError}, expr::expr, ident::ident, parse_attributes, statement::{block, declare::take_declared_names}, types::parse_type, whitespace::{doc_comment, whitespace}}, runtime::{instruction::Instruction, instructions::Base, Val}};
+use crate::{model::{Func, FuncDoc, Param, SId, ASYNC_FUNC_ATTR}, parser::{source, context::ParseContext, doc::{err_fail, StofParseError}, expr::expr, ident::ident, parse_attributes, statement::{block, declare::take_declared_names}, types::parse_type, whitespace::{doc_comment, whitespace}}, runtime::{instruction::Instruction, instructions::Base, Val}};
 
 
 /// Parse a function into a parse context.
@@ -38,6 +38,7 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
     for (k, v) in attrs { func.attributes.insert(k, v); }
     do_create_func = do_create_func && do_insert;
     let (input, _) = whitespace(input)?; // clean up anything more before signature...
+    let start = input;
 
     let (input, async_fn) = opt(terminated(tag("async"), multispace0)).parse(input)?;
     if async_fn.is_some() && !func.attributes.contains_key(ASYNC_FUNC_ATTR.as_str()) {
@@ -62,6 +63,7 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
     for param in params { func.params.push_back(param); }
     func.return_type = return_type.unwrap_or_default(); // default is void
     func.instructions = instructions;
+    func.src = source::locate(start);
 
     // Is this function an init function (has an #[init] attribute)?
     // These functions will get called automatically when the context is dropped (after parse complete).

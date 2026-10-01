@@ -438,14 +438,7 @@ impl Instructions {
                     Err(error) => {
                         if let Some(try_tag) = env.try_stack.pop() {
                             self.forward_to(&try_tag);
-                            match error {
-                                Error::Thrown(val) => {
-                                    env.stack.push(Variable::val(val));
-                                },
-                                _ => {
-                                    env.stack.push(Variable::val(Val::Str(error.to_string().into())));
-                                }
-                            }
+                            env.stack.push(Variable::val(error.catch_value()));
                             continue 'exec_loop;
                         } else {
                             return Err(error);

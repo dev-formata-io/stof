@@ -95,7 +95,7 @@ impl<'ctx> ParseContext<'ctx> {
 
         if let Err(mut error) = res {
             if let Error::ParseError(error) = &mut error {
-                error.file_path = Some(path);
+                if error.file_path.is_none() { error.file_path = Some(path); } // keep the innermost file
             }
             return Err(error);
         }
@@ -119,6 +119,11 @@ impl<'ctx> ParseContext<'ctx> {
                 Err(text_error) => self.parse_from_file("bytes", path, node).map_err(|_| text_error),
             },
         }
+    }
+
+    /// File being parsed (innermost import), if any.
+    pub fn current_file(&self) -> Option<&str> {
+        self.file_stack.last().map(|file| file.as_str())
     }
 
     /// Add a parse warning (deduplicated), tagged with the file being parsed.

@@ -24,6 +24,7 @@ use crate::{model::libraries::stof_std::StdIns, parser::{doc::StofParseError, ex
 /// Always a str: each ${expr} is printed like str(expr), then the parts are joined.
 pub fn formatted_string_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = whitespace(input)?;
+    let start = input;
     let (input, inner) = inner_formatted(input)?;
 
     match parse_inner(&inner) {
@@ -31,7 +32,12 @@ pub fn formatted_string_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>,
             Ok((input, expr))
         },
         Err(error) => {
-            Err(error)
+            // the inner parse is on a copy: report the error at the template string
+            Err(error.map(|mut error| {
+                error.pos = Some(start.as_ptr() as usize);
+                if error.message.is_empty() { error.message = "invalid expression in template string".into(); }
+                error
+            }))
         }
     }
 }

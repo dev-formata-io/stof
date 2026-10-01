@@ -14,9 +14,8 @@
 // limitations under the License.
 //
 
-use colored::Colorize;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, recognize}, multi::separated_list1, sequence::{delimited, preceded}, IResult, Parser};
-use crate::{model::{SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, parser::{context::ParseContext, doc::StofParseError, ident::ident, parse_attributes, string::{double_string, single_string}, whitespace::whitespace}};
+use crate::{runtime::Error, model::{SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, parser::{context::ParseContext, doc::StofParseError, ident::ident, parse_attributes, string::{double_string, single_string}, whitespace::whitespace}};
 
 
 /// Parse an import statement into a graph.
@@ -42,8 +41,11 @@ pub fn import<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str
         Ok(_) => {
             Ok((input, ()))
         },
+        Err(Error::ParseError(error)) if error.location.is_some() => {
+            Err(nom::Err::Failure(error)) // located in the imported file: report it as is
+        },
         Err(error) => {
-            return Err(nom::Err::Failure(StofParseError::from(format!("{} {}", "import:".dimmed(), error.to_string()))))
+            Err(nom::Err::Failure(StofParseError::from(format!("import of '{path}' failed: {error}"))))
         }
     }
 }

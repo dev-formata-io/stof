@@ -19,7 +19,7 @@ use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Graph, NodeRef, SId, SPath, StofData}, runtime::{instruction::{Instruction, Instructions}, Type, Val}};
+use crate::{parser::source::SrcLoc, model::{DataRef, Graph, NodeRef, SId, SPath, StofData}, runtime::{instruction::{Instruction, Instructions}, Type, Val}};
 
 
 /// Attribute used to denote a main function.
@@ -47,6 +47,11 @@ pub struct Func {
     pub return_type: Type,
     pub attributes: FxHashMap<String, Val>,
     pub instructions: Vector<Arc<dyn Instruction>>,
+
+    /// Where this function is defined, for error messages.
+    /// Set by the parser and never stored in documents (BSTF stays the same).
+    #[serde(skip)]
+    pub src: Option<SrcLoc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,6 +107,7 @@ impl Func {
             return_type,
             instructions: instructions.instructions.into_iter().collect(),
             attributes,
+            src: None,
         }
     }
 

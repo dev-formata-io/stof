@@ -314,7 +314,7 @@ impl Runtime {
                         to_run.push(id.clone());
                     } else if let Some(error_proc) = self.errored.remove(wait_id) {
                         // Propagate the error back to the awaiting process, so that it can optionally handle it itself
-                        println!("{} {}{}{}{}{}\n{}", "await error".red().bold(), "(".dimmed(), waiting_proc.env.pid.as_ref().dimmed().purple(), " waiting on ".dimmed(), error_proc.env.pid.as_ref().dimmed().cyan(), ")".dimmed(), error_proc.trace(&graph, 20));
+                        println!("{} {}{}{}{}{}\n{}", "await error".red().bold(), "(".dimmed(), waiting_proc.env.pid.as_ref().dimmed().purple(), " waiting on ".dimmed(), error_proc.env.pid.as_ref().dimmed().cyan(), ")".dimmed(), error_proc.error_report(&graph));
                         if let Some(error) = error_proc.error {
                             waiting_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Error::AwaitError(Box::new(error)))));
                         }
@@ -544,7 +544,7 @@ impl Runtime {
                         to_run.push(id.clone());
                     } else if let Some(error_proc) = self.errored.remove(wait_id) {
                         // Propagate the error back to the awaiting process, so that it can optionally handle it itself
-                        println!("{} {}{}{}{}{}\n{}", "await error".red().bold(), "(".dimmed(), waiting_proc.env.pid.as_ref().dimmed().purple(), " waiting on ".dimmed(), error_proc.env.pid.as_ref().dimmed().cyan(), ")".dimmed(), error_proc.trace(&graph, 20));
+                        println!("{} {}{}{}{}{}\n{}", "await error".red().bold(), "(".dimmed(), waiting_proc.env.pid.as_ref().dimmed().purple(), " waiting on ".dimmed(), error_proc.env.pid.as_ref().dimmed().cyan(), ")".dimmed(), error_proc.error_report(&graph));
                         if let Some(error) = error_proc.error {
                             waiting_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Error::AwaitError(Box::new(error)))));
                         }
@@ -662,6 +662,8 @@ impl Runtime {
     /// Single step async.
     pub async fn async_single_step(&mut self, graph: &mut Graph, yield_to_outer: bool) -> bool {
         let res = self.run_single_step(graph);
+        #[cfg(not(feature = "js"))]
+        let _ = yield_to_outer; // only used to yield to the JS event loop
 
         #[cfg(feature = "js")]
         {
@@ -796,8 +798,8 @@ impl Runtime {
                     for node in func_ref.data_nodes(&gr) {
                         func_path = node.node_path(&gr, true).unwrap().join(".");
                     }
-                    let err_str = errored.trace(&gr, 10);
-                    let msg = format!("{} {} {} {} {} {}\n{}\n", "main".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "failed".bold().red(), "@".dimmed(), err_str.bold().bright_cyan());
+                    let err_str = errored.error_report(&gr);
+                    let msg = format!("{} {} {} {} {}\n{}\n", "main".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "failed".bold().red(), err_str);
                     output.push_str(&msg);
                 }
             }
@@ -897,8 +899,8 @@ impl Runtime {
                     for node in func_ref.data_nodes(graph) {
                         func_path = node.node_path(graph, true).unwrap().join(".");
                     }
-                    let err_str = errored.trace(graph, 10);
-                    let msg = format!("{} {} {} {} {} {}\n{}\n", "main".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "failed".bold().red(), "@".dimmed(), err_str.bold().bright_cyan());
+                    let err_str = errored.error_report(graph);
+                    let msg = format!("{} {} {} {} {}\n{}\n", "main".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "failed".bold().red(), err_str);
                     output.push_str(&msg);
                 }
             }
@@ -1003,8 +1005,8 @@ impl Runtime {
                     for node in func_ref.data_nodes(graph) {
                         func_path = node.node_path(graph, true).unwrap().join(".");
                     }
-                    let err_str = errored.trace(graph, 10);
-                    let msg = format!("{} {} {} {} {} {}\n{}\n", "main".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "failed".bold().red(), "@".dimmed(), err_str.bold().bright_cyan());
+                    let err_str = errored.error_report(graph);
+                    let msg = format!("{} {} {} {} {}\n{}\n", "main".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "failed".bold().red(), err_str);
                     output.push_str(&msg);
                 }
             }
@@ -1152,7 +1154,7 @@ impl Runtime {
                 if failure.env.call_stack.len() > 0 {
                     func_ref = failure.env.call_stack.first().unwrap().clone();
                     if let Some(_err) = &failure.error {
-                        err_str = failure.trace(graph, 10); // contains the error
+                        err_str = failure.error_report(graph);
                     }
                 } else if failure.env.call_stack.len() < 1 && failure.instructions.executed.len() > 0 {
                     let func = failure.instructions.executed[0].clone();
@@ -1182,7 +1184,7 @@ impl Runtime {
                     for node in func_ref.data_nodes(graph) {
                         func_path = node.node_path(graph, true).unwrap().join(".");
                     }
-                    output.push_str(&format!("\n{}: {}{}{} ...\n{}\n", "failed".bold().red(), func_path.italic().purple(), " @ ".dimmed(), name.as_ref().italic().blue(), err_str.bold().bright_cyan()));
+                    output.push_str(&format!("\n{}: {}{}{} ...\n{}\n", "failed".bold().red(), func_path.italic().purple(), " @ ".dimmed(), name.as_ref().italic().blue(), err_str));
                 }
             }
             output.push('\n');
@@ -1277,6 +1279,15 @@ impl Runtime {
     }
     
     /// Evaluate a single instruction.
+    /// Error returned to a host, with the Stof call stack (when there is one).
+    fn located(error: Error, stack: String) -> Error {
+        if stack.is_empty() { return error; }
+        match error {
+            Error::Located(..) => error,
+            error => Error::Located(Box::new(error), stack),
+        }
+    }
+
     /// Creates a new runtime and process just for this (lightweight).
     /// Use this while parsing if needed.
     pub fn eval(graph: &mut Graph, instruction: Arc<dyn Instruction>) -> Result<Val, Error> {
@@ -1294,8 +1305,8 @@ impl Runtime {
                 Ok(Val::Void)
             }
         } else if let Some(proc) = runtime.errored.remove(&pid) {
-            if let Some(err) = proc.error {
-                Err(err)
+            if let Some(err) = &proc.error {
+                Err(Self::located(err.clone(), proc.error_stack(graph)))
             } else {
                 Err(Error::NotImplemented)
             }
@@ -1336,8 +1347,8 @@ impl Runtime {
                 Ok(Val::Void)
             }
         } else if let Some(proc) = runtime.errored.remove(&pid) {
-            if let Some(err) = proc.error {
-                Err(err)
+            if let Some(err) = &proc.error {
+                Err(Self::located(err.clone(), proc.error_stack(&graph.borrow())))
             } else {
                 Err(Error::NotImplemented)
             }
@@ -1375,8 +1386,8 @@ impl Runtime {
                 Ok(Val::Void)
             }
         } else if let Some(proc) = runtime.errored.remove(&pid) {
-            if let Some(err) = proc.error {
-                Err(err)
+            if let Some(err) = &proc.error {
+                Err(Self::located(err.clone(), proc.error_stack(graph)))
             } else {
                 Err(Error::NotImplemented)
             }

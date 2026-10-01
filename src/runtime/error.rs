@@ -495,22 +495,250 @@ pub enum Error {
     XOR,
     SHL,
     SHR,
+
+    /// An error returned to a host (Runtime::call), with the Stof call stack where it happened.
+    /// Added at the end for rev-compatibility.
+    Located(Box<Self>, String),
 }
-impl Display for Error { // maps ToString and print to Debug
+impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::ParseError(error) => {
-                let message;
-                if let Some(path) = &error.file_path {
-                    message = format!("{path}\n\t{}", &error.message);
-                } else {
-                    message = error.message.clone();
+                // parse error: expected ';'
+                //   --> path/to/file.stof:7:14
+                //    |
+                //  7 |     let x = 5
+                //    |              ^
+                write!(f, "parse error: {}", error.describe())?;
+                match (&error.file_path, error.location) {
+                    (Some(path), Some((line, col))) => write!(f, "\n  --> {path}:{line}:{col}")?,
+                    (None, Some((line, col))) => write!(f, "\n  --> line {line}, column {col}")?,
+                    (Some(path), None) => write!(f, "\n  --> {path}")?,
+                    (None, None) => {},
                 }
-                write!(f, "{message}")
+                if !error.frame.is_empty() { write!(f, "\n{}", error.frame)?; }
+                Ok(())
             },
-            _ => {
-                write!(f, "{:?}", self)
-            }
+            Self::Located(error, stack) => {
+                write!(f, "{error}")?;
+                if !stack.is_empty() { write!(f, "\n{stack}")?; }
+                Ok(())
+            },
+            _ => write!(f, "{}", self.message()),
         }
+    }
+}
+
+
+/// Library names in error variant names (Ex. StrSplit -> Str.split).
+const ERROR_LIBS: [&str; 19] = ["Prompt", "Image", "Blob", "Data", "Time", "Http", "List", "Map", "Set", "Num", "Obj", "Str", "Tup", "Ver", "Std", "Pdf", "Fs", "Fn", "Age"];
+
+/// "the value is a number" style description of a library's value type.
+fn lib_value(lib: &str) -> Option<&'static str> {
+    Some(match lib {
+        "Empty" => "null",
+        "Str" => "a string",
+        "Num" => "a number",
+        "Bool" => "a boolean",
+        "List" => "a list",
+        "Map" => "a map",
+        "Set" => "a set",
+        "Tup" => "a tuple",
+        "Blob" => "a blob",
+        "Obj" => "an object",
+        "Fn" => "a function",
+        "Ver" => "a version",
+        "Prompt" => "a prompt",
+        "Promise" => "a promise",
+        "Data" => "data",
+        _ => return None,
+    })
+}
+
+/// "ToRFC3339" -> "to_rfc3339", "JSONStringImport" -> "json_string_import"
+fn snake_case(name: &str) -> String {
+    let chars: Vec<char> = name.chars().collect();
+    let mut out = String::new();
+    for (index, ch) in chars.iter().enumerate() {
+        if ch.is_uppercase() && index > 0 {
+            let prev = chars[index - 1];
+            let next_lower = chars.get(index + 1).map(|next| next.is_lowercase()).unwrap_or(false);
+            if prev.is_lowercase() || prev.is_ascii_digit() || (prev.is_uppercase() && next_lower) { out.push('_'); }
+        }
+        out.extend(ch.to_lowercase());
+    }
+    out
+}
+
+impl Error {
+    /// The error without host location info (see `Error::Located`).
+    pub fn inner(&self) -> &Self {
+        match self {
+            Self::Located(error, _) => error.inner(),
+            error => error,
+        }
+    }
+
+    /// Short error code (the variant name, Ex. "FuncDne").
+    /// This is also what a Stof catch block receives for runtime errors (stable for code that checks it).
+    pub fn code(&self) -> String {
+        let debug = format!("{:?}", self.inner());
+        match debug.find('(') {
+            Some(index) => debug[..index].to_string(),
+            None => debug,
+        }
+    }
+
+    /// The value a Stof catch block receives: thrown values as is, other errors as their debug form
+    /// (Ex. "FuncDne(\"Num.split\")"), which existing code compares against.
+    pub fn catch_value(&self) -> Val {
+        match self {
+            Self::Thrown(val) => val.clone(),
+            Self::ParseError(_) => Val::Str(self.to_string().into()),
+            Self::Located(error, _) => error.catch_value(),
+            _ => Val::Str(format!("{:?}", self).into()),
+        }
+    }
+
+    /// Human readable message.
+    pub fn message(&self) -> String {
+        match self {
+            Self::Thrown(val) => match val {
+                Val::Str(message) => message.to_string(),
+                Val::Null | Val::Void => "error thrown (null)".into(),
+                other => format!("error thrown: {other:?}"),
+            },
+            Self::AssertFailed(msg) |
+            Self::AssertNotFailed(msg) |
+            Self::AssertEqFailed(msg) |
+            Self::AssertNotEqFailed(msg) => format!("assertion failed: {msg}"),
+
+            Self::FuncDne(path) => {
+                if let Some((lib, func)) = path.split_once("::") {
+                    return format!("the {lib} library has no function '{func}'");
+                }
+                if let Some(func) = path.strip_prefix("Std.") {
+                    return format!("function '{func}' not found (no variable, standard library function, or function at that path)");
+                }
+                if let Some((lib, func)) = path.split_once('.') {
+                    if !func.contains('.') {
+                        if lib == "Empty" {
+                            return format!("cannot call '{func}' on null (the value is null or missing - check the name or path)");
+                        }
+                        if let Some(value) = lib_value(lib) {
+                            return format!("'{func}' is not a function for {value} ({lib} library)");
+                        }
+                    }
+                }
+                format!("function '{path}' not found")
+            },
+            Self::FuncArgs => "invalid arguments for this function call".into(),
+            Self::FuncDefaultArg(error) => format!("default argument failed: {}", error.message()),
+            Self::FuncInvalidReturn => "the returned value doesn't match the function's return type".into(),
+            Self::CastVal(from, to) => format!("cannot cast {} to {}", from.type_of(), to.type_of()),
+            Self::ObjectCastProtoDne => "cannot cast the object: its prototype type wasn't found".into(),
+
+            Self::DeclareExisting => "a variable with this name already exists in this scope".into(),
+            Self::DeclareInvalidName => "invalid variable name".into(),
+            Self::AssignConst => "cannot assign to a const variable".into(),
+            Self::VariableSet => "cannot set this variable".into(),
+            Self::FieldReadOnlySet => "cannot set a read-only field".into(),
+            Self::AssignSelf => "cannot assign to self".into(),
+            Self::AssignSuper => "cannot assign to super".into(),
+            Self::AssignRootNonObj => "only an object can be assigned to a root".into(),
+            Self::AssignExistingRoot => "a root with this name already exists".into(),
+
+            Self::ExecutionTimeout => "execution timed out (max execution time exceeded)".into(),
+            Self::StackOverflow => "stack overflow (too many values on the stack)".into(),
+            Self::CallStackOverflow => "call stack overflow (calls nested too deeply - infinite recursion?)".into(),
+            Self::StackError |
+            Self::SelfStackError |
+            Self::NewStackError |
+            Self::CallStackError |
+            Self::CastStackError => format!("internal runtime error ({})", self.code()),
+
+            Self::Truthy | Self::NotTruthy => "cannot test this value as true/false".into(),
+            Self::IsNull => "unexpected null value".into(),
+            Self::GreaterThan | Self::GreaterOrEq | Self::LessThan | Self::LessOrEq => "cannot compare these values".into(),
+            Self::Eq => "cannot compare these values for equality".into(),
+            Self::Add => "cannot add these values (incompatible types)".into(),
+            Self::Sub => "cannot subtract these values (incompatible types)".into(),
+            Self::Mul => "cannot multiply these values (incompatible types)".into(),
+            Self::Div => "cannot divide these values (incompatible types)".into(),
+            Self::Mod => "cannot take the remainder of these values (incompatible types)".into(),
+            Self::AND | Self::OR | Self::XOR | Self::SHL | Self::SHR => format!("invalid operands for the bitwise {} operator", self.code()),
+
+            Self::AwaitError(error) => format!("awaited process failed: {}", error.message()),
+            Self::Custom(message) => message.to_string(),
+            Self::NotImplemented => "not implemented".into(),
+            Self::ParseError(_) => self.to_string(),
+            Self::Located(error, _) => error.message(),
+            Self::RelativeImportWithoutContext => "relative import without a file context".into(),
+            Self::GraphFormatNotFound => "format not found".into(),
+            Self::FormatFileImportNotAllowed => "file imports are not allowed here".into(),
+            Self::FormatFileExportNotAllowed => "file exports are not allowed here".into(),
+            Self::AgeNoMatchingKeys => "no matching keys to decrypt this data".into(),
+            Self::MapConstructor(msg) => format!("map(): {msg}"),
+
+            _ => {
+                // Library and format errors: "StrSplit" -> "Str.split() failed", "JSONStringImport(msg)" -> "JSON string import failed: msg"
+                let code = self.code();
+                let detail = self.detail();
+                for lib in ERROR_LIBS {
+                    if let Some(func) = code.strip_prefix(lib) {
+                        if func.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
+                            let call = format!("{lib}.{}()", snake_case(func));
+                            return match detail {
+                                Some(detail) => format!("{call} failed: {detail}"),
+                                None => format!("{call} failed (invalid arguments or value)"),
+                            };
+                        }
+                    }
+                }
+                match detail {
+                    Some(detail) => format!("{} failed: {detail}", snake_case(&code).replace('_', " ")),
+                    None => format!("{} failed", snake_case(&code).replace('_', " ")),
+                }
+            },
+        }
+    }
+
+    /// Message carried by a variant, if any.
+    fn detail(&self) -> Option<String> {
+        match self {
+            Self::FormatStringImportNotImplemented(s) | Self::FormatFileImportFsError(s) | Self::FormatFileExportFsError(s) |
+            Self::FormatStringExportNotImplemented(s) | Self::JSONStringImport(s) | Self::JSONStringExport(s) |
+            Self::TOMLStringImport(s) | Self::TOMLStringExport(s) | Self::YAMLStringImport(s) | Self::YAMLStringExport(s) |
+            Self::BYTESExport(s) | Self::PKGImport(s) | Self::BSTFImport(s) | Self::BSTFExport(s) | Self::PDFImport(s) |
+            Self::PDFExport(s) | Self::ImageImport(s) | Self::ImageExport(s) | Self::DocXImport(s) | Self::FsReadStringError(s) |
+            Self::FsReadError(s) | Self::FsWriteError(s) | Self::StdParse(s) | Self::StdBlobify(s) | Self::StdStringify(s) |
+            Self::StdHasFormat(s) | Self::StdHasLib(s) | Self::StdFormatContentType(s) | Self::HttpArgs(s) | Self::HttpSendError(s) => Some(s.clone()),
+            _ => None,
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use crate::runtime::{Error, Val};
+
+    #[test]
+    /// Errors read as sentences; catch blocks keep the code form.
+    fn readable_messages() {
+        assert_eq!(Error::FuncDne("Num.split".into()).to_string(), "'split' is not a function for a number (Num library)");
+        assert_eq!(Error::FuncDne("Empty.round".into()).to_string(), "cannot call 'round' on null (the value is null or missing - check the name or path)");
+        assert_eq!(Error::FuncDne("Num::nope".into()).to_string(), "the Num library has no function 'nope'");
+        assert_eq!(Error::FuncDne("Std.foo".into()).to_string(), "function 'foo' not found (no variable, standard library function, or function at that path)");
+        assert_eq!(Error::StrSplit.to_string(), "Str.split() failed (invalid arguments or value)");
+        assert_eq!(Error::TimeToRFC3339.to_string(), "Time.to_rfc3339() failed (invalid arguments or value)");
+        assert_eq!(Error::JSONStringImport("bad".into()).to_string(), "json string import failed: bad");
+        assert_eq!(Error::Thrown(Val::from("boom")).to_string(), "boom");
+        assert_eq!(Error::AssignConst.to_string(), "cannot assign to a const variable");
+        assert_eq!(Error::AssignConst.catch_value(), Val::from("AssignConst"));
+        assert_eq!(Error::FuncDne("x".into()).code(), "FuncDne");
+        let located = Error::Located(Box::new(Error::AssignConst), "  at root.main (1:1)".into());
+        assert_eq!(located.to_string(), "cannot assign to a const variable\n  at root.main (1:1)");
+        assert_eq!(located.code(), "AssignConst");
     }
 }

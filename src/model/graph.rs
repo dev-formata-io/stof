@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use std::{any::Any, i32, sync::Arc};
+use std::{any::Any, sync::Arc};
 use arcstr::{ArcStr, literal};
 use bytes::Bytes;
 use colored::Colorize;
@@ -1521,6 +1521,34 @@ fn deserialize_nodes<'de, D>(deserializer: D) -> Result<FxHashMap<NodeRef, Node>
 #[cfg(test)]
 mod tests {
     use crate::{model::{Data, Graph, ROOT_NODE_NAME, SPath, StofData}, runtime::Variable};
+
+    #[test]
+    /// Runtime errors returned to a host carry a readable message and the Stof call stack: statement
+    /// locations with debug profiles (Base::Src markers), function definitions otherwise.
+    fn runtime_errors_have_locations() {
+        use crate::runtime::{Runtime, Error, Val};
+        let src = "config: { rate: 4 }\nfn helper(v: int) -> int {\n    const r = self.config.rat.round(2);\n    v * r\n}\nfn main() -> int {\n    self.helper(3)\n}\n";
+
+        let mut graph = Graph::default();
+        graph.parse_stof_src(src, None, crate::model::Profile::test()).unwrap();
+        let err = Runtime::call(&mut graph, "main", vec![]).unwrap_err();
+        assert!(matches!(err.inner(), Error::FuncDne(_)));
+        let text = err.to_string();
+        assert!(text.starts_with("function 'self.config.rat.round' not found"), "{text}");
+        assert!(text.contains("note: 'self.config' has no field 'rat'"), "{text}");
+        assert!(text.contains("at root.helper (3:5)\n  at root.main (7:5)"), "{text}");
+
+        // prod: no markers (documents stay the same size), frames point at the definitions
+        let mut graph = Graph::default();
+        graph.parse_stof_src(src, None, crate::model::Profile::prod()).unwrap();
+        let text = Runtime::call(&mut graph, "main", vec![]).unwrap_err().to_string();
+        assert!(text.contains("at root.helper (defined at 2:1)\n  at root.main (defined at 6:1)"), "{text}");
+
+        // catch blocks still get the error code form
+        let mut graph = Graph::default();
+        graph.parse_stof_src("fn f() -> str { try { const x = 5; x.split(','); } catch (e: str) { return e; } 'none' }", None, crate::model::Profile::test()).unwrap();
+        assert_eq!(Runtime::call(&mut graph, "f", vec![]).unwrap(), Val::from("FuncDne(\"Num.split\")"));
+    }
 
     #[test]
     /// Host APIs (JS/Python/Rust get, set, call) resolve paths from the main root (or start object) when the

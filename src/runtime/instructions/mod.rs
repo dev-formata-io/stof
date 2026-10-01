@@ -269,6 +269,10 @@ pub enum Base {
 
     // Function call scope: a lexical boundary (lookups don't continue into the caller's variables) - at the end for rev-compatibility
     PushFunctionScope,
+
+    // Source location of the next statement (line, column), emitted by debug profiles for error locations.
+    // A no-op when executed: errors find the last one in the executed history. At the end for rev-compatibility.
+    Src(u32, u32),
 }
 #[typetag::serde(name = "Base")]
 impl Instruction for Base {
@@ -461,6 +465,7 @@ impl Instruction for Base {
             
             Self::PushSymbolScope => env.table.push(),
             Self::PushFunctionScope => env.table.push_boundary(),
+            Self::Src(..) => {},
             Self::PopSymbolScope => { env.table.pop(); },
             Self::PopSymbolScopeUntilDepth(depth) => {
                 while env.table.scopes.len() > *depth {
