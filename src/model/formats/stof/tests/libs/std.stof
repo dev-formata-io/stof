@@ -439,3 +439,36 @@ Env: {
         remove_env("HOST");
     }
 }
+
+
+#[test]
+fn assert_null_passes() {
+    assert_null(null);
+    let x;
+    assert_null(x);
+    assert_null(self.no_such_field);
+    assert_not_null(0);
+    assert_not_null(false);
+    assert_not_null('');
+    assert_not_null([]);
+}
+
+fn returns_nothing() {}
+
+#[test]
+fn assert_null_void() {
+    assert_null(self.returns_nothing()); // void counts as null
+}
+
+#[test]
+#[errors]
+fn assert_null_fails() {
+    assert_null(42);
+}
+
+#[test]
+#[errors]
+fn assert_not_null_fails() {
+    assert_not_null(null);
+}
+

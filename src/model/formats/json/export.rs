@@ -51,7 +51,7 @@ fn json_value(graph: &Graph, val: Val) -> Value {
         Val::Bool(v) => Value::Bool(v),
         Val::Str(v) => Value::String(v.to_string()),
         Val::Prompt(v) => Value::String(v.to_string()),
-        Val::Num(v) => Value::Number(Number::from(v)),
+        Val::Num(v) => num_value(v),
         Val::Blob(blob) => Value::from_iter(blob.into_iter()),
         Val::Fn(_dref) => Value::Null,
         Val::Data(_dref) => Value::Null, // TODO custom exports
@@ -79,18 +79,12 @@ fn value_from_array(graph: &Graph, vals: Vector<ValRef<Val>>) -> Value {
     Value::Array(results)
 }
 
-impl From<Num> for Number {
-    fn from(value: Num) -> Self {
-        match value {
-            Num::Float(v) => {
-                Number::from_f64(v).unwrap()
-            },
-            Num::Int(v) => {
-                Number::from(v)
-            },
-            Num::Units(v, _) => {
-                Number::from_f64(v).unwrap()
-            }
-        }
+/// JSON number for a Stof number.
+/// JSON has no infinity or NaN: those export as null, like JSON.stringify and serde_json do.
+fn num_value(value: Num) -> Value {
+    match value {
+        Num::Int(v) => Value::Number(Number::from(v)),
+        Num::Float(v) |
+        Num::Units(v, _) => Number::from_f64(v).map(Value::Number).unwrap_or(Value::Null),
     }
 }

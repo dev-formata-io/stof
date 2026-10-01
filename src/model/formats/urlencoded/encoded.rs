@@ -149,10 +149,11 @@ fn decode_into_tuples(encoded: &str) -> Vec<(String, Value)> {
                     fields.push((decoded_name, decoded_val));
                 },
                 Err(_) => {
-                    let decoded_float: Result<f64, _> = decoded_value.parse();
+                    // Only finite numbers: words like "nan", "inf" and "infinity" parse as f64 but are text here
+                    let decoded_float = decoded_value.parse::<f64>().ok().and_then(Number::from_f64).ok_or(());
                     match decoded_float {
                         Ok(number) => {
-                            let decoded_val = Value::Number(Number::from_f64(number).unwrap());
+                            let decoded_val = Value::Number(number);
                             fields.push((decoded_name, decoded_val));
                         },
                         Err(_) => {

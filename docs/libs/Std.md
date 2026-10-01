@@ -42,6 +42,22 @@ assert_not(true); // errors
 ```
 
 
+# Std.assert_not_null(value: unknown) -> void
+Throw an error if the given value is null (or void).
+```rust
+assert_not_null(42);
+assert_not_null(null); // errors
+```
+
+
+# Std.assert_null(value: unknown) -> void
+Throw an error if the given value is not null (void, the result of a function without a return value, counts as null).
+```rust
+assert_null(null);
+assert_null(42); // errors
+```
+
+
 # Std.blobify(format: str = "json", context: obj = null) -> blob
 Use a loaded format to export a binary blob from the given context (or entire graph/document). The default format is json, and the standard implementation only exports object fields. Export results will vary depending on the format, some support more than others (it is up to the format implementation to decide how it exports data). You can always create your own to use.
 ```rust

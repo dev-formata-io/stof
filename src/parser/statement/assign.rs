@@ -17,8 +17,8 @@
 use std::sync::Arc;
 use arcstr::ArcStr;
 use imbl::Vector;
-use nom::{bytes::complete::tag, branch::alt, character::complete::{char, multispace0}, combinator::recognize, multi::separated_list1, sequence::{delimited, terminated}, IResult, Parser};
-use crate::{parser::{doc::StofParseError, expr::expr, ident::ident, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{Base, ADD, BIT_AND, BIT_OR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_XOR, DIVIDE, MODULUS, MULTIPLY, SUBTRACT}}};
+use nom::{bytes::complete::tag, branch::alt, character::complete::{char, multispace0}, combinator::{not, recognize}, multi::separated_list1, sequence::{delimited, terminated}, IResult, Parser};
+use crate::{parser::{doc::StofParseError, expr::{expr, graph::graph_expr}, ident::ident, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{assign::SetFieldIns, block::Block, Base, ADD, BIT_AND, BIT_OR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_XOR, DIVIDE, MODULUS, MULTIPLY, SUBTRACT}}};
 
 
 /// Assign statement.
@@ -35,8 +35,39 @@ pub fn assign(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofPa
         bor_assign_variable,
         bxor_assign_variable,
         bshl_assign_variable,
-        bshr_assign_variable
+        bshr_assign_variable,
+        assign_computed_target,
     )).parse(input)
+}
+
+
+/// Assign to a field of a computed object (Ex. `self.customer(id).type = x`, `list[0].name = 'a'`).
+/// The left side is a normal expression ending in a field (after a call or index); the object is evaluated
+/// first, then the value, then the field is set on that object (created if needed).
+pub(self) fn assign_computed_target(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
+    let (rest, target) = delimited(multispace0, graph_expr, multispace0).parse(input)?;
+    let not_assignable = || nom::Err::Error(StofParseError::from("not an assignable target"));
+
+    // Ex. [call self.customer(id), load chained "type"]: the object steps, then the field path
+    let Some(block) = target.as_dyn_any().downcast_ref::<Block>() else { return Err(not_assignable()) };
+    if block.ins.len() < 2 { return Err(not_assignable()); }
+    let Some(Base::LoadVariable(path, true, false)) = block.ins.last().and_then(|ins| ins.as_dyn_any().downcast_ref::<Base>()) else {
+        return Err(not_assignable());
+    };
+    let path = path.clone();
+
+    let (rest, _) = terminated(terminated(char('='), not(char('='))), multispace0).parse(rest)?;
+    let (rest, value) = expr(rest)?;
+
+    let mut object = Block::default();
+    object.ins = block.ins.clone();
+    object.ins.pop_back();
+
+    let mut instructions = Vector::default();
+    instructions.push_back(Arc::new(object) as Arc<dyn Instruction>);
+    instructions.push_back(value);
+    instructions.push_back(Arc::new(SetFieldIns { path }));
+    Ok((rest, instructions))
 }
 
 

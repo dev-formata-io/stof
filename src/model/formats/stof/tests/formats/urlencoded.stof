@@ -62,3 +62,14 @@ fn parse_nested() {
     assert_eq(object.msg, 'hi');
     drop(object);
 }
+
+#[test]
+/// Words that Rust parses as non-finite floats ("nan", "inf", "infinity") stay text.
+fn parse_non_finite_words() {
+    const object = new {};
+    parse('name=Nan&n=inf&i=Infinity&x=2.5', object, 'urlencoded');
+    assert_eq(object.name, 'Nan');
+    assert_eq(object.n, 'inf');
+    assert_eq(object.i, 'Infinity');
+    assert_eq(object.x, 2.5);
+}

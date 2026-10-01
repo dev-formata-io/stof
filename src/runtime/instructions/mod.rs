@@ -38,6 +38,7 @@ pub mod map;
 pub mod ret;
 pub mod func;
 pub mod nullcheck;
+pub mod assign;
 
 
 // static instructions for efficiency
@@ -805,43 +806,8 @@ impl Instruction for Base {
                             }
                         }
 
-                        if let Some(field_ref) = Field::field_from_path(graph, &path.join("."), context.clone()) {
-                            let mut fvar = None;
-                            if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
-                                if !field.can_set() { return Err(Error::FieldReadOnlySet); }
-                                fvar = Some(field.value.clone());
-                            }
-                            if let Some(mut fvar) = fvar {
-                                fvar.set(&var, graph, context.clone())?;
-                                
-                                if let Some(field) = graph.get_mut_stof_data::<Field>(&field_ref) {
-                                    field.value = fvar;
-                                }
-                            }
-                            if let Some(field) = field_ref.data_mut(graph) {
-                                field.invalidate_value();
-                            }
-                            return Ok(None);
-                        }
-
-                        let field_name = path.path.pop().unwrap();
-                        if path.path.len() > 0 {
-                            if let Some(node) = graph.ensure_named_nodes(path, context, true, None) {
-                                var.mutable = true;
-                                let field = Field::new(var, None);
-                                graph.insert_stof_data(&node, field_name, Box::new(field), None);
-                                return Ok(None);
-                            } else {
-                                return Err(Error::AssignSelf);
-                            }
-                        } else if let Some(node) = context {
-                            var.mutable = true;
-                            let field = Field::new(var, None);
-                            graph.insert_stof_data(&node, field_name, Box::new(field), None);
-                            return Ok(None);
-                        } else {
-                            return Err(Error::AssignSelf);
-                        }
+                        assign_path(graph, path, context, var)?;
+                        return Ok(None);
                     } else {
                         if let Some(nref) = var.try_obj() {
                             // If a root with this name already exists, then error instead of drop or collide
@@ -1188,3 +1154,47 @@ impl Instruction for Base {
         Ok(None)
     }
 }
+
+
+/// Assign a value to the field at `path`, starting at `context` (or a graph root without one).
+/// Sets an existing field (if it can be set), otherwise creates it (and any missing objects on the path).
+pub(crate) fn assign_path(graph: &mut Graph, mut path: SPath, context: Option<crate::model::NodeRef>, mut var: Variable) -> Result<(), Error> {
+    if let Some(field_ref) = Field::field_from_path(graph, &path.join("."), context.clone()) {
+        let mut fvar = None;
+        if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
+            if !field.can_set() { return Err(Error::FieldReadOnlySet); }
+            fvar = Some(field.value.clone());
+        }
+        if let Some(mut fvar) = fvar {
+            fvar.set(&var, graph, context.clone())?;
+
+            if let Some(field) = graph.get_mut_stof_data::<Field>(&field_ref) {
+                field.value = fvar;
+            }
+        }
+        if let Some(field) = field_ref.data_mut(graph) {
+            field.invalidate_value();
+        }
+        return Ok(());
+    }
+
+    let Some(field_name) = path.path.pop() else { return Err(Error::AssignSelf) };
+    if path.path.len() > 0 {
+        if let Some(node) = graph.ensure_named_nodes(path, context, true, None) {
+            var.mutable = true;
+            let field = Field::new(var, None);
+            graph.insert_stof_data(&node, field_name, Box::new(field), None);
+            Ok(())
+        } else {
+            Err(Error::AssignSelf)
+        }
+    } else if let Some(node) = context {
+        var.mutable = true;
+        let field = Field::new(var, None);
+        graph.insert_stof_data(&node, field_name, Box::new(field), None);
+        Ok(())
+    } else {
+        Err(Error::AssignSelf)
+    }
+}
+

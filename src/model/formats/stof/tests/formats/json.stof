@@ -57,3 +57,10 @@ Imports: {
         assert_eq(self.Imported.person.age, 42);
     }
 }
+
+#[test]
+/// JSON has no infinity or NaN: they export as null (like JSON.stringify) instead of panicking.
+fn stringify_non_finite() {
+    const doc = new { a: 1.0 / 0.0, b: -1.0 / 0.0, c: 0.0 / 0.0, d: 1.5, e: [1.0 / 0.0, 2], f: (1.0 / 0.0) as kg };
+    assert_eq(stringify('json', doc), '{"a":null,"b":null,"c":null,"d":1.5,"e":[null,2],"f":null}');
+}

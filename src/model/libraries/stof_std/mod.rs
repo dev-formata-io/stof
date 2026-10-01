@@ -23,7 +23,7 @@ use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "log")]
 use crate::model::stof_std::print::{std_log_debug, std_log_error, std_log_info, std_log_trace, std_log_warn};
-use crate::{model::{Field, Func, Graph, Profile, Prototype, SELF_STR_KEYWORD, SPath, SUPER_STR_KEYWORD, stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, throw}, containers::{std_copy, std_drop, std_funcs, std_list, std_map, std_set, std_shallow_drop, std_swap}, exit::stof_exit, ops::{std_blobify, std_callstack, std_format_content_type, std_formats, std_graph_id, std_has_format, std_has_lib, std_libs, std_max, std_min, std_nanoid, std_parse, std_peek, std_stringify, std_trace, std_tracestack}, print::{dbg, err, pln, prompt, string, xmltag}, sleep::stof_sleep}}, runtime::{Error, Prompt, Type, Units, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{Base, DUPLICATE, EXIT, call::FuncCall, list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}}, proc::ProcEnv}};
+use crate::{model::{Field, Func, Graph, Profile, Prototype, SELF_STR_KEYWORD, SPath, SUPER_STR_KEYWORD, stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, assert_not_null, assert_null, throw}, containers::{std_copy, std_drop, std_funcs, std_list, std_map, std_set, std_shallow_drop, std_swap}, exit::stof_exit, ops::{std_blobify, std_callstack, std_format_content_type, std_formats, std_graph_id, std_has_format, std_has_lib, std_libs, std_max, std_min, std_nanoid, std_parse, std_peek, std_stringify, std_trace, std_tracestack}, print::{dbg, err, pln, prompt, string, xmltag}, sleep::stof_sleep}}, runtime::{Error, Prompt, Type, Units, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{Base, DUPLICATE, EXIT, call::FuncCall, list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}}, proc::ProcEnv}};
 
 #[cfg(feature = "system")]
 use crate::model::stof_std::ops::{std_env, std_set_env, std_remove_env, std_env_vars};
@@ -52,6 +52,8 @@ pub fn stof_std_lib(graph: &mut Graph) {
     graph.insert_libfunc(assert_not());
     graph.insert_libfunc(assert_eq());
     graph.insert_libfunc(assert_neq());
+    graph.insert_libfunc(assert_null());
+    graph.insert_libfunc(assert_not_null());
 
     graph.insert_libfunc(std_list());
     graph.insert_libfunc(std_set());
@@ -121,6 +123,8 @@ lazy_static! {
     pub(self) static ref ASSERT_NOT: Arc<dyn Instruction> = Arc::new(StdIns::AssertNot);
     pub(self) static ref ASSERT_EQ: Arc<dyn Instruction> = Arc::new(StdIns::AssertEq);
     pub(self) static ref ASSERT_NEQ: Arc<dyn Instruction> = Arc::new(StdIns::AssertNeq);
+    pub(self) static ref ASSERT_NULL: Arc<dyn Instruction> = Arc::new(StdIns::AssertNull);
+    pub(self) static ref ASSERT_NOT_NULL: Arc<dyn Instruction> = Arc::new(StdIns::AssertNotNull);
 
     pub(crate) static ref COPY: Arc<dyn Instruction> = Arc::new(StdIns::Copy);
     pub(self) static ref SWAP: Arc<dyn Instruction> = Arc::new(StdIns::Swap);
@@ -174,6 +178,8 @@ pub enum StdIns {
     AssertNot,
     AssertEq,
     AssertNeq,
+    AssertNull,
+    AssertNotNull,
 
     List(usize),
     Set(usize),
@@ -444,6 +450,21 @@ impl Instruction for StdIns {
                                 return Err(Error::AssertEqFailed(message));
                             }
                         }
+                    }
+                }
+            },
+            Self::AssertNull => {
+                if let Some(val) = env.stack.pop() {
+                    if !val.val.read().empty() {
+                        let message = format!("'{}' is not null", val.val.read().print(&graph));
+                        return Err(Error::AssertFailed(message));
+                    }
+                }
+            },
+            Self::AssertNotNull => {
+                if let Some(val) = env.stack.pop() {
+                    if val.val.read().empty() {
+                        return Err(Error::AssertNotFailed("value is null".into()));
                     }
                 }
             },

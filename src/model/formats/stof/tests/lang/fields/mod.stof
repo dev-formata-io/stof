@@ -162,3 +162,46 @@ AbsolutePathModify: {
         assert_eq(self.field, ['hello', 'bob']);
     }
 }
+
+
+ComputedTargets: {
+    // tests run concurrently: each test uses its own object
+    customers: { a: { type: 'user' }, b: { type: 'user' } }
+    log: []
+    fn customer(id: str) -> obj {
+        if (id == 'a') return self.customers.a;
+        if (id == 'b') return self.customers.b;
+        null
+    }
+    fn mark(tag: str, v: unknown) -> unknown { self.log.push_back(tag); v }
+
+    #[test]
+    /// Assign to a field of a computed object (a call or index result).
+    fn assign_to_call_result() {
+        self.customer('a').type = 'org';
+        assert_eq(self.customers.a.type, 'org');
+
+        self.customer('a').plan.name = 'pro';         // missing objects on the path are created
+        assert_eq(self.customers.a.plan.name, 'pro');
+
+        const list = [new { n: 1 }, new { n: 2 }];
+        list[1].n = 20;
+        assert_eq(list[1].n, 20);
+
+        assert(self.customer('a').type == 'org');     // "==" is still a comparison
+    }
+
+    #[test]
+    fn computed_target_evaluated_first() {
+        self.mark('target', self.customer('b')).type = self.mark('value', 'x');
+        assert_eq(self.log, ['target', 'value']);
+        assert_eq(self.customers.b.type, 'x');
+    }
+
+    #[test]
+    #[errors]
+    fn computed_target_must_be_an_object() {
+        self.customer('missing').type = 'x';
+    }
+}
+

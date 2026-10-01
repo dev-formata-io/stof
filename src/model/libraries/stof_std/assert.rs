@@ -17,7 +17,7 @@
 use std::sync::Arc;
 use arcstr::literal;
 use imbl::vector;
-use crate::{model::{stof_std::{ASSERT, ASSERT_EQ, ASSERT_NEQ, ASSERT_NOT, STD_LIB, THROW}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Type, Val}};
+use crate::{model::{stof_std::{ASSERT, ASSERT_EQ, ASSERT_NEQ, ASSERT_NOT, ASSERT_NOT_NULL, ASSERT_NULL, STD_LIB, THROW}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Type, Val}};
 
 
 /// Throw error function.
@@ -155,6 +155,62 @@ assert_neq(34, 34); // errors
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(ASSERT_NEQ.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+
+/// Standard assert null function.
+pub fn assert_null() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "assert_null".into(),
+        is_async: false,
+        docs: r#"# Std.assert_null(value: unknown) -> void
+Throw an error if the given value is not null (void, the result of a function without a return value, counts as null).
+```rust
+assert_null(null);
+assert_null(42); // errors
+```
+"#.into(),
+        params: vector![
+            Param { name: "value".into(), param_type: Type::Void, default: None }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(ASSERT_NULL.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+
+/// Standard assert not null function.
+pub fn assert_not_null() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "assert_not_null".into(),
+        is_async: false,
+        docs: r#"# Std.assert_not_null(value: unknown) -> void
+Throw an error if the given value is null (or void).
+```rust
+assert_not_null(42);
+assert_not_null(null); // errors
+```
+"#.into(),
+        params: vector![
+            Param { name: "value".into(), param_type: Type::Void, default: None }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(ASSERT_NOT_NULL.clone());
             Ok(instructions)
         })
     }
