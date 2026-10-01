@@ -14,10 +14,26 @@
 // limitations under the License.
 //
 
-use std::sync::Arc;
+use std::{cell::RefCell, sync::Arc};
 use imbl::Vector;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded}, IResult, Parser};
 use crate::{parser::{doc::StofParseError, expr::expr, ident::ident, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::Base, Type, Val}};
+
+
+thread_local! {
+    /// Names declared by let/const statements since the last take (statement parsers have no parse context).
+    /// The function parser drains this to check its locals (Ex. library shadowing warnings).
+    static DECLARED_NAMES: RefCell<Vec<String>> = RefCell::new(Vec::new());
+}
+
+/// Take (and clear) the variable names declared since the last call.
+pub(crate) fn take_declared_names() -> Vec<String> {
+    DECLARED_NAMES.with(|names| std::mem::take(&mut *names.borrow_mut()))
+}
+
+fn note_declared(name: &str) {
+    DECLARED_NAMES.with(|names| names.borrow_mut().push(name.to_string()));
+}
 
 
 /// Declare a variable.
@@ -34,6 +50,7 @@ pub(self) fn declare_mut_var(input: &str) -> IResult<&str, Vector<Arc<dyn Instru
     let (input, cast_type) = opt(preceded(char(':'), parse_type)).parse(input)?; 
     let (input, _) = delimited(multispace0, char('='), multispace0).parse(input)?;
     let (input, expr) = expr(input)?;
+    note_declared(varname);
 
     let mut block = Vector::default();
     block.push_back(expr);
@@ -54,6 +71,7 @@ pub(self) fn declare_const_var(input: &str) -> IResult<&str, Vector<Arc<dyn Inst
     let (input, cast_type) = opt(preceded(char(':'), parse_type)).parse(input)?; 
     let (input, _) = delimited(multispace0, char('='), multispace0).parse(input)?;
     let (input, expr) = expr(input)?;
+    note_declared(varname);
 
     let mut block = Vector::default();
     block.push_back(expr);
@@ -72,6 +90,7 @@ pub(self) fn declare_const_var(input: &str) -> IResult<&str, Vector<Arc<dyn Inst
 pub(self) fn declare_null_var(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, varname) = delimited(tag("let"), preceded(multispace0, ident), multispace0).parse(input)?;
     let (input, cast_type) = opt(preceded(char(':'), parse_type)).parse(input)?; 
+    note_declared(varname);
 
     let mut block = Vector::default();
     block.push_back(Arc::new(Base::Literal(Val::Null)) as Arc<dyn Instruction>);

@@ -53,7 +53,7 @@ impl Format for StofFormat {
 
                 let ins: Arc<dyn Instruction> = Arc::new(FuncCall {
                     func: None,
-                    search: Some("fs.read_string".into()),
+                    search: Some("fs::read_string".into()), // explicit library: a "fs" root can't intercept it
                     stack: false,
                     as_ref: false,
                     cnull: false,
@@ -213,7 +213,7 @@ impl Format for BstfFormat {
 #[cfg(test)]
 mod tests {
     use colored::Colorize;
-    use crate::model::{Graph, Profile};
+    use crate::{model::{Graph, Profile}, parser::{context::ParseContext, doc::document}};
 
     #[test]
     fn stof_suite() {
@@ -254,6 +254,118 @@ mod tests {
         for name in ["straight_line", "looping", "calls_a_loop"] {
             assert!(output.contains(name), "missing a report line for {name}:\n{output}");
         }
+    }
+
+    #[test]
+    /// Parsing a string with no target node must keep sibling objects as siblings.
+    fn string_parse_keeps_root_objects_as_siblings() {
+        let mut graph = Graph::default();
+        graph.parse_stof_src("a: { x: 1 }\nb: { y: 2 }\nfn f() -> int { 1 }", None, Profile::default()).expect("parses");
+        let root = graph.main_root().expect("main root");
+        let names = root.node(&graph).expect("root node").children.iter()
+            .filter_map(|child| child.node_name(&graph).map(|name| name.as_ref().to_string()))
+            .collect::<Vec<_>>();
+        assert_eq!(names, vec!["a".to_string(), "b".to_string()]);
+    }
+
+    #[test]
+    /// Name.func() looks for an object first, then the library; Name::func() is always the library.
+    fn library_calls_with_root_objects() {
+        let mut graph = Graph::default();
+        graph.parse_stof_src(r#"
+            root Num { x: 1 }                                     // no "round": falls back to the library
+            root Str { fn upper(v: str) -> str { return 'mine'; } } // intentional override
+            Time: { fn now() -> str { 'top-level object' } }      // not a root: never consulted
+
+            #[main]
+            fn resolution() -> bool {
+                assert_eq(Num.round(2.567, 1), 2.6);               // object lacks it: library
+                assert_eq(Str.upper('abc'), 'mine');               // object defines it: object
+                assert_eq(Str::upper('abc'), 'ABC');               // explicit: always the library
+                assert_eq(Num::round(-2.567, 1).abs(), 2.6);       // chains
+                assert_eq(Num.name(), 'Num');                      // Obj library on the root still works
+                assert(Time.now() != 'top-level object');           // top-level objects don't shadow
+                assert_eq(self.Time.now(), 'top-level object');
+                let failed = false;
+                try { Num::nope(1); } catch { failed = true; }
+                assert(failed);                                    // missing library function errors
+                true
+            }
+        "#, None, Profile::default()).expect("parses");
+        let output = graph.run(None, true).expect("library resolution");
+        assert!(output.contains("resolution"), "{output}");
+    }
+
+    #[test]
+    /// A path without self/super is absolute: its first segment names a graph root ("root.a.b", or
+    /// "Other.z" for a "root Other {..}"). Objects are never found by name alone.
+    fn paths_without_self_are_absolute() {
+        let mut graph = Graph::default();
+        graph.parse_stof_src(r#"
+            top: { x: 1  fn f() -> int { 10 } }
+            root Other { z: 5  fn h() -> int { 30 } }
+            outer: {
+                inner: { y: 2  fn g() -> int { 20 } }
+                Num: { fn round(v: float, places: int) -> str { 'nested' } }
+            }
+
+            #[main]
+            fn paths() -> bool {
+                assert_eq(root.top.x, 1);                   // full path from the main root
+                assert_eq(root.top.f(), 10);
+                assert_eq(self.top.x, 1);                   // relative
+                assert_eq(root.outer.inner.y, 2);
+                assert_eq(Other.z, 5);                      // another graph root
+                assert_eq(Other.h(), 30);
+                assert_eq(top.x, null);                     // objects aren't found by name alone
+                assert_eq(inner.y, null);
+                let failed = false;
+                try { inner.g(); } catch { failed = true; }
+                assert(failed);
+                assert_eq(Num.round(2.567, 1), 2.6);        // an object named "Num" can't take over the library
+                assert_eq(root.outer.Num.round(2.567, 1), 'nested');
+                true
+            }
+        "#, None, Profile::default()).expect("parses");
+        let output = graph.run(None, true).expect("absolute paths");
+        assert!(output.contains("paths"), "{output}");
+    }
+
+    #[test]
+    /// Objects and variables that shadow a library for Name.func() calls produce parse warnings.
+    fn warns_on_library_shadowing() {
+        let mut graph = Graph::default();
+        let mut context = ParseContext::new(&mut graph, Profile::prod());
+        document(r#"
+            root Num { x: 1 }                // warn: a root named like a library
+            Data: { x: 1 }                   // top-level object, not a root: no warning
+            Time: 42                         // field value, not an object: no warning
+            nested: {
+                Str: { x: 1 }                // nested: no warning
+                Map: {                       // nested: can't be found by name alone, so no warning
+                    fn keys() -> list { [] }
+                }
+            }
+            fn uses(Blob: int) -> int {      // warn: param
+                let Set = 1;                 // warn: local
+                const total = Blob + Set;
+                let fine = 2;                // no warning
+                total + fine
+            }
+            #[test]
+            fn excluded() { let List = 1; }  // not created under prod: no warning
+        "#, &mut context).expect("parses");
+        let warnings = context.take_warnings();
+        drop(context);
+
+        let warned = |name: &str| warnings.iter().any(|w| w.contains(&format!("'{name}'")));
+        assert!(warned("Num"), "{warnings:?}");
+        assert!(warned("Blob"), "{warnings:?}");
+        assert!(warned("Set"), "{warnings:?}");
+        for quiet in ["Time", "root.Data", "root.nested.Str", "root.nested.Map", "fine", "total", "List"] {
+            assert!(!warned(quiet), "unexpected warning for {quiet}: {warnings:?}");
+        }
+        assert_eq!(warnings.len(), 3, "{warnings:?}");
     }
 
     #[test]

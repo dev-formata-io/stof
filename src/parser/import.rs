@@ -34,8 +34,11 @@ pub fn import<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str
         start = Some(context.self_ptr());
     }
     let node = context.graph.ensure_named_nodes(&scope, start, true, None);
+    if let Some(node) = &node {
+        context.warn_if_shadows_lib(node);
+    }
     
-    match context.parse_from_file(&format, &path, node) {
+    match context.import_file(format.as_deref(), &path, node) {
         Ok(_) => {
             Ok((input, ()))
         },
@@ -46,8 +49,9 @@ pub fn import<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str
 }
 
 
-/// Parse an import statement (format, path, scope).
-pub(self) fn parse_import(input: &str) -> IResult<&str, (String, String, String), StofParseError> {
+/// Parse an import statement: (explicit format, path, scope).
+/// The format is only what's written (Ex. import json '..'); the file extension is handled on import.
+pub(self) fn parse_import(input: &str) -> IResult<&str, (Option<String>, String, String), StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, _) = tag("import").parse(input)?;
     let (input, format) = opt(preceded(multispace0, ident)).parse(input)?;
@@ -57,22 +61,12 @@ pub(self) fn parse_import(input: &str) -> IResult<&str, (String, String, String)
 
     path = path.trim().to_string();
 
-    let mut res_format = "stof".to_string();
-    if let Some(fmt) = format {
-        res_format = fmt.to_string();
-    } else {
-        let path_list = path.trim_start_matches('.').split('.').collect::<Vec<_>>();
-        if path_list.len() > 1 {
-            res_format = path_list.last().unwrap().to_string();
-        }
-    }
-
     let mut res_scope = "self".to_string();
     if let Some(scp) = scope {
         res_scope = scp.to_string();
     }
 
-    Ok((input, (res_format, path, res_scope)))
+    Ok((input, (format.map(|format| format.to_string()), path, res_scope)))
 }
 
 
@@ -83,7 +77,7 @@ mod tests {
     #[test]
     fn basic_import() {
         let (_input, (format, path, scope)) = parse_import("\n\nimport './hello'\n\n").unwrap();
-        assert_eq!(format, "stof");
+        assert_eq!(format, None);
         assert_eq!(path, "./hello");
         assert_eq!(scope, "self");
     }
@@ -91,7 +85,7 @@ mod tests {
     #[test]
     fn ext_import() {
         let (_input, (format, path, scope)) = parse_import("\n\nimport './hello.json'\n\n").unwrap();
-        assert_eq!(format, "json");
+        assert_eq!(format, None); // implied by the extension on import
         assert_eq!(path, "./hello.json");
         assert_eq!(scope, "self");
     }
@@ -99,7 +93,7 @@ mod tests {
     #[test]
     fn fmt_import() {
         let (_input, (format, path, scope)) = parse_import("\n\nimport pkg './hello.json'\n\n").unwrap();
-        assert_eq!(format, "pkg");
+        assert_eq!(format.as_deref(), Some("pkg"));
         assert_eq!(path, "./hello.json");
         assert_eq!(scope, "self");
     }
@@ -107,7 +101,7 @@ mod tests {
     #[test]
     fn scope_import() {
         let (_input, (format, path, scope)) = parse_import("\n\nimport './hello.json' as self.Example;\n\n").unwrap();
-        assert_eq!(format, "json");
+        assert_eq!(format, None);
         assert_eq!(path, "./hello.json");
         assert_eq!(scope, "self.Example");
     }
@@ -115,7 +109,7 @@ mod tests {
     #[test]
     fn together_import() {
         let (_input, (format, path, scope)) = parse_import("\n\nimport yaml \"src/dude/hello\" on Another.Sub.myobj;\n\n").unwrap();
-        assert_eq!(format, "yaml");
+        assert_eq!(format.as_deref(), Some("yaml"));
         assert_eq!(path, "src/dude/hello");
         assert_eq!(scope, "Another.Sub.myobj");
     }

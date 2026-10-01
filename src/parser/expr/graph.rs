@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, recognize}, multi::{many0, separated_list0, separated_list1}, sequence::{delimited, preceded}, IResult, Parser};
-use crate::{model::SId, parser::{doc::StofParseError, expr::expr, ident::ident, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, call::{FuncCall, NamedArg}, Base}}};
+use crate::{model::SId, parser::{doc::StofParseError, expr::expr, ident::{ident, ident_type}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, call::{FuncCall, NamedArg}, Base}}};
 
 
 /// Graph interaction expression.
@@ -106,6 +106,24 @@ pub(self) fn var_func(input: &str, chained: bool, as_ref: bool, check_null: bool
         })));
     }
 
+    // Explicit library call: Lib::func(args). Always the library, never an object or variable.
+    // Lib?::func(args) is null instead of an error when the library or function doesn't exist.
+    if !chained {
+        if let Ok((rest, (lib, null_safe, func))) = lib_path(input) {
+            if let Ok((rest, args)) = call_expr(rest) {
+                return Ok((rest, Arc::new(FuncCall {
+                    as_ref,
+                    cnull: check_null || null_safe,
+                    stack: false,
+                    func: None,
+                    search: Some(format!("{lib}::{func}").into()),
+                    args: args.into_iter().collect(),
+                    oself: None,
+                })));
+            }
+        }
+    }
+
     // Variable portion is not optional
     let (input, path) = variable_expr(input)?;
     let mut path = path.to_string();
@@ -124,10 +142,13 @@ pub(self) fn var_func(input: &str, chained: bool, as_ref: bool, check_null: bool
     }
 
     // Return a call if there is a call, otherwise return a variable lookup.
+    // A "?." anywhere in the call path (Ex. self.obj?.func()) makes the call null-safe: a missing object or
+    // function is null instead of an error, like a leading "?".
     if let Some(args) = call {
+        let null_safe = path.contains("?.");
         Ok((input, Arc::new(FuncCall {
             as_ref,
-            cnull: check_null,
+            cnull: check_null || null_safe,
             stack: chained,
             func: None,
             search: Some(path.into()),
@@ -149,6 +170,16 @@ pub(self) fn var_func(input: &str, chained: bool, as_ref: bool, check_null: bool
 /// Ex. "self.child.func()" -> "self.child.func" would be the variable expr.
 pub(self) fn variable_expr(input: &str) -> IResult<&str, &str, StofParseError> {
     recognize(separated_list1(alt((tag("."), tag("?."))), ident)).parse(input)
+}
+
+
+/// Library path of an explicit library call: (library, null-safe, function).
+/// Ex. "Num::round(x, 2)" -> ("Num", false, "round"), "CloudWS?::send(..)" -> ("CloudWS", true, "send").
+pub(self) fn lib_path(input: &str) -> IResult<&str, (&str, bool, &str), StofParseError> {
+    let (input, lib) = ident_type(input)?;
+    let (input, sep) = alt((tag("?::"), tag("::"))).parse(input)?;
+    let (input, func) = ident_type(input)?;
+    Ok((input, (lib, sep == "?::", func)))
 }
 
 

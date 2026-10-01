@@ -47,7 +47,7 @@ pub trait Format: std::fmt::Debug + Send + Sync {
                 let mut context = ParseContext::new(graph, profile.clone());
                 let ins: Arc<dyn Instruction> = Arc::new(FuncCall {
                     func: None,
-                    search: Some("fs.read_string".into()),
+                    search: Some("fs::read_string".into()), // explicit library: a "fs" root can't intercept it
                     stack: false,
                     as_ref: false,
                     cnull: false,

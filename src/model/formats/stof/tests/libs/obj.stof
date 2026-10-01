@@ -104,7 +104,7 @@ Prototypes: {
         assert_eq(typename self.b, 'CustomAType');
         
         assert_eq(<CustomAType>.hello(), 'hello');
-        assert_eq(b.hello(), 'hello');
+        assert_eq(self.b.hello(), 'hello');
 
         assert(self.b.instance_of('CustomAType'));
         assert(self.b.instance_of(self.a));

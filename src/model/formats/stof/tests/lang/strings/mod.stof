@@ -47,3 +47,40 @@ fn many_formatted() {
     const x = `Name is ${name}. Meaning of life is ${a + 10}. Val is ${!!val}`;
     assert_eq(x, 'Name is CJ. Meaning of life is 42. Val is true');
 }
+
+
+#[test]
+/// A template string is always a str: each ${expr} is printed like str(expr).
+fn format_string_is_always_str() {
+    const a = 1;
+    const b = 2;
+    assert_eq(`${a}`, '1');
+    assert_eq(typeof `${a}`, 'str');
+    assert_eq(`${a}${b}`, '12');       // not 3
+    assert_eq(`${a} ${b}`, '1 2');
+    assert_eq(`${a + b}!`, '3!');       // the expression itself still does math
+    assert_eq(`${[1, 2]}`, '[1, 2]');
+    assert_eq(`${5kg}`, '5kg');
+    assert_eq(`${true}`, 'true');
+    assert_eq(`${null}`, 'null');
+    assert_eq(`${'s'}${a}`, 's1');
+    assert_eq(`${a}`, str(a));
+}
+
+#[test]
+fn format_string_edge_cases() {
+    assert_eq(``, '');
+    assert_eq(typeof ``, 'str');
+    assert_eq(`plain`, 'plain');
+}
+
+#[test]
+/// "\$" escapes a dollar sign, so "\${..}" is literal text, not an expression.
+fn format_string_escaped_dollar() {
+    const a = 1;
+    assert_eq(`\${a}`, '${a}');
+    assert_eq(`cost: \$${a}`, 'cost: $1');
+    assert_eq(`\${a} is ${a}`, '${a} is 1');
+    assert_eq(`$5`, '$5');              // a "$" without "{" never needed escaping
+    assert_eq(`\$`, '$');
+}

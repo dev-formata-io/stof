@@ -108,7 +108,6 @@ impl SPath {
         if current.is_none() {
             let first = named_path.path.pop().unwrap();
 
-            // common to be a root, so look there first
             for root in &graph.roots {
                 if let Some(node) = root.node(graph) {
                     if node.name == first {
@@ -117,14 +116,9 @@ impl SPath {
                     }
                 }
             }
-            if current.is_none() {
-                for (_, node) in &graph.nodes {
-                    if node.name == first {
-                        current = Some(node);
-                        break;
-                    }
-                }
-            }
+            // Absolute paths only: without a start, the first segment must name a graph root
+            // (Ex. "root.a.b", or "Other.x" for a "root Other {..}" root). Nested objects are never
+            // found by name alone (use self, super, or a full path).
         }
 
         'node_loop: while current.is_some() && !named_path.path.is_empty() {

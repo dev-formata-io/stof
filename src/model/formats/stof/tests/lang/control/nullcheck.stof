@@ -100,3 +100,26 @@ fn null_check_sub_success() {
 fn null_check_sub_errors() {
     let result = self.subobj.hellooo();
 }
+
+boomobj: {
+    fn boom() { throw('inside'); }
+}
+fn counted() -> int { self.arg_evals = (self.arg_evals ?? 0) + 1; 1 }
+
+#[test]
+/// "?." in a call path makes the call null-safe, like a leading "?".
+fn null_check_mid_path_call() {
+    assert_eq(self.subobj?.hello(), 'hi');
+    assert_eq(self.subobj?.hellooo(), null);    // missing function
+    assert_eq(self.subobjdne?.hello(), null);   // missing object
+    assert_eq(self?.subobj?.hellooo(), null);
+    assert_eq(self.subobj?.hellooo(self.counted()), null);
+    assert_eq(self.arg_evals, null);            // args aren't evaluated when there's nothing to call
+}
+
+#[test]
+#[errors]
+/// "?" only guards a missing target: errors inside a function that exists still propagate.
+fn null_check_keeps_inner_errors() {
+    self.boomobj?.boom();
+}

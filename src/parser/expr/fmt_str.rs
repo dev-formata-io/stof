@@ -16,11 +16,12 @@
 
 use std::sync::Arc;
 use nom::{branch::alt, bytes::complete::{escaped_transform, tag, take_until}, character::complete::{char, none_of}, combinator::{map, opt, value}, multi::fold_many0, sequence::delimited, IResult, Parser};
-use crate::{parser::{doc::StofParseError, expr::expr, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, Base, ADD, NOOP}, Val}};
+use crate::{model::libraries::stof_std::StdIns, parser::{doc::StofParseError, expr::expr, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, Base, ADD}, Val}};
 
 
 /// Formatted string expression.
 /// Ex: `This is a cool ${value + other}!`
+/// Always a str: each ${expr} is printed like str(expr), then the parts are joined.
 pub fn formatted_string_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = whitespace(input)?;
     let (input, inner) = inner_formatted(input)?;
@@ -36,6 +37,16 @@ pub fn formatted_string_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>,
 }
 
 
+/// Stand-in for an escaped "\$" while the template is split into literals and ${expr} parts, so "\${" is
+/// never read as an expression. Literal parts turn it back into "$".
+const ESCAPED_DOLLAR: char = '\u{E000}';
+const ESCAPED_DOLLAR_STR: &str = "\u{E000}";
+
+fn literal(text: &str) -> Arc<dyn Instruction> {
+    Arc::new(Base::Literal(Val::Str(text.replace(ESCAPED_DOLLAR, "$").into())))
+}
+
+
 /// Inner formatted string (to run additional parser on after)
 fn inner_formatted(input: &str) -> IResult<&str, String, StofParseError> {
     let normal = none_of("`\\"); // everything but backslash or double quote
@@ -45,6 +56,7 @@ fn inner_formatted(input: &str) -> IResult<&str, String, StofParseError> {
         value("\n", tag("n")),
         value("\r", tag("r")),
         value("\t", tag("t")),
+        value(ESCAPED_DOLLAR_STR, tag("$")), // "\${" is a literal "${"
     )));
     delimited(char('`'), map(opt(inner), |opt| opt.unwrap_or_default()), char('`')).parse(input)
 }
@@ -54,7 +66,7 @@ fn inner_formatted(input: &str) -> IResult<&str, String, StofParseError> {
 fn parse_inner(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, mut res) = fold_many0(alt((
             parse_inner_expr,
-            map(take_until("${"), |lit: &str| Arc::new(Base::Literal(Val::Str(lit.into()))) as Arc<dyn Instruction>)
+            map(take_until("${"), |lit: &str| literal(lit))
         )),
         Vec::new,
         |mut instructions, ins| {
@@ -63,10 +75,10 @@ fn parse_inner(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseErro
         }).parse(input)?;
     
     if !input.is_empty() {
-        res.push(Arc::new(Base::Literal(Val::Str(input.into()))));
+        res.push(literal(input));
     }
     
-    if res.is_empty() { return Ok((input, NOOP.clone())); }
+    if res.is_empty() { return Ok((input, Arc::new(Base::Literal(Val::Str("".into()))))); }
     else if res.len() == 1 { return Ok((input, res.pop().unwrap())); }
     else {
         let mut block = Block::default();
@@ -83,7 +95,12 @@ fn parse_inner(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseErro
 
 
 /// Parse inner expr.
+/// The value is printed to a str (like str(expr)), so the result never depends on the value types
+/// (Ex. `${1}${2}` is "12", not 3; `${list}` is "[1, 2]", not a list).
 fn parse_inner_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, inner) = delimited(tag("${"), expr, tag("}")).parse(input)?;
-    Ok((input, inner))
+    let mut block = Block::default();
+    block.ins.push_back(inner);
+    block.ins.push_back(Arc::new(StdIns::String(1)));
+    Ok((input, Arc::new(block)))
 }

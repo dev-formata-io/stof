@@ -67,6 +67,17 @@ impl FuncCall {
     /// Search for a function to call using a path.
     /// If "stack" is set, pop the stack and use the result as a context or library name.
     fn search_func(&self, path: &str, env: &mut ProcEnv, graph: &mut Graph) -> Result<CallContext, Error> {
+        // Explicit library call (Lib::func): always the library, never an object or variable of that name
+        if !self.stack {
+            if let Some((lib, func)) = path.split_once("::") {
+                let libname = ArcStr::from(lib);
+                if graph.libfunc(&libname, func).is_some() {
+                    return Ok(CallContext { lib: Some(libname), stack_arg: None, prototype_self: None, func: SId::from(func) });
+                }
+                return Err(Error::FuncDne(path.into()));
+            }
+        }
+
         let mut split_path = path.split('.').collect::<Vec<_>>();
 
         // In this case, we have a chained value already on the stack that we are adding a call to
@@ -311,7 +322,11 @@ impl FuncCall {
                     });
                 }
             } else if start.is_none() && graph.roots.len() > 0 {
-                if let Some(obj) = graph.find_node_named(&pth, graph.main_root()) {
+                // Only an Obj library call if Obj has this function; otherwise let the caller fall back to a
+                // library of the same name (Ex. a "Num" root without "round" must not break Num.round(..))
+                let obj_func = graph.libfunc(&literal!("Obj"), func_name).is_some();
+                // Absolute path (starts at a graph root), like every other path without self/super
+                if let Some(obj) = graph.find_node_named(&pth, None).filter(|_| obj_func || !graph.libfuncs.contains_key(pth.as_str())) {
                     return Ok(CallContext {
                         lib: Some(literal!("Obj")),
                         stack_arg: Some(Arc::new(Base::Literal(Val::Obj(obj)))),

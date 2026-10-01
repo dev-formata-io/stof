@@ -199,26 +199,44 @@ impl Graph {
         }
     }
 
-    /// Find a type by name, resolving to the closest to the context if collisions.
+    /// Find a type by name, resolving to the closest to the context if collisions (the main root when
+    /// there is no context). Deterministic: ties are broken by path name.
     pub fn find_type(&self, name: &str, context: Option<NodeRef>) -> Option<NodeRef> {
-        if let Some(types) = self.typemap.get(name) {
-            if types.len() == 1 || context.is_none() {
-                for ty in types.iter() { return Some(ty.clone()); }
-            } else if types.len() > 1 {
-                let context = context.unwrap();
-                let mut best = None;
-                let mut closest = i32::MAX;
-                for ty in types.iter() {
-                    let dist = context.distance_to(self, ty);
-                    if dist >= 0 && dist < closest {
-                        closest = dist;
-                        best = Some(ty.clone());
-                    }
-                }
-                return best;
+        let types = self.typemap.get(name)?;
+        self.nearest_type(types.iter().cloned(), context)
+    }
+
+    /// Find a type by qualified name (Ex. "Geometry" + "Point" for <Geometry.Point>).
+    /// Only types named `name` whose parent path ends with the qualifier match, so this never searches
+    /// arbitrary objects: <Geometry.Point>, <Types.Geometry.Point> and <root.Lang.Objects.Types.Geometry.Point>
+    /// all name the same type. The nearest match to the context wins (see find_type).
+    pub fn find_qualified_type(&self, qualifier: &str, name: &str, context: Option<NodeRef>) -> Option<NodeRef> {
+        let types = self.typemap.get(name)?;
+        let qualifier = qualifier.split('.').filter(|segment| !segment.is_empty()).collect::<Vec<_>>();
+        if qualifier.is_empty() { return self.find_type(name, context); }
+        let matches = types.iter().filter(|ty| {
+            let Some(parent_path) = ty.node_parent(self).and_then(|parent| parent.node_path(self, true)) else { return false };
+            let names = parent_path.path.iter().map(|name| name.as_ref()).collect::<Vec<_>>();
+            names.len() >= qualifier.len() && names[names.len() - qualifier.len()..] == qualifier[..]
+        }).cloned();
+        self.nearest_type(matches, context)
+    }
+
+    /// The candidate type nearest to the context (the main root when there's no context).
+    /// Ties (and anything without a distance) are broken by path name, then id, so the choice is deterministic.
+    fn nearest_type(&self, candidates: impl Iterator<Item = NodeRef>, context: Option<NodeRef>) -> Option<NodeRef> {
+        let origin = context.or_else(|| self.main_root());
+        let mut best: Option<(i32, String, String, NodeRef)> = None;
+        for ty in candidates {
+            if !ty.node_exists(self) { continue; }
+            let dist = origin.as_ref().map(|origin| origin.distance_to(self, &ty)).filter(|dist| *dist >= 0).unwrap_or(i32::MAX);
+            let named = ty.node_path(self, true).map(|path| path.join(".")).unwrap_or_default();
+            let key = (dist, named, ty.as_ref().to_string(), ty);
+            if best.as_ref().map(|best| (key.0, &key.1, &key.2) < (best.0, &best.1, &best.2)).unwrap_or(true) {
+                best = Some(key);
             }
         }
-        None
+        best.map(|(_, _, _, ty)| ty)
     }
 
 
@@ -1476,6 +1494,30 @@ mod tests {
     use crate::{model::{Data, Graph, ROOT_NODE_NAME, SPath, StofData}, runtime::Variable};
 
     #[test]
+    /// Same-named types resolve deterministically: nearest to the context (the main root without one),
+    /// ties broken by path name; qualified names filter by the end of the type's path.
+    fn find_type_is_deterministic() {
+        let mut graph = Graph::default();
+        graph.parse_stof_src(r#"
+            b: { #[type] Point: { v: 'b' } }
+            a: { #[type] Point: { v: 'a' } }
+            deep: { inner: { #[type] Point: { v: 'deep' } } }
+        "#, None, crate::model::Profile::default()).unwrap();
+        let path = |graph: &Graph, node: Option<crate::model::NodeRef>| node.and_then(|n| n.node_path(graph, true)).map(|p| p.join("."));
+
+        for _ in 0..10 { // same answer every time (was hash-set order)
+            assert_eq!(path(&graph, graph.find_type("Point", None)), Some("root.a.Point".into())); // tie at depth 2: by name
+        }
+        let deep = graph.find_node_named("root.deep.inner", None);
+        assert_eq!(path(&graph, graph.find_type("Point", deep)), Some("root.deep.inner.Point".into())); // nearest
+        assert_eq!(path(&graph, graph.find_qualified_type("b", "Point", None)), Some("root.b.Point".into()));
+        assert_eq!(path(&graph, graph.find_qualified_type("deep.inner", "Point", None)), Some("root.deep.inner.Point".into()));
+        assert_eq!(path(&graph, graph.find_qualified_type("root.deep.inner", "Point", None)), Some("root.deep.inner.Point".into()));
+        assert_eq!(graph.find_qualified_type("deep", "Point", None), None); // "deep" isn't the parent of any Point
+    }
+
+
+    #[test]
     fn new_with_id() {
         let graph = Graph::new("hello");
         assert_eq!(graph.id.as_ref(), "hello");
@@ -1585,7 +1627,7 @@ mod tests {
         assert_eq!(graph.roots.len(), 1);
         assert_eq!(graph.node_deadpool.len(), 3);
 
-        let top = graph.find_node_named("top", None).unwrap();
+        let top = graph.find_node_named("root.top", None).unwrap();
         assert!(top.node_exists(&graph));
 
         assert_eq!(graph.all_child_nodes(&graph.main_root().unwrap(), true).len(), 4);

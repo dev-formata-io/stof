@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use nom::{bytes::complete::tag, branch::alt, character::complete::{char, multispace0}, combinator::opt, multi::separated_list0, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{model::{Func, FuncDoc, Param, SId, ASYNC_FUNC_ATTR}, parser::{context::ParseContext, doc::{err_fail, StofParseError}, expr::expr, ident::ident, parse_attributes, statement::block, types::parse_type, whitespace::{doc_comment, whitespace}}, runtime::{instruction::Instruction, instructions::Base, Val}};
+use crate::{model::{Func, FuncDoc, Param, SId, ASYNC_FUNC_ATTR}, parser::{context::ParseContext, doc::{err_fail, StofParseError}, expr::expr, ident::ident, parse_attributes, statement::{block, declare::take_declared_names}, types::parse_type, whitespace::{doc_comment, whitespace}}, runtime::{instruction::Instruction, instructions::Base, Val}};
 
 
 /// Parse a function into a parse context.
@@ -48,12 +48,16 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
     let (input, name) = preceded(multispace0, ident).parse(input).map_err(err_fail)?;
     let (input, params) = delimited(char('('), separated_list0(char(','), alt((parameter, opt_parameter))), char(')')).parse(input).map_err(err_fail)?;
     let (input, return_type) = opt(preceded(delimited(multispace0, tag("->"), multispace0), parse_type)).parse(input).map_err(err_fail)?;
+    take_declared_names(); // drop anything declared outside of this function body
     let (input, instructions) = block(input).map_err(err_fail)?;
+    let mut var_names = take_declared_names();
+    var_names.extend(params.iter().map(|param| param.name.as_ref().to_string()));
 
     // Check do_create_func now after parse
     if !do_create_func {
         return Ok((input, ()));
     }
+    context.warn_if_vars_shadow_lib(name, &var_names);
 
     for param in params { func.params.push_back(param); }
     func.return_type = return_type.unwrap_or_default(); // default is void

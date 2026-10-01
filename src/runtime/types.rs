@@ -273,14 +273,22 @@ impl Type {
                 if !name_or_id.node_exists(graph) { // not a node ref, so must be a name
                     let mut path = name_or_id.as_ref().to_string();
                     if path.contains('.') {
-                        // This is a pathname (not just a typename), so if it doesn't start with self or super, remove the current context
-                        if !path.starts_with(SELF_STR_KEYWORD.as_str()) && !path.starts_with(SUPER_STR_KEYWORD.as_str()) {
-                            context = None;
-                        }
-
                         let mut split = path.split('.').collect::<Vec<_>>();
                         let typename = split.pop().unwrap();
-                        if let Some(node) = graph.find_node_named(&split.join("."), context.clone()) {
+                        let qualifier = split.join(".");
+
+                        let relative = path.starts_with(SELF_STR_KEYWORD.as_str()) || path.starts_with(SUPER_STR_KEYWORD.as_str());
+                        if !relative {
+                            // Qualified type name (Ex. <Geometry.Point>): the nearest type named "Point" whose path ends with "Geometry"
+                            if let Some(proto_id) = graph.find_qualified_type(&qualifier, typename, context.clone()) {
+                                *name_or_id = proto_id;
+                                return;
+                            }
+                            context = None; // otherwise an absolute path (starts at a graph root)
+                        }
+
+                        // Path to an object, then the nearest type from there (Ex. <self.Point>, <root.a.ref.Point>)
+                        if let Some(node) = graph.find_node_named(&qualifier, context.clone()) {
                             context = Some(node);
                             path = typename.to_string();
                         }

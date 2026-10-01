@@ -151,6 +151,21 @@ Another: {
 }
 
 #[test]
+/// Qualified type names pick among same-named types by the end of their path (nearest wins on ties).
+fn qualified_type_names() {
+    const geo = new Geo.Point {};
+    const another = new Another.Point {};
+    assert_eq(geo.x, 0);
+    assert_eq(another.x, 3);
+    assert_eq(<Geo.Point>, self.Geo.Point);
+    assert_eq(<Another.Point>, self.Another.Point);
+    assert_eq(<GoodPoint.Point>, self.GoodPoint.Point);
+    assert_eq(<Geometry.Point>, self.Geometry.Point);
+    assert_eq(<self.Geo.Point>, self.Geo.Point);       // relative path still works
+    assert_eq(<Nope.Point>, null);                      // no type named Point under a "Nope"
+}
+
+#[test]
 fn scoped_points() {
     const first = new self.Geo.Point {};
     const second = new self.Another.Point {};
