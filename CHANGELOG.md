@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.10.2
+
+### Fixed
+
+- `typeof` and `typename` bind to the value right after them, like `!` and `-`: `typeof x == 'obj'` is
+  `(typeof x) == 'obj'`. Before, they took the whole rest of the expression, so `typeof x == 'obj'` was `'bool'`
+  (always truthy) and the ternary in `typeof x == 'obj' ? a : b` was typed instead of chosen. Code that meant the
+  type of a larger expression needs parentheses: `typeof (a + b)`. `(typeof x) == 'obj'` still works.
+- `typeof` and `typename` are whole words: `typeofx` is a name, not `typeof x`.
+
 ## 0.10.1
 
 Package metadata only (no code changes): updated descriptions, keywords, and categories on crates.io, npm, and PyPI

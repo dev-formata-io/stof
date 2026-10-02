@@ -38,13 +38,13 @@ fn expr_inner(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError
         func_expr,
         await_expr,
         async_expr,
-        typename_expr,
-        typeof_expr,
         list_expr,
         blob_expr,
         set_expr,
         map_expr,
         math_expr,
+        typename_expr,
+        typeof_expr,
         not_expr,
         block_expr,
         switch_expr,
@@ -394,9 +394,16 @@ pub fn not_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseErr
 
 
 /// TypeOf expression.
+/// Unary: binds to the operand right after it, so `typeof x == 'a'` is `(typeof x) == 'a'`.
 pub fn typeof_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = whitespace(input)?;
-    let (input, ins) = preceded(tag("typeof"), expr).parse(input)?;
+    let (input, _) = tag("typeof").parse(input)?;
+    // whole word only (Ex. "typeofx" is a name, not "typeof x")
+    if input.starts_with(|c: char| c.is_alphanumeric() || c == '_') {
+        return Err(nom::Err::Error(nom::error::ParseError::from_error_kind(input, nom::error::ErrorKind::Tag)));
+    }
+    let (input, _) = whitespace(input)?;
+    let (input, ins) = alt((new_obj_expr, func_expr, crate::parser::expr::math::primary)).parse(input)?;
 
     let mut block = Block::default();
     block.ins.push_back(ins);
@@ -408,9 +415,16 @@ pub fn typeof_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParse
 
 /// TypeName expression.
 /// A specific type instead of a general one Ex. "MyObj" instead of "obj"
+/// Unary: binds to the operand right after it, so `typename x == 'a'` is `(typename x) == 'a'`.
 pub fn typename_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = whitespace(input)?;
-    let (input, ins) = preceded(tag("typename"), expr).parse(input)?;
+    let (input, _) = tag("typename").parse(input)?;
+    // whole word only (Ex. "typeofx" is a name, not "typeof x")
+    if input.starts_with(|c: char| c.is_alphanumeric() || c == '_') {
+        return Err(nom::Err::Error(nom::error::ParseError::from_error_kind(input, nom::error::ErrorKind::Tag)));
+    }
+    let (input, _) = whitespace(input)?;
+    let (input, ins) = alt((new_obj_expr, func_expr, crate::parser::expr::math::primary)).parse(input)?;
 
     let mut block = Block::default();
     block.ins.push_back(ins);

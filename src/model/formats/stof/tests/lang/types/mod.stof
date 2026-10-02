@@ -17,3 +17,34 @@
 
 import './union' as self.Union;
 import './notnull' as self.NotNull;
+
+
+/// typeof and typename are unary: they bind to the value right after them, not the whole expression.
+#[test]
+fn typeof_is_unary() {
+    const v = new {};
+    const m = {'a': 1};
+    const n = 5;
+    assert(typeof v == 'obj');
+    assert(typeof m == 'map');
+    assert(typeof n == 'int' && typeof m != 'obj');
+    assert(typeof n == 'str' || typeof v == 'obj');
+    assert_eq(typeof n + '!', 'int!');
+    assert_eq(typename n, 'int');
+    assert(typename v == 'obj');
+    const x = typeof v == 'obj' ? 'yes' : 'no';
+    assert_eq(x, 'yes');
+    assert_eq(typeof (n + 1.5), 'float');
+    assert_eq(typeof n.abs(), 'int');
+    assert_eq(typeof self.missing ?? 'none', 'null');
+    assert_eq(typeof !n, 'bool');
+    assert_eq(typeof -n, 'int');
+    assert_eq(typeof new {} , 'obj');
+    assert_eq(typeof typeof n, 'str');
+    assert_eq(typeof(n), 'int');
+    assert(typeof(n) == 'int');
+    assert(('int' == typeof n));
+    const typeofx = 3;
+    assert_eq(typeofx, 3);
+    assert_eq(typeof await async 5, 'int');
+}

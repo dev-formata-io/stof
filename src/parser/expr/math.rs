@@ -155,8 +155,9 @@ pub(self) fn bitwise(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofPar
     Ok((input, lhs))
 }
 
-/// Primary element in a math expr.
-fn primary(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
+/// Primary element in a math expr (an atom with optional "!" or "-" prefixes).
+/// Also the operand of the unary "typeof" and "typename" operators.
+pub(crate) fn primary(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, _) = space0(input)?;
 
     let (input, not_count) = many0_count(char('!')).parse(input)?;
