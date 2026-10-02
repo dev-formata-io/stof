@@ -159,6 +159,54 @@ class WasmMutex {
 }
 
 
+type StofHeaders = Map<string, unknown> | Record<string, unknown> | null | undefined;
+
+/**
+ * Http.fetch for JavaScript hosts (added by StofDoc.allowHttp()).
+ * Same signature and response map as the native runtime's Http.fetch, so documents behave the same everywhere:
+ * Http.fetch(url, method = 'get', body = null, headers = null, timeout (seconds) = null, query = null, bearer = null)
+ * -> map { status, ok, headers, content_type, bytes }
+ */
+async function stofFetch(
+    url: string,
+    method: string = 'get',
+    body: string | Uint8Array | null = null,
+    headers: StofHeaders = null,
+    timeout: number | null = null,
+    query: StofHeaders = null,
+    bearer: string | null = null,
+): Promise<Map<string, unknown>> {
+    const entries = (values: StofHeaders): [string, string][] => {
+        if (!values) return [];
+        const pairs = values instanceof Map ? Array.from(values.entries()) : Object.entries(values);
+        return pairs.map(([key, value]) => [String(key), String(value)]);
+    };
+    // @ts-ignore - location only exists in browsers (resolves relative URLs there)
+    const target = new URL(url, typeof location !== 'undefined' ? location.href : undefined);
+    for (const [key, value] of entries(query)) target.searchParams.append(key, value);
+
+    const requestHeaders = new Headers(entries(headers));
+    if (bearer) requestHeaders.set('Authorization', `Bearer ${bearer}`);
+
+    const response = await fetch(target, {
+        method: (method || 'get').toUpperCase(),
+        headers: requestHeaders,
+        body: (body ?? undefined) as BodyInit | undefined,
+        signal: timeout ? AbortSignal.timeout(timeout * 1000) : undefined,
+    });
+
+    const responseHeaders = new Map<string, string>();
+    response.headers.forEach((value, key) => responseHeaders.set(key, value));
+    const result = new Map<string, unknown>();
+    result.set('status', response.status);
+    result.set('ok', response.ok);
+    result.set('headers', responseHeaders);
+    result.set('content_type', response.headers.get('content-type') ?? 'text/plain');
+    result.set('bytes', new Uint8Array(await response.arrayBuffer()));
+    return result;
+}
+
+
 /**
  * Stof document.
  */
@@ -244,10 +292,22 @@ export class StofDoc {
      * Add JS library function.
      */
     // deno-lint-ignore ban-types
-    lib(library: string, name: string, func: Function, is_async?: boolean) {
+    lib(library: string, name: string, func: Function, is_async?: boolean, params?: string[]) {
         const docid = this.stof.docid();
         const async_fn = is_async ?? func.constructor.name === "AsyncFunction";
-        this.stof.js_library_function(new StofFunc(docid, library, name, func, async_fn));
+        const stofFunc = new StofFunc(docid, library, name, func, async_fn);
+        if (params) stofFunc.setParams(params); // lets Stof call it with named arguments
+        this.stof.js_library_function(stofFunc);
+    }
+
+
+    /**
+     * Give this document network access: the Http library, with Http.fetch backed by the JavaScript fetch API.
+     * Off by default: a document can only read and change itself and call the functions you add with lib().
+     */
+    allowHttp(): void {
+        this.stof.allowHttp(); // Http helpers (Http.text, Http.parse, Http.success, ...)
+        this.lib('Http', 'fetch', stofFetch, true, ['url', 'method', 'body', 'headers', 'timeout', 'query', 'bearer']);
     }
 
 
