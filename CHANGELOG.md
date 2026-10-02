@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.1
+
+Package metadata only (no code changes): updated descriptions, keywords, and categories on crates.io, npm, and PyPI
+to match the new README. See 0.10.0 for the release notes.
+
 ## 0.10.0
 
 A correctness, safety, and developer-experience release. Most programs run unchanged, but several long-standing

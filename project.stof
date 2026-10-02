@@ -5,7 +5,7 @@ import '@cargo' as Rust;
 import pkg '@github' as GitHub;
 
 /// Current version.
-const version: 0.10.0
+const version: 0.10.1
 
 /// Cargo.toml definition.
 Cargo cargo: {
@@ -16,23 +16,23 @@ Cargo cargo: {
         authors: [
             'CJ Cummings <cj@formata.io>'
         ]
-        description: 'Data Runtime. JSON that runs.'
+        description: 'Portable, sandboxed logic inside data: JSON with functions you can send anywhere and run safely in Rust, WebAssembly, and Python.'
         license: 'Apache-2.0'
         repository: 'https://github.com/dev-formata-io/stof'
         homepage: 'https://stof.dev'
         keywords: [
-            'format',
-            'runtime',
-            'async',
-            'validation',
-            'embedded',
+            'sandbox',
+            'scripting',
+            'json',
+            'wasm',
+            'rules-engine',
         ]
         categories: [
-            'compilers',
-            'data-structures',
+            'wasm',
+            'encoding',
+            'config',
             'development-tools',
-            'template-engine',
-            'asynchronous',
+            'compilers',
         ]
         exclude: [
             "content/*",
@@ -336,11 +336,19 @@ pyproject: {
             "Programming Language :: Rust",
             "Programming Language :: Python :: Implementation :: CPython",
             "Programming Language :: Python :: Implementation :: PyPy",
+            "License :: OSI Approved :: Apache Software License",
+            "Operating System :: OS Independent",
+            "Topic :: Software Development :: Interpreters",
+            "Topic :: Scientific/Engineering :: Artificial Intelligence",
         ]
         keywords: [
-            'format',
-            'runtime',
-            'validation',
+            'sandbox',
+            'json',
+            'rules-engine',
+            'ai-agents',
+            'llm',
+            'wasm',
+            'scripting',
             'embedded',
         ]
         urls: {

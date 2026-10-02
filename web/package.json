@@ -1,6 +1,7 @@
 {
     "name": "@formata/stof",
-    "version": "0.10.0",
+    "version": "0.10.1",
+    "description": "Portable, sandboxed logic inside data: JSON with functions you can send anywhere and run safely in Rust, WebAssembly, and Python.",
     "type": "module",
     "main": "./dist/doc.js",
     "types": "./dist/doc.d.ts",
@@ -35,21 +36,18 @@
     },
     "keywords": [
         "stof",
-        "data-runtime",
+        "sandbox",
+        "json",
+        "ai-agents",
+        "llm",
+        "rules-engine",
         "wasm",
         "webassembly",
-        "rust",
         "typescript",
-        "json",
-        "yaml",
-        "toml",
-        "schema",
+        "rust",
+        "scripting",
+        "embedded",
         "validation",
-        "sandbox",
-        "config-as-code",
-        "serialization",
-        "runtime",
-        "ai-context",
-        "distributed-systems"
+        "serialization"
     ]
 }
