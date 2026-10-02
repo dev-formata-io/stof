@@ -373,6 +373,11 @@ Runtime::run(&mut graph, None, true)?;                                     // #[
 let json = graph.string_export("json", None)?;
 ```
 
+**Sandbox:** embedded documents have no file system, environment, or network access. Hosts opt in:
+`graph.allow_system()` / `graph.allow_http()` (Rust), `doc.allow_system()` / `doc.allow_http()` (Python),
+`doc.allowHttp()` (JS: adds `Http.fetch` on the JS fetch API; there's no file system in the browser build). Without `allow_system()`, `import` statements
+and `fs::*` calls fail. The `stof` CLI allows everything.
+
 Host errors from `call`/`run` include the Stof call stack. Parse with the test profile (`'test'` in JS/Python,
 `stof::model::Profile::test()` in Rust) to get statement-level line numbers in runtime errors; the default production profile
 keeps documents smaller.

@@ -19,6 +19,7 @@ use bytes::Bytes;
 use nanoid::nanoid;
 use regex::Regex;
 use walkdir::{DirEntry, WalkDir};
+use crate::model::FS_LIB;
 use zip::{result::ZipResult, write::SimpleFileOptions};
 use crate::{model::{Field, Format, Graph, NodeRef, Profile, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, parser::context::ParseContext, runtime::{Error, Val}};
 
@@ -201,6 +202,7 @@ impl Format for StofPackageFormat {
         "application/octet-stream+pkg".into()
     }
     fn binary_import(&self, graph: &mut Graph, format: &str, bytes: Bytes, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
+        if graph.libfunc(&FS_LIB, "read").is_none() { return Err(Error::FormatFileImportNotAllowed); } // file system access is opt-in
         if let Some(path) = self.unzip_bytes_to_temp(&bytes) {
             let res = self.file_import(graph, format, &path, node, profile);
             let _ = fs::remove_dir_all(&path);
@@ -210,6 +212,7 @@ impl Format for StofPackageFormat {
         }
     }
     fn parser_import(&self, _format: &str, path: &str, context: &mut ParseContext) -> Result<(), Error> {
+        if context.graph.libfunc(&FS_LIB, "read").is_none() { return Err(Error::FormatFileImportNotAllowed); } // file system access is opt-in
         let mut package_path = path.to_string();
         let mut cleanup_dir = None;
 
@@ -235,6 +238,8 @@ impl Format for StofPackageFormat {
         };
 
         let mut pkg_graph = Graph::default();
+        #[cfg(feature = "system")]
+        pkg_graph.allow_system(); // the host allowed file access above
         let res = pkg_graph.parse_stof_file("stof", &package_path, None, context.profile.clone());
         if res.is_err() {
             cleanup();
@@ -261,6 +266,7 @@ impl Format for StofPackageFormat {
         Ok(())
     }
     fn file_import(&self, graph: &mut Graph, _format: &str, path: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
+        if graph.libfunc(&FS_LIB, "read").is_none() { return Err(Error::FormatFileImportNotAllowed); } // file system access is opt-in
         let mut package_path = path.to_string();
         let mut cleanup_dir = None;
 
@@ -286,6 +292,8 @@ impl Format for StofPackageFormat {
         };
 
         let mut pkg_graph = Graph::default();
+        #[cfg(feature = "system")]
+        pkg_graph.allow_system(); // the host allowed file access above
         let res = pkg_graph.parse_stof_file("stof", &package_path, None, profile.clone());
         if res.is_err() {
             cleanup();

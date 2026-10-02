@@ -258,6 +258,12 @@ impl Stof {
         graph.insert_libfunc(func.get_func());
     }
 
+    #[wasm_bindgen(js_name = allowHttp)]
+    /// Give this document network access (the Http library, using fetch). Off by default.
+    pub fn allow_http(&self) {
+        self.graph_mut().allow_http();
+    }
+
 
     /*****************************************************************************
      * I/O

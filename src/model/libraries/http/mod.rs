@@ -53,7 +53,8 @@ use tokio::sync::Semaphore;
 
 #[cfg(feature = "http")]
 lazy_static! {
-    static ref HTTP_CLIENT: Arc<Client> = Arc::new(Client::new());
+    // many APIs (Ex. GitHub) reject requests without a User-Agent; requests can still set their own
+    static ref HTTP_CLIENT: Arc<Client> = Arc::new(Client::builder().user_agent(USER_AGENT).build().unwrap_or_else(|_| Client::new()));
 }
 
 
@@ -65,6 +66,10 @@ lazy_static! {
 
 /// Http library name.
 pub(self) const HTTP_LIB: ArcStr = literal!("Http");
+
+#[cfg(feature = "http")]
+/// Default User-Agent for Http.fetch requests.
+const USER_AGENT: &str = concat!("stof/", env!("CARGO_PKG_VERSION"));
 
 
 /// Insert the Http library into a graph.
@@ -79,7 +84,7 @@ pub fn insert_http_lib(graph: &mut Graph) {
 Make an HTTP request, using the thread pool in the background so that other Stof processes can continue running.
 ```rust
 const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
-assert(resp.get('text').len() > 100);
+assert(Http.text(resp).len() > 100); // response map: status, ok, headers, content_type, bytes
 ```"#.into(),
         params: vector![
             Param { name: "url".into(), param_type: Type::Str, default: None },
@@ -367,7 +372,7 @@ impl HTTPRequest {
                 });
             } else {
                 // no runtime to work with, so fall back on a blocking client... boo
-                let client = reqwest::blocking::Client::new();
+                let client = reqwest::blocking::Client::builder().user_agent(USER_AGENT).build().unwrap_or_else(|_| reqwest::blocking::Client::new());
                 let mut builder = client.request(self.method, self.url);
                 builder = builder.headers(self.headers);
                 

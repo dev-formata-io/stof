@@ -918,7 +918,7 @@ impl Runtime {
      * Run.
      *****************************************************************************/
     
-    /// Run every #[main] function within this graph.
+    /// Run every `#[main]` function within this graph.
     /// If throw is false, this will only return Ok.
     pub fn run(graph: &mut Graph, context: Option<String>, throw: bool) -> Result<String, String> {
         Self::run_functions(graph, context, Func::main_functions(graph), throw)

@@ -33,6 +33,7 @@ Read **Breaking changes** before upgrading.
 | **Integer overflow and /0** | `i64::MAX + 1` wrapped negative; integer `/ 0` and `% 0` panicked | Overflow becomes a float; `/ 0` is `inf`, `0 / 0` and `% 0` are `NaN` | |
 | **Unit conversions** | Imperial mass constants were approximate (`1lb` = 453.592g); conversions drifted | Exact factors (`1lb` = 453.59237g, `1lb → oz` is exactly 16); mixed-unit `==` compares within 1e-14 | Update exact expectations |
 | **JSON non-finite numbers** | Exporting `inf`/`NaN` to JSON panicked | Exported as `null` (like `JSON.stringify`) | |
+| **Sandboxed by default** | `Graph::default()` (Rust) and Python `Doc()` registered the `fs` library, `env` functions, and `Http` (Python, JS); documents could read and write files, read environment variables, import files from disk, and make network requests | None of these unless the host opts in; file and package imports are refused with a clear error | Call `graph.allow_system()` / `graph.allow_http()` (Rust), `doc.allow_system()` / `doc.allow_http()` (Python), `doc.allowHttp()` (JS). The `stof` CLI enables everything |
 | **Catch values unchanged** | | `catch (e: str)` still receives the error code form (Ex. `'AssignConst'`, `FuncDne("Num.split")`) | |
 
 **Host APIs (JS, Python, Rust):**
@@ -53,6 +54,7 @@ explicitly still works.
 
 ### Added
 
+- **`allow_system()` / `allow_http()`** (Rust, Python; `allowHttp()` in JS): opt in to file system/environment and network access for documents. In JS, `allowHttp()` also adds `Http.fetch` (the native runtime's signature and response map, backed by the JS fetch API), so apps no longer need their own.
 - **`Lib::func(args)`**: always calls the library, never an object or variable of that name. `Lib?::func()` is null
   when the library or function doesn't exist (Ex. optional host libraries).
 - **Null-safe calls anywhere in a path:** `self.obj?.func()` (before, only a leading `?` worked for calls).
@@ -81,6 +83,11 @@ explicitly still works.
   with `NaN` depended on argument order.
 - Integer literals above 2^53 lost precision; huge literals saturated; `0x10-1` and oversized hex literals panicked.
 - wasm: integers were converted to JS as 32-bit (timestamps were mangled).
+- `Http.fetch` sent no User-Agent, so APIs that require one (Ex. GitHub) rejected every request; it now sends `stof/<version>` unless the request sets its own.
+- `Http.parse` (and any import by content type) didn't recognize content types with parameters, so `application/json; charset=utf-8` was imported as raw bytes instead of JSON.
+- JS: when an async library function's promise rejected (Ex. a failed fetch), the error came back as the function's return value instead of being thrown, so `try`/`catch` never saw it. Rejections now throw the error message.
+- JS: library functions can declare parameter names (`doc.lib('App', 'f', f, false, ['a', 'b'])`) so Stof can call them with named arguments; before, named arguments landed in the wrong position.
+- JS: plain objects passed to Stof (Ex. `doc.call('f', { a: 1 })`) were converted to bytes; they're maps now, like Python dicts.
 - Exceptions inside a call didn't restore the caller's scopes in the catch block.
 - `stof run` / `stof test` (and `Runtime::run`/`test`) dropped errors raised before a function's call started (Ex. a
   `#[main]` or `#[test]` function with a required parameter): the run failed with no message and no function name.

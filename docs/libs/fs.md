@@ -1,5 +1,5 @@
 # File System Library (fs)
-Functions for working with the file system. Requires the "system" feature to automatically be added, otherwise, remove this library to further sandbox your environment.
+Functions for working with the file system. Off by default: documents are sandboxed until the host opts in with `allow_system()` (Rust, Python), which also enables `env` functions and file imports. Requires the "system" feature. The `stof` CLI enables it.
 
 # fs.read(path: str) -> blob
 If available, will read a file from a path into a binary blob.

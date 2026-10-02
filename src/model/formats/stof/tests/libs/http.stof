@@ -18,19 +18,16 @@
 #[test]
 fn get_request() {
     if (lib('Http')) {
-        const resp: map = await Http.fetch('https://restcountries.com/v3.1/region/europe');
+        const resp: map = await Http.fetch('https://api.github.com/repos/dev-formata-io/stof');
         assert(Http.success(resp));
         assert_not(Http.client_error(resp));
         assert_not(Http.server_error(resp));
 
         const size = Http.size(resp) as KiB;
-        //assert(size > 100KiB);
-        assert(size > 0); // API has been deprecated...
+        assert(size > 0);
 
         const body = Http.parse(resp, new {});
-        for (const country in body.field) {
-            //pln(country.name.common);
-        }
+        //pln(body);
         drop(body);
     }
 }
@@ -40,7 +37,7 @@ fn get_requests() {
     if (lib('Http')) {
         const handles = [];
         for (let i in 10) {
-            handles.push_back(Http.fetch('https://restcountries.com/v3.1/region/europe'));
+            handles.push_back(Http.fetch('https://api.github.com/repos/dev-formata-io/stof'));
         }
         for (const response in await handles) {
             pln(response.get('bytes'));

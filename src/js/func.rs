@@ -20,7 +20,7 @@ use js_sys::{Function, Promise};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
-use crate::{js::value::{to_graph_value, to_raw_value}, model::{Graph, LibFunc, stof_std::THROW}, runtime::{Error, Val, ValRef, Variable, WakeRef, instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, wake}};
+use crate::{js::value::{to_graph_value, to_raw_value}, model::{Graph, LibFunc, Param, stof_std::THROW}, runtime::{Error, Type, Val, ValRef, Variable, WakeRef, instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, wake}};
 
 
 thread_local! {
@@ -93,6 +93,27 @@ impl StofFunc {
     pub fn docid(&self) -> String {
         self.docid.clone()
     }
+
+    #[wasm_bindgen(js_name = setParams)]
+    /// Name this function's parameters, so Stof can call it with named arguments (Ex. `Http.fetch(url, bearer = 'x')`).
+    /// Parameters are optional: anything not passed arrives as null.
+    pub fn set_params(&mut self, names: Vec<String>) {
+        self.func.params = names.into_iter()
+            .map(|name| Param { name: name.into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) })
+            .collect();
+    }
+}
+
+/// A JS error as a Stof value: its message when it's an Error or a string.
+fn js_error_value(error: &JsValue) -> Val {
+    if let Some(message) = error.as_string() {
+        return Val::Str(message.into());
+    }
+    if error.is_instance_of::<js_sys::Error>() {
+        let error = js_sys::Error::from(error.clone());
+        return Val::Str(String::from(error.message()).into());
+    }
+    to_raw_value(error.clone())
 }
 
 
@@ -100,6 +121,8 @@ impl StofFunc {
 /// JS Library Function Instructions.
 enum JsLibFuncIns {
     Call(String, usize, String, String),
+    /// After an async call: throw the result if the JS promise was rejected.
+    ThrowIfRejected(ValRef<Val>),
 }
 #[typetag::serde(name = "JsLibFuncIns")]
 impl Instruction for JsLibFuncIns {
@@ -151,10 +174,12 @@ impl Instruction for JsLibFuncIns {
                             
                             let wake_ref = WakeRef::default(); // when to return
                             let placeholder = ValRef::new(Val::Null); // the return value
+                            let rejected = ValRef::new(Val::Bool(false)); // did the promise reject?
 
                             // start the JS promise in the background
                             let wake_clone = wake_ref.clone();
                             let ret_val = placeholder.clone();
+                            let rejected_flag = rejected.clone();
                             wasm_bindgen_futures::spawn_local(async move {
                                 match JsFuture::from(promise).await {
                                     Ok(result) => {
@@ -162,8 +187,8 @@ impl Instruction for JsLibFuncIns {
                                         *ret = to_raw_value(result);
                                     },
                                     Err(error) => {
-                                        let mut ret = ret_val.write();
-                                        *ret = to_raw_value(error);
+                                        *ret_val.write() = js_error_value(&error);
+                                        *rejected_flag.write() = Val::Bool(true);
                                     }
                                 }
                                 //web_sys::console::log_1(&"calling wake".into());
@@ -173,6 +198,7 @@ impl Instruction for JsLibFuncIns {
                             let mut instructions = Instructions::default();
                             instructions.push(Arc::new(Base::Variable(Variable::refval(placeholder.clone()))));
                             instructions.push(Arc::new(Base::CtrlSleepRef(wake_ref)));
+                            instructions.push(Arc::new(JsLibFuncIns::ThrowIfRejected(rejected)));
                             return Ok(Some(instructions));
                         } else {
                             env.stack.push(Variable::val(to_graph_value(result, &graph)));
@@ -180,7 +206,17 @@ impl Instruction for JsLibFuncIns {
                     },
                     Err(error) => {
                         let mut instructions = Instructions::default();
-                        instructions.push(Arc::new(Base::Literal(to_graph_value(error, &graph))));
+                        instructions.push(Arc::new(Base::Literal(js_error_value(&error))));
+                        instructions.push(THROW.clone());
+                        return Ok(Some(instructions));
+                    }
+                }
+            },
+            Self::ThrowIfRejected(rejected) => {
+                if rejected.read().truthy() {
+                    if let Some(error) = env.stack.pop() {
+                        let mut instructions = Instructions::default();
+                        instructions.push(Arc::new(Base::Literal(error.val.read().clone())));
                         instructions.push(THROW.clone());
                         return Ok(Some(instructions));
                     }

@@ -213,11 +213,46 @@ impl Format for BstfFormat {
 #[cfg(test)]
 mod tests {
     use colored::Colorize;
-    use crate::{model::{Graph, Profile}, parser::{context::ParseContext, doc::document}};
+    use crate::{model::{Graph, Profile}, parser::{context::ParseContext, doc::document}, runtime::Runtime};
+
+    #[test]
+    /// Content types with parameters (Ex. HTTP responses) still find their format.
+    fn content_type_with_parameters() {
+        let mut graph = Graph::default();
+        graph.binary_import("application/json; charset=utf-8", bytes::Bytes::from_static(br#"{"a": 1}"#), None, &Profile::default()).unwrap();
+        graph.binary_import("Application/JSON", bytes::Bytes::from_static(br#"{"b": 2}"#), None, &Profile::default()).unwrap();
+        assert_eq!(graph.string_export("json", None).unwrap(), r#"{"a":1,"b":2}"#);
+    }
+
+    #[test]
+    /// Documents get no file system, environment, or network access unless the host allows it.
+    fn sandboxed_by_default() {
+        use crate::model::{FS_LIB, stof_std::STD_LIB};
+        let mut graph = Graph::default();
+        assert!(graph.libfunc(&FS_LIB, "read").is_none());
+        assert!(graph.libfunc(&STD_LIB, "env").is_none());
+        assert!(graph.libfunc(&"Http".into(), "fetch").is_none());
+
+        // file imports are refused, and so is the fs library
+        let error = graph.parse_stof_src("import text './Cargo.toml' as self.cargo;", None, Profile::default()).unwrap_err();
+        assert!(error.to_string().contains("not allowed"), "{error}");
+        graph.parse_stof_src("fn read() -> str { fs::read_string('./Cargo.toml') }", None, Profile::default()).unwrap();
+        assert!(Runtime::call(&mut graph, "read", vec![]).is_err());
+
+        // the host opts in
+        graph.allow_system();
+        assert!(graph.libfunc(&FS_LIB, "read").is_some());
+        assert!(graph.libfunc(&STD_LIB, "env").is_some());
+        graph.parse_stof_src("import text './Cargo.toml' as self.cargo;", None, Profile::default()).unwrap();
+        assert!(Runtime::call(&mut graph, "read", vec![]).is_ok());
+    }
 
     #[test]
     fn stof_suite() {
         let mut graph = Graph::default();
+        graph.allow_system(); // the suite imports files and tests the fs library
+        #[cfg(feature = "http")]
+        graph.allow_http(); // the Http tests (full features)
         match graph.parse_stof_file("stof", "src/model/formats/stof/tests/tests.stof", None, Profile::test()) {
             Ok(_) => {},
             Err(error) => {
@@ -399,6 +434,7 @@ mod tests {
     #[test]
     fn stof_docs() {
         let mut graph = Graph::default();
+        graph.allow_system(); // the suite imports files and tests the fs library
         graph.insert_lib_docs();
 
         // For testing purposes, document the test suite...

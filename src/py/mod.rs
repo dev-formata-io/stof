@@ -150,6 +150,17 @@ impl Doc {
      * Interop
      *****************************************************************************/
     
+    /// Give this document file system and environment access: the fs library, env functions, and file
+    /// imports. Off by default, so a document can only read and change itself.
+    pub fn allow_system(&mut self) {
+        self.graph.allow_system();
+    }
+
+    /// Give this document network access (the Http library). Off by default.
+    pub fn allow_http(&mut self) {
+        self.graph.allow_http();
+    }
+
     #[pyo3(signature = (lib, name, func, is_async = false))]
     /// Add a python function as a stof library function.
     pub fn lib(&mut self, lib: &str, name: &str, func: Py<PyAny>, is_async: bool) {

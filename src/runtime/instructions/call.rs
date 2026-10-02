@@ -57,7 +57,7 @@ pub struct FuncCall {
 
     /// Look on the stack for the context of this call?
     /// Will pop a value from the stack to use it.
-    /// Used when chaining stuff together Ex. hello[15].my_func('hi').dude()
+    /// Used when chaining stuff together Ex. `hello[15].my_func('hi').dude()`
     pub stack: bool,
 
     /// Is this function call by reference?

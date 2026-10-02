@@ -624,7 +624,10 @@ impl Error {
 
             Self::FuncDne(path) => {
                 if let Some((lib, func)) = path.split_once("::") {
-                    return format!("the {lib} library has no function '{func}'");
+                    if lib == "fs" || lib == "Http" {
+                        return format!("'{lib}::{func}' isn't available: this host hasn't given documents {} access", if lib == "fs" { "file system" } else { "network" });
+                    }
+                    return format!("the {lib} library has no function '{func}' (or the library isn't available in this host)");
                 }
                 if let Some(func) = path.strip_prefix("Std.") {
                     return format!("function '{func}' not found (no variable, standard library function, or function at that path)");
@@ -686,8 +689,8 @@ impl Error {
             Self::Located(error, _) => error.message(),
             Self::RelativeImportWithoutContext => "relative import without a file context".into(),
             Self::GraphFormatNotFound => "format not found".into(),
-            Self::FormatFileImportNotAllowed => "file imports are not allowed here".into(),
-            Self::FormatFileExportNotAllowed => "file exports are not allowed here".into(),
+            Self::FormatFileImportNotAllowed => "file imports are not allowed: this host hasn't given documents file system access (Graph::allow_system(), doc.allow_system() in Python, or the CLI)".into(),
+            Self::FormatFileExportNotAllowed => "file exports are not allowed: this host hasn't given documents file system access (Graph::allow_system(), doc.allow_system() in Python, or the CLI)".into(),
             Self::AgeNoMatchingKeys => "no matching keys to decrypt this data".into(),
             Self::MapConstructor(msg) => format!("map(): {msg}"),
 
@@ -739,7 +742,8 @@ mod tests {
     fn readable_messages() {
         assert_eq!(Error::FuncDne("Num.split".into()).to_string(), "'split' is not a function for a number (Num library)");
         assert_eq!(Error::FuncDne("Empty.round".into()).to_string(), "cannot call 'round' on null (the value is null or missing - check the name or path)");
-        assert_eq!(Error::FuncDne("Num::nope".into()).to_string(), "the Num library has no function 'nope'");
+        assert_eq!(Error::FuncDne("Num::nope".into()).to_string(), "the Num library has no function 'nope' (or the library isn't available in this host)");
+        assert_eq!(Error::FuncDne("fs::read".into()).to_string(), "'fs::read' isn't available: this host hasn't given documents file system access");
         assert_eq!(Error::FuncDne("Std.foo".into()).to_string(), "function 'foo' not found (no variable, standard library function, or function at that path)");
         assert_eq!(Error::StrSplit.to_string(), "Str.split() failed (invalid arguments or value)");
         assert_eq!(Error::TimeToRFC3339.to_string(), "Time.to_rfc3339() failed (invalid arguments or value)");

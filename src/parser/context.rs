@@ -628,6 +628,7 @@ mod tests {
         write("user@host.stof", "from_u: 4");
 
         let mut graph = Graph::default();
+        graph.allow_system();
         let entry = root.join("main.stof");
         graph.parse_stof_file("stof", entry.to_str().unwrap(), None, Profile::default()).expect("imports resolve");
         let _ = std::fs::remove_dir_all(&root);
@@ -663,8 +664,11 @@ mod tests {
         std::fs::write(root.join("bad.stof"), "import notaformat './x' as self.X;").unwrap();
 
         let mut graph = Graph::default();
+        graph.allow_system();
         graph.parse_stof_file("stof", root.join("main.stof").to_str().unwrap(), None, Profile::default()).expect("imports");
-        let bad = Graph::default().parse_stof_file("stof", root.join("bad.stof").to_str().unwrap(), None, Profile::default());
+        let mut bad_graph = Graph::default();
+        bad_graph.allow_system();
+        let bad = bad_graph.parse_stof_file("stof", root.join("bad.stof").to_str().unwrap(), None, Profile::default());
         let _ = std::fs::remove_dir_all(&root);
 
         let main = graph.main_root().unwrap();

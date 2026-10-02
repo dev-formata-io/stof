@@ -100,10 +100,25 @@ pub fn to_graph_value(js: JsValue, doc: &Graph) -> Val {
             Val::Null
         }
     }
-    else {
-        // cast to blob type
-        let intarray = Uint8Array::from(js);
+    else if js.is_instance_of::<Uint8Array>() || js.is_instance_of::<js_sys::ArrayBuffer>() {
+        // binary data
+        let intarray = Uint8Array::new(&js);
         Val::Blob(intarray.to_vec().into())
+    }
+    else if js.is_object() {
+        // plain JS objects become maps (string keys), like Python dicts
+        let mut stof_map = OrdMap::default();
+        for entry in js_sys::Object::entries(&js_sys::Object::from(js)).iter() {
+            let pair = Array::from(&entry);
+            stof_map.insert(
+                ValRef::new(to_graph_value(pair.get(0), doc)),
+                ValRef::new(to_graph_value(pair.get(1), doc))
+            );
+        }
+        Val::Map(stof_map)
+    }
+    else {
+        Val::Null
     }
 }
 
@@ -170,10 +185,25 @@ pub fn to_raw_value(js: JsValue) -> Val {
             Val::Null
         }
     }
-    else {
-        // cast to blob type
-        let intarray = Uint8Array::from(js);
+    else if js.is_instance_of::<Uint8Array>() || js.is_instance_of::<js_sys::ArrayBuffer>() {
+        // binary data
+        let intarray = Uint8Array::new(&js);
         Val::Blob(intarray.to_vec().into())
+    }
+    else if js.is_object() {
+        // plain JS objects become maps (string keys), like Python dicts
+        let mut stof_map = OrdMap::default();
+        for entry in js_sys::Object::entries(&js_sys::Object::from(js)).iter() {
+            let pair = Array::from(&entry);
+            stof_map.insert(
+                ValRef::new(to_raw_value(pair.get(0))),
+                ValRef::new(to_raw_value(pair.get(1)))
+            );
+        }
+        Val::Map(stof_map)
+    }
+    else {
+        Val::Null
     }
 }
 

@@ -298,12 +298,8 @@ impl Graph {
             insert_profile_lib(self, &Profile::default());
         }
         
-        // System libs
-        #[cfg(feature = "system")]
-        fs_library(self);
-
-        #[cfg(any(feature = "js", feature = "http"))]
-        insert_http_lib(self);
+        // No system or network access here: documents only see themselves until a host opts in
+        // with allow_system() (file system, environment, file imports) or allow_http() (network).
 
         // Data libs
         #[cfg(feature = "pdf")]
@@ -314,6 +310,21 @@ impl Graph {
         // Age lib
         #[cfg(feature = "age_encrypt")]
         insert_age_encrypt_library(self);
+    }
+
+    #[cfg(feature = "system")]
+    /// Give documents access to the file system and environment variables: the `fs` library, the `env`
+    /// functions, and file imports/exports (`import './x.stof'`, `pkg` imports). Off by default, so a
+    /// document can only read and change itself.
+    pub fn allow_system(&mut self) {
+        fs_library(self);
+        crate::model::stof_std::insert_env_functions(self);
+    }
+
+    #[cfg(any(feature = "js", feature = "http"))]
+    /// Give documents network access: the `Http` library. Off by default.
+    pub fn allow_http(&mut self) {
+        insert_http_lib(self);
     }
 
     /// Insert library documentation.
@@ -1197,10 +1208,12 @@ impl Graph {
         self.formats.get(id).cloned()
     }
 
-    /// Get a format by content type.
+    /// Get a format by content type. Parameters are ignored and case doesn't matter
+    /// (Ex. "application/json; charset=utf-8" is the json format).
     pub fn get_format_by_content_type(&self, id: &str) -> Option<Arc<dyn Format>> {
+        let media_type = id.split(';').next().unwrap_or_default().trim();
         for (_, fmt) in &self.formats {
-            if fmt.content_type() == id {
+            if fmt.content_type().eq_ignore_ascii_case(media_type) {
                 return Some(fmt.clone());
             }
         }
@@ -1456,7 +1469,7 @@ impl Graph {
     }
 
     #[inline]
-    /// Run this graph, calling all #[main] functions, optionally resulting in an Err or always Ok.
+    /// Run this graph, calling all `#[main]` functions, optionally resulting in an Err or always Ok.
     pub fn run(&mut self, context: Option<String>, throw: bool) -> Result<String, String> {
         Runtime::run(self, context, throw)
     }

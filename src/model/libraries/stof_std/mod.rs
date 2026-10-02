@@ -90,15 +90,6 @@ pub fn stof_std_lib(graph: &mut Graph) {
     graph.insert_libfunc(std_peek());
     graph.insert_libfunc(std_tracestack());
 
-    #[cfg(feature = "system")]
-    graph.insert_libfunc(std_env());
-    #[cfg(feature = "system")]
-    graph.insert_libfunc(std_set_env());
-    #[cfg(feature = "system")]
-    graph.insert_libfunc(std_remove_env());
-    #[cfg(feature = "system")]
-    graph.insert_libfunc(std_env_vars());
-
     #[cfg(feature = "log")]
     graph.insert_libfunc(std_log_error());
     #[cfg(feature = "log")]
@@ -164,7 +155,7 @@ pub enum StdIns {
     Dbg(usize),
     Err(usize),
 
-    /// xml(text: str, tag: str) -> str</br>
+    /// xml(text: str, tag: str) -> str<br>
     /// xml('hello', 'msg') -> '\<msg>hello\</msg>'
     XmlTag,
 
@@ -1295,4 +1286,15 @@ impl Instruction for StdIns {
         }
         Ok(None)
     }
+}
+
+
+#[cfg(feature = "system")]
+/// Environment variable functions (env, set_env, remove_env, env_vars).
+/// Not part of the default library: a host opts in with `Graph::allow_system()`.
+pub fn insert_env_functions(graph: &mut Graph) {
+    graph.insert_libfunc(std_env());
+    graph.insert_libfunc(std_set_env());
+    graph.insert_libfunc(std_remove_env());
+    graph.insert_libfunc(std_env_vars());
 }
