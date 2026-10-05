@@ -16,7 +16,7 @@
 
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Graph, NodeRef}, runtime::{Error, Variable}};
+use crate::{model::{DataRef, Graph, NodeRef}, runtime::{Error, Val, Variable}};
 
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -52,8 +52,41 @@ impl SymbolTable {
 
     #[inline(always)]
     /// Pop a scope from this table.
-    pub fn pop(&mut self) -> bool {
-        self.scopes.pop().is_some()
+    /// Returns the values of its `using` variables that still need dropping (objects, functions, data),
+    /// last declared first. The caller drops them (see Base::using_drops).
+    pub fn pop(&mut self) -> Vec<Val> {
+        match self.scopes.pop() {
+            Some(scope) => scope.owned(),
+            None => Vec::new(),
+        }
+    }
+
+    /// Mark a variable in the current scope as `using`: dropped when this scope ends.
+    pub fn mark_using(&mut self, name: impl AsRef<str>) {
+        if let Some(scope) = self.scopes.last_mut() {
+            if scope.has(name.as_ref()) {
+                scope.using.push(name.as_ref().to_string());
+            }
+        }
+    }
+
+    /// Take every `using` value in every scope (innermost first), leaving the variables in place.
+    /// Used when a process fails with an uncaught error, so its scopes are never popped.
+    pub fn take_all_using(&mut self) -> Vec<Val> {
+        let mut vals = Vec::new();
+        for scope in self.scopes.iter_mut().rev() {
+            vals.append(&mut scope.owned());
+            scope.using.clear();
+        }
+        vals
+    }
+
+    /// Forget `using` marks without dropping anything (Ex. a spawned process's copy of its parent's table:
+    /// the parent still owns those values).
+    pub fn disown_using(&mut self) {
+        for scope in &mut self.scopes {
+            scope.using.clear();
+        }
     }
 
     #[inline(always)]
@@ -134,8 +167,28 @@ pub struct Scope {
     /// Function scope: lookups stop here (no dynamic scoping into the caller).
     #[serde(default)]
     pub boundary: bool,
+
+    /// Names of `using` variables in this scope, in declaration order: dropped when the scope ends.
+    #[serde(default)]
+    pub using: Vec<String>,
 }
 impl Scope {
+    /// Values of this scope's `using` variables that hold something droppable, last declared first.
+    /// A variable that was already dropped (or removed) is skipped.
+    fn owned(&self) -> Vec<Val> {
+        let mut vals = Vec::new();
+        for name in self.using.iter().rev() {
+            if let Some(var) = self.variables.get(name) {
+                let val = var.val.read().clone();
+                match &val {
+                    Val::Obj(_) | Val::Fn(_) | Val::Data(_) => vals.push(val),
+                    _ => {}
+                }
+            }
+        }
+        vals
+    }
+
     #[inline(always)]
     /// Has a variable with this name?
     pub fn has(&self, name: impl AsRef<str>) -> bool {

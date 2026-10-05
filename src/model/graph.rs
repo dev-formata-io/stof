@@ -1469,6 +1469,12 @@ impl Graph {
     }
 
     #[inline]
+    /// Test this graph one test at a time, also failing tests that leave objects behind (see Runtime::test_leaks).
+    pub fn test_leaks(&mut self, context: Option<String>, throw: bool) -> Result<String, String> {
+        Runtime::test_leaks(self, context, throw)
+    }
+
+    #[inline]
     /// Run this graph, calling all `#[main]` functions, optionally resulting in an Err or always Ok.
     pub fn run(&mut self, context: Option<String>, throw: bool) -> Result<String, String> {
         Runtime::run(self, context, throw)
@@ -1570,6 +1576,70 @@ mod tests {
     #[test]
     /// Host APIs (JS/Python/Rust get, set, call) resolve paths from the main root (or start object) when the
     /// first segment is there; roots, types, and libraries keep working.
+    fn using_values_dropped_on_uncaught_error() {
+        use crate::runtime::Runtime;
+        let mut graph = Graph::default();
+        graph.parse_stof_src(r#"
+            fn fails() {
+                using tmp = new { x: 1 };
+                using other = new { y: 2 };
+                throw('boom');
+            }
+        "#, None, crate::model::Profile::default()).unwrap();
+        let before = graph.nodes.len();
+        assert!(Runtime::call(&mut graph, "fails", vec![]).is_err());
+        assert_eq!(graph.nodes.len(), before);
+    }
+
+    #[test]
+    fn test_leaks_reports_unreferenced_objects() {
+        let mut graph = Graph::default();
+        graph.parse_stof_src(r#"
+            list kept: [];
+            #[test] fn leaks() { const tmp = new { x: 1 }; }
+            #[test] fn clean() { using tmp = new { x: 1 }; }
+            #[test] fn stored() {
+                self.field_obj = new { y: 2 };     // referenced by a field
+                self.kept.push_back(new { z: 3 }); // referenced from a list in a field
+            }
+        "#, None, crate::model::Profile::test()).unwrap();
+        let out = graph.test_leaks(None, true).unwrap_err();
+        // the report is colored when the terminal supports it (Ex. Windows): compare the plain text
+        let mut plain = String::new();
+        let mut chars = out.chars();
+        while let Some(c) = chars.next() {
+            if c == '\u{1b}' { for c in chars.by_ref() { if c == 'm' { break; } } } else { plain.push(c); }
+        }
+        let out = plain;
+        assert!(out.contains("1 leaking tests"), "{out}");
+        assert!(out.contains("leaks ... 1 object never dropped"), "{out}");
+        assert!(out.contains("2 passed; 1 failed"), "{out}");
+
+        // the normal runner doesn't check
+        let mut graph = Graph::default();
+        graph.parse_stof_src("#[test] fn leaks() { const tmp = new { x: 1 }; }", None, crate::model::Profile::test()).unwrap();
+        assert!(graph.test(None, true).is_ok());
+    }
+
+    #[test]
+    fn failed_async_child_keeps_parent_using_values() {
+        use crate::runtime::{Runtime, Val};
+        let mut graph = Graph::default();
+        graph.parse_stof_src(r#"
+            fn parent() -> bool {
+                using kept = new { v: 1 };
+                try {
+                    await async { throw('child failed'); };
+                } catch {}
+                kept.exists()
+            }
+        "#, None, crate::model::Profile::default()).unwrap();
+        let before = graph.nodes.len();
+        assert_eq!(Runtime::call(&mut graph, "parent", vec![]).unwrap(), Val::Bool(true));
+        assert_eq!(graph.nodes.len(), before); // and dropped when parent returned
+    }
+
+    #[test]
     fn host_paths_are_relative_to_main_root() {
         use crate::runtime::{Runtime, Val};
         let mut graph = Graph::default();

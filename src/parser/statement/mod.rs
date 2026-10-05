@@ -17,7 +17,7 @@
 use std::sync::Arc;
 use imbl::{vector, Vector};
 use nom::{branch::alt, combinator::map, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, value}, multi::fold_many0, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
-use crate::{parser::{source, doc::{StofParseError, err_fail, note_statement_error}, expr::expr, statement::{assign::assign, declare::declare_statement, forin::for_in_loop, fors::for_loop, ifs::if_statement, switch::switch_statement, trycatch::try_catch_statement, whiles::{break_statement, continue_statement, loop_statement, while_statement}}, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{empty::EmptyIns, ret::RetIns, Base, POP_STACK, POP_SYMBOL_SCOPE, PUSH_SYMBOL_SCOPE, SUSPEND}, Type}};
+use crate::{parser::{source, doc::{StofParseError, err_fail, note_statement_error}, expr::expr, statement::{assign::assign, declare::{declare_statement, declare_using_var}, forin::for_in_loop, fors::for_loop, ifs::if_statement, switch::switch_statement, trycatch::try_catch_statement, whiles::{break_statement, continue_statement, loop_statement, while_statement}}, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{empty::EmptyIns, ret::RetIns, Base, POP_STACK, POP_SYMBOL_SCOPE, PUSH_SYMBOL_SCOPE, SUSPEND}, Type}};
 
 pub mod declare;
 pub mod assign;
@@ -93,6 +93,9 @@ fn statement_inner(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, S
     let word_len = input.bytes().take_while(|b| b.is_ascii_alphanumeric() || *b == b'_').count();
     let keyword_res = match &input[..word_len] {
         "let" | "const" => Some(terminated(declare_statement, preceded(multispace0, char(';'))).parse(input)),
+        // "using name = ..." (a variable or field named "using" is still just a name: "using = 3;")
+        "using" if input[word_len..].trim_start().starts_with(|c: char| c.is_alphabetic() || c == '_')
+            && input[word_len..].starts_with(char::is_whitespace) => Some(terminated(declare_using_var, preceded(multispace0, char(';'))).parse(input)),
         "return" => Some(return_statement(input)),
         "if" => Some(if_statement(input)),
         "while" => Some(while_statement(input)),

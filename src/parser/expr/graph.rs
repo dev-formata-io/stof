@@ -15,8 +15,8 @@
 //
 
 use std::sync::Arc;
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, recognize}, multi::{many0, separated_list0, separated_list1}, sequence::{delimited, preceded}, IResult, Parser};
-use crate::{model::SId, parser::{statement::declare::note_referenced, doc::StofParseError, expr::expr, ident::{ident, ident_type}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, call::{FuncCall, NamedArg}, Base}}};
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, recognize}, multi::{many0, separated_list1}, sequence::{delimited, preceded}, IResult, Parser};
+use crate::{model::SId, parser::{statement::declare::note_referenced, doc::StofParseError, expr::expr, ident::{ident, ident_type}, whitespace::{paren_list, whitespace}}, runtime::{instruction::Instruction, instructions::{block::Block, call::{FuncCall, NamedArg}, Base}}};
 
 
 /// Graph interaction expression.
@@ -202,21 +202,17 @@ pub(self) fn lib_path(input: &str) -> IResult<&str, (&str, bool, &str), StofPars
 /// This is what comes after the variable expression.
 /// If this exists, the last section of the variable expr was actually a function name.
 pub(super) fn call_expr(input: &str) -> IResult<&str, Vec<Arc<dyn Instruction>>, StofParseError> {
-    delimited(
-        char('('),
-        separated_list0(char(','), call_arg),
-        char(')')
-    ).parse(input)
+    paren_list(input, call_arg)
 }
 pub(self) fn call_arg(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
-    let (input, _) = multispace0(input)?;
+    let (input, _) = whitespace(input)?;
 
     let (input, ins) = alt((
         named_arg,
         expr
     )).parse(input)?;
 
-    let (input, _) = multispace0(input)?;
+    let (input, _) = whitespace(input)?;
     Ok((input, ins))
 }
 pub(self) fn named_arg(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {

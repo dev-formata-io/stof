@@ -145,3 +145,35 @@ fn arrow_scoped() {
     };
     assert_eq(created.visit(), created);
 }
+
+
+fn add_trailing(
+    a: int,
+    b: int = 2, // trailing comma after the last parameter
+) -> int {
+    a + b
+}
+
+#[test]
+/// Call arguments and parameter lists can end with a comma, with comments anywhere inside.
+fn trailing_commas() {
+    assert_eq(max(1, 2,), 2);
+    assert_eq(self.add_trailing(1,), 3);
+    assert_eq(self.add_trailing(
+        1, // the value
+        /* and */ b = 5,
+    ), 6);
+    const arrow = (x: int, y: int,): int => x * y;
+    assert_eq(arrow(3, 4,), 12);
+    const list = [3, 1];
+    list.push_back(2,);
+    assert_eq(list, [3, 1, 2]);
+    assert_eq(self.built_map().len(), 2);
+}
+
+fn built_map() -> map {
+    map(
+        ('a', 1),
+        ('b', 2),
+    )
+}

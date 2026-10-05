@@ -15,8 +15,8 @@
 //
 
 use std::sync::Arc;
-use nom::{bytes::complete::tag, branch::alt, character::complete::{char, multispace0}, combinator::opt, multi::separated_list0, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{model::{Func, FuncDoc, Param, SId, ASYNC_FUNC_ATTR}, parser::{source, context::ParseContext, doc::{err_fail, StofParseError}, expr::expr, ident::ident, parse_attributes, statement::{block, declare::{take_declared_names, take_referenced_names}}, types::parse_type, whitespace::{doc_comment, whitespace}}, runtime::{instruction::Instruction, instructions::Base, Val}};
+use nom::{bytes::complete::tag, branch::alt, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded, terminated}, IResult, Parser};
+use crate::{model::{Func, FuncDoc, Param, SId, ASYNC_FUNC_ATTR}, parser::{source, context::ParseContext, doc::{err_fail, StofParseError}, expr::expr, ident::ident, parse_attributes, statement::{block, declare::{take_declared_names, take_referenced_names}}, types::parse_type, whitespace::{doc_comment, paren_list, whitespace}}, runtime::{instruction::Instruction, instructions::Base, Val}};
 
 
 /// Parse a function into a parse context.
@@ -47,7 +47,7 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
 
     let (input, _) = tag("fn").parse(input)?;
     let (input, name) = preceded(multispace0, ident).parse(input).map_err(err_fail)?;
-    let (input, params) = delimited(char('('), separated_list0(char(','), alt((parameter, opt_parameter))), char(')')).parse(input).map_err(err_fail)?;
+    let (input, params) = paren_list(input, any_parameter).map_err(err_fail)?;
     let (input, return_type) = opt(preceded(delimited(multispace0, tag("->"), multispace0), parse_type)).parse(input).map_err(err_fail)?;
     take_declared_names(); // drop anything declared outside of this function body
     take_referenced_names();
@@ -94,6 +94,12 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
     }
 
     Ok((input, ()))
+}
+
+
+/// A parameter: `name: type` or optional `name?: type`, either with an optional default.
+pub fn any_parameter(input: &str) -> IResult<&str, Param, StofParseError> {
+    alt((parameter, opt_parameter)).parse(input)
 }
 
 

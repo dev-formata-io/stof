@@ -49,6 +49,14 @@ Ops: {
     #[test]
     fn fract() {
         assert_eq((5.7).fract().round(2), 0.7);
+
+        // more than 9 places (the scale used to overflow), and places past f64 precision
+        assert_eq(Num::round(0.0105, 12), 0.0105);
+        assert_eq((1.23456789012345).round(11), 1.23456789012);
+        assert_eq((0.1 + 0.2).round(15), 0.3);
+        assert_eq((2.5).round(400), 2.5);
+        assert_eq((1e300).round(20), 1e300);
+        assert_eq(5MB.round(12), 5MB);
     }
 
     #[test]

@@ -14,8 +14,21 @@
 // limitations under the License.
 //
 
-use nom::{branch::alt, bytes::complete::{tag, take_until}, character::complete::{multispace0, multispace1, not_line_ending}, multi::separated_list0, IResult, Parser};
+use nom::{branch::alt, bytes::complete::{tag, take_until}, character::complete::{char, multispace0, multispace1, not_line_ending}, combinator::opt, multi::separated_list0, sequence::{delimited, terminated}, IResult, Parser};
 use crate::parser::doc::StofParseError;
+
+
+/// A parenthesized, comma-separated list: call arguments and function parameters.
+/// Whitespace and comments are allowed anywhere inside, and a non-empty list may end with a comma (Ex. `(a, b,)`).
+pub fn paren_list<'a, O>(input: &'a str, item: fn(&'a str) -> IResult<&'a str, O, StofParseError>) -> IResult<&'a str, Vec<O>, StofParseError> {
+    let (input, _) = char('(').parse(input)?;
+    let (input, _) = whitespace(input)?;
+    let (input, items) = separated_list0(delimited(whitespace, char(','), whitespace), item).parse(input)?;
+    let (input, _) = whitespace(input)?;
+    let (input, _) = if items.is_empty() { (input, None) } else { opt(terminated(char(','), whitespace)).parse(input)? };
+    let (input, _) = char(')').parse(input)?;
+    Ok((input, items))
+}
 
 
 /// Doc comment.

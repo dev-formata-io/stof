@@ -1686,35 +1686,17 @@ impl Num {
         Ok(())
     }
 
-    /// Round 2.
+    /// Round to a number of decimal places.
     pub fn round2(&mut self, digits: &Self) -> Result<(), Error> {
         match &mut *self {
             Self::Float(v) => {
-                let digits = digits.int();
-                if digits > 0 {
-                    let mut scale = 1;
-                    for _ in 0..digits {
-                        scale *= 10;
-                    }
-                    *v = (*v * scale as f64).round()/(scale as f64);
-                } else {
-                    *v = v.round();
-                }
+                *v = round_to(*v, digits.int());
             },
             Self::Int(_v) => {
                 // rounded
             },
             Self::Units(v, _) => {
-                let digits = digits.int();
-                if digits > 0 {
-                    let mut scale = 1;
-                    for _ in 0..digits {
-                        scale *= 10;
-                    }
-                    *v = (*v * scale as f64).round()/(scale as f64);
-                } else {
-                    *v = v.round();
-                }
+                *v = round_to(*v, digits.int());
             }
         }
         Ok(())
@@ -1769,4 +1751,16 @@ impl Num {
         *self = Self::Units(rad, Units::Radians);
         Ok(())
     }
+}
+
+
+/// Round to `digits` decimal places (0 or less: to a whole number).
+/// The scale is a float (an integer scale overflowed past 9 digits), and a value too large to scale
+/// is returned as-is (it has no decimals at that precision anyway).
+fn round_to(v: f64, digits: i64) -> f64 {
+    if digits <= 0 { return v.round(); }
+    let scale = 10f64.powi(digits.min(400) as i32);
+    let scaled = v * scale;
+    if !scaled.is_finite() || !scale.is_finite() { return v; }
+    scaled.round() / scale
 }

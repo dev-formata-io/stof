@@ -441,6 +441,15 @@ impl Instructions {
                             env.stack.push(Variable::val(error.catch_value()));
                             continue 'exec_loop;
                         } else {
+                            // uncaught: this process's scopes will never be popped, so drop its `using`
+                            // values here (no #[dropped] functions - the process can't run any more)
+                            for val in env.table.take_all_using() {
+                                match val {
+                                    Val::Obj(nref) => { graph.remove_node(&nref, true); },
+                                    Val::Fn(dref) | Val::Data(dref) => { graph.remove_data(&dref, None); },
+                                    _ => {}
+                                }
+                            }
                             return Err(error);
                         }
                     },

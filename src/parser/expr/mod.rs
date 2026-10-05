@@ -34,6 +34,7 @@ pub fn expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> 
 }
 fn expr_inner(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, mut ins) = alt([
+        using_expr,
         new_obj_expr,
         func_expr,
         await_expr,
@@ -377,6 +378,28 @@ pub fn paren_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseE
     }
     let (input, _) = char(')').parse(input)?;
     finish_wrapped(input, first)
+}
+
+
+/// Using expression: `f(using new { .. })` - the value is dropped when the enclosing block or function ends,
+/// like a `using` declaration without a name.
+/// "using" is only this when an operand follows (a variable named "using" still works: `using + 1`).
+pub fn using_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
+    let (input, _) = whitespace(input)?;
+    let (input, _) = tag("using").parse(input)?;
+    if !input.starts_with(char::is_whitespace) {
+        return Err(nom::Err::Error(nom::error::ParseError::from_error_kind(input, nom::error::ErrorKind::Tag)));
+    }
+    let (input, _) = whitespace(input)?;
+    if input.starts_with(|c: char| "-+*/%=!<>&|?.:,;)]}^".contains(c)) {
+        return Err(nom::Err::Error(nom::error::ParseError::from_error_kind(input, nom::error::ErrorKind::Tag)));
+    }
+    let (input, ins) = alt((new_obj_expr, func_expr, crate::parser::expr::math::primary)).parse(input)?;
+
+    let mut block = Block::default();
+    block.ins.push_back(ins);
+    block.ins.push_back(Arc::new(Base::UsingValue));
+    Ok((input, Arc::new(block)))
 }
 
 

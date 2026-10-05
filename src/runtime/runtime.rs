@@ -21,7 +21,7 @@ use web_time::{SystemTime, UNIX_EPOCH};
 use colored::Colorize;
 use imbl::Vector;
 use rustc_hash::{FxHashMap, FxHashSet};
-use crate::{model::{DataRef, Func, Graph, SId}, runtime::{instruction::Instruction, instructions::{call::FuncCall, Base}, proc::{ProcRes, Process}, Error, Val, Waker}};
+use crate::{model::{DataRef, Field, Func, Graph, NodeRef, SId}, runtime::{instruction::Instruction, instructions::{call::FuncCall, Base}, proc::{ProcRes, Process}, Error, Val, Waker}};
 
 #[cfg(feature = "tokio")]
 use parking_lot::RwLock;
@@ -1032,10 +1032,53 @@ impl Runtime {
     /// Will insert callbacks into this runtime for printing results.
     /// If throw is false, this will only return Ok.
     pub fn test(graph: &mut Graph, context: Option<String>, throw: bool) -> Result<String, String> {
+        Self::test_with(graph, context, throw, false)
+    }
+
+    /// Test every #[test] function, one at a time, reporting objects each test leaves behind: objects it
+    /// created that nothing references (no field, and not inside a field's list, map, set, or tuple).
+    /// A test that leaks fails. See test().
+    pub fn test_leaks(graph: &mut Graph, context: Option<String>, throw: bool) -> Result<String, String> {
+        Self::test_with(graph, context, throw, true)
+    }
+
+    /// Objects created since `before` that nothing references: no field holds them (directly or inside a
+    /// list, map, set, or tuple), and they aren't roots. Only the top of each leaked subtree is returned.
+    fn leaked_objects(graph: &Graph, before: &FxHashSet<NodeRef>) -> Vec<NodeRef> {
+        fn collect(val: &Val, out: &mut FxHashSet<NodeRef>) {
+            match val {
+                Val::Obj(nref) => { out.insert(nref.clone()); },
+                Val::List(vals) | Val::Tup(vals) => for val in vals { collect(&val.read(), out); },
+                Val::Set(vals) => for val in vals { collect(&val.read(), out); },
+                Val::Map(map) => for (key, val) in map { collect(&key.read(), out); collect(&val.read(), out); },
+                _ => {}
+            }
+        }
+        let created: Vec<NodeRef> = graph.nodes.keys().filter(|nref| !before.contains(*nref) && !graph.roots.contains(*nref)).cloned().collect();
+        if created.is_empty() { return created; }
+
+        let mut referenced = FxHashSet::default();
+        for dref in graph.data.keys() {
+            if let Some(field) = graph.get_stof_data::<Field>(dref) {
+                collect(&field.value.val.read(), &mut referenced);
+            }
+        }
+        let leaked: FxHashSet<NodeRef> = created.into_iter().filter(|nref| !referenced.contains(nref)).collect();
+        let mut tops: Vec<NodeRef> = leaked.iter()
+            .filter(|nref| nref.node_parent(graph).map(|parent| !leaked.contains(&parent)).unwrap_or(true))
+            .cloned()
+            .collect();
+        tops.sort();
+        tops
+    }
+
+    fn test_with(graph: &mut Graph, context: Option<String>, throw: bool, leaks: bool) -> Result<String, String> {
         // Create a fresh runtime
         let mut rt = Self::default();
         // the function each process starts with (errors before the call starts have no call stack)
         let mut entry_funcs: FxHashMap<SId, DataRef> = FxHashMap::default();
+        // leak mode: processes are pushed and run one at a time below
+        let mut queued: Vec<(Process, DataRef)> = Vec::new();
 
         // Load all processes for all test functions
         let mut count = 0;
@@ -1056,8 +1099,12 @@ impl Runtime {
                             }) as Arc<dyn Instruction>;
                             let proc = Process::from(instruction);
                             count += 1;
-                            let pid = rt.push_running_proc(proc, graph);
-                entry_funcs.insert(pid, func_ref.clone());
+                            if leaks {
+                                queued.push((proc, func_ref.clone()));
+                            } else {
+                                let pid = rt.push_running_proc(proc, graph);
+                                entry_funcs.insert(pid, func_ref.clone());
+                            }
                             break;
                         }
                     }
@@ -1074,8 +1121,12 @@ impl Runtime {
                 }) as Arc<dyn Instruction>;
                 let proc = Process::from(instruction);
                 count += 1;
-                let pid = rt.push_running_proc(proc, graph);
-                entry_funcs.insert(pid, func_ref.clone());
+                if leaks {
+                    queued.push((proc, func_ref.clone()));
+                } else {
+                    let pid = rt.push_running_proc(proc, graph);
+                    entry_funcs.insert(pid, func_ref.clone());
+                }
             }
         }
 
@@ -1148,7 +1199,20 @@ impl Runtime {
         // Run to completion
         println!("{} {} {} {}", "running".bold(), count, "tests".bold(), "...".dimmed());
         let start = SystemTime::now();
-        rt.run_to_complete(graph);
+        // (test function, leaked objects): only filled in leak mode
+        let mut leaked: Vec<(DataRef, Vec<NodeRef>)> = Vec::new();
+        if leaks {
+            for (proc, func_ref) in queued {
+                let before: FxHashSet<NodeRef> = graph.nodes.keys().cloned().collect();
+                let pid = rt.push_running_proc(proc, graph);
+                entry_funcs.insert(pid, func_ref.clone());
+                rt.run_to_complete(graph);
+                let objects = Self::leaked_objects(graph, &before);
+                if !objects.is_empty() { leaked.push((func_ref, objects)); }
+            }
+        } else {
+            rt.run_to_complete(graph);
+        }
         let duration = start.elapsed().unwrap_or_default();
 
         // Gather results and output
@@ -1202,11 +1266,44 @@ impl Runtime {
             }
             output.push('\n');
         }
-        let passed = count - rt.errored.len();
-        let dur = (duration.as_secs_f32() * 100.0).round() / 100.0;
-        output.push_str(&format!("\ntest result: {}. {} passed; {} failed; finished in {}s\n", result, passed, rt.errored.len(), dur));
+        // Leaks (leak mode): a leaking test fails, unless it already failed
+        let errored_funcs: FxHashSet<DataRef> = rt.errored.iter()
+            .filter_map(|(pid, failure)| failure.env.call_stack.first().cloned().or_else(|| entry_funcs.get(pid).cloned()))
+            .collect();
+        let mut leak_failures = 0;
+        if !leaked.is_empty() {
+            result = "failed".bold().red();
+            output.push_str(&format!("{} leaking tests:\n", leaked.len()));
+            for (func_ref, objects) in &leaked {
+                if !errored_funcs.contains(func_ref) { leak_failures += 1; }
+                let name = func_ref.data_name(graph).map(|name| name.to_string()).unwrap_or_default();
+                let mut func_path = String::from("<unknown>");
+                for node in func_ref.data_nodes(graph) {
+                    func_path = node.node_path(graph, true).map(|path| path.join(".")).unwrap_or_default();
+                }
+                output.push_str(&format!("\n{}: {}{}{} ... {} object{} never dropped\n", "leaked".bold().red(), func_path.italic().purple(), " @ ".dimmed(),
+                    name.italic().blue(), objects.len(), if objects.len() == 1 { "" } else { "s" }));
+                // where they are (by parent), most common first
+                let mut parents: FxHashMap<String, usize> = FxHashMap::default();
+                for object in objects {
+                    let parent = object.node_parent(graph).and_then(|parent| parent.node_path(graph, true)).map(|path| path.join(".")).unwrap_or_else(|| "<root>".to_string());
+                    *parents.entry(parent).or_default() += 1;
+                }
+                let mut parents: Vec<_> = parents.into_iter().collect();
+                parents.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+                for (parent, n) in parents.iter().take(5) {
+                    output.push_str(&format!("  {n} on {parent} (drop it, or declare it with `using`)\n"));
+                }
+            }
+            output.push('\n');
+        }
 
-        if throw && rt.errored.len() > 0 {
+        let failed = rt.errored.len() + leak_failures;
+        let passed = count - failed;
+        let dur = (duration.as_secs_f32() * 100.0).round() / 100.0;
+        output.push_str(&format!("\ntest result: {}. {} passed; {} failed; finished in {}s\n", result, passed, failed, dur));
+
+        if throw && failed > 0 {
             Err(output)
         } else {
             Ok(output)

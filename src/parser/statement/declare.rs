@@ -16,7 +16,7 @@
 
 use std::{cell::RefCell, sync::Arc};
 use imbl::Vector;
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded}, IResult, Parser};
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0, multispace1}, combinator::opt, sequence::{delimited, preceded}, IResult, Parser};
 use crate::{parser::{doc::StofParseError, expr::expr, ident::ident, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::Base, Type, Val}};
 
 
@@ -115,6 +115,30 @@ pub(self) fn declare_const_var(input: &str) -> IResult<&str, Vector<Arc<dyn Inst
     } else {
         block.push_back(Arc::new(Base::DeclareConstVar(varname.to_string().into(), Type::Void))); // no type enforcement
     }
+    Ok((input, block))
+}
+
+
+/// Using declaration: a const variable whose object is dropped when its scope ends (block or function exit,
+/// including return, break, and errors).
+/// using tmp = new { .. }
+pub fn declare_using_var(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
+    let (input, _) = whitespace(input)?;
+    let (input, varname) = delimited(tag("using"), preceded(multispace1, ident), multispace0).parse(input)?;
+    let (input, cast_type) = opt(preceded(char(':'), parse_type)).parse(input)?;
+    let (input, _) = delimited(multispace0, char('='), multispace0).parse(input)?;
+    let (input, expr) = expr(input)?;
+    note_declared(varname);
+
+    let mut block = Vector::default();
+    block.push_back(expr);
+    if let Some(cast_type) = cast_type {
+        block.push_back(Arc::new(Base::Cast(cast_type.clone())));
+        block.push_back(Arc::new(Base::DeclareConstVar(varname.to_string().into(), cast_type)));
+    } else {
+        block.push_back(Arc::new(Base::DeclareConstVar(varname.to_string().into(), Type::Void))); // no type enforcement
+    }
+    block.push_back(Arc::new(Base::MarkUsing(varname.to_string().into())));
     Ok((input, block))
 }
 

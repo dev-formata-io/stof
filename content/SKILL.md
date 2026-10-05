@@ -70,6 +70,14 @@ Read these before writing Stof. Each one is a real mistake that produces wrong r
     fields (`self.api.timeout = 2min` in one, `self.api.replicas = 0` in another) interleave and break each other.
     Give each test its own data (`new { ... }`, or fields only that test uses) and treat shared fields as
     read-only. Sharing is intended for tests that coordinate on purpose.
+15. **Objects are never garbage collected.** `new { ... }` adds an object to the document (a child of `self`, or of
+    the `on` parent) until something drops it; an unreferenced one is still in binary (BSTF) exports of its parent.
+    Values (numbers, strings, lists, maps, sets, tuples) are freed automatically. For a temporary object, declare it
+    with `using` and it is dropped when its block or function ends, on every exit (return, break, error):
+    `using event = new { id, amount };`, or inline: `self.handle(using new { id })`. Use a map instead when you
+    don't need an object. For many temporaries, put
+    them `on` one scratch object and drop that: `{ using scratch = new {}; ... new { .. } on scratch ... }`.
+    Don't return a `using` object (it is dropped on return). `stof test --leaks` fails tests that leave objects behind.
 
 **Answers to common questions:**
 - A missing field reads as null (`self.nope` is null, no error); calling a missing function throws (`FuncDne`)
@@ -80,8 +88,8 @@ Read these before writing Stof. Each one is a real mistake that produces wrong r
   strings, and units (`'3.5' as float`, `42 as str`, `512MiB as GiB`).
 - Typed locals: `let total: float = 0;`. `const` stops reassignment, not mutation (`const l = []; l.push_back(1);`
   is fine).
-- `new { ... }` inside a function creates a child of `self` that lives until dropped. `drop(o)` temporary objects,
-  or create them `on` a scratch object.
+- `new { ... }` inside a function creates a child of `self` that lives until dropped: declare temporaries with
+  `using` (see 15), or `drop(o)` them.
 - `obj.fields()` is a list of `(name, value)` tuples (no functions).
 - A function value keeps its own `self`: `handler(x)` runs with `self` = the object the handler is defined on.
 - `pln(a, b)` prints its arguments concatenated with no separator.
@@ -201,6 +209,7 @@ self.unit.area<Shape>()             // 0, call the Shape version explicitly
 const r = new Rect { w: 4, h: 5 } on self.shapes;   // `on` sets the parent (default: self)
 new Geometry.Point { x: 1 }        // types nested in objects or imports: qualified name
 drop(r); r.exists();                // false: objects live until dropped
+using tmp = new { a: 1 };           // dropped automatically when this block or function ends
 
 const o = new { a: 1 };
 o.c = 3;                            // assignment creates fields
@@ -300,6 +309,7 @@ fn must_fail() { throw('expected'); }
 
 ```bash
 stof test file.stof            # run #[test] functions (exit code 1 on failure)
+stof test --leaks file.stof    # one at a time, also failing tests that leave objects behind
 stof test ./dir                # a package directory
 stof run file.stof             # run #[main] functions
 stof run file.stof -a nightly  # run #[nightly] functions instead

@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.10.3
+
+### Added
+
+- **`using` declarations** for temporary objects: `using tmp = new { .. };` is a const variable whose object is
+  dropped when its block or function ends, on every exit (end of block, `return`, `break`/`continue`, a caught or
+  uncaught error), exactly like `drop(tmp)` (`#[dropped]` functions run; not after an uncaught error, where the
+  process can't run anything). A plain `{ ... }` block is the scope, so `{ using scratch = new {}; .. new {} on scratch .. }`
+  is an arena. Values that aren't objects, functions, or data are ignored, and dropping by hand first is fine.
+  `using` is only a keyword before a name (`using = 3;` still assigns a variable named `using`).
+- **`using` expressions** for temporaries with no name: `self.handle(using new { id })` drops the object when the
+  enclosing block or function ends, the same as a `using` declaration.
+- **`stof test --leaks`** (`Runtime::test_leaks`, `Graph::test_leaks`): runs tests one at a time and fails any test
+  that leaves objects behind (created, still in the document, and not referenced by any field, directly or inside a
+  list, map, set, or tuple). The report says where they are.
+- Trailing commas in call arguments and parameter lists (`f(a, b,)`, `fn f(a: int, b: int,)`, arrow functions),
+  matching lists, maps, sets, and tuples. Comments are allowed anywhere inside the parentheses. Before, a trailing
+  comma was a parse error, or in some positions (Ex. a multi-line `map(...)` as a function's last expression)
+  mis-parsed with only an "unknown name" warning.
+
+### Rust API
+
+- `SymbolTable::pop()` returns the values of the scope's `using` variables (to drop) instead of a bool.
+- New `Base::MarkUsing` and `Base::UsingValue` instructions (appended; BSTF-compatible).
+
+### Fixed
+
+- `Num.round(x, places)` and `x.round(places)` with more than 9 places: the scale was an integer that overflowed,
+  so `Num::round(0.0105, 12)` gave `0.010500000461931886` (and debug builds panicked). Places past f64
+  precision now leave the number as-is.
+
 ## 0.10.2
 
 ### Fixed

@@ -72,3 +72,107 @@ fn test_trailing_operators() {
         c;
     assert(d);
 }
+
+
+/*
+ * `using` declarations: the object is dropped when the variable's scope ends.
+ * (Each test has its own object: tests run concurrently, and `new {}` lands on the function's self.)
+ */
+UsingDecl: {
+    dropped_count: 0
+
+    #[type]
+    UsingTracked: {
+        #[dropped]
+        fn on_drop() { root.Lang.UsingDecl.dropped_count += 1; }
+    }
+
+    Block: {
+        #[test]
+        fn dropped_at_block_end() {
+            const start = self.children().len();
+            {
+                using a = new { v: 1 };
+                using b = new { v: 2 };
+                assert_eq(self.children().len() - start, 2);
+                assert_eq(a.v + b.v, 3);
+            }
+            assert_eq(self.children().len(), start);
+        }
+    }
+
+    Exits: {
+        fn early(flag: bool) -> int {
+            using tmp = new { x: 1 };
+            if (flag) return 1;
+            2
+        }
+
+        fn fails() {
+            using tmp = new { x: 1 };
+            throw('boom');
+        }
+
+        #[test]
+        fn dropped_on_every_exit() {
+            const start = self.children().len();
+            assert_eq(self.early(true), 1);
+            assert_eq(self.early(false), 2);
+            try { self.fails(); } catch (e) { assert_eq(self.children().len(), start); }
+            for (const i in [1, 2, 3]) {
+                using tmp = new { i };
+                if (i == 2) continue;
+                if (i == 3) break;
+            }
+            assert_eq(self.children().len(), start);
+        }
+    }
+
+    Expr: {
+        fn sum(o: obj) -> int { o.a + o.b }
+
+        #[test]
+        fn using_an_argument() {
+            const start = self.children().len();
+            {
+                assert_eq(self.sum(using new { a: 1, b: 2 }), 3);
+                assert_eq(self.children().len(), start + 1);   // lives until the block ends
+            }
+            assert_eq(self.children().len(), start);
+            for (const i in [1, 2, 3]) {
+                assert_eq(self.sum(using new { a: i, b: i }), i * 2);
+            }
+            assert_eq(self.children().len(), start);
+
+            const using = 4;                                    // still a name when no operand follows
+            assert_eq(using + 1, 5);
+            assert_eq(using - 1, 3);
+        }
+    }
+
+    Hooks: {
+        fn returned() -> obj {
+            using tmp = new { x: 5 };
+            tmp
+        }
+
+        #[test]
+        fn dropped_like_drop() {
+            const before = super.dropped_count;
+            {
+                using t = new UsingTracked {};
+            }
+            assert_eq(super.dropped_count, before + 1);   // #[dropped] functions run
+
+            {
+                using m = map();                           // not an object: nothing to drop
+                using x = new {};
+                drop(x);                                   // dropping by hand first is fine
+            }
+            assert_not(self.returned().exists());          // returning it doesn't keep it (same as JS)
+
+            const using = 3;                               // "using" is still a valid name
+            assert_eq(using, 3);
+        }
+    }
+}

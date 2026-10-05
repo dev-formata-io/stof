@@ -22,7 +22,7 @@ import './notnull' as self.NotNull;
 /// typeof and typename are unary: they bind to the value right after them, not the whole expression.
 #[test]
 fn typeof_is_unary() {
-    const v = new {};
+    using v = new {};
     const m = {'a': 1};
     const n = 5;
     assert(typeof v == 'obj');
@@ -39,7 +39,10 @@ fn typeof_is_unary() {
     assert_eq(typeof self.missing ?? 'none', 'null');
     assert_eq(typeof !n, 'bool');
     assert_eq(typeof -n, 'int');
-    assert_eq(typeof new {} , 'obj');
+    {
+        using scratch = new {};
+        assert_eq(typeof new {} on scratch, 'obj');
+    }
     assert_eq(typeof typeof n, 'str');
     assert_eq(typeof(n), 'int');
     assert(typeof(n) == 'int');

@@ -20,7 +20,7 @@ use imbl::{vector, Vector};
 use lazy_static::lazy_static;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{Field, Func, Graph, Prototype, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::call::FuncCall, proc::{ProcEnv, Process}, Error, Type, Val, Variable, WakeRef}};
+use crate::{model::{libraries::stof_std::StdIns, Field, Func, Graph, Prototype, SId, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::call::FuncCall, proc::{ProcEnv, Process}, Error, Type, Val, Variable, WakeRef}};
 
 pub mod call;
 pub mod block;
@@ -273,7 +273,29 @@ pub enum Base {
     // Source location of the next statement (line, column), emitted by debug profiles for error locations.
     // A no-op when executed: errors find the last one in the executed history. At the end for rev-compatibility.
     Src(u32, u32),
+
+    // Mark a just-declared variable as `using`: its object is dropped when the scope ends. At the end for rev-compatibility.
+    MarkUsing(ArcStr),
+
+    // `using <expr>`: the value on the stack (left there) is dropped when the current scope ends. At the end for rev-compatibility.
+    UsingValue,
 }
+impl Base {
+    /// Instructions that drop the values of `using` variables whose scope just ended, exactly like
+    /// drop(value): #[dropped] functions run first. The stack is left as it was (Ex. a return value on it).
+    fn using_drops(owned: Vec<Val>, env: &ProcEnv) -> Option<Instructions> {
+        let base = env.stack.len();
+        let mut instructions = Instructions::default();
+        for val in owned {
+            instructions.push(Arc::new(Base::Literal(val)));
+            instructions.push(Arc::new(StdIns::ObjDropped(1)));
+            instructions.push(Arc::new(StdIns::Drop(1)));
+            instructions.push(Arc::new(Base::PopUntilStackCount(base)));
+        }
+        Some(instructions)
+    }
+}
+
 #[typetag::serde(name = "Base")]
 impl Instruction for Base {
     /// Base instructions do not replace themselves and are used by other higher-order instructions.
@@ -388,10 +410,12 @@ impl Instruction for Base {
                 env.table.push();
             },
             Self::PopLoopUntilDepth(depth) => {
+                let mut owned = Vec::new();
                 while env.loop_stack.len() > *depth {
                     env.loop_stack.pop();
-                    env.table.pop();
+                    owned.append(&mut env.table.pop());
                 }
+                if !owned.is_empty() { return Ok(Self::using_drops(owned, env)); }
             },
             Self::CtrlBreak => {}, // Nothing here...
             Self::CtrlContinue => {}, // Nothing here...
@@ -434,6 +458,7 @@ impl Instruction for Base {
                 let pid = proc.env.pid.clone();
 
                 proc.env = env.clone(); // clone this environment
+                proc.env.table.disown_using(); // the parent's `using` values are still the parent's to drop
                 proc.env.stack.clear(); // new stack for this new proc
                 proc.env.loop_stack.clear();
                 proc.env.return_stack.clear();
@@ -466,10 +491,27 @@ impl Instruction for Base {
             Self::PushSymbolScope => env.table.push(),
             Self::PushFunctionScope => env.table.push_boundary(),
             Self::Src(..) => {},
-            Self::PopSymbolScope => { env.table.pop(); },
+            Self::PopSymbolScope => {
+                let owned = env.table.pop();
+                if !owned.is_empty() { return Ok(Self::using_drops(owned, env)); }
+            },
             Self::PopSymbolScopeUntilDepth(depth) => {
+                let mut owned = Vec::new();
                 while env.table.scopes.len() > *depth {
-                    env.table.pop();
+                    owned.append(&mut env.table.pop());
+                }
+                if !owned.is_empty() { return Ok(Self::using_drops(owned, env)); }
+            },
+            Self::MarkUsing(name) => env.table.mark_using(name),
+            Self::UsingValue => {
+                if let Some(var) = env.stack.last() {
+                    let val = var.val.read().clone();
+                    if matches!(val, Val::Obj(_) | Val::Fn(_) | Val::Data(_)) {
+                        // a hidden variable (not a valid name, so code can't see it) owns the value for this scope
+                        let name = format!("#using:{}", SId::default());
+                        env.table.insert(&name, Variable::val(val));
+                        env.table.mark_using(&name);
+                    }
                 }
             },
             Self::DeclareVar(name, vtype) => {
