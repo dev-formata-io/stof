@@ -550,6 +550,10 @@ impl Instruction for StdIns {
                 if let Some(first) = env.stack.pop() {
                     if let Some(second) = env.stack.pop() {
                         if !Arc::ptr_eq(&first.val, &second.val) {
+                            // either value can end up in a field (swapped in place): their holders aren't known
+                            for obj in [first.try_obj(), second.try_obj()].into_iter().flatten() {
+                                graph.add_field_holder(&obj, None);
+                            }
                             let mut first = first.val.write();
                             let mut second = second.val.write();
 

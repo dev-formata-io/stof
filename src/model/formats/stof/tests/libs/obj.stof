@@ -427,6 +427,26 @@ Diff: {
         drop(a, cpy, diff);
     }
 
+    #[test]
+    /// Lists (and maps) of objects compare by the objects' fields, not their IDs (Ex. price tiers from JSON).
+    fn diff_lists_of_objects() {
+        const json = '{ "tiers": [{ "up_to": 1000, "price": { "amount": 0.01 } }, { "price": { "amount": 0.005 } }], "ids": [1, 2], "by": { "a": { "v": 1 } } }';
+        using schema = new {};
+        parse(json, schema, 'json');
+
+        using same = new {};
+        parse(json, same, 'json');
+        schema.diff(same);
+        assert_eq(same.len(), 0);
+
+        using changed = new {};
+        parse(json.replace('0.005', '0.004'), changed, 'json');
+        schema.diff(changed);
+        assert_eq(changed.len(), 1);
+        assert_eq(changed.tiers.len(), 2); // a changed list is kept whole
+        assert_eq(changed.tiers[1].price.amount, 0.004);
+    }
+
     Nested: {
         schema: {
             first: 'CJ'
@@ -588,5 +608,25 @@ FromID: {
         assert_eq(obj, self);
 
         //Obj.dbg_graph();
+    }
+}
+
+Upcast: {
+    #[type]
+    Animal: { fn sound() -> str { '...' } }
+
+    #[type]
+    #[extends('Animal')]
+    Dog: { fn sound() -> str { 'woof' } }
+
+    #[test]
+    fn obj_upcast() {
+        const dog = new Dog {};
+        assert_eq(dog.sound(), 'woof');
+        assert(dog.upcast());
+        assert_eq(typename dog, 'Animal');
+        assert_eq(dog.sound(), '...');
+        assert_not(dog.upcast()); // Animal has no prototype to move up to
+        drop(dog);
     }
 }

@@ -176,3 +176,27 @@ fn set_static_information() {
     <StaticFieldType>.to_set = 'overridden';
     assert_eq(<StaticFieldType>.to_set, 'overridden');
 }
+
+DropRefs: {
+    a: { x: 1 }
+    b: { y: 2, held: null }
+
+    #[test]
+    /// drop() removes fields anywhere that hold the dropped object (or one of its children).
+    fn drop_removes_references() {
+        const held = new { w: 4 };
+        self.b.held = held;         // set on an existing field
+        assert(drop(held));
+        const tmp = new { z: 3 };
+        self.b.r1 = self.a;         // a second holder for a
+        self.b.r2 = tmp;            // a new object held by an assigned field
+        const inner = new { child: new { q: 1 } };
+        self.b.r3 = inner.child;    // a child held by a field outside its tree
+        assert(drop(self.a));
+        assert(drop(tmp));
+        assert(drop(inner));
+        assert_null(self.a);
+        assert_eq(self.b.len(), 1);
+        assert_eq(stringify('json', self.b), '{"y":2}');
+    }
+}

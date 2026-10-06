@@ -273,11 +273,10 @@ impl FuncCall {
         // Look for a prototype that this object has next
         {
             let mut proto_context = start.clone();
-            let mut proto_path = path.split('.').collect::<Vec<_>>();
-            let func_name = proto_path.pop().unwrap();
+            let (proto_path, func_name) = path.rsplit_once('.').unwrap_or(("", path));
 
-            if proto_path.len() > 0 {
-                if let Some(node) = graph.find_node_named(&proto_path.join("."), proto_context.clone()) {
+            if !proto_path.is_empty() {
+                if let Some(node) = graph.find_node_named(proto_path, proto_context.clone()) {
                     proto_context = Some(node);
                 } else {
                     proto_context = None; // not valid since we have additional path
@@ -319,11 +318,9 @@ impl FuncCall {
 
         if allow_node_contemplation {
             // Look for a field (or obj) on the object at the path minus the func name for a library call on that field
-            let mut field_path = adjusted_path.split('.').collect::<Vec<_>>();
-            let func_name = field_path.pop().unwrap();
-            let pth = field_path.join(".");
+            let (pth, func_name) = adjusted_path.rsplit_once('.').unwrap_or(("", adjusted_path.as_str()));
             if start.is_some() {
-                if let Some(field) = Field::field_from_path(graph, &pth, start.clone()) {
+                if let Some(field) = Field::field_from_path(graph, pth, start.clone()) {
                     if let Some(field) = graph.get_stof_data::<Field>(&field) {
                         let libname = field.value.val.read().lib_name(&graph);
                         return Ok(CallContext {
@@ -337,7 +334,7 @@ impl FuncCall {
 
                 // Only search for a node if there is a designated start, as we don't want to match everything in the graph
                 // Ex. self.a.b.c.parent(), where c is a node but not a field
-                if let Some(obj) = graph.find_node_named(&pth, start.clone()) {
+                if let Some(obj) = graph.find_node_named(pth, start.clone()) {
                     return Ok(CallContext {
                         lib: Some(literal!("Obj")),
                         stack_arg: Some(Arc::new(Base::Literal(Val::Obj(obj)))),
@@ -350,7 +347,7 @@ impl FuncCall {
                 // library of the same name (Ex. a "Num" root without "round" must not break Num.round(..))
                 let obj_func = graph.libfunc(&literal!("Obj"), func_name).is_some();
                 // Absolute path (starts at a graph root), like every other path without self/super
-                if let Some(obj) = graph.find_node_named(&pth, None).filter(|_| obj_func || !graph.libfuncs.contains_key(pth.as_str())) {
+                if let Some(obj) = graph.find_node_named(pth, None).filter(|_| obj_func || !graph.libfuncs.contains_key(pth)) {
                     return Ok(CallContext {
                         lib: Some(literal!("Obj")),
                         stack_arg: Some(Arc::new(Base::Literal(Val::Obj(obj)))),

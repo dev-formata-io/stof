@@ -136,19 +136,11 @@ impl Instructions {
     /// If the tag isn't in the executed history, nothing is removed (never wipe history
     /// that doesn't belong to the tag's scope).
     pub fn kill_back_to(&mut self, tag: &ArcStr) {
-        let mut removed = Vec::new();
-        while let Some(ins) = self.executed.pop_back() {
-            if let Some(Base::Tag(tagged)) = ins.as_dyn_any().downcast_ref::<Base>() {
-                if tagged == tag {
-                    self.executed.push_back(ins);
-                    return;
-                }
-            }
-            removed.push(ins);
-        }
-        // tag not found - restore what was popped
-        while let Some(ins) = removed.pop() {
-            self.executed.push_back(ins);
+        let found = self.executed.iter().rposition(|ins| {
+            matches!(ins.as_dyn_any().downcast_ref::<Base>(), Some(Base::Tag(tagged)) if tagged == tag)
+        });
+        if let Some(index) = found {
+            self.executed.truncate(index + 1); // keep the tag
         }
     }
 

@@ -34,6 +34,10 @@ pub enum ProcRes {
 }
 
 
+/// Default limit on how long a call (process) can run before it fails with `Error::ExecutionTimeout`.
+pub const DEFAULT_MAX_EXECUTION_TIME: Duration = Duration::from_secs(120);
+
+
 #[derive(Clone, Debug)]
 /// Process Env.
 pub struct ProcEnv {
@@ -64,7 +68,7 @@ impl Default for ProcEnv {
         Self {
             pid: Default::default(),
             start_time: None,
-            max_execution_time: Some(Duration::from_secs(120)),
+            max_execution_time: Some(DEFAULT_MAX_EXECUTION_TIME),
             self_stack: Default::default(),
             max_call_stack_depth: 10_000,
             call_stack: Default::default(),

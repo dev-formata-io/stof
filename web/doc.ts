@@ -162,12 +162,24 @@ class WasmMutex {
 type StofHeaders = Map<string, unknown> | Record<string, unknown> | null | undefined;
 
 /**
+ * Is this URL's host allowed (any host when there's no list)?
+ * An entry is a host name (any port, Ex. "api.example.com") or a host and port ("localhost:8080").
+ */
+function hostAllowed(url: URL, allowed: Set<string> | null): boolean {
+    if (!allowed) return true;
+    const host = url.hostname.toLowerCase();
+    const port = url.port || (url.protocol === 'https:' ? '443' : url.protocol === 'http:' ? '80' : '');
+    return allowed.has(host) || allowed.has(`${host}:${port}`);
+}
+
+/**
  * Http.fetch for JavaScript hosts (added by StofDoc.allowHttp()).
  * Same signature and response map as the native runtime's Http.fetch, so documents behave the same everywhere:
  * Http.fetch(url, method = 'get', body = null, headers = null, timeout (seconds) = null, query = null, bearer = null)
  * -> map { status, ok, headers, content_type, bytes }
  */
 async function stofFetch(
+    allowed: Set<string> | null,
     url: string,
     method: string = 'get',
     body: string | Uint8Array | null = null,
@@ -184,6 +196,7 @@ async function stofFetch(
     // @ts-ignore - location only exists in browsers (resolves relative URLs there)
     const target = new URL(url, typeof location !== 'undefined' ? location.href : undefined);
     for (const [key, value] of entries(query)) target.searchParams.append(key, value);
+    if (!hostAllowed(target, allowed)) throw new Error(`${target.origin} is not an allowed host for this document`);
 
     const requestHeaders = new Headers(entries(headers));
     if (bearer) requestHeaders.set('Authorization', `Bearer ${bearer}`);
@@ -194,6 +207,9 @@ async function stofFetch(
         body: (body ?? undefined) as BodyInit | undefined,
         signal: timeout ? AbortSignal.timeout(timeout * 1000) : undefined,
     });
+    if (response.url && !hostAllowed(new URL(response.url), allowed)) {
+        throw new Error(`redirected to ${response.url}, which is not an allowed host`);
+    }
 
     const responseHeaders = new Map<string, string>();
     response.headers.forEach((value, key) => responseHeaders.set(key, value));
@@ -304,10 +320,23 @@ export class StofDoc {
     /**
      * Give this document network access: the Http library, with Http.fetch backed by the JavaScript fetch API.
      * Off by default: a document can only read and change itself and call the functions you add with lib().
+     * With hosts, requests (and redirects) to any other host fail. An entry is a host name (any port,
+     * Ex. "api.example.com") or a host and port ("localhost:8080").
      */
-    allowHttp(): void {
+    allowHttp(hosts?: string[]): void {
         this.stof.allowHttp(); // Http helpers (Http.text, Http.parse, Http.success, ...)
-        this.lib('Http', 'fetch', stofFetch, true, ['url', 'method', 'body', 'headers', 'timeout', 'query', 'bearer']);
+        const allowed = hosts ? new Set(hosts.map((host) => host.trim().toLowerCase())) : null;
+        const hostFetch = (...args: unknown[]) => (stofFetch as Function)(allowed, ...args);
+        this.lib('Http', 'fetch', hostFetch, true, ['url', 'method', 'body', 'headers', 'timeout', 'query', 'bearer']);
+    }
+
+
+    /**
+     * How long a call can run, in milliseconds, before it fails with an execution timeout (null for no limit).
+     * Defaults to 120,000 (2 minutes).
+     */
+    setMaxExecutionTime(ms: number | null): void {
+        this.stof.setMaxExecutionTime(ms ?? undefined);
     }
 
 

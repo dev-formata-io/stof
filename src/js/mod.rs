@@ -264,6 +264,13 @@ impl Stof {
         self.graph_mut().allow_http();
     }
 
+    #[wasm_bindgen(js_name = setMaxExecutionTime)]
+    /// How long a call can run, in milliseconds, before it fails with an execution timeout (null for no limit).
+    /// Defaults to 120,000 (2 minutes).
+    pub fn set_max_execution_time(&self, ms: Option<f64>) {
+        self.graph_mut().max_execution_time = ms.map(|ms| std::time::Duration::from_millis(ms.max(0.) as u64));
+    }
+
 
     /*****************************************************************************
      * I/O

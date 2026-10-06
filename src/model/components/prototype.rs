@@ -26,6 +26,10 @@ pub const PROTOTYPE_TYPE_ATTR: ArcStr = literal!("type");
 /// Const prototype "extends" literal.
 pub const PROTOTYPE_EXTENDS_ATTR: ArcStr = literal!("extends");
 
+/// Name of a node's prototype data. A node has at most one (data names are unique per node), so lookups
+/// go straight to it instead of scanning the node's data (which grows with the object: Ex. a map of customers).
+pub const PROTOTYPE_DATA_NAME: &str = "__proto__";
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// Prototype.
@@ -55,7 +59,7 @@ impl Prototype {
     pub fn prototype_refs(graph: &Graph, node: &NodeRef) -> Vec<DataRef> {
         let mut protos = Vec::new();
         if let Some(node) = node.node(graph) {
-            for (_, dref) in &node.data {
+            if let Some(dref) = node.data.get(PROTOTYPE_DATA_NAME) {
                 if dref.type_of::<Self>(&graph) {
                     protos.push(dref.clone());
                 }
@@ -74,7 +78,7 @@ impl Prototype {
     fn internal_prototype_nodes(graph: &Graph, node: &NodeRef, recursive: bool, seen: &mut FxHashSet<NodeRef>) -> Vec<NodeRef> {
         let mut protos = Vec::new();
         if let Some(node) = node.node(graph) {
-            for (_, dref) in &node.data {
+            if let Some(dref) = node.data.get(PROTOTYPE_DATA_NAME) {
                 if let Some(proto) = graph.get_stof_data::<Self>(dref) {
                     if !seen.contains(&proto.node) {
                         seen.insert(proto.node.clone());

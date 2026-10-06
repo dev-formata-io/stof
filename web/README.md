@@ -186,7 +186,7 @@ let total = Runtime::call(&mut graph, "total", vec![Val::from(21i64)])?; // 42
 ## FAQ
 
 **Is it really safe to run Stof a model wrote?**
-A document runs in a sandbox: it can see itself and the functions your app provides, nothing else. File system, environment variables, file imports, and network access are all off by default, in every language; a host turns them on explicitly with `allow_system()` or `allow_http()`. The `stof` command-line tool turns them on, since it runs your own files.
+A document runs in a sandbox: it can see itself and the functions your app provides, nothing else. File system, environment variables, file imports, and network access are all off by default, in every language; a host turns them on explicitly with `allow_system()` or `allow_http()` (or allows only some hosts with `allow_http_hosts`). Each call also has a time limit (2 minutes by default, set by the host). The `stof` command-line tool turns them on, since it runs your own files.
 
 **Why not just run the model's Python in a container?**
 You can, but it means infrastructure, startup time, and a lot of access to lock down. Stof runs inside your process, starts instantly, and has no access by default.

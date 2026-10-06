@@ -112,6 +112,7 @@ impl Runtime {
         if proc.env.self_stack.is_empty() {
             proc.env.self_stack.push(graph.ensure_main_root());
         }
+        proc.env.max_execution_time = graph.max_execution_time; // the host's limit
         
         self.running.push(proc);
         id

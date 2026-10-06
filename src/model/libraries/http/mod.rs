@@ -32,7 +32,7 @@ use lazy_static::lazy_static;
 #[cfg(feature = "http")]
 use reqwest::{header::{HeaderMap, HeaderName, CONTENT_TYPE}, Method};
 #[cfg(feature = "http")]
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 #[cfg(feature = "http")]
 use crate::runtime::{wake, WakeRef, NumT};
 
@@ -294,6 +294,9 @@ pub(self) struct HTTPRequest {
 
     /// Call wake at the end so that the process resumes with the results.
     pub waker: WakeRef,
+
+    /// Hosts this request may reach (None for any), checked again after redirects.
+    pub hosts: Option<Arc<FxHashSet<String>>>,
 }
 #[cfg(feature = "http")]
 impl HTTPRequest {
@@ -325,6 +328,10 @@ impl HTTPRequest {
 
                     if let Ok(request) = builder.build() {
                         match client.execute(request).await {
+                            Ok(response) if !host_allowed(response.url(), &self.hosts) => {
+                                // redirected away from the allowed hosts: the response isn't returned
+                                error_result(&self.results, format!("redirected to {}, which is not an allowed host", response.url()));
+                            },
                             Ok(response) => {
                                 let status = response.status();
                                 let headers = response.headers().clone();
@@ -391,6 +398,10 @@ impl HTTPRequest {
 
                 if let Ok(request) = builder.build() {
                     match client.execute(request) {
+                        Ok(response) if !host_allowed(response.url(), &self.hosts) => {
+                            // redirected away from the allowed hosts: the response isn't returned
+                            error_result(&self.results, format!("redirected to {}, which is not an allowed host", response.url()));
+                        },
                         Ok(response) => {
                             let status = response.status();
                             let headers = response.headers().clone();
@@ -459,6 +470,10 @@ impl HTTPRequest {
 
             if let Ok(request) = builder.build() {
                 match client.execute(request) {
+                    Ok(response) if !host_allowed(response.url(), &self.hosts) => {
+                        // redirected away from the allowed hosts: the response isn't returned
+                        error_result(&self.results, format!("redirected to {}, which is not an allowed host", response.url()));
+                    },
                     Ok(response) => {
                         let status = response.status();
                         let headers = response.headers().clone();
@@ -504,6 +519,29 @@ impl HTTPRequest {
             }
             wake(&self.waker); // wake the process that is waiting
         }
+    }
+}
+
+
+#[cfg(feature = "http")]
+/// Is this URL's host allowed (any host when there's no list)?
+/// An entry is a host name (any port) or a host and port (Ex. "localhost:8080").
+fn host_allowed(url: &reqwest::Url, hosts: &Option<Arc<FxHashSet<String>>>) -> bool {
+    let Some(hosts) = hosts else { return true };
+    let Some(host) = url.host_str() else { return false };
+    let host = host.to_lowercase();
+    if hosts.contains(&host) { return true; }
+    match url.port_or_known_default() {
+        Some(port) => hosts.contains(&format!("{host}:{port}")),
+        None => false,
+    }
+}
+
+#[cfg(feature = "http")]
+/// Put an error into a request's results map.
+fn error_result(results: &ValRef<Val>, error: String) {
+    if let Val::Map(results) = results.write().deref_mut() {
+        results.insert(ValRef::new(Val::Str("error".into())), ValRef::new(Val::Str(error.into())));
     }
 }
 
@@ -670,6 +708,13 @@ impl Instruction for HttpIns {
                     }
                 }
 
+                if let Some(hosts) = &graph.http_hosts {
+                    let allowed = reqwest::Url::parse(&url).is_ok_and(|parsed| host_allowed(&parsed, &Some(hosts.clone())));
+                    if !allowed {
+                        return Err(Error::HttpSendError(format!("{url} is not an allowed host for this document")));
+                    }
+                }
+
                 let map = ValRef::new(Val::Map(OrdMap::default()));
                 let request = HTTPRequest {
                     url,
@@ -681,6 +726,7 @@ impl Instruction for HttpIns {
                     query,
                     results: map.clone(),
                     waker: waker.clone(),
+                    hosts: graph.http_hosts.clone(),
                 };
                 env.stack.push(Variable::refval(map));
                 request.send(env);
@@ -874,5 +920,43 @@ impl Instruction for HttpIns {
             },
         }
         Ok(None)
+    }
+}
+
+
+#[cfg(all(test, feature = "http"))]
+mod tests {
+    use std::sync::Arc;
+    use rustc_hash::FxHashSet;
+    use crate::{model::{Graph, Profile, http::host_allowed}, runtime::Val};
+
+    #[test]
+    fn host_matching() {
+        let hosts = Some(Arc::new(["api.example.com", "localhost:8080"].iter().map(|h| h.to_string()).collect::<FxHashSet<_>>()));
+        let allowed = |url: &str| host_allowed(&reqwest::Url::parse(url).unwrap(), &hosts);
+        assert!(allowed("https://api.example.com/v1"));
+        assert!(allowed("http://API.example.com:9000/v1")); // a host entry allows any port
+        assert!(allowed("http://localhost:8080/"));
+        assert!(!allowed("http://localhost:3000/"));
+        assert!(!allowed("https://example.com/"));
+        assert!(!allowed("https://api.example.com.evil.io/"));
+        assert!(host_allowed(&reqwest::Url::parse("https://anything.io").unwrap(), &None));
+    }
+
+    #[test]
+    fn blocked_host_fails_before_sending() {
+        let mut graph = Graph::default();
+        graph.allow_http_hosts(["api.example.com"]);
+        graph.parse_stof_src(r#"
+            fn fetch_other() -> str {
+                try {
+                    await Http.fetch('https://other.example.com/data');
+                    return 'sent';
+                } catch (error) {
+                    return 'blocked';
+                }
+            }
+        "#, None, Profile::default()).unwrap();
+        assert_eq!(graph.call("fetch_other", None, vec![]).unwrap(), Val::from("blocked"));
     }
 }

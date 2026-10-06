@@ -14,13 +14,13 @@
 // limitations under the License.
 //
 
-use std::{any::Any, sync::Arc};
+use std::{any::Any, sync::Arc, time::Duration};
 use arcstr::{ArcStr, literal};
 use bytes::Bytes;
 use colored::Colorize;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{BstfFormat, BytesFormat, Data, DataRef, Field, Format, INVALID_NODE_NEW, JsonFormat, LibFunc, MdDocsFormat, MdFormat, Node, NodeRef, Profile, SId, SPath, StofData, StofFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, blob::insert_blob_lib, libraries::{data::insert_data_lib, function::insert_fn_lib}, libs::insert_lib_documentation, list::insert_list_lib, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, prompt::insert_prompt_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, time::insert_time_lib, tup::insert_tup_lib, ver::insert_semver_lib}, parser::context::ParseContext, runtime::{Error, Runtime, Val, Variable, table::SymbolTable}};
+use crate::{model::{BstfFormat, BytesFormat, Data, DataRef, Field, FieldHolders, Format, INVALID_NODE_NEW, JsonFormat, LibFunc, MdDocsFormat, MdFormat, Node, NodeRef, Profile, SId, SPath, StofData, StofFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, blob::insert_blob_lib, libraries::{data::insert_data_lib, function::insert_fn_lib}, libs::insert_lib_documentation, list::insert_list_lib, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, prompt::insert_prompt_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, time::insert_time_lib, tup::insert_tup_lib, ver::insert_semver_lib}, parser::context::ParseContext, runtime::{Error, Runtime, Val, Variable, proc::DEFAULT_MAX_EXECUTION_TIME, table::SymbolTable}};
 
 #[cfg(feature = "system")]
 use crate::model::{filesys::fs_library};
@@ -78,6 +78,19 @@ pub struct Graph {
     pub libdocs: FxHashMap<ArcStr, String>,
     #[serde(skip)]
     pub libfuncs: FxHashMap<ArcStr, FxHashMap<String, LibFunc>>,
+
+    /// How long a call (process) can run before it fails with an execution timeout (None for no limit).
+    /// Set by the host; defaults to 2 minutes. Applied to each process when it starts.
+    #[serde(skip, default = "default_max_execution_time")]
+    pub max_execution_time: Option<Duration>,
+
+    /// Hosts the Http library can reach (None for any host). Set by the host with `allow_http_hosts`.
+    #[serde(skip)]
+    pub http_hosts: Option<Arc<FxHashSet<String>>>,
+}
+
+fn default_max_execution_time() -> Option<Duration> {
+    Some(DEFAULT_MAX_EXECUTION_TIME)
 }
 impl Default for Graph {
     fn default() -> Self {
@@ -93,6 +106,8 @@ impl Default for Graph {
             formats: Default::default(),
             libdocs: Default::default(),
             libfuncs: Default::default(),
+            max_execution_time: default_max_execution_time(),
+            http_hosts: None,
         };
         graph.load_std_formats();
         graph.insert_std_lib();
@@ -327,6 +342,19 @@ impl Graph {
         insert_http_lib(self);
     }
 
+    #[cfg(any(feature = "js", feature = "http"))]
+    /// Give documents network access to these hosts only: the `Http` library, failing any request (or redirect)
+    /// to another host. An entry is a host name (any port, Ex. "api.example.com") or a host and port
+    /// ("localhost:8080"). Calling it again adds hosts.
+    pub fn allow_http_hosts(&mut self, hosts: impl IntoIterator<Item = impl AsRef<str>>) {
+        insert_http_lib(self);
+        let mut allowed = self.http_hosts.as_deref().cloned().unwrap_or_default();
+        for host in hosts {
+            allowed.insert(host.as_ref().trim().to_lowercase());
+        }
+        self.http_hosts = Some(Arc::new(allowed));
+    }
+
     /// Insert library documentation.
     pub fn insert_lib_docs(&mut self) {
         insert_lib_documentation(self);
@@ -496,8 +524,68 @@ impl Graph {
 
     /// Remove a node from the graph.
     /// May or may not remove data completely, depending on where the data is referenced.
+    /// With gc, fields anywhere in the graph that hold the node (or one of its children) are removed too.
     /// Note: if you pass gc and also are managing a symbol table, you have to do gc on that table as well.
     pub fn remove_node(&mut self, nref: &NodeRef, gc: bool) -> bool {
+        let mut removed = Vec::new();
+        if !self.remove_node_tree(nref, &mut removed) {
+            return false;
+        }
+        if gc {
+            // Fields holding a removed node: listed on the nodes (most objects), else found by searching the graph.
+            let mut listed = Vec::new();
+            let mut search = false;
+            for node in &removed {
+                match &node.holders {
+                    FieldHolders::None => {},
+                    FieldHolders::One(holder) => listed.push(holder.clone()),
+                    FieldHolders::Many => search = true,
+                }
+            }
+            let ids = removed.iter().map(|node| node.id.clone()).collect::<Vec<_>>();
+            let holders = if search {
+                self.fields_holding(&ids)
+            } else {
+                // a listed field may have been removed with the tree, or changed value since
+                let holding = listed.into_iter().filter(|dref| self.data.get(dref).is_some_and(|data| {
+                    Self::held_obj(data).is_some_and(|obj| ids.contains(&obj))
+                })).collect::<Vec<_>>();
+                #[cfg(test)]
+                for dref in self.fields_holding(&ids) {
+                    assert!(holding.contains(&dref), "a field holding a dropped object wasn't tracked: {}", dref.as_ref());
+                }
+                holding
+            };
+            for dref in holders {
+                // Have to take the long way here as this data might have other valid nodes that reference it
+                self.remove_data(&dref, None);
+            }
+        }
+        for node in removed {
+            self.insert_node_deadpool(node);
+        }
+        true
+    }
+
+    /// Every field in the graph that holds one of these nodes (walks all of the graph's data).
+    fn fields_holding(&self, nodes: &[NodeRef]) -> Vec<DataRef> {
+        let mut holders = Vec::new();
+        for (dref, data) in &self.data {
+            let holds = if let Some(field) = data.data.as_dyn_any().downcast_ref::<Field>() {
+                // fields are most of the graph: read each value once
+                matches!(&*field.value.val.read(), Val::Obj(nref) if nodes.contains(nref))
+            } else {
+                nodes.iter().any(|node| data.data.hard_node_ref(node))
+            };
+            if holds {
+                holders.push(dref.clone());
+            }
+        }
+        holders
+    }
+
+    /// Remove a node and its children (no gc), collecting the removed nodes (for the deadpool, after gc).
+    fn remove_node_tree(&mut self, nref: &NodeRef, removed: &mut Vec<Node>) -> bool {
         if let Some(node) = self.nodes.remove(nref) {
             // Remove all data on this node
             for (_, dref) in &node.data {
@@ -526,28 +614,11 @@ impl Graph {
 
             // Remove all children
             for child in &node.children {
-                self.remove_node(child, gc);
+                self.remove_node_tree(child, removed);
             }
 
-            // Remove all data in this graph that has a hard reference to this node
-            // Kind of expensive, so only do this when you know fields reference this node (data has hard reference to this node)
-            if gc {
-                let mut to_remove = Vec::new();
-                for (id, data) in &self.data {
-                    if data.data.hard_node_ref(&node.id) {
-                        to_remove.push(id.clone());
-                    }
-                }
-                for id in to_remove {
-                    // Have to take the long way here as this data might have other valid nodes that reference it
-                    self.remove_data(&id, None);
-                }
-            }
-
-            // Insert into the deadpool and remove types
             self.remove_type(&node.id);
-            self.insert_node_deadpool(node);
-
+            removed.push(node);
             return true;
         }
         false
@@ -570,9 +641,15 @@ impl Graph {
 
     /// Move a node to another node.
     /// Since this is a DAG, destination cannot be a descendant of the source (branch loss) - this function checks for this.
+    /// Moving a node to the parent it already has changes nothing (and returns true).
     pub fn move_node(&mut self, source: &NodeRef, dest: &NodeRef) -> bool {
-        if !source.node_exists(&self) || !dest.node_exists(&self) || dest.child_of(&self, source) {
+        if source == dest || !source.node_exists(&self) || !dest.node_exists(&self) || dest.child_of(&self, source) {
             return false;
+        }
+        if source.node_parent(&self).as_ref() == Some(dest) {
+            // Already there: the steps below would add it to dest, then remove it from its old parent (dest),
+            // leaving a node whose parent no longer lists it (unreachable, and never dropped).
+            return true;
         }
 
         // Add source as a child of dest
@@ -640,6 +717,7 @@ impl Graph {
         // Clone the node, rename, insert, and insert all children
         // All nodes will be inserted before data gets inserted, for contains checks
         let mut cloned = node.clone();
+        cloned.holders = FieldHolders::Many; // fields in the other graph tracked it
         if let Some(new_name) = rename {
             cloned.name = new_name;
         }
@@ -701,7 +779,9 @@ impl Graph {
             }
 
             data.node_added(node.id.clone());
+            let held = Self::held_obj(&data);
             self.data.insert(dref.clone(), data);
+            if let Some(obj) = held { self.add_field_holder(&obj, Some(&dref)); }
             res = Some(dref);
         }
         if let Some(old) = replaced {
@@ -860,11 +940,25 @@ impl Graph {
     #[inline]
     /// Set Stof data.
     pub fn set_stof_data(&mut self, data: &DataRef, stof_data: Box<dyn StofData>) -> bool {
-        if let Some(data) = data.data_mut(self) {
-            data.set(stof_data);
+        if let Some(existing) = data.data_mut(self) {
+            existing.set(stof_data);
+            if let Some(obj) = Self::held_obj(existing) { self.add_field_holder(&obj, Some(data)); }
             true
         } else {
             false
+        }
+    }
+
+    /// The object a field holds, if this data is a field whose value is an object.
+    fn held_obj(data: &Data) -> Option<NodeRef> {
+        data.data.as_dyn_any().downcast_ref::<Field>().and_then(|field| field.value.try_obj())
+    }
+
+    /// Record that a field holds this object (None when the holder isn't known, Ex. a variable that may be a field).
+    /// Dropping the object then removes the field directly instead of searching the whole graph.
+    pub fn add_field_holder(&mut self, obj: &NodeRef, holder: Option<&DataRef>) {
+        if let Some(node) = obj.node_mut(self) {
+            node.holders.add(holder);
         }
     }
 
@@ -1027,7 +1121,9 @@ impl Graph {
                     existing.data = changed_node.data.clone();
                     existing.attributes = changed_node.attributes.clone();
                 } else {
-                    self.nodes.insert(changed_node.id.clone(), changed_node.clone());
+                    let mut inserted = changed_node.clone();
+                    inserted.holders = FieldHolders::Many; // tracked by the other graph
+                    self.nodes.insert(inserted.id.clone(), inserted);
                 }
             }
         }
@@ -1042,6 +1138,7 @@ impl Graph {
                 } else {
                     self.data.insert(changed_data.id.clone(), changed_data.clone());
                 }
+                if let Some(obj) = Self::held_obj(changed_data) { self.add_field_holder(&obj, Some(&dref)); }
             }
         }
     }
@@ -1543,7 +1640,7 @@ fn deserialize_nodes<'de, D>(deserializer: D) -> Result<FxHashMap<NodeRef, Node>
 
 #[cfg(test)]
 mod tests {
-    use crate::{model::{Data, Graph, ROOT_NODE_NAME, SPath, StofData}, runtime::Variable};
+    use crate::{model::{Data, Field, Graph, ROOT_NODE_NAME, SPath, StofData}, runtime::{Val, Variable}};
 
     #[test]
     /// Runtime errors returned to a host carry a readable message and the Stof call stack: statement
@@ -1819,6 +1916,56 @@ mod tests {
 
         assert_eq!(root.node(&graph).unwrap().children.len(), 3);
         assert_eq!(b.node_parent(&graph).unwrap(), root);
+    }
+
+    #[test]
+    fn move_node_to_current_parent() {
+        let mut graph = Graph::default();
+        graph.ensure_named_nodes(SPath::from("root.base.a"), None, false, None);
+
+        let a = graph.find_node_named("root.base.a", None).unwrap();
+        let base = graph.find_node_named("root.base", None).unwrap();
+        assert!(graph.move_node(&a, &base)); // nothing to do
+        assert_eq!(a.node_parent(&graph).unwrap(), base);
+        assert!(base.node(&graph).unwrap().children.contains(&a));
+        assert!(graph.find_node_named("root.base.a", None).is_some());
+
+        assert!(!graph.move_node(&a, &a)); // a node can't be its own parent
+        assert_eq!(a.node_parent(&graph).unwrap(), base);
+    }
+
+    #[test]
+    /// gc removes fields anywhere that hold a removed node, children included (one pass for the whole tree).
+    fn remove_node_gc_removes_references() {
+        let mut graph = Graph::default();
+        graph.ensure_named_nodes(SPath::from("root.a.c"), None, false, None);
+        graph.ensure_named_nodes(SPath::from("root.b"), None, false, None);
+        let a = graph.find_node_named("root.a", None).unwrap();
+        let c = graph.find_node_named("root.a.c", None).unwrap();
+        let b = graph.find_node_named("root.b", None).unwrap();
+        let to_a = graph.insert_stof_data(&b, "to_a", Box::new(Field::new(Variable::val(Val::Obj(a.clone())), None)), None).unwrap();
+        let to_c = graph.insert_stof_data(&b, "to_c", Box::new(Field::new(Variable::val(Val::Obj(c.clone())), None)), None).unwrap();
+        let other = graph.insert_stof_data(&b, "other", Box::new(Field::new(Variable::val(Val::Obj(b.clone())), None)), None).unwrap();
+
+        assert!(graph.remove_node(&a, true));
+        assert!(!a.node_exists(&graph));
+        assert!(!c.node_exists(&graph));
+        assert!(!to_a.data_exists(&graph));
+        assert!(!to_c.data_exists(&graph));
+        assert!(other.data_exists(&graph));
+    }
+
+    #[test]
+    /// The host sets how long a call can run.
+    fn max_execution_time() {
+        use crate::model::Profile;
+        let mut graph = Graph::default();
+        graph.parse_stof_src("fn spin() { let i = 0; while (true) { i += 1; } }", None, Profile::default()).unwrap();
+        graph.max_execution_time = Some(std::time::Duration::from_millis(20));
+        let start = std::time::Instant::now();
+        let res = graph.call("spin", None, vec![]);
+        assert!(format!("{res:?}").contains("ExecutionTimeout"), "{res:?}");
+        assert!(start.elapsed() < std::time::Duration::from_secs(5));
     }
 
     #[test]

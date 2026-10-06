@@ -387,6 +387,10 @@ let json = graph.string_export("json", None)?;
 `graph.allow_system()` / `graph.allow_http()` (Rust), `doc.allow_system()` / `doc.allow_http()` (Python),
 `doc.allowHttp()` (JS: adds `Http.fetch` on the JS fetch API; there's no file system in the browser build). Without `allow_system()`, `import` statements
 and `fs::*` calls fail. The `stof` CLI allows everything.
+To allow only some hosts: `graph.allow_http_hosts(["api.example.com"])` (Rust), `doc.allow_http_hosts([...])` (Python),
+`doc.allowHttp(['api.example.com'])` (JS). Requests and redirects elsewhere fail; `"localhost:8080"` limits the port too.
+A call fails with an execution timeout after 2 minutes by default: `graph.max_execution_time = Some(duration)` (Rust),
+`doc.set_max_execution_time(seconds)` (Python), `doc.setMaxExecutionTime(ms)` (JS); null/None for no limit.
 
 Host errors from `call`/`run` include the Stof call stack. Parse with the test profile (`'test'` in JS/Python,
 `stof::model::Profile::test()` in Rust) to get statement-level line numbers in runtime errors; the default production profile

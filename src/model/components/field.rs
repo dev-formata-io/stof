@@ -57,11 +57,8 @@ impl StofData for Field {
     /// Does this data directly reference a node?
     /// If so, and you want this data to be removed when the node is removed, say yes.
     fn hard_node_ref(&self, node: &NodeRef) -> bool {
-        if let Some(nref) = self.value.try_obj() {
-            &nref == node
-        } else {
-            false
-        }
+        // compared in place (called for every field in the graph when an object is dropped)
+        matches!(&*self.value.val.read(), Val::Obj(nref) if nref == node)
     }
 
     /// Deep copy.

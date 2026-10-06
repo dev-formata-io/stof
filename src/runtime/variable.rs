@@ -81,6 +81,7 @@ impl Variable {
                 } else {
                     self.vtype = var.vtype.clone();
                 }
+                self.note_obj_holder(graph);
                 return Ok(());
             }
 
@@ -97,9 +98,18 @@ impl Variable {
             } else {
                 *self.val.write() = val;
             }
+            self.note_obj_holder(graph);
             Ok(())
         } else {
             Err(Error::AssignConst)
+        }
+    }
+
+    /// This variable may be a field's (or share a field's value), so an object set here has a holder that isn't
+    /// known: dropping that object searches the whole graph for fields that hold it.
+    fn note_obj_holder(&self, graph: &mut Graph) {
+        if let Some(obj) = self.try_obj() {
+            graph.add_field_holder(&obj, None);
         }
     }
 

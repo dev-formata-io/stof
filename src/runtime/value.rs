@@ -23,7 +23,7 @@ use arcstr::{literal, ArcStr};
 use bytes::Bytes;
 use imbl::{vector, OrdMap, OrdSet, Vector};
 use serde::{Deserialize, Serialize};
-use crate::{model::{export::json_value_from_node, Data, DataRef, Field, Func, Graph, Node, NodeRef, Prototype, SId}, parser::{number::number, semver::parse_semver_alone}, runtime::{Error, Num, NumT, Prompt, Type, Units, DATA, OBJ}};
+use crate::{model::{export::json_value_from_node, Data, DataRef, Field, Func, Graph, FieldHolders, Node, NodeRef, PROTOTYPE_DATA_NAME, Prototype, SId}, parser::{number::number, semver::parse_semver_alone}, runtime::{Error, Num, NumT, Prompt, Type, Units, DATA, OBJ}};
 
 
 /// Value reference (value, by reference?).
@@ -1013,6 +1013,7 @@ impl Val {
                     data: Default::default(),
                     attributes,
                     dirty: Default::default(),
+                    holders: FieldHolders::None, // a new copy (its fields are added below)
                 };
                 let obj = graph.insert_stof_node(node, parent.clone());
 
@@ -1563,7 +1564,7 @@ impl Val {
                     // Remove all current prototypes from the object and add the new one
                     let existing_prototypes = Prototype::prototype_refs(graph, &obj);
                     for dref in existing_prototypes { graph.remove_data(&dref, Some(obj.clone())); }
-                    graph.insert_stof_data(&obj, "__proto__", Box::new(Prototype { node: proto_id.clone() }), None);
+                    graph.insert_stof_data(&obj, PROTOTYPE_DATA_NAME, Box::new(Prototype { node: proto_id.clone() }), None);
                 
                     // Perform field initializations and checks for the type
                     let obj_fields = Field::fields(graph, &obj);

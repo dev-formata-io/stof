@@ -57,7 +57,37 @@ pub struct Node {
 
     #[serde(skip)]
     pub dirty: FxHashSet<ArcStr>,
+
+    /// Fields that hold this object (Ex. the field that names it in its parent), so dropping it doesn't have to
+    /// search the whole graph for them. Not serialized: a loaded node is `Many` (unknown).
+    #[serde(skip)]
+    pub holders: FieldHolders,
 }
+
+#[derive(Debug, Clone, Default, PartialEq)]
+/// The fields known to hold an object (a field whose value is the object).
+/// It only ever grows (None -> One -> Many): a field that later changes value stays listed, and drop checks that a
+/// listed field still holds the object. It must never miss a field, so anything uncertain is `Many`.
+pub enum FieldHolders {
+    /// No field holds this object.
+    None,
+    /// Only this field (data) can hold this object.
+    One(DataRef),
+    /// More than one field, or not known: dropping this object searches the whole graph.
+    #[default]
+    Many,
+}
+impl FieldHolders {
+    /// Record a field that holds this object (None for a holder that isn't known).
+    pub fn add(&mut self, holder: Option<&DataRef>) {
+        *self = match (&*self, holder) {
+            (Self::None, Some(holder)) => Self::One(holder.clone()),
+            (Self::One(existing), Some(holder)) if existing == holder => return,
+            _ => Self::Many,
+        };
+    }
+}
+
 impl Node {
     /// Create a new node.
     pub fn new(name: SId, id: NodeRef, field: bool) -> Self {
@@ -74,6 +104,7 @@ impl Node {
             data: Default::default(),
             dirty: Default::default(),
             attributes,
+            holders: FieldHolders::None, // a new object: nothing holds it yet
         }
     }
 

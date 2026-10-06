@@ -284,6 +284,7 @@ impl<'ctx> ParseContext<'ctx> {
                 nref = self.graph.insert_root(&obj_name); // no collisions
             } else {
                 nref = self.graph.insert_node_id(&obj_name, id, None, false);
+                self.graph.add_field_holder(&nref, None); // a declared ID could already be held
             }
         } else {
             nref = self.graph.insert_root(&obj_name);
@@ -325,6 +326,7 @@ impl<'ctx> ParseContext<'ctx> {
                 nref = self.graph.insert_node(name, Some(parent), false); // no collisions
             } else {
                 nref = self.graph.insert_node_id(name, cid, Some(parent), false);
+                self.graph.add_field_holder(&nref, None); // a declared ID could already be held
             }
         } else {
             nref = self.graph.insert_node(name, Some(parent), false);

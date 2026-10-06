@@ -143,14 +143,7 @@ impl Func {
         if let Some(node) = node.node(&graph) {
             for (_name, dref) in &node.data {
                 if let Some(func) = graph.get_stof_data::<Self>(dref) {
-                    if let Some(attrs) = &attrs {
-                        for att in attrs {
-                            if func.attributes.contains_key(att) {
-                                funcs.insert(dref.clone());
-                                break;
-                            }
-                        }
-                    } else {
+                    if func.has_any_attr(attrs) {
                         funcs.insert(dref.clone());
                     }
                 }
@@ -168,14 +161,25 @@ impl Func {
     }
 
     /// Get all functions in a graph, optionally filtered by attribute.
+    /// One pass over the graph's data: no walk of every node (documents can hold many objects, Ex. customers).
     pub fn all_functions(graph: &Graph, attrs: &Option<FxHashSet<String>>) -> FxHashSet<DataRef> {
         let mut funcs = FxHashSet::default();
-        for root in &graph.roots {
-            for dref in Self::functions(graph, root, attrs, true) {
-                funcs.insert(dref);
+        for (dref, data) in &graph.data {
+            if let Some(func) = data.data.as_dyn_any().downcast_ref::<Self>() {
+                if func.has_any_attr(attrs) {
+                    funcs.insert(dref.clone());
+                }
             }
         }
         funcs
+    }
+
+    /// Does this function have any of these attributes (or are there no attributes to filter by)?
+    fn has_any_attr(&self, attrs: &Option<FxHashSet<String>>) -> bool {
+        match attrs {
+            Some(attrs) => attrs.iter().any(|attr| self.attributes.contains_key(attr)),
+            None => true,
+        }
     }
 
     /// Get all main functions in a graph.

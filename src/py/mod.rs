@@ -161,6 +161,18 @@ impl Doc {
         self.graph.allow_http();
     }
 
+    /// Give this document network access to these hosts only: requests (and redirects) to any other host fail.
+    /// An entry is a host name (any port, Ex. "api.example.com") or a host and port ("localhost:8080").
+    pub fn allow_http_hosts(&mut self, hosts: Vec<String>) {
+        self.graph.allow_http_hosts(hosts);
+    }
+
+    /// How long a call can run, in seconds, before it fails with an execution timeout (None for no limit).
+    /// Defaults to 120 (2 minutes).
+    pub fn set_max_execution_time(&mut self, seconds: Option<f64>) {
+        self.graph.max_execution_time = seconds.map(|seconds| std::time::Duration::from_secs_f64(seconds.max(0.)));
+    }
+
     #[pyo3(signature = (lib, name, func, is_async = false))]
     /// Add a python function as a stof library function.
     pub fn lib(&mut self, lib: &str, name: &str, func: Py<PyAny>, is_async: bool) {

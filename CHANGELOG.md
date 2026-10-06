@@ -1,5 +1,43 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Execution time limit for hosts.** A call fails with an execution timeout after 2 minutes (as before); hosts can
+  now change it: `graph.max_execution_time = Some(duration)` (Rust), `doc.set_max_execution_time(seconds)`
+  (Python), `doc.setMaxExecutionTime(ms)` (JS). `None`/`null` removes the limit.
+- **HTTP host allowlist.** `graph.allow_http_hosts(["api.example.com"])` (Rust), `doc.allow_http_hosts([...])`
+  (Python), `doc.allowHttp(['api.example.com'])` (JS) give the `Http` library access to those hosts only: a request
+  to another host throws, and a response redirected to another host returns an error instead. An entry is a host
+  (any port) or `host:port`. `allow_http()` is unchanged (any host).
+
+### Fixed
+
+- `Obj.diff` compared objects inside lists by ID, so a list of objects (Ex. price tiers parsed from JSON) always
+  showed as changed. Objects now match by their fields, including inside lists, tuples, and maps. A list with any
+  difference is still kept whole in the result.
+- `Obj.upcast()` set the object's prototype to a data ID instead of the prototype's own prototype, so the object
+  lost its type (`typename` was an ID and its functions were gone). It now moves up one type, as documented.
+- Moving an object to the parent it already has (`move_node` with the current parent, Ex. `obj.move(parent)`)
+  detached it: it was added to the parent (no change), then removed from its "old" parent (the same one), leaving
+  an object no field could reach and nothing dropped. It's now a no-op that succeeds.
+
+### Performance
+
+These keep every result the same; they remove work that grew with the size of the document.
+
+- `drop(obj)` (and `using` cleanup) removes fields anywhere that hold the dropped object or one of its children.
+  That searched all of the document's data once per dropped node. Objects now track the field that holds them
+  (`Node::holders`: none, one, or many/unknown), so a drop removes that field directly; only an object that more
+  than one field may hold (Ex. one assigned to a variable or a second field) still searches, once per drop.
+- `funcs(attributes)` (Ex. `funcs(attributes = 'my-event')`) read every node's data recursively. It's now one pass
+  over the document's data.
+- Prototype lookups (method calls on objects, type checks, ...) scanned all of the object's data for its prototype.
+  They now go straight to it (`__proto__`, now `PROTOTYPE_DATA_NAME`), so a call on an object with many fields
+  (Ex. an object of customers) no longer depends on its size.
+- Loops trim their execution history in place, and method lookups split paths without allocating.
+
 ## 0.10.3
 
 ### Added

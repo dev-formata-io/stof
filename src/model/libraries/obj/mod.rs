@@ -21,7 +21,7 @@ use lazy_static::lazy_static;
 use nanoid::nanoid;
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
-use crate::{model::{Field, Func, Graph, PROTOTYPE_TYPE_ATTR, Prototype, SId, obj::{ops::{obj_any, obj_at, obj_attributes, obj_children, obj_contains, obj_create_type, obj_diff, obj_dist, obj_dump_graph, obj_empty, obj_exists, obj_fields, obj_from_id, obj_from_map, obj_funcs, obj_get, obj_id, obj_insert, obj_instance_of_proto, obj_is_parent, obj_is_root, obj_len, obj_move, obj_move_field, obj_name, obj_parent, obj_path, obj_proto, obj_remove, obj_remove_proto, obj_root, obj_run, obj_schemafy, obj_set_proto, obj_to_map, obj_upcast}, validate::validation}, stof_std::{COPY, StdIns}}, runtime::{Error, Num, Type, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack, DUPLICATE, EQUAL, POP_SELF, POP_STACK, PUSH_SELF, TRUTHY, call::FuncCall, empty::EmptyIns, ifs::IfIns}, proc::ProcEnv}};
+use crate::{model::{Field, Func, Graph, PROTOTYPE_DATA_NAME, PROTOTYPE_TYPE_ATTR, Prototype, SId, obj::{ops::{obj_any, obj_at, obj_attributes, obj_children, obj_contains, obj_create_type, obj_diff, obj_dist, obj_dump_graph, obj_empty, obj_exists, obj_fields, obj_from_id, obj_from_map, obj_funcs, obj_get, obj_id, obj_insert, obj_instance_of_proto, obj_is_parent, obj_is_root, obj_len, obj_move, obj_move_field, obj_name, obj_parent, obj_path, obj_proto, obj_remove, obj_remove_proto, obj_root, obj_run, obj_schemafy, obj_set_proto, obj_to_map, obj_upcast}, validate::validation}, stof_std::{COPY, StdIns}}, runtime::{Error, Num, Type, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack, DUPLICATE, EQUAL, POP_SELF, POP_STACK, PUSH_SELF, TRUTHY, call::FuncCall, empty::EmptyIns, ifs::IfIns}, proc::ProcEnv}};
 mod validate;
 mod ops;
 
@@ -333,8 +333,9 @@ impl Instruction for ObjIns {
                             
                             let mut set_proto = false;
                             if let Some(proto) = proto_obj {
-                                for proto_proto in Prototype::prototype_refs(&graph, &proto) {
-                                    graph.insert_stof_data(&obj, "__proto__", Box::new(Prototype { node: proto_proto }), None);
+                                // the prototype's own prototype node (its refs are data IDs, not nodes)
+                                for proto_proto in Prototype::prototype_nodes(&graph, &proto, false) {
+                                    graph.insert_stof_data(&obj, PROTOTYPE_DATA_NAME, Box::new(Prototype { node: proto_proto }), None);
                                     set_proto = true;
                                     break;
                                 }
@@ -355,7 +356,7 @@ impl Instruction for ObjIns {
                             if let Some(obj) = var.try_obj() {
                                 let existing_prototypes = Prototype::prototype_refs(graph, &obj);
                                 for dref in existing_prototypes { graph.remove_data(&dref, Some(obj.clone())); }
-                                graph.insert_stof_data(&obj, "__proto__", Box::new(Prototype { node: proto_ref }), None);
+                                graph.insert_stof_data(&obj, PROTOTYPE_DATA_NAME, Box::new(Prototype { node: proto_ref }), None);
                                 return Ok(None);
                             }
                         } else {
@@ -635,9 +636,11 @@ impl Instruction for ObjIns {
                                                         if let Some(existing) = Field::field_from_path(graph, dest_path.as_str(), Some(obj.clone())) {
                                                             // A field already exists at this destination - set value
                                                             if let Some(dest_field) = graph.get_mut_stof_data::<Field>(&existing) {
+                                                                let held = field.value.try_obj();
                                                                 dest_field.value = field.value;
                                                                 moved = true;
                                                                 graph.remove_data(&source_field_ref, None);
+                                                                if let Some(obj) = held { graph.add_field_holder(&obj, Some(&existing)); }
                                                             }
                                                         } else {
                                                             let mut dest_path = dest_path.split('.').collect::<Vec<_>>();
@@ -1355,13 +1358,12 @@ impl Instruction for ObjIns {
                                                     }
                                                 }
                                                 if !obj_diffed {
-                                                    if let Ok(res) = schema_val.equal(&target_val) {
-                                                        if res.truthy() {
-                                                            instructions.push(Arc::new(Base::Literal(Val::Obj(target.clone())))); // remove from target
-                                                            instructions.push(Arc::new(Base::Literal(Val::Str(schema_field_name.into())))); // the field name to remove
-                                                            instructions.push(Arc::new(Base::Literal(Val::Bool(false)))); // shallow = false
-                                                            instructions.push(Arc::new(Self::Remove));
-                                                        }
+                                                    let (schema_val, target_val) = (schema_val.get(), target_val.get());
+                                                    if diff_equal(graph, &schema_val, &target_val) {
+                                                        instructions.push(Arc::new(Base::Literal(Val::Obj(target.clone())))); // remove from target
+                                                        instructions.push(Arc::new(Base::Literal(Val::Str(schema_field_name.into())))); // the field name to remove
+                                                        instructions.push(Arc::new(Base::Literal(Val::Bool(false)))); // shallow = false
+                                                        instructions.push(Arc::new(Self::Remove));
                                                     }
                                                 }
                                             } else if symmetric {
@@ -1470,5 +1472,45 @@ impl Instruction for ObjIns {
                 Ok(None)
             }
         }
+    }
+}
+
+
+/// Equality for Obj.diff: objects are equal when their fields are (not only when they're the same object),
+/// recursively, including objects inside lists, tuples, and maps (Ex. price tiers parsed from JSON are separate
+/// objects, so comparing them by ID always found a difference).
+fn diff_equal(graph: &mut Graph, a: &Val, b: &Val) -> bool {
+    match (a, b) {
+        (Val::Obj(a), Val::Obj(b)) => {
+            if a == b { return true; }
+            let a_fields = Field::fields(graph, a);
+            let b_fields = Field::fields(graph, b);
+            if a_fields.len() != b_fields.len() { return false; }
+            for (name, a_ref) in &a_fields {
+                let Some(b_ref) = b_fields.get(name) else { return false };
+                let a_val = graph.get_stof_data::<Field>(a_ref).map(|field| field.value.get());
+                let b_val = graph.get_stof_data::<Field>(b_ref).map(|field| field.value.get());
+                match (a_val, b_val) {
+                    (Some(a_val), Some(b_val)) if diff_equal(graph, &a_val, &b_val) => {},
+                    _ => return false,
+                }
+            }
+            true
+        },
+        (Val::List(a), Val::List(b)) |
+        (Val::Tup(a), Val::Tup(b)) => {
+            a.len() == b.len() && a.iter().zip(b.iter()).all(|(a, b)| {
+                let (a, b) = (a.read().clone(), b.read().clone());
+                diff_equal(graph, &a, &b)
+            })
+        },
+        (Val::Map(a), Val::Map(b)) => {
+            a.len() == b.len() && a.iter().all(|(key, a)| {
+                let Some(b) = b.get(key) else { return false };
+                let (a, b) = (a.read().clone(), b.read().clone());
+                diff_equal(graph, &a, &b)
+            })
+        },
+        _ => a.equal(b).is_ok_and(|res| res.truthy()),
     }
 }

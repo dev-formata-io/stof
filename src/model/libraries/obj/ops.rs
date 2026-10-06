@@ -928,7 +928,7 @@ pub fn obj_diff() -> LibFunc {
         name: "diff".into(),
         is_async: false,
         docs: r#"# Obj.diff(schema: obj, target: obj, symmetric: bool = false) -> void
-Diffs the schema with the target, modifying the target object only. Removes all fields from the target that match the schema, recursively. Optionally, if symmetric, unique schema fields will be deep copied to the target object as well (a version of: (a - b) U (b - a)).
+Diffs the schema with the target, modifying the target object only. Removes all fields from the target that match the schema, recursively. Objects match by their fields, including objects inside lists and maps (a list with any difference is kept whole). Optionally, if symmetric, unique schema fields will be deep copied to the target object as well (a version of: (a - b) U (b - a)).
 ```rust
 const sch = new { x: 3km, y: 5.5m };
 const other = new { x: 3km, y: 5.6m };
