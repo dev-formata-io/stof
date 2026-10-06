@@ -16,6 +16,7 @@ export const stof_objImport: (a: number, b: any, c: any) => [number, number, num
 export const stof_parse: (a: number, b: number, c: number, d: any, e: number, f: number) => [number, number, number];
 export const stof_run_with_gate: (a: number, b: any, c: any, d: any) => any;
 export const stof_set: (a: number, b: number, c: number, d: any, e: any) => number;
+export const stof_setMaxExecutionTime: (a: number, b: number, c: number) => void;
 export const stof_stringExport: (a: number, b: number, c: number, d: any) => [number, number, number, number];
 export const stof_stringImport: (a: number, b: number, c: number, d: number, e: number, f: any, g: number, h: number) => [number, number, number];
 export const stof_sync_call: (a: number, b: number, c: number, d: any) => [number, number, number];

@@ -58,6 +58,11 @@ export class Stof {
      */
     run_with_gate(attributes: any, acquire: Function, release: Function): Promise<string>;
     /**
+     * How long a call can run, in milliseconds, before it fails with an execution timeout (null for no limit).
+     * Defaults to 120,000 (2 minutes).
+     */
+    setMaxExecutionTime(ms?: number | null): void;
+    /**
      * Set a value onto this graph using the Stof runtime.
      */
     set(path: string, value: any, start: any): boolean;
@@ -126,6 +131,7 @@ export interface InitOutput {
     readonly stof_parse: (a: number, b: number, c: number, d: any, e: number, f: number) => [number, number, number];
     readonly stof_run_with_gate: (a: number, b: any, c: any, d: any) => any;
     readonly stof_set: (a: number, b: number, c: number, d: any, e: any) => number;
+    readonly stof_setMaxExecutionTime: (a: number, b: number, c: number) => void;
     readonly stof_stringExport: (a: number, b: number, c: number, d: any) => [number, number, number, number];
     readonly stof_stringImport: (a: number, b: number, c: number, d: number, e: number, f: any, g: number, h: number) => [number, number, number];
     readonly stof_sync_call: (a: number, b: number, c: number, d: any) => [number, number, number];

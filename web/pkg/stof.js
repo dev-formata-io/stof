@@ -163,6 +163,14 @@ export class Stof {
         return ret;
     }
     /**
+     * How long a call can run, in milliseconds, before it fails with an execution timeout (null for no limit).
+     * Defaults to 120,000 (2 minutes).
+     * @param {number | null} [ms]
+     */
+    setMaxExecutionTime(ms) {
+        wasm.stof_setMaxExecutionTime(this.__wbg_ptr, !isLikeNone(ms), isLikeNone(ms) ? 0 : ms);
+    }
+    /**
      * Set a value onto this graph using the Stof runtime.
      * @param {string} path
      * @param {any} value
