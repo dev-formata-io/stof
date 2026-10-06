@@ -20,7 +20,7 @@ use bytes::Bytes;
 use colored::Colorize;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{BstfFormat, BytesFormat, Data, DataRef, Field, FieldHolders, Format, INVALID_NODE_NEW, JsonFormat, LibFunc, MdDocsFormat, MdFormat, Node, NodeRef, Profile, SId, SPath, StofData, StofFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, blob::insert_blob_lib, libraries::{data::insert_data_lib, function::insert_fn_lib}, libs::insert_lib_documentation, list::insert_list_lib, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, prompt::insert_prompt_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, time::insert_time_lib, tup::insert_tup_lib, ver::insert_semver_lib}, parser::context::ParseContext, runtime::{Error, Runtime, Val, Variable, proc::DEFAULT_MAX_EXECUTION_TIME, table::SymbolTable}};
+use crate::{model::{BstfFormat, BytesFormat, Data, DataRef, Field, FieldHolders, Format, INVALID_NODE_NEW, JsonFormat, LibFunc, MdDocsFormat, MdFormat, Node, NodeRef, Profile, Prototype, SId, SPath, StofData, StofFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, blob::insert_blob_lib, libraries::{data::insert_data_lib, function::insert_fn_lib}, libs::insert_lib_documentation, list::insert_list_lib, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, prompt::insert_prompt_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, time::insert_time_lib, tup::insert_tup_lib, ver::insert_semver_lib}, parser::context::ParseContext, runtime::{Error, Runtime, Type, Val, ValRef, Variable, proc::DEFAULT_MAX_EXECUTION_TIME, table::SymbolTable}};
 
 #[cfg(feature = "system")]
 use crate::model::{filesys::fs_library};
@@ -622,6 +622,78 @@ impl Graph {
             return true;
         }
         false
+    }
+
+    /// Give new IDs to the nodes and data in this graph whose IDs are already used in another graph, updating every
+    /// reference to them (parents, children, data on nodes, object/function/data values in fields, prototypes,
+    /// types, and roots). Other IDs are kept.
+    /// Used before importing into a document that already has some of these IDs (Ex. a BSTF export of the same
+    /// document), so the import adds new objects instead of overwriting existing ones.
+    pub fn reassign_ids_used_in(&mut self, other: &Self) {
+        let node_ids: FxHashMap<NodeRef, NodeRef> = self.nodes.keys().filter(|id| other.nodes.contains_key(*id)).map(|id| (id.clone(), SId::default())).collect();
+        let data_ids: FxHashMap<DataRef, DataRef> = self.data.keys().filter(|id| other.data.contains_key(*id)).map(|id| (id.clone(), SId::default())).collect();
+        if node_ids.is_empty() && data_ids.is_empty() {
+            return;
+        }
+        let node_id = |id: &NodeRef| node_ids.get(id).cloned().unwrap_or_else(|| id.clone());
+        let data_id = |id: &DataRef| data_ids.get(id).cloned().unwrap_or_else(|| id.clone());
+
+        let mut nodes = FxHashMap::default();
+        for (_, mut node) in std::mem::take(&mut self.nodes) {
+            node.id = node_id(&node.id);
+            node.parent = node.parent.as_ref().map(|parent| node_id(parent));
+            node.children = node.children.iter().map(|child| node_id(child)).collect();
+            for dref in node.data.values_mut() {
+                *dref = data_id(dref);
+            }
+            node.holders = FieldHolders::Many;
+            nodes.insert(node.id.clone(), node);
+        }
+        self.nodes = nodes;
+
+        let mut all_data = FxHashMap::default();
+        for (_, mut data) in std::mem::take(&mut self.data) {
+            data.id = data_id(&data.id);
+            data.nodes = data.nodes.iter().map(|nref| node_id(nref)).collect();
+            if let Some(field) = data.data.as_mut_dyn_any().downcast_mut::<Field>() {
+                Self::reassign_val_ids(&mut field.value.val.write(), &node_id, &data_id);
+                if let Some(Type::Obj(proto)) = &mut field.value.vtype {
+                    *proto = node_id(proto);
+                }
+            } else if let Some(proto) = data.data.as_mut_dyn_any().downcast_mut::<Prototype>() {
+                proto.node = node_id(&proto.node);
+            }
+            all_data.insert(data.id.clone(), data);
+        }
+        self.data = all_data;
+
+        self.roots = self.roots.iter().map(|root| node_id(root)).collect();
+        for nodes in self.typemap.values_mut() {
+            *nodes = nodes.iter().map(|nref| node_id(nref)).collect();
+        }
+    }
+
+    /// Update the object, function, and data references in a value (and inside its collections).
+    fn reassign_val_ids(val: &mut Val, node_id: &impl Fn(&NodeRef) -> NodeRef, data_id: &impl Fn(&DataRef) -> DataRef) {
+        let inner = |val: &ValRef<Val>| Self::reassign_val_ids(&mut val.write(), node_id, data_id);
+        match val {
+            Val::Obj(nref) => *nref = node_id(nref),
+            Val::Fn(dref) | Val::Data(dref) => *dref = data_id(dref),
+            Val::List(vals) | Val::Tup(vals) => vals.iter().for_each(inner),
+            Val::Set(vals) => {
+                // ordered by value: rebuild after updating
+                vals.iter().for_each(inner);
+                *vals = vals.iter().cloned().collect();
+            },
+            Val::Map(map) => {
+                for (key, value) in map.iter() {
+                    inner(key);
+                    inner(value);
+                }
+                *map = map.iter().map(|(key, value)| (key.clone(), value.clone())).collect();
+            },
+            _ => {},
+        }
     }
 
     /// All child nodes for a given node.

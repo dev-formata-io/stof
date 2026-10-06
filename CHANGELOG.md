@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.10.4
 
 ### Added
 
@@ -14,6 +14,10 @@
 
 ### Fixed
 
+- Parsing BSTF into an object of a document that already has some of its objects (Ex. diffing a policy with its own
+  export, `parse(blobify('bstf', obj), copy, 'bstf')`) overwrote the existing objects: they moved into the import
+  and were dropped with it. Objects and data whose IDs are taken now get new IDs, so the import is a copy; other
+  IDs are kept, as before. (`Graph::reassign_ids_used_in`. Importing at the root is unchanged.)
 - `Obj.diff` compared objects inside lists by ID, so a list of objects (Ex. price tiers parsed from JSON) always
   showed as changed. Objects now match by their fields, including inside lists, tuples, and maps. A list with any
   difference is still kept whole in the result.

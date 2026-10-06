@@ -174,6 +174,12 @@ impl Format for BstfFormat {
         if bytes.is_empty() { return Ok(()); }
         match crate::model::cautious::bincode_deserialize::<Graph>(bytes.as_ref()) {
             Ok(mut imported) => {
+                // Imported into an object: objects and data whose IDs are already in this document (Ex. diffing a policy
+                // with its own export) get new IDs, instead of overwriting the existing ones.
+                if node.is_some() {
+                    imported.reassign_ids_used_in(graph);
+                }
+
                 // Insert types
                 for (k, v) in &imported.typemap {
                     for nref in v {

@@ -1,6 +1,6 @@
 {
     "name": "@formata/stof",
-    "version": "0.10.3",
+    "version": "0.10.4",
     "description": "Portable, sandboxed logic inside data: JSON with functions you can send anywhere and run safely in Rust, WebAssembly, and Python.",
     "type": "module",
     "main": "./dist/doc.js",

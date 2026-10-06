@@ -88,3 +88,21 @@ fn bstf_non_finite() {
     assert(o.c.nan());
     assert_eq(o.d, inf as kg);
 }
+
+#[test]
+/// Parsing an export back into the same document makes a copy: objects whose IDs are taken get new ones.
+fn bstf_reimport_copies() {
+    using original = new { name: 'tiers', tiers: [new { up_to: 10 }, new { up_to: 20 }], inner: new { x: 1 } };
+    const bytes = blobify('bstf', original);
+    using copy = new {};
+    parse(bytes, copy, 'bstf');
+
+    assert_eq(original.name, 'tiers');           // the original is untouched
+    assert_eq(original.inner.x, 1);
+    assert_eq(original.tiers[1].up_to, 20);
+    assert_eq(copy.inner.x, 1);                   // and the copy matches it
+    assert_eq(copy.tiers[1].up_to, 20);
+    assert_neq(copy.inner, original.inner);       // as separate objects
+    copy.inner.x = 2;
+    assert_eq(original.inner.x, 1);
+}
