@@ -1,7 +1,7 @@
 {
     "name": "@formata/stof",
     "version": "0.10.5",
-    "description": "Portable, sandboxed logic inside data: JSON with functions you can send anywhere and run safely in Rust, WebAssembly, and Python.",
+    "description": "Run AI-generated logic safely inside your app. Stof is JSON with functions: data and logic in one document, sandboxed, in Rust, JavaScript, and Python.",
     "type": "module",
     "main": "./dist/doc.js",
     "types": "./dist/doc.d.ts",
@@ -46,6 +46,7 @@
         "typescript",
         "rust",
         "scripting",
+        "dsl",
         "embedded",
         "validation",
         "serialization"

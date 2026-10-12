@@ -18,12 +18,71 @@
 <h3 align="center">Run AI-generated logic safely, inside your app.</h3>
 
 <p align="center">
-    Stof is a sandboxed runtime for logic that lives in data. Let a model write a rule, a transform, or a tool, then run it in-process in under a millisecond, with access to nothing but the data and functions you give it. Stof documents combine and split like JSON, and run like code, in Rust, JavaScript, and Python.
+    Stof is JSON with functions. One document holds data and the logic that works on it, and your app runs it in a sandbox, in-process, in Rust, JavaScript, or Python.
 </p>
 
-## Your agent can write the logic. Where do you run it?
+## What it looks like
 
-Models are good at writing small pieces of logic: a routing rule, a validation check, a data transform, a tool. Running that logic is the hard part, because the code came from a model, not from your team.
+This is a Stof document. The data looks like JSON, and the function next to it works on that data:
+
+```stof
+ticket: {
+    text: 'Where is my refund?'
+    priority: 1
+}
+
+#[triage]
+fn route() {
+    if (self.ticket.text.lower().contains('refund')) self.ticket.team = 'billing';
+    else if (self.ticket.priority > 2) self.ticket.team = 'urgent';
+    else self.ticket.team = 'general';
+}
+```
+
+Your app loads it and works with it as needed:
+
+```typescript
+import { StofDoc } from '@formata/stof';
+
+const doc = await StofDoc.new(source);
+await doc.run('triage');    // runs every function tagged #[triage]
+doc.get('ticket.team');     // 'billing'
+```
+
+A Stof document is data you can store, send, and merge like JSON, and code you can run, safely:
+
+- **It runs in a sandbox.** A document can read and change itself and call the functions you give it. Nothing else: no file system, network, or environment unless you turn them on.
+- **It runs in your process.** No server, container, or cold start. A small document parses and runs in under a millisecond.
+- **It runs the same everywhere.** Rust, Node.js, the browser, and Python give the same result.
+
+## Everything is data
+
+Stof has functions, but it isn't a language for writing apps. It's a document, and every part of it is data. The
+document above is a tree of objects, and the function sits on its object the same way the fields do:
+
+```text
+root
+├── ticket                          object
+│   ├── text: 'Where is my refund?'     field
+│   └── priority: 1                     field
+└── route()                         function: data on the object, like a field
+```
+
+Fields, functions, types, and docs are all pieces of data attached to objects (an entity-component system, if you
+know game engines). That's what makes the rest possible:
+
+- **Anything you can do with data, you can do with logic.** Merge two documents, pull one object out with its
+  functions, diff two versions, store it in a database, or send it over the wire.
+- **A document can change while it runs.** It can parse new fields and functions into itself, or drop them, with
+  no build step.
+- **It grows to fit your domain.** Your app adds its own host functions to safely bridge contexts, types and schemas live in the
+  document, and in Rust you can add your own formats and kinds of data.
+- **There's very little to learn.** If you can read JSON and a bit of JavaScript, you can read Stof, and so can a
+  model.
+
+## Why it matters now: models write logic
+
+Models are good at writing small pieces of logic: a routing rule like the one above, a validation check, a data transform, a tool. Running that logic is the hard part, because the code came from a model, not from your team.
 
 | Option | The catch |
 |---|---|
@@ -33,36 +92,12 @@ Models are good at writing small pieces of logic: a routing rule, a validation c
 | Rule DSLs (logic encoded as JSON) | Limited, and awkward to read and write, for people and models alike |
 | WebAssembly | Needs a compiler toolchain, binaries are large to send, and the logic lives apart from the data |
 
-Stof is the missing option: a small language made to be written by models, sent as data, and run in-process in a sandbox.
-
-## How it works
-
-A model writes this. Stof is JSON plus functions, and the tag `#[triage]` is just a label the model and your app agree to:
-
-```stof
-#[triage]
-fn route() {
-    if (self.ticket.text.lower().contains('refund')) self.ticket.team = 'billing';
-    else if (self.ticket.priority > 2) self.ticket.team = 'urgent';
-    else self.ticket.team = 'general';
-}
-
-#[triage]
-fn flag() {
-    self.ticket.needs_human = self.ticket.priority > 2;
-}
-```
-
-Your app runs everything tagged `#[triage]`, without requiring what the model named its functions or how many it wrote:
+With Stof, the model writes a document, and your app runs it like any other data it receives. The tag `#[triage]` is just a label the model and your app agree on, so your app doesn't depend on what the model named its functions or how many it wrote:
 
 ```typescript
-import { StofDoc } from '@formata/stof';
-
-const doc = await StofDoc.new(modelOutput);
+const doc = await StofDoc.new(modelOutput);                       // rules a model wrote
 doc.parse({ ticket: { text: 'Where is my refund?', priority: 1 } });
-
 await doc.run('triage');
-doc.get('ticket.team');   // 'billing'
 ```
 
 And the document can't reach anything you didn't give it:
@@ -72,7 +107,7 @@ const doc = await StofDoc.new(`fn run() -> str { fs::read_string('/etc/passwd') 
 await doc.call('run');   // throws: this host hasn't given documents file system access
 ```
 
-To let it do more, you hand it specific functions: `doc.lib('App', 'notify', notify)` makes `App::notify(...)` available, and nothing else. File system, environment, and network access stay off unless you turn them on (`doc.allowHttp()` here, `allow_system()` and `allow_http()` in Rust and Python).
+To let it do more, you hand it specific functions: `doc.lib('App', 'notify', notify)` makes `App::notify(...)` available, and nothing else. File system, environment, and network access stay off unless you turn them on (`doc.allowHttp(['api.example.com'])` here, `allow_system()` and `allow_http()` in Rust and Python).
 
 ## Logic that moves like data
 
@@ -97,7 +132,7 @@ They split like data, too. Any part of a document can be sent on its own, functi
 
 ## Where it fits
 
-Stof is a glue layer between the formats you already have and your code:
+Stof is a glue layer between the formats you already have and your code (very good for distributed systems):
 
 ```text
   where things come from          the glue (often temporary)       your app
@@ -114,6 +149,7 @@ Load data from anywhere, add logic, run it, and keep the document or throw it aw
 **Reach for Stof when:**
 
 - A model, a user, or a customer gives you logic you need to run: rules, filters, transforms, scoring, tool behavior.
+- You're about to invent a config format, rules engine, or DSL for your product.
 - The same logic has to run in more than one place (browser, server, worker) and give the same answer.
 - You want to change behavior by sending or storing a new document, not by shipping a deploy.
 - Logic should travel with the data it belongs to, through APIs, queues, and databases.
@@ -122,20 +158,13 @@ Load data from anywhere, add logic, run it, and keep the document or throw it aw
 
 ## Why Stof
 
-- **Safe by default.** A document can only read and change itself and call the functions you give it.
-- **Fast and in-process.** No containers or cold starts: parsing and running a small document takes under a millisecond, and each call after that takes microseconds.
+- **Safe by default.** A document can only read and change itself and call the functions you give it. Each call has a time limit, too.
+- **Fast and in-process.** Parsing and running a small document takes under a millisecond, and each call after that takes microseconds.
 - **Small on the wire.** Documents, functions included, serialize to compact binary: the rules above are under 1KB.
 - **It starts as JSON.** Any JSON document is valid Stof, and Stof imports and exports JSON, YAML, TOML, and more.
-- **Models already write it.** Stof reads like JSON, so models write it without a lot of special training, and errors give the exact line and a plain explanation, so a model can fix its own mistakes.
+- **Models already write it.** It reads like JSON and JavaScript, and errors give the exact line and a plain explanation, so a model can fix its own mistakes.
+- **More than a rules engine.** Types and schemas, units (`5min + 30s == 330s`, `2GB` to `MB` exactly), destructuring, async, and tests inside the document (`#[test]`, run with `stof test`).
 - **Proven in production.** Stof is the policy engine behind [Limitr](https://limitr.dev), where documents are pushed to running apps and evaluated in-process.
-
-## A few things you'll like
-
-- **Units built in:** `5min + 30s` == `330s`, and `2GB` converts to `2000MB` exactly, when needed for comparisons, etc.
-- **Types and schemas:** objects can have types with inheritance, and schemas that validate other objects.
-- **Documents that grow:** a running document can parse new fields and functions into itself.
-- **Tests inside the document:** mark functions with `#[test]` and run them with `stof test`.
-- **Clear errors:** parse and runtime errors point to the file, line, and column, so a model can fix its own mistakes.
 
 ## Quickstart
 
