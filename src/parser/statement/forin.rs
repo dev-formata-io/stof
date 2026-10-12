@@ -17,12 +17,13 @@
 use std::sync::Arc;
 use arcstr::{literal, ArcStr};
 use imbl::{vector, Vector};
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{parser::statement::declare::note_declared, model::stof_std::COPY, parser::{doc::StofParseError, expr::expr, ident::ident, statement::{noscope_block, statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FuncCall, nullcheck::NullcheckIns, ops::{Op, OpIns}, whiles::WhileIns, Base}, Num, NumT, Type, Val}};
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, opt}, sequence::{delimited, preceded, terminated}, IResult, Parser};
+use crate::{parser::statement::declare::{note_declared, pattern}, runtime::instructions::destructure::{DestructureIns, Pattern}, model::stof_std::COPY, parser::{doc::StofParseError, expr::expr, ident::ident, statement::{noscope_block, statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FuncCall, nullcheck::NullcheckIns, ops::{Op, OpIns}, whiles::WhileIns, Base}, Num, NumT, Type, Val}};
 
 
 /// For in loop.
 /// for (const x: int in thing) {}
+/// for (const (key, value) in map) {} (destructuring, see `declare::pattern`)
 pub fn for_in_loop(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, _) = whitespace(input)?;
 
@@ -117,7 +118,9 @@ pub fn for_in_loop(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, S
     if !vartype.empty() { // cast to the right type
         inner_instructions.push(Arc::new(Base::Cast(vartype.clone())));
     }
-    if inner.is_const {
+    if let Some(pattern) = inner.pattern {
+        inner_instructions.push(Arc::new(DestructureIns { pattern, is_const: inner.is_const }));
+    } else if inner.is_const {
         inner_instructions.push(Arc::new(Base::DeclareConstVar(inner.varname, vartype)));
     } else {
         inner_instructions.push(Arc::new(Base::DeclareVar(inner.varname, vartype)));
@@ -147,6 +150,7 @@ fn inner_loop(input: &str) -> IResult<&str, LoopInner, StofParseError> {
 
 struct LoopInner {
     pub varname: ArcStr,
+    pub pattern: Option<Pattern>, // destructuring instead of a variable
     pub is_const: bool,
     pub typed: Option<Type>,
     pub expr: Arc<dyn Instruction>,
@@ -156,21 +160,29 @@ struct LoopInner {
 /// Const var in.
 fn const_var_in(input: &str) -> IResult<&str, LoopInner, StofParseError> {
     let (input, _) = multispace0(input)?;
-    let (input, varname) = preceded(tag("const"), preceded(multispace0, ident)).parse(input)?;
+    let (input, (varname, pattern)) = preceded(tag("const"), preceded(multispace0, name_or_pattern)).parse(input)?;
     let (input, typed) = opt(preceded(multispace0, preceded(char(':'), parse_type))).parse(input)?;
     let (input, _) = delimited(multispace0, tag("in"), multispace0).parse(input)?;
     let (input, as_ref) = opt(terminated(char('&'), multispace0)).parse(input)?;
     let (input, expr) = expr(input)?;
-    Ok((input, LoopInner { varname: varname.into(), is_const: true, typed, expr, as_ref: as_ref.is_some() }))
+    Ok((input, LoopInner { varname: varname.into(), pattern, is_const: true, typed, expr, as_ref: as_ref.is_some() }))
+}
+
+/// Loop variable name, or a destructuring pattern (its variables are declared by the pattern).
+fn name_or_pattern(input: &str) -> IResult<&str, (&str, Option<Pattern>), StofParseError> {
+    alt((
+        map(ident, |name| (name, None)),
+        map(pattern, |pattern| ("", Some(pattern))),
+    )).parse(input)
 }
 
 /// Var in.
 fn var_in(input: &str) -> IResult<&str, LoopInner, StofParseError> {
     let (input, _) = multispace0(input)?;
-    let (input, varname) = preceded(tag("let"), preceded(multispace0, ident)).parse(input)?;
+    let (input, (varname, pattern)) = preceded(tag("let"), preceded(multispace0, name_or_pattern)).parse(input)?;
     let (input, typed) = opt(preceded(multispace0, preceded(char(':'), parse_type))).parse(input)?;
     let (input, _) = delimited(multispace0, tag("in"), multispace0).parse(input)?;
     let (input, as_ref) = opt(terminated(char('&'), multispace0)).parse(input)?;
     let (input, expr) = expr(input)?;
-    Ok((input, LoopInner { varname: varname.into(), is_const: false, typed, expr, as_ref: as_ref.is_some() }))
+    Ok((input, LoopInner { varname: varname.into(), pattern, is_const: false, typed, expr, as_ref: as_ref.is_some() }))
 }

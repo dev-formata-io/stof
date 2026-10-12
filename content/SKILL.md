@@ -88,6 +88,10 @@ Read these before writing Stof. Each one is a real mistake that produces wrong r
   strings, and units (`'3.5' as float`, `42 as str`, `512MiB as GiB`).
 - Typed locals: `let total: float = 0;`. `const` stops reassignment, not mutation (`const l = []; l.push_back(1);`
   is fine).
+- Destructuring: `const { name, age: years, role = 'member', address: { city } } = user;` takes fields of an object
+  (or string keys of a map); `const [first, _, third] = list;` and `const (key, value) = pair;` take items of a list
+  or tuple by position (`_` skips one). A missing field or item is null, or its default; destructuring anything else
+  (null included) throws. `let` declares them mutable.
 - `new { ... }` inside a function creates a child of `self` that lives until dropped: declare temporaries with
   `using` (see 15), or `drop(o)` them.
 - `obj.fields()` is a list of `(name, value)` tuples (no functions).
@@ -160,6 +164,7 @@ let total = 0;
 for (const x in [1, 2, 3]) total += x * index;      // `index` is the loop position
 for (let i in 3) total += i;                        // 0, 1, 2
 for (const pair in self.server.fields()) pln(pair[0], pair[1]);
+for (const (key, value) in map) pln(key, value);    // destructure each item (also `{ name } in users`)
 for (let v in &list) v *= 10;                       // `&` iterates by reference (modifies the list)
 while (cond) { if (done) break; continue; }
 const kind = switch (i) { case 4: 'four' default: 'other' };

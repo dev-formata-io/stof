@@ -1,0 +1,153 @@
+//
+// Copyright 2025 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+/*!
+ * Destructuring declarations.
+ * Scope: root.Lang.Destructure
+ */
+
+user: {
+    name: 'Bob'
+    age: 42
+    address: {
+        city: 'Boston'
+        zip: '02110'
+    }
+}
+
+#[test]
+fn object_fields() {
+    const { name, age } = self.user;
+    assert_eq(name, 'Bob');
+    assert_eq(age, 42);
+}
+
+#[test]
+fn rename_default_and_missing() {
+    const { name: who, role = 'member', email } = self.user;
+    assert_eq(who, 'Bob');
+    assert_eq(role, 'member');
+    assert_eq(email, null);
+
+    const { age = 0 } = self.user; // only used when the field is missing (or null)
+    assert_eq(age, 42);
+}
+
+#[test]
+fn nested() {
+    const {
+        name,
+        address: { city, zip },
+    } = self.user;
+    assert_eq(name, 'Bob');
+    assert_eq(city, 'Boston');
+    assert_eq(zip, '02110');
+}
+
+#[test]
+fn map_keys() {
+    const { a, 'b key': b, c = 3 } = {'a': 1, 'b key': 2};
+    assert_eq(a, 1);
+    assert_eq(b, 2);
+    assert_eq(c, 3);
+}
+
+#[test]
+fn list_items() {
+    const [first, _, third, fourth = 'none'] = [1, 2, 3];
+    assert_eq(first, 1);
+    assert_eq(third, 3);
+    assert_eq(fourth, 'none');
+
+    const [[a, b], { name }] = [[1, 2], self.user];
+    assert_eq(a + b, 3);
+    assert_eq(name, 'Bob');
+}
+
+#[test]
+fn tuple_items() {
+    const (key, value) = ('limit', 100);
+    assert_eq(key, 'limit');
+    assert_eq(value, 100);
+
+    const [x, y] = (3, 4); // either brackets work for lists and tuples
+    assert_eq(x * y, 12);
+}
+
+#[test]
+fn let_is_mutable_and_a_copy() {
+    let { age, address } = self.user;
+    age += 1;
+    assert_eq(age, 43);
+    assert_eq(self.user.age, 42); // the field didn't change
+    assert_eq(address.city, 'Boston'); // objects are references, like any variable
+}
+
+#[test]
+fn const_is_const() {
+    const { age } = self.user;
+    let changed = true;
+    try {
+        age = 1;
+    } catch {
+        changed = false;
+    }
+    assert_not(changed);
+}
+
+#[test]
+fn for_in_loops() {
+    const totals = {'a': 1, 'b': 2};
+    let keys = '';
+    let sum = 0;
+    for (const (key, value) in totals) {
+        keys += key;
+        sum += value;
+    }
+    assert_eq(keys, 'ab');
+    assert_eq(sum, 3);
+
+    const people = [new { name: 'Ann', age: 30 }, new { name: 'Cal', age: 40 }];
+    let names = [];
+    for (const { name, age } in people) names.push_back(`${name}:${age}`);
+    assert_eq(names, ['Ann:30', 'Cal:40']);
+    for (const person in people) drop(person);
+
+    let fields = [];
+    for (const (field, _) in self.user) fields.push_back(field);
+    assert_eq(fields, ['name', 'age', 'address']);
+}
+
+#[test]
+fn wrong_kind_is_an_error() {
+    let errored = false;
+    try {
+        const { a } = null;
+    } catch (error: str) {
+        errored = true;
+        assert(error.contains('cannot destructure fields from a null'));
+    }
+    assert(errored);
+
+    errored = false;
+    try {
+        const [a] = self.user;
+    } catch {
+        errored = true;
+    }
+    assert(errored);
+}

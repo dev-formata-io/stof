@@ -39,6 +39,7 @@ pub mod ret;
 pub mod func;
 pub mod nullcheck;
 pub mod assign;
+pub mod destructure;
 
 
 // static instructions for efficiency

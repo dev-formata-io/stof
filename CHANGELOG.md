@@ -10,6 +10,14 @@
   import is defined (with doc comments), plus warnings with locations. `overlay` texts are parsed instead of the
   files at those paths (Ex. unsaved editor buffers). Init functions don't run. Normal parsing is unchanged: nothing
   is recorded unless a parse asks for it.
+- **Destructuring declarations.** Take values apart into variables with `let` or `const`:
+  - `const { name, age: years, role = 'member', address: { city } } = user;` fields of an object (or string keys
+    of a map), with renames (`age: years`), defaults for missing or null values (`role = 'member'`), and nesting.
+  - `const [first, _, third] = list;` and `const (key, value) = pair;` items of a list or tuple by position
+    (`_` skips one). Either bracket works for lists and tuples.
+  - In loops: `for (const (key, value) in map)`, `for (const { name, age } in users)`.
+
+  A missing field or item is null (or its default). Destructuring a value of the wrong kind (Ex. null) is an error.
 
 ## 0.10.4
 

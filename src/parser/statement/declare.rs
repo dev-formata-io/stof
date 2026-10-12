@@ -16,8 +16,9 @@
 
 use std::{cell::RefCell, sync::Arc};
 use imbl::Vector;
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0, multispace1}, combinator::opt, sequence::{delimited, preceded}, IResult, Parser};
-use crate::{parser::{doc::StofParseError, expr::expr, ident::ident, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::Base, Type, Val}};
+use imbl::vector;
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0, multispace1}, combinator::{map, opt}, sequence::{delimited, preceded}, IResult, Parser};
+use crate::{parser::{doc::{err_fail, StofParseError}, expr::expr, ident::ident, string::{double_string, single_string}, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{destructure::{DestructureIns, Pattern}, Base}, Type, Val}};
 
 
 thread_local! {
@@ -73,7 +74,67 @@ pub(crate) fn take_referenced_names() -> Vec<(String, bool, usize)> {
 /// Declare a variable.
 pub fn declare_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
     let (input, _) = whitespace(input)?;
-    alt((declare_const_var, declare_mut_var, declare_null_var)).parse(input)
+    alt((declare_const_var, declare_mut_var, declare_null_var, declare_pattern)).parse(input)
+}
+
+
+/// Destructuring declaration: variables from an object's fields (or a map's keys), or a list's (or tuple's) items.
+/// let { name, age: years, role = 'member', address: { city } } = user;
+/// const [first, second] = list;
+/// const (key, value) = pair;
+pub(self) fn declare_pattern(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
+    let (input, keyword) = alt((tag("let"), tag("const"))).parse(input)?;
+    let (input, pattern) = preceded(multispace0, pattern).parse(input)?;
+    let (input, _) = delimited(multispace0, char('='), multispace0).parse(input).map_err(err_fail)?;
+    let (input, expr) = expr(input).map_err(err_fail)?;
+    Ok((input, vector![expr, Arc::new(DestructureIns { pattern, is_const: keyword == "const" }) as Arc<dyn Instruction>]))
+}
+
+/// A destructuring pattern: `{ field, field: target, field = default, .. }`, `[target, ..]`, or `(target, ..)`,
+/// where a target is a variable name ("_" to skip) or another pattern.
+pub fn pattern(input: &str) -> IResult<&str, Pattern, StofParseError> {
+    let (mut input, open) = alt((char('{'), char('['), char('('))).parse(input)?;
+    let close = match open { '{' => '}', '[' => ']', _ => ')' };
+    let mut fields = Vec::new();
+    let mut items = Vec::new();
+    loop {
+        let (rest, _) = whitespace(input)?;
+        if let Some(rest) = rest.strip_prefix(close) { input = rest; break; } // empty, or after a trailing comma
+
+        let (rest, target) = if open == '{' {
+            let (rest, (key, quoted)) = alt((map(ident, |key| (key.to_string(), false)), map(alt((double_string, single_string)), |key| (key, true)))).parse(rest).map_err(err_fail)?;
+            let (rest, target) = opt(preceded(delimited(multispace0, char(':'), multispace0), target)).parse(rest).map_err(err_fail)?;
+            let target = match target {
+                Some(target) => target,
+                None if quoted => return Err(nom::Err::Failure(StofParseError::from(format!("'{key}' needs a variable name to destructure into: {{ '{key}': name }}")))),
+                None => { note_declared(&key); Pattern::Name(key.as_str().into()) },
+            };
+            (rest, (Some(key), target))
+        } else {
+            let (rest, target) = target(rest).map_err(err_fail)?;
+            (rest, (None, target))
+        };
+        let (rest, default) = opt(preceded(delimited(multispace0, char('='), multispace0), expr)).parse(rest).map_err(err_fail)?;
+        match target {
+            (Some(key), target) => fields.push((key.into(), target, default)),
+            (None, target) => items.push((target, default)),
+        }
+
+        let (rest, _) = whitespace(rest)?;
+        if let Some(rest) = rest.strip_prefix(',') { input = rest; continue; }
+        let (rest, _) = char(close)(rest).map_err(err_fail)?;
+        input = rest;
+        break;
+    }
+    Ok((input, if open == '{' { Pattern::Fields(fields) } else { Pattern::Items(items) }))
+}
+
+/// A destructuring target: a variable name or a nested pattern.
+fn target(input: &str) -> IResult<&str, Pattern, StofParseError> {
+    alt((pattern, map(ident, |name| {
+        if name != "_" { note_declared(name); }
+        Pattern::Name(name.into())
+    }))).parse(input)
 }
 
 
