@@ -15,7 +15,7 @@
 //
 
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, recognize}, multi::separated_list1, sequence::{delimited, preceded}, IResult, Parser};
-use crate::{runtime::Error, model::{SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, parser::{context::ParseContext, doc::StofParseError, ident::ident, parse_attributes, string::{double_string, single_string}, whitespace::whitespace}};
+use crate::{runtime::Error, model::{SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, parser::{context::ParseContext, doc::StofParseError, info::{Def, DefKind}, source, ident::ident, parse_attributes, string::{double_string, single_string}, whitespace::whitespace}};
 
 
 /// Parse an import statement into a graph.
@@ -23,7 +23,8 @@ pub fn import<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str
     // Conditional imports via attributes
     let (input, (_attrs, do_import)) = parse_attributes(input, context)?;
 
-    let (input, (format, path, scope)) = parse_import(input)?;
+    let (statement, _) = whitespace(input)?;
+    let (input, (format, path, scope)) = parse_import(statement)?;
     if !do_import {
         return Ok((input, ()));
     }
@@ -37,8 +38,18 @@ pub fn import<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str
         context.warn_if_shadows_lib(node);
     }
     
-    match context.import_file(format.as_deref(), &path, node) {
+    context.last_import = None;
+    match context.import_file(format.as_deref(), &path, node.clone()) {
         Ok(_) => {
+            // Record the definition (editor tooling only): the path string goes to the imported file
+            if context.info.is_some() {
+                let path_pos = statement.find(['\'', '"']).map(|index| &statement[index..]).unwrap_or(statement);
+                if let Some(start) = source::locate(path_pos) {
+                    let parent = context.self_ptr();
+                    let def = Def { kind: DefKind::Import, name: path.clone(), parent, data: None, obj: node, target: context.last_import.take(), start, end: source::locate(input), docs: String::new() };
+                    if let Some(info) = &mut context.info { info.defs.push(def); }
+                }
+            }
             Ok((input, ()))
         },
         Err(Error::ParseError(error)) if error.location().is_some() => {

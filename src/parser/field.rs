@@ -20,7 +20,7 @@ use imbl::vector;
 use nanoid::nanoid;
 use nom::{branch::alt, bytes::complete::{tag, take_until}, character::complete::{char, multispace0, multispace1, space0}, combinator::{map, opt, peek, recognize}, error::ParseError, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
 use rustc_hash::FxHashMap;
-use crate::{model::{Field, FieldDoc, SId, NOFIELD_FIELD_ATTR}, parser::{context::ParseContext, doc::{document_statement, err_fail, StofParseError}, expr::expr, ident::ident, parse_attributes, string::{double_string, single_string}, types::parse_type, whitespace::{doc_comment, whitespace}}, runtime::{Val, Variable}};
+use crate::{model::{Field, FieldDoc, SId, NOFIELD_FIELD_ATTR}, parser::{context::ParseContext, info::{Def, DefKind}, source, doc::{document_statement, err_fail, StofParseError}, expr::expr, ident::ident, parse_attributes, string::{double_string, single_string}, types::parse_type, whitespace::{doc_comment, whitespace}}, runtime::{Val, Variable}};
 
 
 /// Parse a field into a parse context.
@@ -46,6 +46,7 @@ pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
     let (input, is_const) = opt(terminated(tag("const"), multispace0)).parse(input)?;
 
     // Type (optional) and name
+    let signature = input;
     let (input, (field_type, name)) = alt((
         map(pair(terminated(parse_type, multispace1), alt((
             map(ident, |v| v.to_string()),
@@ -58,6 +59,7 @@ pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
             single_string
         )), |nm| (None, nm))
     )).parse(input)?;
+    let signature = &signature[..signature.len() - input.len()];
 
     // Separator
     let (input, _) = delimited(multispace0, char(':'), multispace0).parse(input)?;
@@ -97,15 +99,18 @@ pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
     // check for #[no-field] on an object value, which only creates the object, not a field in addition
     // this is typically done within/for the stof export
     if value.try_obj().is_some() && attributes.contains_key(NOFIELD_FIELD_ATTR.as_str()) {
+        record_def(context, &name, signature, input, None, value.try_obj(), &comments);
         return Ok((input, ()));
     }
     
     // Instert the new field in the current parse context
+    let obj = value.try_obj();
     let field = Field::new(value, Some(attributes));
     let self_ptr = context.self_ptr();
     let Some(field_ref) = context.graph.insert_stof_data(&self_ptr, &name, Box::new(field), None) else {
         return Err(nom::Err::Failure(StofParseError::from(format!("could not create field '{name}': the object it belongs to no longer exists"))));
     };
+    record_def(context, &name, signature, input, Some(field_ref.clone()), obj, &comments);
 
     // Insert the field doc comments also if requested
     if context.profile.docs && comments.len() > 0 {
@@ -116,6 +121,24 @@ pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
     }
 
     Ok((input, ()))
+}
+
+
+/// Record a field definition (editor tooling only).
+/// The signature is "name", "type name", or either with a quoted name.
+fn record_def(context: &mut ParseContext, name: &str, signature: &str, end: &str, data: Option<crate::model::DataRef>, obj: Option<crate::model::NodeRef>, docs: &str) {
+    if context.info.is_none() { return; }
+    let mut name_offset = signature.rfind(char::is_whitespace).map(|index| index + 1).unwrap_or(0);
+    for quote in ['"', '\''] {
+        if signature.len() > 1 && signature.ends_with(quote) {
+            name_offset = signature[..signature.len() - 1].rfind(quote).unwrap_or(0);
+        }
+    }
+    let Some(start) = source::locate(&signature[name_offset..]) else { return; };
+    let parent = context.self_ptr();
+    if let Some(info) = &mut context.info {
+        info.defs.push(Def { kind: DefKind::Field, name: name.to_string(), parent, data, obj, target: None, start, end: source::locate(end), docs: docs.to_string() });
+    }
 }
 
 

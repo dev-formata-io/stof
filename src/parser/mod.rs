@@ -37,6 +37,7 @@ pub mod doc;
 pub mod import;
 pub mod data;
 pub mod source;
+pub mod info;
 
 
 /// Parse attributes.

@@ -44,6 +44,11 @@ impl Format for StofFormat {
         context.parse_from_file(format, path, node)
     }
     fn parser_import(&self, _format: &str, path: &str, context: &mut ParseContext) -> Result<(), Error> {
+        // editor tooling: an open document's text instead of the file (see parser::info)
+        if let Some(src) = context.info.as_ref().and_then(|info| info.overlay.get(path)).cloned() {
+            if !src.is_empty() { document(&src, context)?; }
+            return Ok(());
+        }
         if let Some(_lib) = context.graph.libfunc(&FS_LIB, "read_string") {
             #[cfg(not(feature = "system"))]
             {

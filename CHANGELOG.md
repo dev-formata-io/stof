@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.10.5
+
+### Added
+
+- **Parse info for editor tooling** (`parser::info`, used by the Stof language server, `stof lsp`).
+  `parse_with_info(graph, format, path, overlay, profile)` parses a Stof file, or a whole package (`"pkg"`) so a
+  file is seen with the types and fields of its other files, and records where every root, field, function, and
+  import is defined (with doc comments), plus warnings with locations. `overlay` texts are parsed instead of the
+  files at those paths (Ex. unsaved editor buffers). Init functions don't run. Normal parsing is unchanged: nothing
+  is recorded unless a parse asks for it.
+
 ## 0.10.4
 
 ### Added

@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use nom::{bytes::complete::tag, branch::alt, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{model::{Func, FuncDoc, Param, SId, ASYNC_FUNC_ATTR}, parser::{source, context::ParseContext, doc::{err_fail, StofParseError}, expr::expr, ident::ident, parse_attributes, statement::{block, declare::{take_declared_names, take_referenced_names}}, types::parse_type, whitespace::{doc_comment, paren_list, whitespace}}, runtime::{instruction::Instruction, instructions::Base, Val}};
+use crate::{model::{Func, FuncDoc, Param, SId, ASYNC_FUNC_ATTR}, parser::{source, context::ParseContext, info::{Def, DefKind}, doc::{err_fail, StofParseError}, expr::expr, ident::ident, parse_attributes, statement::{block, declare::{take_declared_names, take_referenced_names}}, types::parse_type, whitespace::{doc_comment, paren_list, whitespace}}, runtime::{instruction::Instruction, instructions::Base, Val}};
 
 
 /// Parse a function into a parse context.
@@ -46,7 +46,9 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
     }
 
     let (input, _) = tag("fn").parse(input)?;
-    let (input, name) = preceded(multispace0, ident).parse(input).map_err(err_fail)?;
+    let (input, _) = multispace0(input)?;
+    let name_pos = input;
+    let (input, name) = ident(input).map_err(err_fail)?;
     let (input, params) = paren_list(input, any_parameter).map_err(err_fail)?;
     let (input, return_type) = opt(preceded(delimited(multispace0, tag("->"), multispace0), parse_type)).parse(input).map_err(err_fail)?;
     take_declared_names(); // drop anything declared outside of this function body
@@ -79,6 +81,14 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
     let Some(func_ref) = context.graph.insert_stof_data(&self_ptr, name, Box::new(func), None) else {
         return Err(nom::Err::Failure(StofParseError::from(format!("could not create fn {name}: the object it belongs to no longer exists"))));
     };
+
+    // Record the definition (editor tooling only)
+    if context.info.is_some() {
+        if let Some(start) = source::locate(name_pos) {
+            let def = Def { kind: DefKind::Func, name: name.to_string(), parent: self_ptr.clone(), data: Some(func_ref.clone()), obj: None, target: None, start, end: source::locate(input), docs: comments.clone() };
+            if let Some(info) = &mut context.info { info.defs.push(def); }
+        }
+    }
 
     // Insert init if necessary
     if init_func {

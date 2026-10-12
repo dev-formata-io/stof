@@ -227,7 +227,7 @@ async function stofFetch(
  * Stof document.
  */
 export class StofDoc {
-    static readonly VERSION = '0.10.4';
+    static readonly VERSION = '0.10.5';
     private static initialized?: Promise<unknown>;
     private static wasmMutex = new WasmMutex();
     stof: Stof;

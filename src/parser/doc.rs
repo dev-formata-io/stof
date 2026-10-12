@@ -15,7 +15,7 @@
 //
 
 use arcstr::ArcStr;
-use crate::{model::{InnerDoc, SId}, parser::{source, context::ParseContext, data::parse_data, field::parse_field, func::parse_function, ident::ident, import::import, string::{double_string, single_string}, whitespace::{parse_inner_doc_comment, whitespace, whitespace_fail}}, runtime::Error};
+use crate::{model::{InnerDoc, SId}, parser::{source, context::ParseContext, info::{Def, DefKind}, data::parse_data, field::parse_field, func::parse_function, ident::ident, import::import, string::{double_string, single_string}, whitespace::{parse_inner_doc_comment, whitespace, whitespace_fail}}, runtime::Error};
 use nanoid::nanoid;
 use nom::{branch::alt, bytes::complete::{tag, take_until}, character::complete::{char, multispace0, space0}, combinator::{eof, opt, map}, error::{ErrorKind, FromExternalError, ParseError}, sequence::{delimited, preceded}, Err, IResult, Parser};
 use serde::{Deserialize, Serialize};
@@ -391,6 +391,7 @@ pub fn document_statement<'a>(input: &'a str, context: &mut ParseContext) -> IRe
 
 /// New root document node statements.
 fn root_statements<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, (), StofParseError> {
+    let statement = input;
     let (input, name) = preceded(tag("root"), delimited(multispace0, opt(alt((map(ident, |s| s.to_owned()), double_string, single_string))), multispace0)).parse(input)?;
     let (input, _) = char('{')(input)?;
 
@@ -403,7 +404,7 @@ fn root_statements<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
     let mut cid = None;
     if let Some(id) = custom_id { cid = Some(SId::from(id)); }
 
-    context.push_root(name, cid);
+    context.push_root(name.clone(), cid);
     loop {
         let res = document_statement(input, context);
         match res {
@@ -422,8 +423,18 @@ fn root_statements<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
             }
         }
     }
+    let root = context.self_ptr();
     context.pop_self();
     let (input, _) = char('}')(input)?;
+
+    // Record the definition (editor tooling only)
+    if context.info.is_some() {
+        if let (Some(start), Some(name)) = (source::locate(statement), name) {
+            let parent = context.self_ptr();
+            let def = Def { kind: DefKind::Root, name, parent, data: None, obj: Some(root), target: None, start, end: source::locate(input), docs: String::new() };
+            if let Some(info) = &mut context.info { info.defs.push(def); }
+        }
+    }
     Ok((input, ()))
 }
 

@@ -21,7 +21,7 @@ use lazy_static::lazy_static;
 use nanoid::nanoid;
 use rustc_hash::{FxHashMap, FxHashSet};
 use arcstr::literal;
-use crate::{parser::source::{self, SrcLoc}, model::{DataRef, Graph, NodeRef, PROTOTYPE_EXTENDS_ATTR, PROTOTYPE_TYPE_ATTR, Profile, SId, libraries::prof::insert_profile_lib}, runtime::{Error, Runtime, Type, Val, Variable, instruction::Instruction, instructions::call::FuncCall, proc::Process}};
+use crate::{parser::{info::{ParseInfo, Warning}, source::{self, SrcLoc}}, model::{DataRef, Graph, NodeRef, PROTOTYPE_EXTENDS_ATTR, PROTOTYPE_TYPE_ATTR, Profile, SId, libraries::prof::insert_profile_lib}, runtime::{Error, Runtime, Type, Val, Variable, instruction::Instruction, instructions::call::FuncCall, proc::Process}};
 
 
 lazy_static! {
@@ -40,7 +40,7 @@ pub struct ParseContext<'ctx> {
     seen_import_paths: FxHashMap<NodeRef, FxHashSet<String>>,
 
     /// Files being parsed (innermost last), for warning locations.
-    file_stack: Vec<String>,
+    pub(crate) file_stack: Vec<String>,
 
     /// Parse warnings, printed (stderr) when the context is dropped.
     pub warnings: Vec<String>,
@@ -49,6 +49,11 @@ pub struct ParseContext<'ctx> {
     /// (function, name, is call, location).
     pending_names: Vec<(String, String, bool, Option<SrcLoc>)>,
 
+    /// Definitions and warnings for editor tooling (only with `info::parse_with_info`).
+    pub info: Option<Box<ParseInfo>>,
+
+    /// Resolved path of the last file imported (for import definitions).
+    pub(crate) last_import: Option<String>,
 }
 impl<'ctx> ParseContext<'ctx> {
     /// Create a new parse context with a default config.
@@ -77,6 +82,8 @@ impl<'ctx> ParseContext<'ctx> {
             file_stack: Default::default(),
             warnings: Default::default(),
             pending_names: Default::default(),
+            info: None,
+            last_import: None,
         }
     }
 
@@ -87,6 +94,8 @@ impl<'ctx> ParseContext<'ctx> {
         };
         let node = node.unwrap_or(self.self_ptr());
         let path = self.create_import_path(format, path)?;
+        if let Some(info) = &mut self.info { info.files.push(path.clone()); }
+        self.last_import = Some(path.clone());
         if !self.fresh_import_for_node(&node, &path, format) {
             self.pop_relative_import_stack();
             return Ok(()); // already parsed this path
@@ -95,6 +104,7 @@ impl<'ctx> ParseContext<'ctx> {
         self.push_self_node(node);
         self.file_stack.push(path.clone());
         let res = format_impl.parser_import(format, &path, self);
+        self.last_import = Some(path.clone()); // nested imports set it too
         self.file_stack.pop();
         self.pop_self();
         self.pop_relative_import_stack();
@@ -135,6 +145,9 @@ impl<'ctx> ParseContext<'ctx> {
     /// Add a parse warning (deduplicated), tagged with the file being parsed.
     pub fn warn(&mut self, message: impl Into<String>) {
         let mut message = message.into();
+        if let Some(info) = &mut self.info {
+            info.warnings.push(Warning { message: message.clone(), loc: None, file: self.file_stack.last().cloned() });
+        }
         if let Some(file) = self.file_stack.last() {
             message = format!("{message}\n\t{} {file}", "in".dimmed());
         }
@@ -200,12 +213,16 @@ impl<'ctx> ParseContext<'ctx> {
         let assigned = crate::parser::statement::declare::take_assigned_names();
         for (func, name, call, loc) in std::mem::take(&mut self.pending_names) {
             if !call && (self.graph.find_root_named(name.as_str()).is_some() || assigned.contains(&name)) { continue; }
-            let place = loc.map(|loc| format!(" ({})", loc.display())).unwrap_or_default();
+            let place = loc.as_ref().map(|loc| format!(" ({})", loc.display())).unwrap_or_default();
             let message = if call {
                 format!("unknown function '{name}' in fn {func}{place}: not a variable or standard library function (use self.{name}() for a function on this object)")
             } else {
                 format!("unknown name '{name}' in fn {func}{place}: not a parameter, variable, or root, so it is always null (use self.{name} for a field)")
             };
+            if let Some(info) = &mut self.info {
+                let file = loc.as_ref().and_then(|loc| loc.file.as_ref().map(|file| file.to_string()));
+                info.warnings.push(Warning { message: message.replace(&place, ""), loc, file });
+            }
             if !self.warnings.contains(&message) { self.warnings.push(message); }
         }
     }
