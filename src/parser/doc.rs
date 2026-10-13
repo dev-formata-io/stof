@@ -15,7 +15,7 @@
 //
 
 use arcstr::ArcStr;
-use crate::{model::{InnerDoc, SId}, parser::{source, context::ParseContext, info::{Def, DefKind}, data::parse_data, field::parse_field, func::parse_function, ident::ident, import::import, string::{double_string, single_string}, whitespace::{parse_inner_doc_comment, whitespace, whitespace_fail}}, runtime::Error};
+use crate::{model::{InnerDoc, SId}, parser::{source, context::ParseContext, info::{Def, DefKind}, data::parse_data, field::parse_field, func::parse_function, ident::ident, import::import, string::{double_string, single_string}, whitespace::{doc_comment, parse_inner_doc_comment, whitespace, whitespace_fail}}, runtime::Error};
 use nanoid::nanoid;
 use nom::{branch::alt, bytes::complete::{tag, take_until}, character::complete::{char, multispace0, space0}, combinator::{eof, opt, map}, error::{ErrorKind, FromExternalError, ParseError}, sequence::{delimited, preceded}, Err, IResult, Parser};
 use serde::{Deserialize, Serialize};
@@ -391,6 +391,7 @@ pub fn document_statement<'a>(input: &'a str, context: &mut ParseContext) -> IRe
 
 /// New root document node statements.
 fn root_statements<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, (), StofParseError> {
+    let (input, _) = doc_comment(input)?; // doc comments before a root, like a field or function
     let statement = input;
     let (input, name) = preceded(tag("root"), delimited(multispace0, opt(alt((map(ident, |s| s.to_owned()), double_string, single_string))), multispace0)).parse(input)?;
     let (input, _) = char('{')(input)?;

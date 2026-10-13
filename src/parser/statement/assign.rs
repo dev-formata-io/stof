@@ -18,7 +18,7 @@ use std::sync::Arc;
 use arcstr::ArcStr;
 use imbl::Vector;
 use nom::{bytes::complete::tag, branch::alt, character::complete::{char, multispace0}, combinator::{not, recognize}, multi::separated_list1, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{parser::statement::declare::{note_declared, note_assigned}, parser::{doc::StofParseError, expr::expr, ident::ident, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{assign::SetFieldIns, block::Block, Base, ADD, BIT_AND, BIT_OR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_XOR, DIVIDE, MODULUS, MULTIPLY, SUBTRACT}}};
+use crate::{parser::statement::declare::{note_declared, note_assigned, note_used}, parser::{doc::StofParseError, expr::expr, ident::ident, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{assign::SetFieldIns, block::Block, empty::value_of, Base, BINARY_ADD, BINARY_BIT_AND, BINARY_BIT_OR, BINARY_BIT_SHIFT_LEFT, BINARY_BIT_SHIFT_RIGHT, BINARY_BIT_XOR, BINARY_DIVIDE, BINARY_MODULUS, BINARY_MULTIPLY, BINARY_SUBTRACT}}};
 
 
 /// Assign statement.
@@ -64,7 +64,7 @@ pub(crate) fn computed_target_assign<'a>(target: &Arc<dyn Instruction>, rest: &'
 
         let mut instructions = Vector::default();
         instructions.push_back(Arc::new(object) as Arc<dyn Instruction>);
-        instructions.push_back(value);
+        instructions.push_back(value_of(value));
         instructions.push_back(Arc::new(SetFieldIns { path }) as Arc<dyn Instruction>);
         Ok((rest, instructions))
     })())
@@ -81,9 +81,10 @@ pub(self) fn assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn Instru
     let first = varname.split('.').next().unwrap_or_default();
     note_declared(first);
     note_assigned(first);
+    note_used(first);
 
     let mut block = Vector::default();
-    block.push_back(expr);
+    block.push_back(value_of(expr));
     block.push_back(Arc::new(Base::SetVariable(varname.to_string().into())));
     Ok((input, block))
 }
@@ -97,11 +98,12 @@ pub(self) fn add_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn In
 
     let mut block = Vector::default();
     let varname: ArcStr = varname.to_string().into();
+    note_used(varname.split('.').next().unwrap_or_default());
 
-    // push rhs, then lhs (pop off stack in reverse..), op, then set
-    block.push_back(expr);
+    // left to right: the variable, then the value, op, then set
     block.push_back(Arc::new(Base::LoadVariable(varname.clone(), false, false)) as Arc<dyn Instruction>);
-    block.push_back(ADD.clone());
+    block.push_back(expr);
+    block.push_back(BINARY_ADD.clone());
     block.push_back(Arc::new(Base::SetVariable(varname)));
     Ok((input, block))
 }
@@ -115,11 +117,12 @@ pub(self) fn sub_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn In
 
     let mut block = Vector::default();
     let varname: ArcStr = varname.to_string().into();
+    note_used(varname.split('.').next().unwrap_or_default());
 
-    // push rhs, then lhs (pop off stack in reverse..), op, then set
-    block.push_back(expr);
+    // left to right: the variable, then the value, op, then set
     block.push_back(Arc::new(Base::LoadVariable(varname.clone(), false, false)) as Arc<dyn Instruction>);
-    block.push_back(SUBTRACT.clone());
+    block.push_back(expr);
+    block.push_back(BINARY_SUBTRACT.clone());
     block.push_back(Arc::new(Base::SetVariable(varname)));
     Ok((input, block))
 }
@@ -133,11 +136,12 @@ pub(self) fn mul_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn In
 
     let mut block = Vector::default();
     let varname: ArcStr = varname.to_string().into();
+    note_used(varname.split('.').next().unwrap_or_default());
 
-    // push rhs, then lhs (pop off stack in reverse..), op, then set
-    block.push_back(expr);
+    // left to right: the variable, then the value, op, then set
     block.push_back(Arc::new(Base::LoadVariable(varname.clone(), false, false)) as Arc<dyn Instruction>);
-    block.push_back(MULTIPLY.clone());
+    block.push_back(expr);
+    block.push_back(BINARY_MULTIPLY.clone());
     block.push_back(Arc::new(Base::SetVariable(varname)));
     Ok((input, block))
 }
@@ -151,11 +155,12 @@ pub(self) fn div_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn In
 
     let mut block = Vector::default();
     let varname: ArcStr = varname.to_string().into();
+    note_used(varname.split('.').next().unwrap_or_default());
 
-    // push rhs, then lhs (pop off stack in reverse..), op, then set
-    block.push_back(expr);
+    // left to right: the variable, then the value, op, then set
     block.push_back(Arc::new(Base::LoadVariable(varname.clone(), false, false)) as Arc<dyn Instruction>);
-    block.push_back(DIVIDE.clone());
+    block.push_back(expr);
+    block.push_back(BINARY_DIVIDE.clone());
     block.push_back(Arc::new(Base::SetVariable(varname)));
     Ok((input, block))
 }
@@ -169,11 +174,12 @@ pub(self) fn mod_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn In
 
     let mut block = Vector::default();
     let varname: ArcStr = varname.to_string().into();
+    note_used(varname.split('.').next().unwrap_or_default());
 
-    // push rhs, then lhs (pop off stack in reverse..), op, then set
-    block.push_back(expr);
+    // left to right: the variable, then the value, op, then set
     block.push_back(Arc::new(Base::LoadVariable(varname.clone(), false, false)) as Arc<dyn Instruction>);
-    block.push_back(MODULUS.clone());
+    block.push_back(expr);
+    block.push_back(BINARY_MODULUS.clone());
     block.push_back(Arc::new(Base::SetVariable(varname)));
     Ok((input, block))
 }
@@ -187,11 +193,12 @@ pub(self) fn band_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn I
 
     let mut block = Vector::default();
     let varname: ArcStr = varname.to_string().into();
+    note_used(varname.split('.').next().unwrap_or_default());
 
-    // push rhs, then lhs (pop off stack in reverse..), op, then set
-    block.push_back(expr);
+    // left to right: the variable, then the value, op, then set
     block.push_back(Arc::new(Base::LoadVariable(varname.clone(), false, false)) as Arc<dyn Instruction>);
-    block.push_back(BIT_AND.clone());
+    block.push_back(expr);
+    block.push_back(BINARY_BIT_AND.clone());
     block.push_back(Arc::new(Base::SetVariable(varname)));
     Ok((input, block))
 }
@@ -205,11 +212,12 @@ pub(self) fn bor_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn In
 
     let mut block = Vector::default();
     let varname: ArcStr = varname.to_string().into();
+    note_used(varname.split('.').next().unwrap_or_default());
 
-    // push rhs, then lhs (pop off stack in reverse..), op, then set
-    block.push_back(expr);
+    // left to right: the variable, then the value, op, then set
     block.push_back(Arc::new(Base::LoadVariable(varname.clone(), false, false)) as Arc<dyn Instruction>);
-    block.push_back(BIT_OR.clone());
+    block.push_back(expr);
+    block.push_back(BINARY_BIT_OR.clone());
     block.push_back(Arc::new(Base::SetVariable(varname)));
     Ok((input, block))
 }
@@ -223,11 +231,12 @@ pub(self) fn bxor_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn I
 
     let mut block = Vector::default();
     let varname: ArcStr = varname.to_string().into();
+    note_used(varname.split('.').next().unwrap_or_default());
 
-    // push rhs, then lhs (pop off stack in reverse..), op, then set
-    block.push_back(expr);
+    // left to right: the variable, then the value, op, then set
     block.push_back(Arc::new(Base::LoadVariable(varname.clone(), false, false)) as Arc<dyn Instruction>);
-    block.push_back(BIT_XOR.clone());
+    block.push_back(expr);
+    block.push_back(BINARY_BIT_XOR.clone());
     block.push_back(Arc::new(Base::SetVariable(varname)));
     Ok((input, block))
 }
@@ -241,11 +250,12 @@ pub(self) fn bshl_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn I
 
     let mut block = Vector::default();
     let varname: ArcStr = varname.to_string().into();
+    note_used(varname.split('.').next().unwrap_or_default());
 
-    // push rhs, then lhs (pop off stack in reverse..), op, then set
-    block.push_back(expr);
+    // left to right: the variable, then the value, op, then set
     block.push_back(Arc::new(Base::LoadVariable(varname.clone(), false, false)) as Arc<dyn Instruction>);
-    block.push_back(BIT_SHIFT_LEFT.clone());
+    block.push_back(expr);
+    block.push_back(BINARY_BIT_SHIFT_LEFT.clone());
     block.push_back(Arc::new(Base::SetVariable(varname)));
     Ok((input, block))
 }
@@ -259,11 +269,12 @@ pub(self) fn bshr_assign_variable(input: &str) -> IResult<&str, Vector<Arc<dyn I
 
     let mut block = Vector::default();
     let varname: ArcStr = varname.to_string().into();
+    note_used(varname.split('.').next().unwrap_or_default());
 
-    // push rhs, then lhs (pop off stack in reverse..), op, then set
-    block.push_back(expr);
+    // left to right: the variable, then the value, op, then set
     block.push_back(Arc::new(Base::LoadVariable(varname.clone(), false, false)) as Arc<dyn Instruction>);
-    block.push_back(BIT_SHIFT_RIGHT.clone());
+    block.push_back(expr);
+    block.push_back(BINARY_BIT_SHIFT_RIGHT.clone());
     block.push_back(Arc::new(Base::SetVariable(varname)));
     Ok((input, block))
 }

@@ -129,6 +129,18 @@ impl Graph {
         SPath::node(self, path, start)
     }
 
+    /// An object for host (embedder) APIs from a path, like get, set, and call (Ex. "config.production", relative
+    /// to the main root when its first name is there, otherwise from a graph root).
+    pub fn host_node(&self, path: &str) -> Option<NodeRef> {
+        let main = self.main_root();
+        if let Some(main) = &main {
+            if let Some(node) = self.find_node_named(path, Some(main.clone())) {
+                return Some(node);
+            }
+        }
+        self.find_node_named(path, None)
+    }
+
     #[inline(always)]
     /// Main root.
     /// A root node named "root".

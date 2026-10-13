@@ -303,6 +303,13 @@ impl Doc {
                     return Err(PyValueError::new_err("export node not found"));
                 }
             },
+            // a path, like get, set, and call take (Ex. "config.production")
+            Val::Str(path) => {
+                match self.graph.host_node(&path) {
+                    Some(node) => exp_node = node,
+                    None => return Err(PyValueError::new_err("export node not found")),
+                }
+            },
             _ => {
                 return Err(PyValueError::new_err("export node not found"));
             }
@@ -332,6 +339,13 @@ impl Doc {
                     exp_node = root;
                 } else {
                     return Err(PyValueError::new_err("export node not found"));
+                }
+            },
+            // a path, like get, set, and call take (Ex. "config.production")
+            Val::Str(path) => {
+                match self.graph.host_node(&path) {
+                    Some(node) => exp_node = node,
+                    None => return Err(PyValueError::new_err("export node not found")),
                 }
             },
             _ => {

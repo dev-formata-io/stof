@@ -326,6 +326,49 @@ Parse: {
         assert_eq(context.y, 56);
         drop(context);
     }
+
+    #[test]
+    /// Parsing into an object again continues into its object fields (merges) instead of replacing them.
+    fn parse_again_merges() {
+        using target = new {};
+        const src = "name: 'a'\nnested: { x: 1, y: 2 }";
+        parse(src, target);
+        parse(src, target);
+        assert_eq(target.children().len(), 1);
+
+        parse("nested: { x: 5, z: 3 }", target);
+        assert_eq(stringify('json', target.nested), '{"x":5,"y":2,"z":3}');
+
+        parse('{ "nested": { "w": 9 } }', target, 'json');
+        parse('[nested]\nv = 1', target, 'toml');
+        assert_eq(target.nested.len(), 5);
+        assert_eq(target.children().len(), 1);
+    }
+
+    #[test]
+    /// A field that refers to an object somewhere else is replaced, not merged.
+    fn parse_again_replaces_references() {
+        using target = new {};
+        using other = new { kept: true };
+        target.ref = other;
+        parse("ref: { k: 1 }", target);
+        assert_eq(stringify('json', other), '{"kept":true}');
+        assert_eq(target.ref.k, 1);
+    }
+}
+
+Twice: {
+    first: { a: 1 }
+}
+Twice: {
+    first: { b: 2 }
+
+    #[test]
+    /// An object declared twice in one document is one object.
+    fn declared_twice() {
+        assert_eq(self.first.a, 1);
+        assert_eq(self.first.b, 2);
+    }
 }
 
 Formats: {

@@ -18,7 +18,7 @@ use std::sync::Arc;
 use arcstr::ArcStr;
 use serde::{Deserialize, Serialize};
 use crate::runtime::instructions::unique_tag;
-use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack, ADD, BIT_AND, BIT_OR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_XOR, DIVIDE, EQUAL, GREATER_THAN, GREATER_THAN_OR_EQ, LESS_THAN, LESS_THAN_OR_EQ, MODULUS, MULTIPLY, NOT_EQUAL, SUBTRACT, TRUTHY}, proc::ProcEnv, Error}};
+use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack, TRUTHY, BINARY_ADD, BINARY_BIT_AND, BINARY_BIT_OR, BINARY_BIT_SHIFT_LEFT, BINARY_BIT_SHIFT_RIGHT, BINARY_BIT_XOR, BINARY_DIVIDE, BINARY_EQUAL, BINARY_GREATER_THAN, BINARY_GREATER_THAN_OR_EQ, BINARY_LESS_THAN, BINARY_LESS_THAN_OR_EQ, BINARY_MODULUS, BINARY_MULTIPLY, BINARY_NOT_EQUAL, BINARY_SUBTRACT}, proc::ProcEnv, Error}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,30 +58,8 @@ pub struct OpIns {
 impl Instruction for OpIns {
     fn exec(&self, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         let mut instructions = Instructions::default();
-        instructions.push(self.rhs.clone());
-        instructions.push(self.lhs.clone()); // lhs first, so reversed
         match self.op {
-            Op::Add => instructions.push(ADD.clone()),
-            Op::Sub => instructions.push(SUBTRACT.clone()),
-            Op::Mul => instructions.push(MULTIPLY.clone()),
-            Op::Div => instructions.push(DIVIDE.clone()),
-            Op::Mod => instructions.push(MODULUS.clone()),
-            Op::BAND => instructions.push(BIT_AND.clone()),
-            Op::BOR => instructions.push(BIT_OR.clone()),
-            Op::BXOR => instructions.push(BIT_XOR.clone()),
-            Op::BSHL => instructions.push(BIT_SHIFT_LEFT.clone()),
-            Op::BSHR => instructions.push(BIT_SHIFT_RIGHT.clone()),
-            
-            Op::Less => instructions.push(LESS_THAN.clone()),
-            Op::LessOrEq => instructions.push(LESS_THAN_OR_EQ.clone()),
-            Op::Greater => instructions.push(GREATER_THAN.clone()),
-            Op::GreaterOrEq => instructions.push(GREATER_THAN_OR_EQ.clone()),
-            Op::Eq => instructions.push(EQUAL.clone()),
-            Op::Neq => instructions.push(NOT_EQUAL.clone()),
-            
             Op::And => {
-                instructions.pop();
-                instructions.pop();
                 instructions.push(self.lhs.clone());
 
                 let end_tag: ArcStr = unique_tag();
@@ -92,8 +70,6 @@ impl Instruction for OpIns {
                 instructions.push(Arc::new(Base::Tag(end_tag)));
             },
             Op::Or => {
-                instructions.pop();
-                instructions.pop();
                 instructions.push(self.lhs.clone());
 
                 let end_tag: ArcStr = unique_tag();
@@ -103,8 +79,63 @@ impl Instruction for OpIns {
                 instructions.push(TRUTHY.clone());
                 instructions.push(Arc::new(Base::Tag(end_tag)));
             },
+            _ => {
+                // left to right, so the right value ends up on top of the stack
+                instructions.push(self.lhs.clone());
+                instructions.push(self.rhs.clone());
+                if let Some(binary) = self.op.binary_instruction() {
+                    instructions.push(binary);
+                }
+            },
         }
         Ok(Some(instructions))
+    }
+}
+
+impl Op {
+    /// The error when an op's values are missing from the stack (the same as the original op instructions).
+    pub(crate) fn stack_error(&self) -> Error {
+        match self {
+            Op::Add => Error::Add,
+            Op::Sub => Error::Sub,
+            Op::Mul => Error::Mul,
+            Op::Div => Error::Div,
+            Op::Mod => Error::Mod,
+            Op::BAND => Error::AND,
+            Op::BOR => Error::OR,
+            Op::BXOR => Error::XOR,
+            Op::BSHL => Error::SHL,
+            Op::BSHR => Error::SHR,
+            Op::Greater => Error::GreaterThan,
+            Op::GreaterOrEq => Error::GreaterOrEq,
+            Op::Less => Error::LessThan,
+            Op::LessOrEq => Error::LessOrEq,
+            Op::Eq | Op::Neq => Error::Eq,
+            Op::And | Op::Or => Error::StackError,
+        }
+    }
+
+    /// The op instruction for values evaluated left to right (the right value on top of the stack).
+    pub(crate) fn binary_instruction(&self) -> Option<Arc<dyn Instruction>> {
+        Some(match self {
+            Op::Add => BINARY_ADD.clone(),
+            Op::Sub => BINARY_SUBTRACT.clone(),
+            Op::Mul => BINARY_MULTIPLY.clone(),
+            Op::Div => BINARY_DIVIDE.clone(),
+            Op::Mod => BINARY_MODULUS.clone(),
+            Op::BAND => BINARY_BIT_AND.clone(),
+            Op::BOR => BINARY_BIT_OR.clone(),
+            Op::BXOR => BINARY_BIT_XOR.clone(),
+            Op::BSHL => BINARY_BIT_SHIFT_LEFT.clone(),
+            Op::BSHR => BINARY_BIT_SHIFT_RIGHT.clone(),
+            Op::Less => BINARY_LESS_THAN.clone(),
+            Op::LessOrEq => BINARY_LESS_THAN_OR_EQ.clone(),
+            Op::Greater => BINARY_GREATER_THAN.clone(),
+            Op::GreaterOrEq => BINARY_GREATER_THAN_OR_EQ.clone(),
+            Op::Eq => BINARY_EQUAL.clone(),
+            Op::Neq => BINARY_NOT_EQUAL.clone(),
+            Op::And | Op::Or => return None,
+        })
     }
 }
 

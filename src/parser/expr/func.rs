@@ -18,7 +18,7 @@ use std::sync::Arc;
 use imbl::vector;
 use nom::{branch::alt, bytes::complete::tag, character::complete::multispace0, combinator::{map, opt}, sequence::{delimited, preceded, terminated}, IResult, Parser};
 use rustc_hash::FxHashMap;
-use crate::{parser::statement::declare::note_declared, model::{DataRef, Func, ARROW_FUNC_ATTR, ASYNC_FUNC_ATTR}, parser::{source, doc::StofParseError, expr::expr, func::any_parameter, statement::block, types::parse_type, whitespace::{paren_list, whitespace}}, runtime::{instruction::{Instruction, Instructions}, instructions::func::FuncLit, Type, Val}};
+use crate::{parser::statement::declare::{note_declared, used_names_len, used_names_since}, model::{DataRef, Func, ARROW_FUNC_ATTR, ASYNC_FUNC_ATTR}, parser::{source, doc::StofParseError, expr::expr, func::any_parameter, statement::block, types::parse_type, whitespace::{paren_list, whitespace}}, runtime::{instruction::{Instruction, Instructions}, instructions::func::FuncLit, Type, Val}};
 
 
 /// Arrow function "literal" value.
@@ -30,6 +30,7 @@ pub fn func_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseEr
     for param in &params { note_declared(param.name.as_ref()); } // visible to the arrow body
     let (input, return_type) = opt(preceded(delimited(multispace0, alt((tag(":"), tag("->"))), multispace0), parse_type)).parse(input)?;
     let (input, _) = delimited(multispace0, tag("=>"), multispace0).parse(input)?;
+    let used_start = used_names_len();
     let (input, instructions) = alt((
         block,
         map(expr, |ins| vector![ins])
@@ -46,8 +47,15 @@ pub fn func_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseEr
         attrs.insert(ASYNC_FUNC_ATTR.to_string(), Val::Null); // this is an async arrow function
     }
 
+    // the outer variables the body uses (its own parameters aren't captured)
+    let capture_names = used_names_since(used_start).map(|mut names| {
+        names.retain(|name| !params.iter().any(|param| param.name.as_ref() == name.as_str()));
+        Arc::new(names)
+    });
+
     let dref = DataRef::default();
     let mut arrow_func = Func::new(params.into_iter().collect(), rtype, Instructions::from(instructions), Some(attrs));
     arrow_func.src = source::locate(start);
+    arrow_func.capture_names = capture_names;
     Ok((input, Arc::new(FuncLit { dref, func: arrow_func }) as Arc<dyn Instruction>))
 }

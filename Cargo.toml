@@ -2,7 +2,7 @@
 # RUN "stof run project.stof" TO REGENERATE.
 [package]
 name = "stof"
-version = "0.10.5"
+version = "0.10.6"
 authors = ["CJ Cummings <cj@formata.io>"]
 description = "Run AI-generated logic safely inside your app. Stof is JSON with functions: data and logic in one document, sandboxed, in Rust, JavaScript, and Python."
 license = "Apache-2.0"

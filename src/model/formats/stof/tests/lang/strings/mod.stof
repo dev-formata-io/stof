@@ -84,3 +84,11 @@ fn format_string_escaped_dollar() {
     assert_eq(`$5`, '$5');              // a "$" without "{" never needed escaping
     assert_eq(`\$`, '$');
 }
+
+
+#[test]
+fn template_string_method_calls() {
+    const name = 'ada';
+    assert_eq(`hi ${name}`.upper(), 'HI ADA');
+    assert_eq(`a,b,c`.split(',').len(), 3);
+}

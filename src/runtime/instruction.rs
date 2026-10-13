@@ -257,8 +257,12 @@ impl Instructions {
 
                                     if gtg {
                                         self.executed.pop_back();
+                                        // the new list sits on top of the stack while each promise is awaited: a process
+                                        // that finishes without a value adds null, so every item is there
+                                        let with_list = env.stack.len() + 1;
                                         for promise in awaits.into_iter().rev() {
                                             self.instructions.push_front(PUSH_LIST.clone());
+                                            self.instructions.push_front(Arc::new(Base::EnsureValue(with_list)));
                                             self.instructions.push_front(AWAIT.clone());
                                             self.instructions.push_front(promise);
                                         }

@@ -18,7 +18,7 @@ use std::{ops::Deref, sync::Arc};
 use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use serde::{Deserialize, Serialize};
-use crate::{model::{Param, ARROW_FUNC_ATTR, ASYNC_FUNC_ATTR, DataRef, Field, Func, Graph, LibFunc, NodeRef, PROTOTYPE_TYPE_ATTR, Prototype, SELF_STR_KEYWORD, SId, SUPER_STR_KEYWORD, UNSELF_FUNC_ATTR}, runtime::{Error, Type, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{Base, DUPLICATE, POP_CALL, POP_RETURN, POP_SELF, PUSH_CALL, PUSH_RETURN, PUSH_FUNCTION_SCOPE, PUSH_SELF, PUSH_SYMBOL_SCOPE, PUSH_VAL_RET, PUSH_VOID_RET, SUSPEND, VALIDATE_FN_RET, YIELD}, proc::ProcEnv}};
+use crate::{model::{Param, ARROW_FUNC_ATTR, ASYNC_FUNC_ATTR, DataRef, Field, Func, Graph, LibFunc, NodeRef, PROTOTYPE_TYPE_ATTR, Prototype, SELF_STR_KEYWORD, SId, SUPER_STR_KEYWORD, UNSELF_FUNC_ATTR}, runtime::{Error, Type, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{func::ArrowScope, Base, DUPLICATE, POP_CALL, POP_RETURN, POP_SELF, PUSH_CALL, PUSH_RETURN, PUSH_FUNCTION_SCOPE, PUSH_SELF, PUSH_SYMBOL_SCOPE, PUSH_VAL_RET, PUSH_VOID_RET, SUSPEND, VALIDATE_FN_RET, YIELD}, proc::ProcEnv}};
 
 
 
@@ -332,6 +332,18 @@ impl FuncCall {
                     }
                 }
 
+                // A function on an object, for a Fn library call on it (Ex. self.price.params())
+                if !pth.is_empty() {
+                    if let Some(func) = Func::func_from_path(graph, pth, start.clone()) {
+                        return Ok(CallContext {
+                            lib: Some(literal!("Fn")),
+                            stack_arg: Some(Arc::new(Base::Literal(Val::Fn(func)))),
+                            prototype_self: None,
+                            func: SId::from(func_name),
+                        });
+                    }
+                }
+
                 // Only search for a node if there is a designated start, as we don't want to match everything in the graph
                 // Ex. self.a.b.c.parent(), where c is a node but not a field
                 if let Some(obj) = graph.find_node_named(pth, start.clone()) {
@@ -535,6 +547,7 @@ impl Instruction for FuncCall {
         let is_async;
         let unself;
         let arrow;
+        let mut captured = None;
         if let Some(func) = graph.get_stof_data::<Func>(&func) {
             params = func.params.clone();
             func_instructions = func.instructions.clone();
@@ -548,6 +561,7 @@ impl Instruction for FuncCall {
 
             // Arrow functions see the caller's variables (closure-like); named functions start a boundary
             arrow = func.attributes.contains_key(ARROW_FUNC_ATTR.as_str());
+            if arrow { captured = func.captured.clone(); }
         } else {
             if self.cnull {
                 let mut instructions = Instructions::default();
@@ -636,7 +650,7 @@ impl Instruction for FuncCall {
         instructions.push(DUPLICATE.clone());
         instructions.push(PUSH_CALL.clone());
         instructions.push(PUSH_RETURN.clone());
-        instructions.push(if arrow { PUSH_SYMBOL_SCOPE.clone() } else { PUSH_FUNCTION_SCOPE.clone() });
+        instructions.push(if arrow { Arc::new(ArrowScope { captured }) } else { PUSH_FUNCTION_SCOPE.clone() });
 
         // Bind the explicit parameters from the stack (the last argument is on top)
         for (index, arg) in args.iter().enumerate().rev() {

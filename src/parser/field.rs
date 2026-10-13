@@ -65,7 +65,7 @@ pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
     let (input, _) = delimited(multispace0, char(':'), multispace0).parse(input)?;
 
     // Value (variable)
-    let (input, mut value) = value(input, &name, context, &mut attributes).map_err(err_fail)?;
+    let (input, mut value) = value(input, &name, context, &mut attributes, do_insert_field).map_err(err_fail)?;
     if is_const.is_some() {
         value.mutable = false; // this field is const
     }
@@ -143,12 +143,13 @@ fn record_def(context: &mut ParseContext, name: &str, signature: &str, end: &str
 
 
 /// Parse a field value.
-fn value<'a>(input: &'a str, name: &str, context: &mut ParseContext, attributes: &mut FxHashMap<String, Val>) -> IResult<&'a str, Variable, StofParseError> {
-    crate::parser::doc::nested(input, || value_inner(input, name, context, attributes))
+/// With merge, an object value for a field that already holds a child object continues into that object.
+fn value<'a>(input: &'a str, name: &str, context: &mut ParseContext, attributes: &mut FxHashMap<String, Val>, merge: bool) -> IResult<&'a str, Variable, StofParseError> {
+    crate::parser::doc::nested(input, || value_inner(input, name, context, attributes, merge))
 }
-fn value_inner<'a>(input: &'a str, name: &str, context: &mut ParseContext, attributes: &mut FxHashMap<String, Val>) -> IResult<&'a str, Variable, StofParseError> {
+fn value_inner<'a>(input: &'a str, name: &str, context: &mut ParseContext, attributes: &mut FxHashMap<String, Val>, merge: bool) -> IResult<&'a str, Variable, StofParseError> {
     // Try an object value first
-    let obj_res = object_value(input, name, context, attributes);
+    let obj_res = object_value(input, name, context, attributes, merge);
     match obj_res {
         Ok((input, var)) => {
             return Ok((input, var));
@@ -199,7 +200,7 @@ fn array_value<'a>(input: &'a str, _name: &str, context: &mut ParseContext) -> I
     let mut values = vector![];
     let mut default_attrs = FxHashMap::default();
     loop {
-        let res = value(input, &nanoid!(17), context, &mut default_attrs);
+        let res = value(input, &nanoid!(17), context, &mut default_attrs, false);
         match res {
             Ok((rest, var)) => {
                 input = rest;
@@ -223,7 +224,7 @@ fn array_value<'a>(input: &'a str, _name: &str, context: &mut ParseContext) -> I
 
 
 /// Create a new object and parse it for this field's value.
-fn object_value<'a>(input: &'a str, name: &str, context: &mut ParseContext, attributes: &mut FxHashMap<String, Val>) -> IResult<&'a str, Variable, StofParseError> {
+fn object_value<'a>(input: &'a str, name: &str, context: &mut ParseContext, attributes: &mut FxHashMap<String, Val>, merge: bool) -> IResult<&'a str, Variable, StofParseError> {
     let (input, _) = char('{')(input)?;
 
     // Optional custom object ID - not recommended unless you know what you're doing
@@ -235,7 +236,17 @@ fn object_value<'a>(input: &'a str, name: &str, context: &mut ParseContext, attr
     let mut cid = None;
     if let Some(id) = custom_id { cid = Some(SId::from(id)); }
 
-    let value = context.push_self(name, attributes, cid);
+    // Parsing into an object that already has this object field (Ex. the same source parsed twice):
+    // continue into the existing object, like the parse does for the object it started in.
+    let mut existing = None;
+    if merge && cid.is_none() {
+        let self_ptr = context.self_ptr();
+        existing = Field::child_obj(&context.graph, &self_ptr, name);
+    }
+    let value = match existing {
+        Some((obj, field_attributes)) => context.push_existing_self(name, obj, field_attributes, attributes),
+        None => context.push_self(name, attributes, cid),
+    };
     if !input.starts_with('}') { // account for an empty object case "{}"
         loop {
             let res = document_statement(input, context);

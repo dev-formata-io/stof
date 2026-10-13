@@ -227,7 +227,7 @@ async function stofFetch(
  * Stof document.
  */
 export class StofDoc {
-    static readonly VERSION = '0.10.5';
+    static readonly VERSION = '0.10.6';
     private static initialized?: Promise<unknown>;
     private static wasmMutex = new WasmMutex();
     stof: Stof;
@@ -403,6 +403,7 @@ export class StofDoc {
 
     /**
      * Stringify this doc into a format (JSON by default).
+     * Node is an object's path (Ex. "config.production") or ID; the whole document by default.
      */
     stringify(format: string = "json", node: string | null = null): string {
         return this.stof.stringExport(format, node);
@@ -411,6 +412,7 @@ export class StofDoc {
 
     /**
      * Blobify this doc (or a specific node) into a format (JSON by default).
+     * Node is an object's path (Ex. "config.production") or ID; the whole document by default.
      */
     blobify(format: string = "json", node: string | null = null): Uint8Array {
         return this.stof.binaryExport(format, node);
@@ -419,6 +421,7 @@ export class StofDoc {
 
     /**
      * To JS record.
+     * Node is an object's path (Ex. "config.production") or ID; the whole document by default.
      */
     record(node: string | null = null): Record<string, unknown> {
         return JSON.parse(this.stringify('json', node));

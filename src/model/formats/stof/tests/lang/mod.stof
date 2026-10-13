@@ -30,6 +30,7 @@ import './types/mod' as self.Types;
 import './units/mod' as self.Units;
 import './blobs/mod' as self.Blobs;
 import './destructure' as self.Destructure;
+import './order' as self.Order;
 
 
 #[test]

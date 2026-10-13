@@ -61,3 +61,46 @@ fn not_void_no_ret_errors() {
 fn not_void_no_ret() -> str {
     42; // no return
 }
+
+
+/*****************************************************************************
+ * A function that returns nothing gives null where its value is used.
+ *****************************************************************************/
+
+fn nothing() {}
+async fn nothing_async() { sleep(1ms); }
+async fn three_async() -> int { 3 }
+
+#[test]
+fn void_call_value_is_null() {
+    const a = self.nothing();
+    assert_null(a);
+
+    let b = 5;
+    b = self.nothing();
+    assert_null(b);
+
+    assert_eq([1, self.nothing(), 3], [1, null, 3]);
+    assert_eq(self.nothing() ?? 'default', 'default');
+    assert(self.nothing() == null);
+
+    const f = self.nothing;
+    assert_null(f());
+    assert_null(Fn.call(self.nothing));
+}
+
+#[test]
+fn void_await_value_is_null() {
+    const a = await self.nothing_async();
+    assert_null(a);
+    assert_eq(await [self.three_async(), self.nothing_async(), self.three_async()], [3, null, 3]);
+}
+
+/// A void function can still end with a call to another void function.
+fn ends_with_void_call() { self.nothing() }
+
+#[test]
+fn void_function_ending_in_void_call() {
+    self.ends_with_void_call();
+    assert_null(self.ends_with_void_call());
+}

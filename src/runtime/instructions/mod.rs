@@ -20,6 +20,7 @@ use imbl::{vector, Vector};
 use lazy_static::lazy_static;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
+use crate::runtime::instructions::ops::Op;
 use crate::{model::{libraries::stof_std::StdIns, Field, Func, Graph, Prototype, SId, SPath, SELF_STR_KEYWORD, SUPER_STR_KEYWORD}, runtime::{instruction::{Instruction, Instructions}, instructions::call::FuncCall, proc::{ProcEnv, Process}, Error, Type, Val, Variable, WakeRef}};
 
 pub mod call;
@@ -102,6 +103,24 @@ lazy_static! {
     pub static ref LESS_THAN_OR_EQ: Arc<dyn Instruction> = Arc::new(Base::LessOrEq);
     pub static ref EQUAL: Arc<dyn Instruction> = Arc::new(Base::Eq);
     pub static ref NOT_EQUAL: Arc<dyn Instruction> = Arc::new(Base::Neq);
+
+    // Binary ops on values evaluated left to right (the right value on top of the stack).
+    pub static ref BINARY_ADD: Arc<dyn Instruction> = Arc::new(Base::Binary(Op::Add));
+    pub static ref BINARY_SUBTRACT: Arc<dyn Instruction> = Arc::new(Base::Binary(Op::Sub));
+    pub static ref BINARY_MULTIPLY: Arc<dyn Instruction> = Arc::new(Base::Binary(Op::Mul));
+    pub static ref BINARY_DIVIDE: Arc<dyn Instruction> = Arc::new(Base::Binary(Op::Div));
+    pub static ref BINARY_MODULUS: Arc<dyn Instruction> = Arc::new(Base::Binary(Op::Mod));
+    pub static ref BINARY_BIT_AND: Arc<dyn Instruction> = Arc::new(Base::Binary(Op::BAND));
+    pub static ref BINARY_BIT_OR: Arc<dyn Instruction> = Arc::new(Base::Binary(Op::BOR));
+    pub static ref BINARY_BIT_XOR: Arc<dyn Instruction> = Arc::new(Base::Binary(Op::BXOR));
+    pub static ref BINARY_BIT_SHIFT_LEFT: Arc<dyn Instruction> = Arc::new(Base::Binary(Op::BSHL));
+    pub static ref BINARY_BIT_SHIFT_RIGHT: Arc<dyn Instruction> = Arc::new(Base::Binary(Op::BSHR));
+    pub static ref BINARY_GREATER_THAN: Arc<dyn Instruction> = Arc::new(Base::Binary(Op::Greater));
+    pub static ref BINARY_GREATER_THAN_OR_EQ: Arc<dyn Instruction> = Arc::new(Base::Binary(Op::GreaterOrEq));
+    pub static ref BINARY_LESS_THAN: Arc<dyn Instruction> = Arc::new(Base::Binary(Op::Less));
+    pub static ref BINARY_LESS_THAN_OR_EQ: Arc<dyn Instruction> = Arc::new(Base::Binary(Op::LessOrEq));
+    pub static ref BINARY_EQUAL: Arc<dyn Instruction> = Arc::new(Base::Binary(Op::Eq));
+    pub static ref BINARY_NOT_EQUAL: Arc<dyn Instruction> = Arc::new(Base::Binary(Op::Neq));
 }
 
 
@@ -280,6 +299,14 @@ pub enum Base {
 
     // `using <expr>`: the value on the stack (left there) is dropped when the current scope ends. At the end for rev-compatibility.
     UsingValue,
+
+    // A binary op (Add, Eq, ...) on two values evaluated left to right, so the right value is on top of the stack.
+    // The original op instructions (Add, Eq, ...) expect the left value on top. At the end for rev-compatibility.
+    Binary(Op),
+
+    // A value is needed here: if the stack is back to this size (Ex. a call to a function that returns nothing),
+    // push null. At the end for rev-compatibility.
+    EnsureValue(usize),
 }
 impl Base {
     /// Instructions that drop the values of `using` variables whose scope just ended, exactly like
@@ -1187,6 +1214,36 @@ impl Instruction for Base {
                     }
                 } else {
                     return Err(Error::SHL);
+                }
+            },
+            Self::EnsureValue(size) => {
+                if env.stack.len() == *size {
+                    env.stack.push(Variable::val(Val::Null));
+                }
+            },
+            Self::Binary(op) => {
+                // the same as the original op instructions (Add, Eq, ...), with the right value on top of the stack
+                let rhs = env.stack.pop();
+                let lhs = env.stack.pop();
+                let (Some(lhs), Some(rhs)) = (lhs, rhs) else { return Err(op.stack_error()); };
+                match op {
+                    Op::Add => { lhs.add(rhs, graph)?; env.stack.push(lhs); },
+                    Op::Sub => { lhs.sub(rhs, graph)?; env.stack.push(lhs); },
+                    Op::Mul => { lhs.mul(rhs, graph)?; env.stack.push(lhs); },
+                    Op::Div => { lhs.div(rhs, graph)?; env.stack.push(lhs); },
+                    Op::Mod => { lhs.rem(rhs, graph)?; env.stack.push(lhs); },
+                    Op::BAND => { lhs.bit_and(rhs)?; env.stack.push(lhs); },
+                    Op::BOR => { lhs.bit_or(rhs)?; env.stack.push(lhs); },
+                    Op::BXOR => { lhs.bit_xor(rhs)?; env.stack.push(lhs); },
+                    Op::BSHL => { lhs.bit_shl(rhs)?; env.stack.push(lhs); },
+                    Op::BSHR => { lhs.bit_shr(rhs)?; env.stack.push(lhs); },
+                    Op::Greater => env.stack.push(lhs.gt(&rhs, graph)?),
+                    Op::GreaterOrEq => env.stack.push(lhs.gte(&rhs, graph)?),
+                    Op::Less => env.stack.push(lhs.lt(&rhs, graph)?),
+                    Op::LessOrEq => env.stack.push(lhs.lte(&rhs, graph)?),
+                    Op::Eq => env.stack.push(lhs.equal(&rhs)?),
+                    Op::Neq => env.stack.push(lhs.not_equal(&rhs)?),
+                    Op::And | Op::Or => return Err(Error::Custom("&& and || aren't stack operations".into())),
                 }
             },
             Self::SHR => {

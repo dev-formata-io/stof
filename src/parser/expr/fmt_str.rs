@@ -15,8 +15,8 @@
 //
 
 use std::sync::Arc;
-use nom::{branch::alt, bytes::complete::{escaped_transform, tag, take_until}, character::complete::{char, none_of}, combinator::{map, opt, value}, multi::fold_many0, sequence::delimited, IResult, Parser};
-use crate::{model::libraries::stof_std::StdIns, parser::{doc::StofParseError, expr::expr, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, Base, ADD}, Val}};
+use nom::{branch::alt, bytes::complete::{escaped_transform, tag, take_until}, character::complete::{char, none_of}, combinator::{map, opt, value}, multi::{fold_many0, separated_list1}, sequence::{delimited, preceded}, IResult, Parser};
+use crate::{model::libraries::stof_std::StdIns, parser::{doc::StofParseError, expr::{expr, graph::chained_var_func}, string::unknown_escape, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, Base, BINARY_ADD}, Val}};
 
 
 /// Formatted string expression.
@@ -29,7 +29,13 @@ pub fn formatted_string_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>,
 
     match parse_inner(&inner) {
         Ok((_, expr)) => {
-            Ok((input, expr))
+            // Optional chained calls, like any other literal (Ex. `${name}`.upper())
+            let (input, additional) = opt(preceded(char('.'), separated_list1(char('.'), chained_var_func))).parse(input)?;
+            let Some(additional) = additional else { return Ok((input, expr)); };
+            let mut block = Block::default();
+            block.ins.push_back(expr);
+            for ins in additional { block.ins.push_back(ins); }
+            Ok((input, Arc::new(block) as Arc<dyn Instruction>))
         },
         Err(error) => {
             // the inner parse is on a copy: report the error at the template string
@@ -63,6 +69,7 @@ fn inner_formatted(input: &str) -> IResult<&str, String, StofParseError> {
         value("\r", tag("r")),
         value("\t", tag("t")),
         value(ESCAPED_DOLLAR_STR, tag("$")), // "\${" is a literal "${"
+        unknown_escape,
     )));
     delimited(char('`'), map(opt(inner), |opt| opt.unwrap_or_default()), char('`')).parse(input)
 }
@@ -87,12 +94,13 @@ fn parse_inner(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseErro
     if res.is_empty() { return Ok((input, Arc::new(Base::Literal(Val::Str("".into()))))); }
     else if res.len() == 1 { return Ok((input, res.pop().unwrap())); }
     else {
+        // parts run left to right, each joined to the text so far
         let mut block = Block::default();
-        
-        block.ins.push_back(res.pop().unwrap()); // rhs
-        while !res.is_empty() {
-            block.ins.push_back(res.pop().unwrap()); // lhs
-            block.ins.push_back(ADD.clone());
+        let mut parts = res.into_iter();
+        if let Some(first) = parts.next() { block.ins.push_back(first); }
+        for part in parts {
+            block.ins.push_back(part);
+            block.ins.push_back(BINARY_ADD.clone());
         }
 
         Ok((input, Arc::new(block)))

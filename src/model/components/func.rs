@@ -19,7 +19,7 @@ use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{parser::source::SrcLoc, model::{DataRef, Graph, NodeRef, SId, SPath, StofData}, runtime::{instruction::{Instruction, Instructions}, Type, Val}};
+use crate::{parser::source::SrcLoc, model::{DataRef, Graph, NodeRef, SId, SPath, StofData}, runtime::{instruction::{Instruction, Instructions}, Type, Val, Variable}};
 
 
 /// Attribute used to denote a main function.
@@ -36,7 +36,9 @@ pub const UNSELF_FUNC_ATTR: ArcStr = literal!("unself");
 
 /// Arrow function attribute (set by the parser on arrow functions).
 /// Arrow functions see the variables of the function they're called from (normally the one that defines
-/// them, Ex. `(x) => x + offset`); named functions only see their own (lexical boundary).
+/// them, Ex. `(x) => x + offset`), and after those, the variables that were visible where they were last
+/// evaluated (so they work when passed to or stored for another function); named functions only see their
+/// own (lexical boundary).
 pub const ARROW_FUNC_ATTR: ArcStr = literal!("arrow");
 
 
@@ -52,6 +54,16 @@ pub struct Func {
     /// Set by the parser and never stored in documents (BSTF stays the same).
     #[serde(skip)]
     pub src: Option<SrcLoc>,
+
+    /// Arrow functions: the variables visible where the arrow was last evaluated (shared with them, so an
+    /// assignment in the arrow is seen by the variable it captured). Runtime only, never stored in documents.
+    #[serde(skip)]
+    pub captured: Option<Arc<FxHashMap<String, Variable>>>,
+
+    /// Arrow functions: the outer variable names the body uses, so only those are captured. Set by the parser and
+    /// never stored in documents (None captures every visible variable).
+    #[serde(skip)]
+    pub capture_names: Option<Arc<Vec<String>>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -108,6 +120,8 @@ impl Func {
             instructions: instructions.instructions.into_iter().collect(),
             attributes,
             src: None,
+            captured: None,
+            capture_names: None,
         }
     }
 

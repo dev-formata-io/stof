@@ -229,6 +229,23 @@ pub enum StdIns {
     #[cfg(feature = "log")]
     TraceLog(usize),
 }
+/// Write a line to standard output (the browser or Node console with the js feature, where stdout goes nowhere).
+fn print_line(line: &str) {
+    #[cfg(feature = "js")]
+    web_sys::console::log_1(&line.into());
+    #[cfg(not(feature = "js"))]
+    println!("{line}");
+}
+
+/// Write a line to standard error (console.error with the js feature).
+fn print_error_line(line: &str) {
+    #[cfg(feature = "js")]
+    web_sys::console::error_1(&line.into());
+    #[cfg(not(feature = "js"))]
+    eprintln!("{line}");
+}
+
+
 #[typetag::serde(name = "StdIns")]
 impl Instruction for StdIns {
     fn exec(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions> , Error> {
@@ -277,7 +294,7 @@ impl Instruction for StdIns {
                 }
                 let mut sep = "";
                 if !seen_str { sep = ", " }
-                println!("{}", output.join(sep));
+                print_line(&output.join(sep));
             },
             Self::Dbg(arg_count) => {
                 let mut values = Vec::new();
@@ -299,7 +316,7 @@ impl Instruction for StdIns {
                 }
                 let mut sep = "";
                 if !seen_str { sep = ", " }
-                println!("{}", output.join(sep));
+                print_line(&output.join(sep));
             },
             Self::Err(arg_count) => {
                 let mut values = Vec::new();
@@ -321,7 +338,7 @@ impl Instruction for StdIns {
                 }
                 let mut sep = "";
                 if !seen_str { sep = ", " }
-                eprintln!("{}", output.join(sep));
+                print_error_line(&output.join(sep));
             }
             
             // xml(text: str, tag: str) -> str

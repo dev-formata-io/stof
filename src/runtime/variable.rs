@@ -27,6 +27,12 @@ pub struct Variable {
     pub val: ValRef<Val>,
     pub mutable: bool,
     pub vtype: Option<Type>,
+
+    /// An arrow function captured this variable, sharing its value: assignments write the value in place (instead of
+    /// replacing a number or string's value), so the arrow and this variable keep seeing the same value.
+    /// Runtime only, never stored in documents.
+    #[serde(skip)]
+    pub shared: bool,
 }
 impl Variable {
     /// Create a new variable.
@@ -35,6 +41,7 @@ impl Variable {
             mutable,
             val: ValRef::new(val),
             vtype: None,
+            shared: false,
         };
         if typed {
             var.vtype = Some(var.spec_type(graph));
@@ -49,6 +56,7 @@ impl Variable {
             mutable: true,
             val: ValRef::new(val),
             vtype: None,
+            shared: false,
         }
     }
 
@@ -58,6 +66,7 @@ impl Variable {
             mutable: true,
             val,
             vtype: None,
+            shared: false,
         }
     }
 
@@ -93,7 +102,7 @@ impl Variable {
                     }
                 }
             }
-            if self.value_type() && !self.by_ref() {
+            if self.value_type() && !self.by_ref() && !self.shared {
                 self.val = ValRef::new(val);
             } else {
                 *self.val.write() = val;
@@ -103,6 +112,21 @@ impl Variable {
         } else {
             Err(Error::AssignConst)
         }
+    }
+
+    /// Set a variable whose value is shared (Ex. one an arrow function captured): the value is written in place,
+    /// so everything sharing it sees the change.
+    pub fn set_shared(&self, var: &Variable, graph: &mut Graph, context: Option<NodeRef>) -> Result<(), Error> {
+        if !self.mutable { return Err(Error::AssignConst); }
+        let mut val = var.val.read().clone();
+        if let Some(vtype) = &self.vtype {
+            if vtype != &val.spec_type(graph) {
+                val.cast(vtype, graph, context)?;
+            }
+        }
+        *self.val.write() = val;
+        self.note_obj_holder(graph);
+        Ok(())
     }
 
     /// This variable may be a field's (or share a field's value), so an object set here has a holder that isn't

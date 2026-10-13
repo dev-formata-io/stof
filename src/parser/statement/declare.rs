@@ -18,7 +18,7 @@ use std::{cell::RefCell, sync::Arc};
 use imbl::Vector;
 use imbl::vector;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0, multispace1}, combinator::{map, opt}, sequence::{delimited, preceded}, IResult, Parser};
-use crate::{parser::{doc::{err_fail, StofParseError}, expr::expr, ident::ident, string::{double_string, single_string}, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{destructure::{DestructureIns, Pattern}, Base}, Type, Val}};
+use crate::{parser::{doc::{err_fail, StofParseError}, expr::expr, ident::ident, string::{double_string, single_string}, types::parse_type, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{destructure::{DestructureIns, Pattern}, empty::value_of, Base}, Type, Val}};
 
 
 thread_local! {
@@ -65,6 +65,40 @@ pub(crate) fn take_assigned_names() -> Vec<String> {
     ASSIGNED_NAMES.with(|names| std::mem::take(&mut *names.borrow_mut()))
 }
 
+thread_local! {
+    /// Bare names used in function bodies (read, called, or assigned), in order. An arrow function captures only
+    /// the variables its body uses: the names noted while its body was parsed. Cleared when a function starts.
+    static USED_NAMES: RefCell<Vec<String>> = RefCell::new(Vec::new());
+}
+
+/// Note a bare name used in a function body (the first name of a path, Ex. "rec" in "rec.seen").
+pub(crate) fn note_used(name: &str) {
+    USED_NAMES.with(|names| names.borrow_mut().push(name.to_string()));
+}
+
+/// How many used names are noted so far (where an arrow function's body starts).
+pub(crate) fn used_names_len() -> usize {
+    USED_NAMES.with(|names| names.borrow().len())
+}
+
+/// The distinct names used since `start` (an arrow function's body), or None if they were cleared in between.
+pub(crate) fn used_names_since(start: usize) -> Option<Vec<String>> {
+    USED_NAMES.with(|names| {
+        let names = names.borrow();
+        if names.len() < start { return None; }
+        let mut used: Vec<String> = Vec::new();
+        for name in &names[start..] {
+            if !used.contains(name) { used.push(name.clone()); }
+        }
+        Some(used)
+    })
+}
+
+/// Clear the used names (a named function's body starts).
+pub(crate) fn clear_used_names() {
+    USED_NAMES.with(|names| names.borrow_mut().clear());
+}
+
 /// Take (and clear) the names referenced since the last call.
 pub(crate) fn take_referenced_names() -> Vec<(String, bool, usize)> {
     REFERENCED_NAMES.with(|names| std::mem::take(&mut *names.borrow_mut()))
@@ -87,7 +121,7 @@ pub(self) fn declare_pattern(input: &str) -> IResult<&str, Vector<Arc<dyn Instru
     let (input, pattern) = preceded(multispace0, pattern).parse(input)?;
     let (input, _) = delimited(multispace0, char('='), multispace0).parse(input).map_err(err_fail)?;
     let (input, expr) = expr(input).map_err(err_fail)?;
-    Ok((input, vector![expr, Arc::new(DestructureIns { pattern, is_const: keyword == "const" }) as Arc<dyn Instruction>]))
+    Ok((input, vector![value_of(expr), Arc::new(DestructureIns { pattern, is_const: keyword == "const" }) as Arc<dyn Instruction>]))
 }
 
 /// A destructuring pattern: `{ field, field: target, field = default, .. }`, `[target, ..]`, or `(target, ..)`,
@@ -148,7 +182,7 @@ pub(self) fn declare_mut_var(input: &str) -> IResult<&str, Vector<Arc<dyn Instru
     note_declared(varname);
 
     let mut block = Vector::default();
-    block.push_back(expr);
+    block.push_back(value_of(expr));
     if let Some(cast_type) = cast_type {
         block.push_back(Arc::new(Base::Cast(cast_type.clone())));
         block.push_back(Arc::new(Base::DeclareVar(varname.to_string().into(), cast_type)));
@@ -169,7 +203,7 @@ pub(self) fn declare_const_var(input: &str) -> IResult<&str, Vector<Arc<dyn Inst
     note_declared(varname);
 
     let mut block = Vector::default();
-    block.push_back(expr);
+    block.push_back(value_of(expr));
     if let Some(cast_type) = cast_type {
         block.push_back(Arc::new(Base::Cast(cast_type.clone())));
         block.push_back(Arc::new(Base::DeclareConstVar(varname.to_string().into(), cast_type)));
@@ -192,7 +226,7 @@ pub fn declare_using_var(input: &str) -> IResult<&str, Vector<Arc<dyn Instructio
     note_declared(varname);
 
     let mut block = Vector::default();
-    block.push_back(expr);
+    block.push_back(value_of(expr));
     if let Some(cast_type) = cast_type {
         block.push_back(Arc::new(Base::Cast(cast_type.clone())));
         block.push_back(Arc::new(Base::DeclareConstVar(varname.to_string().into(), cast_type)));

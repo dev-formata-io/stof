@@ -68,6 +68,12 @@ pub(crate) fn parse_json_field_value(graph: &mut Graph, node: &NodeRef, value: V
             Field::new(Variable::new(graph, true, Val::List(jf_arr), false), None)
         }
         Value::Object(_) => {
+            // Parsing into an object that already has this object field: continue into it (merge)
+            if let Some((child_node, attrs)) = Field::child_obj(graph, node, field) {
+                parse_json_object_value(graph, &child_node, value);
+                return Field::new(Variable::new(graph, true, Val::Obj(child_node), false), Some(attrs));
+            }
+
             let child_node = graph.insert_node(field, Some(node.clone()), true);
             parse_json_object_value(graph, &child_node, value);
 

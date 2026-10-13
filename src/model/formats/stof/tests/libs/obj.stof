@@ -388,6 +388,147 @@ Run: {
             assert_eq(subtype.hello, 'hello');
         }
     }
+
+    Steps: {
+        #[type]
+        Onboard: {
+            list log: []
+
+            #[run]
+            fn check() { self.log.push_back('check'); }
+
+            #[run]
+            workspace: {
+                #[run]
+                fn create() { super.log.push_back('workspace'); }
+            }
+
+            #[run]
+            fn finish() { self.log.push_back('finish'); }
+        }
+
+        #[type]
+        #[extends('Onboard')]
+        TeamOnboard: {
+            #[run]
+            fn invite() { self.log.push_back('invite'); }
+
+            #[run]
+            fn check() { self.log.push_back('team check'); }
+        }
+
+        #[test]
+        /// Fields and functions run in the order they're defined, each step once.
+        fn definition_order() {
+            using onboard = new Onboard {};
+            onboard.run();
+            assert_eq(onboard.log, ['check', 'workspace', 'finish']);
+            assert_eq(<Onboard>.log, []); // the type's own steps don't run
+        }
+
+        #[test]
+        /// A subtype's step with the same name replaces the base step in its place; new steps come after.
+        fn subtype_overrides_in_place() {
+            using team = new TeamOnboard {};
+            team.run();
+            assert_eq(team.log, ['team check', 'workspace', 'finish', 'invite']);
+        }
+
+        Onboard custom: {
+            #[run]
+            fn finish() { self.log.push_back('custom finish'); }
+
+            #[run]
+            workspace: null
+        }
+
+        #[test]
+        fn instance_overrides_and_removes() {
+            self.custom.run();
+            assert_eq(self.custom.log, ['check', 'custom finish']);
+        }
+
+        Onboard strict: {
+            #[run({'name': 'check'})]
+            fn strict_check() { self.log.push_back('strict'); }
+        }
+
+        #[test]
+        /// #[run({'name': ..})] lets a differently named step replace one.
+        fn override_by_name() {
+            self.strict.run();
+            assert_eq(self.strict.log, ['strict', 'workspace', 'finish']);
+        }
+
+        Onboard woven: {
+            #[run(-1)]
+            fn first() { self.log.push_back('first'); }
+
+            #[run(1)]
+            fn last() { self.log.push_back('last'); }
+        }
+
+        #[test]
+        /// Numbers order every step together, like a z-index (unnumbered steps are 0).
+        fn numbers_weave_steps() {
+            self.woven.run();
+            assert_eq(self.woven.log, ['first', 'check', 'workspace', 'finish', 'last']);
+        }
+
+        Onboard extra: {
+            #[run]
+            fn extra() { self.log.push_back('extra'); }
+        }
+
+        #[test]
+        fn prototype_modes() {
+            const onboard = self.extra;
+            onboard.run(prototype = 'none');
+            assert_eq(onboard.log, ['workspace', 'extra']); // steps on the instance itself (it has its own copy of workspace)
+
+            onboard.log = [];
+            onboard.run(prototype = 'only');
+            assert_eq(onboard.log, ['check', 'workspace', 'finish']);
+
+            onboard.log = [];
+            onboard.run(prototype = 'last');
+            assert_eq(onboard.log, ['extra', 'check', 'workspace', 'finish']); // the instance's new steps first
+        }
+
+        #[test]
+        fn named_steps() {
+            using onboard = new Onboard {};
+            onboard.run(steps = ['finish', 'check']);
+            assert_eq(onboard.log, ['finish', 'check']);
+
+            try {
+                onboard.run(steps = ['nope']);
+                assert(false);
+            } catch (error: str) {
+                assert(error.contains('nope'));
+            }
+        }
+
+        #[run({'steps': ['finish', 'check']})]
+        Onboard ordered: {}
+
+        #[test]
+        fn steps_attribute() {
+            self.ordered.run();
+            assert_eq(self.ordered.log, ['finish', 'check']);
+        }
+
+        with_args: {
+            #[run({'args': [2]})]
+            fn double(x: int) { self.out = x * 2; }
+        }
+
+        #[test]
+        fn run_with_args() {
+            self.with_args.run();
+            assert_eq(self.with_args.out, 4);
+        }
+    }
 }
 
 Diff: {
@@ -629,4 +770,29 @@ Upcast: {
         assert_not(dog.upcast()); // Animal has no prototype to move up to
         drop(dog);
     }
+}
+
+
+#[type]
+OneParamRules: {
+    #[schema((v: str): bool => v != null && v.len() > 2)]
+    str name: 'default'
+
+    #[schema((value: int): bool => value != null && value > 0)]
+    int count: 5
+
+    #[schema((target: obj, target_val: int): bool => target_val == target.count)]
+    int copy: 5
+}
+
+#[test]
+fn schema_rule_with_one_parameter_gets_the_value() {
+    using good = new { name: 'abc', count: 2, copy: 2 };
+    assert(<OneParamRules>.schemafy(good));
+    using short = new { name: 'x', count: 2, copy: 2 };
+    assert_not(<OneParamRules>.schemafy(short));
+    using negative = new { name: 'abc', count: -1, copy: -1 };
+    assert_not(<OneParamRules>.schemafy(negative));
+    using mismatch = new { name: 'abc', count: 2, copy: 3 };
+    assert_not(<OneParamRules>.schemafy(mismatch));
 }

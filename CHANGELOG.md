@@ -1,5 +1,77 @@
 # Changelog
 
+## 0.10.6
+
+### Fixed
+
+- **Evaluation order.** Binary operators (`+`, `-`, `*`, `<`, `==`, `&`, ...) evaluated their right side first, and
+  template strings their parts from last to first, so side effects ran out of order: on `[1, 2, 3]`,
+  `items.len() + items.pop_back()` was `5` (len after the pop) instead of `6`. Everything now runs left to right, like
+  calls, lists, and maps already did. Compound assignments (`x += f()`) read the variable first. Results without side
+  effects are unchanged.
+  - New `Base::Binary(Op)` instruction (appended; BSTF-compatible) for operands evaluated left to right. Documents
+    exported before keep the original instructions and run as they did.
+- **A call to a function that returns nothing gives null where its value is used.** `const x = self.log();`,
+  `[1, self.log()]`, `f(self.log())`, `self.log() ?? 'default'`, and `await` on an async function that returns
+  nothing (alone or in a list: `await [a(), b()]`) failed with "internal runtime error (StackError)". They're null
+  now. A function that ends with a call to one that returns nothing (`fn f() { self.log() }`) still returns nothing.
+  - New `ValueIns` instruction and `Base::EnsureValue` (appended; BSTF-compatible), only around calls and awaits in
+    those positions.
+- **Arrow functions keep the variables where they were made.** An arrow passed to another function, or stored and
+  called later, lost the variables around it (`self.apply(100, (x: float): float => x * (1 + tax))` failed with a null
+  error). Arrows now capture the outer variables their body uses when they're evaluated. They still see the variables
+  of the function they're called from first, so code that worked before sees the same values. Assigning to a captured
+  variable updates the original (`let total = 0; self.each(list, (x: int) => { total += x; });`). Captures are
+  runtime only: an arrow exported to BSTF captures again when it's evaluated. An arrow made in a loop keeps the
+  variables of its latest evaluation.
+- **Schema rules with one parameter get the value being checked**, whatever it's named. `(v: str): bool => ...` got the
+  field's name, and `(value: int): bool => ...` got the type's default, so those rules quietly checked the wrong thing.
+  A rule with more parameters, or one named `schema`, `target`, `field`, or `schema_val`, is matched by name as before.
+- Method calls on template strings: `` `hi ${name}`.upper() `` was a parse error.
+- `Fn` library calls on a function by its path: `self.price.params()` was "function not found" (it only worked
+  through a variable).
+- Doc comments (`///`, `/** */`) before `root Name { }` were a parse error.
+- An unknown escape in a string (Ex. `'\.'` in a regular expression) reported "expected ')'". It now says
+  `unknown escape '\.' in a string`, at the escape, and suggests `\\` or a raw string (`r#"..."#`).
+- **`#[run]` steps from a type run once, on the instance.** A type's object step ran twice on each instance and once
+  on the type itself (changing the type's defaults), and a subtype's step ran alongside the step it was meant to
+  replace. See the `Obj.run` changes below.
+- **Parsing into an object again merges into its object fields** instead of replacing them. Parsing the same source
+  twice (or `parse("nested: { x: 5 }", obj)`) left the old object behind as an unreachable child and dropped fields the
+  new source didn't mention. Now the parse continues into the existing object, the way it does for the object it
+  started in: new fields are added and existing ones updated. This applies to Stof, JSON, YAML, and TOML, and to
+  objects declared twice in one document (`#[type]` objects included, so a type is no longer registered twice).
+  A field that refers to an object somewhere else is still replaced.
+
+### Changed
+
+- **`Obj.run` steps.** Every field and function with `#[run]` is a named step (its name, or
+  `#[run({'name': 'x'})]`), and:
+  - Steps run in the order they're written. Before, unnumbered fields ran before unnumbered functions, and
+    functions in any order.
+  - A type's steps run on each instance, before the instance's new steps (base type first). Before, the instance's
+    steps ran first unless the object had `#[run({'prototype': 'first'})]`.
+  - A step with the same name as a type's step replaces it, in its place, so each step runs once. `#[run] step: null`
+    removes a type's step.
+  - A number orders every step together, like a z-index: unnumbered steps are 0, `#[run(-1)]` runs before them and
+    `#[run(1)]` after. A replacing step without a number keeps the number of the step it replaces.
+  - `obj.run(prototype = 'first' | 'last' | 'none' | 'only', steps = ['a', 'b'])`: which steps run (`'none'` only
+    the object's own steps, `'only'` only the type's), or just the named steps in that order. An object can set
+    either with its own attribute: `#[run({'prototype': 'none'})]`, `#[run({'steps': [...]})]`.
+  - Numbered steps, `args`, nested objects, and lists of steps (pipelines) work as before.
+- **`pln`, `dbg`, and `err` write to the console in JavaScript** (`console.log` and `console.error`), with the same
+  formatting as the native runtime. Before, their output was lost in WebAssembly unless the host replaced `Std.pln`.
+- JavaScript `doc.stringify(format, node)`, `doc.blobify(format, node)`, and `doc.record(node)`, and Python
+  `Doc.string_export` and `Doc.binary_export`, take an object's path (Ex. `'config.production'`) as well as its ID,
+  like `get`, `set`, and `call`.
+
+### Agent skill
+
+- `#[private]` limits which functions can read a field; it doesn't keep the field out of exports (`#[no-export]`
+  does). The skill said otherwise.
+- Notes on one-parameter schema rules and arrow function captures.
+- `#[run]` steps: definition order, type steps and overrides, numbers, and `run(steps = ..)`.
+
 ## 0.10.5
 
 ### Added

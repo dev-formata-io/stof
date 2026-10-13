@@ -90,7 +90,7 @@ pub fn insert_number_lib(graph: &mut Graph) {
 /// would too). Numbers are values: the result is always a new value.
 fn owned(var: Variable) -> Variable {
     let copy = ValRef::new(var.val.read().clone());
-    Variable { val: copy, mutable: true, vtype: var.vtype }
+    Variable { val: copy, mutable: true, vtype: var.vtype, shared: false }
 }
 
 

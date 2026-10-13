@@ -401,6 +401,13 @@ impl Stof {
                     return Err(format!("export node not found"));
                 }
             },
+            // a path, like get, set, and call take (Ex. "config.production")
+            Val::Str(path) => {
+                match graph.host_node(&path) {
+                    Some(node) => exp_node = node,
+                    None => return Err(format!("export node not found")),
+                }
+            },
             _ => {
                 return Err(format!("export node not found"));
             }
@@ -432,6 +439,13 @@ impl Stof {
                     exp_node = root;
                 } else {
                     return Err(format!("export node not found"));
+                }
+            },
+            // a path, like get, set, and call take (Ex. "config.production")
+            Val::Str(path) => {
+                match graph.host_node(&path) {
+                    Some(node) => exp_node = node,
+                    None => return Err(format!("export node not found")),
                 }
             },
             _ => {

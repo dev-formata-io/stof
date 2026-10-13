@@ -18,7 +18,7 @@ use std::sync::Arc;
 use arcstr::literal;
 use imbl::vector;
 use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0, one_of}, combinator::{opt, peek, recognize}, multi::{many1, separated_list0, separated_list1}, sequence::{delimited, preceded, separated_pair, terminated}, IResult, Parser};
-use crate::{model::SId, parser::{doc::StofParseError, expr::{fmt_str::formatted_string_expr, func::func_expr, graph::{call_expr, chained_var_func, graph_expr}, literal::literal_expr, math::math_expr, new_obj::new_obj_expr}, statement::{block, switch::switch_statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FuncCall, ifs::IfIns, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, nullcheck::NullcheckIns, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, Base, AWAIT, NOOP, NOT_TRUTHY, POP_RETURN, PUSH_RETURN, SUSPEND, TYPE_NAME, TYPE_OF}, Type, Val}};
+use crate::{model::SId, parser::{doc::StofParseError, expr::{fmt_str::formatted_string_expr, func::func_expr, graph::{call_expr, chained_var_func, graph_expr}, literal::literal_expr, math::math_expr, new_obj::new_obj_expr}, statement::{block, switch::switch_statement}, types::parse_type, whitespace::whitespace}, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FuncCall, empty::value_of, ifs::IfIns, list::{ListIns, NEW_LIST}, map::{MapIns, NEW_MAP}, nullcheck::NullcheckIns, set::{SetIns, NEW_SET}, tup::{TupIns, NEW_TUP}, Base, AWAIT, NOOP, NOT_TRUTHY, POP_RETURN, PUSH_RETURN, SUSPEND, TYPE_NAME, TYPE_OF}, Type, Val}};
 
 pub mod literal;
 pub mod math;
@@ -73,7 +73,7 @@ fn expr_inner(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError
     let (input, nullcheck) = opt(preceded(delimited(multispace0, tag("??"), multispace0), expr)).parse(input)?;
     if let Some(nullcheck) = nullcheck {
         ins = Arc::new(NullcheckIns {
-            ins,
+            ins: value_of(ins),
             ifnull: nullcheck
         });
     }
@@ -178,7 +178,7 @@ pub fn list_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseEr
     let mut block = Block::default();
     block.ins.push_back(NEW_LIST.clone());
     for expr in exprs {
-        block.ins.push_back(Arc::new(ListIns::AppendList(expr)));
+        block.ins.push_back(Arc::new(ListIns::AppendList(value_of(expr))));
     }
     if let Some(additional) = additional {
         for ins in additional {
@@ -215,7 +215,7 @@ fn finish_tuple(input: &str, exprs: Vec<Arc<dyn Instruction>>) -> IResult<&str, 
     let mut block = Block::default();
     block.ins.push_back(NEW_TUP.clone());
     for expr in exprs {
-        block.ins.push_back(Arc::new(TupIns::AppendTup(expr)));
+        block.ins.push_back(Arc::new(TupIns::AppendTup(value_of(expr))));
     }
     if let Some(additional) = additional {
         for ins in additional {
@@ -246,7 +246,7 @@ pub fn set_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseErr
     let mut block = Block::default();
     block.ins.push_back(NEW_SET.clone());
     for expr in exprs {
-        block.ins.push_back(Arc::new(SetIns::AppendSet(expr)));
+        block.ins.push_back(Arc::new(SetIns::AppendSet(value_of(expr))));
     }
     if let Some(additional) = additional {
         for ins in additional {

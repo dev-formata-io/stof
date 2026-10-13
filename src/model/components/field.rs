@@ -144,6 +144,21 @@ impl Field {
         None
     }
 
+    /// The object a field on this node holds, when that object is a child of this node (not a reference to
+    /// an object somewhere else). Returns the object and the field's attributes.
+    /// Parsing into a node uses this to continue into an existing object instead of creating a new one.
+    pub fn child_obj(graph: &Graph, node: &NodeRef, field_name: &str) -> Option<(NodeRef, FxHashMap<String, Val>)> {
+        let dref = Self::direct_field(graph, node, field_name)?;
+        let field = graph.get_stof_data::<Self>(&dref)?;
+        let obj = field.value.try_obj()?;
+        let parent = obj.node(graph)?.parent.as_ref()?;
+        if parent == node {
+            Some((obj, field.attributes.clone()))
+        } else {
+            None
+        }
+    }
+
     /// Field lookup an a graph from a singular node and name.
     /// Lazily creates a field for a child node if needed.
     pub fn field(graph: &mut Graph, node: &NodeRef, field_name: &str) -> Option<DataRef> {

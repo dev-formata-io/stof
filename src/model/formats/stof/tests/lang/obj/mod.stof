@@ -132,6 +132,7 @@ fn string_field() {
 
 
 // Create root syntax (NOT A FIELD)
+/// A root can have doc comments, like a field or function.
 root MyRoot {
     fn hello() -> str { 'hello' }
 }

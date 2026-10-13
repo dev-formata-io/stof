@@ -76,7 +76,18 @@ pub fn validation(graph: &mut Graph, schema: &NodeRef, target: &NodeRef, field: 
                 let mut seen_schema_val = false;
                 let mut seen_target_val = false;
 
-                for param in &func.params {
+                // One parameter is the value being checked, whatever it's called (Ex. (v: str): bool => v.len() > 0),
+                // unless it's named for something else (schema, target, field, schema_val)
+                let single_value = func.params.len() == 1 && {
+                    let name = func.params[0].name.as_ref();
+                    name != "schema" && name != "target" && name != "field" && !name.contains("schema")
+                };
+                if single_value {
+                    target_val_name = func.params[0].name.to_string();
+                    seen_target_val = true;
+                }
+
+                for param in func.params.iter().filter(|_| !single_value) {
                     match &param.param_type {
                         Type::Obj(_) => {
                             let param_name = param.name.as_ref();

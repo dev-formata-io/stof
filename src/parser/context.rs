@@ -352,7 +352,27 @@ impl<'ctx> ParseContext<'ctx> {
             node.attributes = attributes.clone(); // set node attributes as the same as field attrs
         }
         self.warn_if_shadows_lib(&nref);
+        self.enter_self(name, nref, attributes)
+    }
 
+    /// Push an existing child object as self, to keep parsing into it (Ex. the same source parsed twice).
+    /// Its field keeps its attributes, with the new ones added on top (new values win).
+    pub fn push_existing_self(&mut self, name: &str, nref: NodeRef, field_attributes: FxHashMap<String, Val>, attributes: &mut FxHashMap<String, Val>) -> Variable {
+        let mut merged = field_attributes;
+        for (key, value) in attributes.drain() {
+            merged.insert(key, value);
+        }
+        *attributes = merged;
+        if let Some(node) = nref.node_mut(&mut self.graph) {
+            for (key, value) in attributes.iter() {
+                node.attributes.insert(key.clone(), value.clone());
+            }
+        }
+        self.enter_self(name, nref, attributes)
+    }
+
+    /// Register a parsed object as a type (if it is one) and push it onto the self stack.
+    fn enter_self(&mut self, name: &str, nref: NodeRef, attributes: &FxHashMap<String, Val>) -> Variable {
         // Is this object a type? If so, put it in the typemap for quick lookup.
         if let Some(type_attr) = attributes.get(PROTOTYPE_TYPE_ATTR.as_str()) {
             match type_attr {

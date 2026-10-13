@@ -15,8 +15,8 @@
 //
 
 use std::sync::Arc;
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{opt, recognize}, multi::{many0, separated_list1}, sequence::{delimited, preceded}, IResult, Parser};
-use crate::{model::SId, parser::{statement::declare::note_referenced, doc::StofParseError, expr::expr, ident::{ident, ident_type}, whitespace::{paren_list, whitespace}}, runtime::{instruction::Instruction, instructions::{block::Block, call::{FuncCall, NamedArg}, Base}}};
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, opt, recognize}, multi::{many0, separated_list1}, sequence::{delimited, preceded}, IResult, Parser};
+use crate::{model::SId, parser::{statement::declare::{note_referenced, note_used}, doc::StofParseError, expr::expr, ident::{ident, ident_type}, whitespace::{paren_list, whitespace}}, runtime::{instruction::Instruction, instructions::{block::Block, empty::value_of, call::{FuncCall, NamedArg}, Base}}};
 
 
 /// Graph interaction expression.
@@ -143,10 +143,13 @@ pub(self) fn var_func(input: &str, chained: bool, as_ref: bool, check_null: bool
     }
 
     // Bare names (not self/super/this) are checked against the function's variables after it's parsed
-    if !chained && !check_null {
+    if !chained {
         let first = path.split(['.', '?']).next().unwrap_or_default();
         if !first.is_empty() && !first.starts_with('<') && !KEYWORDS.contains(&first) {
-            note_referenced(first, call.is_some() && !path.contains('.'), start);
+            note_used(first); // for the variables an arrow function captures
+            if !check_null {
+                note_referenced(first, call.is_some() && !path.contains('.'), start);
+            }
         }
     }
 
@@ -209,7 +212,7 @@ pub(self) fn call_arg(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofPa
 
     let (input, ins) = alt((
         named_arg,
-        expr
+        map(expr, value_of)
     )).parse(input)?;
 
     let (input, _) = whitespace(input)?;
@@ -223,7 +226,7 @@ pub(self) fn named_arg(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofP
     let (input, _) = multispace0(input)?;
 
     let (input, ins) = expr(input)?;
-    Ok((input, Arc::new(NamedArg { name: SId::from(name), ins })))
+    Ok((input, Arc::new(NamedArg { name: SId::from(name), ins: value_of(ins) })))
 }
 
 

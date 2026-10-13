@@ -127,3 +127,13 @@ fn bind_func() {
     assert_eq(func(), 'another');
     assert_eq(func.objs(), [another]);
 }
+
+
+fn described(base: float, quantity: int = 1) -> float { base * quantity }
+
+#[test]
+fn fn_library_on_function_paths() {
+    assert_eq(self.described.name(), 'described');
+    assert_eq(self.described.return_type(), 'float');
+    assert_eq(self.described.params().len(), 2);
+}

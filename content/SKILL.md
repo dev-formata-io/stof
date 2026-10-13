@@ -116,7 +116,8 @@ server: {                      // nested object
     fn url() -> str { `https://${self.address}:${self.port}` }
 }
 #[readonly] ro: 42             // attributes annotate fields and functions
-#[private] secret: 'x'         // private fields aren't exported to JSON etc.
+#[private] secret: 'x'         // only this object's functions can read it (still exported)
+#[no-export] cache: {}         // left out of JSON and other exports
 root Settings { theme: 'dark' }
 ```
 
@@ -145,7 +146,7 @@ fn fib(n: int) -> int { if (n <= 1) return n; this(n - 1) + this(n - 2) }   // `
 ```stof
 self.add(1, 2)              // 3
 self.add(b = 5, a = 1)      // named arguments
-const double = (x: int): int => x * 2;    // arrow function (sees enclosing variables)
+const double = (x: int): int => x * 2;    // arrow function (sees the variables where it's made, even when passed on)
 const f = self.add;         // functions are values
 f(2, 3); f.call(2, 3);
 ```
@@ -244,21 +245,27 @@ config: { port: 70000, host: 'example.com' }
 returns `true`); `remove_undefined = true` deletes fields the type doesn't declare. A missing field is validated
 as null: `#[schema_optional]` skips validation for null or missing values; otherwise make required fields reject
 null explicitly (`target_val != null && ...`), since comparisons with null don't throw (`null < 10` is `true`) and
-a method call on null (`target_val.len()`) throws out of `schemafy`. See `references/libs/Obj.md` (`schemafy`).
+a method call on null (`target_val.len()`) throws out of `schemafy`. A rule with one parameter gets the value being
+checked, whatever it's named; with more, they're matched by name: `target_val` (the value), `target` (the object),
+`field` (the field's name), and `schema_val` (the type's default). See `references/libs/Obj.md` (`schemafy`).
 
 ## Attributes and running functions
 
 - `#[main]`: run by `stof run` and the host `run()`. `stof run -a <attr>` (and `doc.run('attr')`) runs
   functions with another attribute instead.
 - `#[test]`, `#[test(expected)]`, `#[errors]` (the test passes only if it throws): run by `stof test`.
-- `#[run]`, `#[run(order)]`: `obj.run()` calls these on an object, lowest order first (pipelines).
+- `#[run]` steps (functions or fields): `obj.run()` runs them in the order they're written. A type's steps run
+  on each instance, first; an instance step with the same name replaces the type's (once, in its place), and
+  `#[run] step: null` removes one. `#[run(-1)]`/`#[run(1)]` run before/after the unnumbered steps.
+  `obj.run(steps = ['a', 'b'])` runs just those; `prototype = 'none'` skips the type's steps.
 - `#[async]` or `async fn`: calling it returns a `Promise<T>`; `await` it.
 - Custom attributes are data: `#[on-save] fn audit(doc: obj) {...}` and
   `for (const handler in funcs(attributes = 'on-save')) handler(self);` dispatch events.
 - `#[run({'args': [5]})]`: pass arguments to a run step.
 - `#[init]`: runs once after the document is parsed (setup).
 - `#[constructor]` / `#[dropped]` (in a type): run on `new` and on `drop(instance)`.
-- On fields: `#[readonly]`, `#[private]`, `#[no-export]` (left out of `stringify`), `#[schema(...)]`, plus anything
+- On fields: `#[readonly]`, `#[private]` (only the object's own functions can read it; still exported),
+  `#[no-export]` (left out of `stringify`), `#[schema(...)]`, plus anything
   custom (read with `self.attributes('field')`).
 - `#[type_ignore]` on a type's field keeps it on the type only (not copied into instances; read it as
   `<Type>.FIELD`). Use it with `const` for shared constants, so instances don't each carry a copy.
@@ -276,7 +283,7 @@ including functions), and with features `pdf`, `docx`, and image formats. `@pkg/
 `stof/pkg/name` under the working directory.
 
 ```stof
-stringify('json', o)                 // export an object (functions and private fields are skipped)
+stringify('json', o)                 // export an object (functions and #[no-export] fields are skipped)
 const back = new {}; parse('{"x": [1, 2]}', back, 'json');   // import into an object
 const bin = blobify('bstf', o);      // binary, with functions; parse(bin, target, 'bstf') restores it
 parse('fn hi() -> str { "hi" }', self);   // documents can add code to themselves

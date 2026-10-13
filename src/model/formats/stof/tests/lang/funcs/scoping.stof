@@ -91,3 +91,61 @@ fn argument_errors_catch_as_func_args() {
     try { Num::abs(); } catch (e: str) { caught.push_back(e); }
     assert_eq(caught, ['FuncArgs', 'FuncArgs', 'FuncArgs', 'FuncArgs']);
 }
+
+
+/*****************************************************************************
+ * Arrow functions keep the variables where they were made, wherever they're called.
+ *****************************************************************************/
+
+fn apply_rule(amount: float, rule: fn) -> float { rule(amount) }
+fn call_with(value: int, f: fn) { f(value); }
+fn call_stored() -> float { self.stored_rule(100) }
+
+#[test]
+fn arrow_passed_to_function_sees_its_variables() {
+    const tax = 0.2;
+    const with_tax = (amount: float): float => amount * (1 + tax);
+    assert_eq(self.apply_rule(100, with_tax), 120);
+}
+
+#[test]
+fn arrow_stored_and_called_later() {
+    const rate = 0.5;
+    self.stored_rule = (amount: float): float => amount * rate;
+    assert_eq(self.call_stored(), 50);
+}
+
+#[test]
+fn arrow_assigns_captured_variable() {
+    let total = 0;
+    const add = (v: int) => { total += v; };
+    add(5);
+    self.call_with(10, add);
+    assert_eq(total, 15);
+
+    total = 100;
+    const read = (): int => total;
+    assert_eq(self.apply_rule(0, (x: float): float => read()), 100);
+}
+
+#[test]
+fn captured_variables_keep_copy_semantics() {
+    let x = 1;
+    const f = (): int => x;
+    let y = x;
+    y += 10;
+    assert_eq(x, 1);
+    assert_eq(f(), 1);
+    x = 7;
+    assert_eq(f(), 7);
+}
+
+#[test]
+fn arrow_recursion_and_nesting() {
+    const fact = (n: int): int => n <= 1 ? 1 : n * fact(n - 1);
+    assert_eq(fact(5), 120);
+
+    const offset = 10;
+    const make = (): fn => (x: int): int => x + offset;
+    assert_eq(self.apply_rule(1, make()), 11);
+}

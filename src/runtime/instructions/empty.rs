@@ -15,8 +15,9 @@
 //
 
 use std::sync::Arc;
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error}};
+use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, instructions::{block::Block, call::FuncCall, Base}, proc::ProcEnv, Error}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,6 +36,44 @@ impl Instruction for EmptyIns {
         instructions.push(Arc::new(Base::PopUntilStackCount(size)));
         Ok(Some(instructions))
     }
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+/// A value is needed from these instructions (Ex. a declaration's value): if they leave nothing on the stack,
+/// like a call to a function that returns nothing, the value is null instead of a missing stack value.
+pub struct ValueIns {
+    pub ins: Arc<dyn Instruction>,
+}
+#[typetag::serde(name = "ValueIns")]
+impl Instruction for ValueIns {
+    fn exec(&self, env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
+        let mut instructions = Instructions::default();
+        instructions.push(self.ins.clone());
+        let size = env.stack.len();
+        instructions.push(match ENSURE_VALUE.get(size) {
+            Some(ins) => ins.clone(), // shared for the usual stack sizes, so a call's value costs no allocation
+            None => Arc::new(Base::EnsureValue(size)),
+        });
+        Ok(Some(instructions))
+    }
+}
+
+lazy_static! {
+    static ref ENSURE_VALUE: Vec<Arc<dyn Instruction>> = (0..64).map(|size| Arc::new(Base::EnsureValue(size)) as Arc<dyn Instruction>).collect();
+}
+
+/// The value of an expression that might leave nothing on the stack: a call (the function may return nothing)
+/// or an await (the process may finish without a value). Anything else is returned as it is, at no extra cost.
+pub fn value_of(ins: Arc<dyn Instruction>) -> Arc<dyn Instruction> {
+    let any = ins.as_dyn_any();
+    let last_may_be_empty = |ins: &Arc<dyn Instruction>| {
+        let any = ins.as_dyn_any();
+        any.downcast_ref::<FuncCall>().is_some() || matches!(any.downcast_ref::<Base>(), Some(Base::CtrlAwait))
+    };
+    let may_be_empty = any.downcast_ref::<FuncCall>().is_some()
+        || any.downcast_ref::<Block>().is_some_and(|block| block.ins.last().is_some_and(last_may_be_empty));
+    if may_be_empty { Arc::new(ValueIns { ins }) } else { ins }
 }
 
 

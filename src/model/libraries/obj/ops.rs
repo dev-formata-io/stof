@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use imbl::vector;
-use crate::{model::{LibFunc, Param, obj::{ANY, AT, AT_REF, ATTRIBUTES, CHILDREN, CONTAINS, CREATE_TYPE, DIFF, DISTANCE, DUMP, EMPTY, EXISTS, FIELDS, FROM_ID, FROM_MAP, FUNCS, GET, GET_REF, ID, INSERT, INSTANCE_OF, IS_PARENT, IS_ROOT, LEN, MOVE, MOVE_FIELD, NAME, OBJ_LIB, PARENT, PATH, PROTO, REMOVE, REMOVE_PROTO, ROOT, RUN, SCHEMAFY, SET_PROTO, TO_MAP, TO_MAP_REF, UPCAST}}, runtime::{NumT, Type, Val, instruction::Instructions, instructions::Base}};
+use crate::{model::{LibFunc, Param, obj::{ANY, AT, AT_REF, ATTRIBUTES, CHILDREN, CONTAINS, CREATE_TYPE, DIFF, DISTANCE, DUMP, EMPTY, EXISTS, FIELDS, FROM_ID, FROM_MAP, FUNCS, GET, GET_REF, ID, INSERT, INSTANCE_OF, IS_PARENT, IS_ROOT, LEN, MOVE, MOVE_FIELD, NAME, OBJ_LIB, PARENT, PATH, PROTO, REMOVE, REMOVE_PROTO, ROOT, RUN_WITH, SCHEMAFY, SET_PROTO, TO_MAP, TO_MAP_REF, UPCAST}}, runtime::{NumT, Type, Val, instruction::Instructions, instructions::Base}};
 
 
 #[inline(always)]
@@ -879,42 +879,55 @@ pub fn obj_run() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "run".into(),
         is_async: false,
-        docs: r#"# Obj.run(obj: obj) -> void
-Run an object (like calling a function, but for the entire object as a task). This will execute all fields and functions with a #[run] attribute, optionally with an order #[run(3)]. Any sub objects encountered will also get ran recursively. Arrays act like pipelines, unlocking serious functionality.
+        docs: r#"# Obj.run(obj: obj, prototype?: str, steps?: list) -> void
+Run an object like a task: every field and function with a #[run] attribute is a step. A step that holds an object runs that object, a function is called, and a list (or set, tuple, map) runs each item in turn, like a pipeline.
 
-## Motivation
-This concept enables data-driven abstractions above function calls. An example would be setting some fields on an object that already has some #[run] functions defined, ready to utilize the values in those fields. With prototypes, you can probably see how this is a powerful tool.
+- **Order**: steps run in the order they're defined. A number moves a step, like a z-index across all steps: #[run(-1)] runs before the unnumbered steps, #[run(1)] after.
+- **Types**: an object's type can define steps that run for every instance (on the instance). The type's steps run first, base type first, then the object's own new steps.
+- **Overrides**: steps have names (the field or function name, or #[run({'name': 'x'})]). A step with the same name as a type's step replaces it, so each step runs once, in the replaced step's place. A null field (#[run] check: null) removes the type's step.
+- **Arguments**: #[run({'args': [42]})] calls a function step with arguments.
+- **prototype**: 'first' (default), 'last' (the object's new steps before the type's), 'none' (only the object's own steps), or 'only' (only the type's steps).
+- **steps**: step names to run, in this order (only these run).
 
-### Concrete Example
+Give prototype and steps to the call, or set them for an object with #[run({'prototype': 'none'})] or #[run({'steps': ['load', 'check']})].
+
 ```rust
 #[type]
-Request: {
-    str name: "europe"
+Order: {
+    list log: []
 
     #[run]
-    fn execute() {
-        self.result = await Http.fetch("https://myawesomeendpoint/" + self.name);
-    }
+    fn price() { self.log.push_back('price'); }
+
+    #[run]
+    fn notify() { self.log.push_back('email'); }
 }
 
 #[main]
 fn example() {
-    const req = new Request { name: "usa" };
-    req.run();
-    // now work with req.result as needed
+    const order = new Order {};
+    order.run();                       // price, then notify
+    order.run(steps = ['notify']);     // just notify
+
+    const quiet = new Order {
+        #[run]
+        notify: null                   // no notify step for this order
+    };
+    quiet.run();                       // price
 }
 ```
 "#.into(),
         params: vector![
             Param { name: "obj".into(), param_type: Type::Void, default: None },
+            Param { name: "prototype".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) },
+            Param { name: "steps".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) },
         ],
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
-            instructions.push(Arc::new(Base::Literal(Val::Null))); // override context
-            instructions.push(RUN.clone());
+            instructions.push(RUN_WITH.clone());
             Ok(instructions)
         })
     }

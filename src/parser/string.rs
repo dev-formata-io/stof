@@ -14,7 +14,7 @@
 // limitations under the License.
 //
 
-use nom::{branch::alt, bytes::complete::{escaped_transform, tag, take_until}, character::complete::{char, none_of}, combinator::{map, opt, value}, sequence::delimited, IResult, Parser};
+use nom::{branch::alt, bytes::complete::{escaped_transform, tag, take_until}, character::complete::{anychar, char, none_of}, combinator::{map, opt, value}, sequence::delimited, IResult, Parser};
 use crate::{parser::{doc::StofParseError, whitespace::whitespace}, runtime::Val};
 
 
@@ -45,8 +45,18 @@ pub fn double_string(input: &str) -> IResult<&str, String, StofParseError> {
         value("\n", tag("n")),
         value("\r", tag("r")),
         value("\t", tag("t")),
+        unknown_escape,
     )));
     delimited(char('"'), map(opt(inner), |opt| opt.unwrap_or_default()), char('"')).parse(input)
+}
+
+/// An escape a string doesn't know (Ex. "\." in a regular expression): a clear error, instead of a confusing one
+/// from whatever parser tries next.
+pub(crate) fn unknown_escape(input: &str) -> IResult<&str, &'static str, StofParseError> {
+    let (_, c) = anychar(input)?;
+    let mut error = StofParseError::from(format!("unknown escape '\\{c}' in a string (write '\\\\' for a backslash, or use a raw string: r#\"...\"#)"));
+    error.pos = Some(input.as_ptr() as usize);
+    Err(nom::Err::Failure(error))
 }
 
 /// Parse a single quoted string.
@@ -58,6 +68,7 @@ pub fn single_string(input: &str) -> IResult<&str, String, StofParseError> {
         value("\n", tag("n")),
         value("\r", tag("r")),
         value("\t", tag("t")),
+        unknown_escape,
     )));
     delimited(char('\''), map(opt(inner), |opt| opt.unwrap_or_default()), char('\'')).parse(input)
 }

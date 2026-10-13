@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use nom::{IResult, Parser, branch::alt, bytes::complete::tag, character::complete::{char, space0}, combinator::map, multi::{many0, many0_count}, sequence::{pair, preceded}};
-use crate::{parser::{doc::StofParseError, expr::{async_expr, await_expr, block_expr, fmt_str::formatted_string_expr, graph::graph_expr, list_expr, literal::literal_expr, map_expr, set_expr, switch_expr, paren_expr, typename_expr, typeof_expr}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, ops::{Op, OpIns}, Base, NOOP, NOT_TRUTHY, TRUTHY}, Num, Val}};
+use crate::{parser::{doc::StofParseError, expr::{async_expr, await_expr, block_expr, fmt_str::formatted_string_expr, graph::graph_expr, list_expr, literal::literal_expr, map_expr, set_expr, switch_expr, paren_expr, typename_expr, typeof_expr}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, empty::value_of, ops::{Op, OpIns}, Base, NOOP, NOT_TRUTHY, TRUTHY}, Num, Val}};
 
 
 /// Parse a math expr.
@@ -37,15 +37,15 @@ pub(self) fn logical(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofPar
     let (input, ops) = many0(
         alt((
             map(preceded(pair(tag("&&"), whitespace), compare), |ins| {
-                OpIns { lhs: NOOP.clone(), op: Op::And, rhs: ins }
+                OpIns { lhs: NOOP.clone(), op: Op::And, rhs: value_of(ins) }
             }),
             map(preceded(pair(tag("||"), whitespace), compare), |ins| {
-                OpIns { lhs: NOOP.clone(), op: Op::Or, rhs: ins }
+                OpIns { lhs: NOOP.clone(), op: Op::Or, rhs: value_of(ins) }
             })
         ))
     ).parse(input)?;
     for mut op in ops {
-        op.lhs = lhs;
+        op.lhs = value_of(lhs);
         lhs = Arc::new(op) as Arc<dyn Instruction>;
     }
     Ok((input, lhs))
@@ -57,27 +57,27 @@ pub(self) fn compare(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofPar
     let (input, ops) = many0(
         alt((
             map(preceded(pair(tag("=="), whitespace), add_sub), |ins| {
-                OpIns { lhs: NOOP.clone(), op: Op::Eq, rhs: ins }
+                OpIns { lhs: NOOP.clone(), op: Op::Eq, rhs: value_of(ins) }
             }),
             map(preceded(pair(tag("!="), whitespace), add_sub), |ins| {
-                OpIns { lhs: NOOP.clone(), op: Op::Neq, rhs: ins }
+                OpIns { lhs: NOOP.clone(), op: Op::Neq, rhs: value_of(ins) }
             }),
             map(preceded(pair(tag(">="), whitespace), add_sub), |ins| {
-                OpIns { lhs: NOOP.clone(), op: Op::GreaterOrEq, rhs: ins }
+                OpIns { lhs: NOOP.clone(), op: Op::GreaterOrEq, rhs: value_of(ins) }
             }),
             map(preceded(pair(tag("<="), whitespace), add_sub), |ins| {
-                OpIns { lhs: NOOP.clone(), op: Op::LessOrEq, rhs: ins }
+                OpIns { lhs: NOOP.clone(), op: Op::LessOrEq, rhs: value_of(ins) }
             }),
             map(preceded(pair(char('>'), whitespace), add_sub), |ins| {
-                OpIns { lhs: NOOP.clone(), op: Op::Greater, rhs: ins }
+                OpIns { lhs: NOOP.clone(), op: Op::Greater, rhs: value_of(ins) }
             }),
             map(preceded(pair(char('<'), whitespace), add_sub), |ins| {
-                OpIns { lhs: NOOP.clone(), op: Op::Less, rhs: ins }
+                OpIns { lhs: NOOP.clone(), op: Op::Less, rhs: value_of(ins) }
             })
         ))
     ).parse(input)?;
     for mut op in ops {
-        op.lhs = lhs;
+        op.lhs = value_of(lhs);
         lhs = Arc::new(op) as Arc<dyn Instruction>;
     }
     Ok((input, lhs))
@@ -89,15 +89,15 @@ pub(self) fn add_sub(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofPar
     let (input, ops) = many0(
         alt((
             map(preceded(pair(char('-'), whitespace), mul_div), |ins| {
-                OpIns { lhs: NOOP.clone(), op: Op::Sub, rhs: ins }
+                OpIns { lhs: NOOP.clone(), op: Op::Sub, rhs: value_of(ins) }
             }),
             map(preceded(pair(char('+'), whitespace), mul_div), |ins| {
-                OpIns { lhs: NOOP.clone(), op: Op::Add, rhs: ins }
+                OpIns { lhs: NOOP.clone(), op: Op::Add, rhs: value_of(ins) }
             })
         ))
     ).parse(input)?;
     for mut op in ops {
-        op.lhs = lhs;
+        op.lhs = value_of(lhs);
         lhs = Arc::new(op) as Arc<dyn Instruction>;
     }
     Ok((input, lhs))
@@ -109,18 +109,18 @@ pub(self) fn mul_div(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofPar
     let (input, ops) = many0(
         alt((
             map(preceded(pair(char('*'), whitespace), bitwise), |ins| {
-                OpIns { lhs: NOOP.clone(), op: Op::Mul, rhs: ins }
+                OpIns { lhs: NOOP.clone(), op: Op::Mul, rhs: value_of(ins) }
             }),
             map(preceded(pair(char('/'), whitespace), bitwise), |ins| {
-                OpIns { lhs: NOOP.clone(), op: Op::Div, rhs: ins }
+                OpIns { lhs: NOOP.clone(), op: Op::Div, rhs: value_of(ins) }
             }),
             map(preceded(pair(char('%'), whitespace), bitwise), |ins| {
-                OpIns { lhs: NOOP.clone(), op: Op::Mod, rhs: ins }
+                OpIns { lhs: NOOP.clone(), op: Op::Mod, rhs: value_of(ins) }
             })
         ))
     ).parse(input)?;
     for mut op in ops {
-        op.lhs = lhs;
+        op.lhs = value_of(lhs);
         lhs = Arc::new(op) as Arc<dyn Instruction>;
     }
     Ok((input, lhs))
@@ -132,24 +132,24 @@ pub(self) fn bitwise(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofPar
     let (input, ops) = many0(
         alt((
             map(preceded(pair(char('&'), whitespace), primary), |ins| {
-                OpIns { lhs: NOOP.clone(), op: Op::BAND, rhs: ins }
+                OpIns { lhs: NOOP.clone(), op: Op::BAND, rhs: value_of(ins) }
             }),
             map(preceded(pair(char('|'), whitespace), primary), |ins| {
-                OpIns { lhs: NOOP.clone(), op: Op::BOR, rhs: ins }
+                OpIns { lhs: NOOP.clone(), op: Op::BOR, rhs: value_of(ins) }
             }),
             map(preceded(pair(char('^'), whitespace), primary), |ins| {
-                OpIns { lhs: NOOP.clone(), op: Op::BXOR, rhs: ins }
+                OpIns { lhs: NOOP.clone(), op: Op::BXOR, rhs: value_of(ins) }
             }),
             map(preceded(pair(tag("<<"), whitespace), primary), |ins| {
-                OpIns { lhs: NOOP.clone(), op: Op::BSHL, rhs: ins }
+                OpIns { lhs: NOOP.clone(), op: Op::BSHL, rhs: value_of(ins) }
             }),
             map(preceded(pair(tag(">>"), whitespace), primary), |ins| {
-                OpIns { lhs: NOOP.clone(), op: Op::BSHR, rhs: ins }
+                OpIns { lhs: NOOP.clone(), op: Op::BSHR, rhs: value_of(ins) }
             })
         ))
     ).parse(input)?;
     for mut op in ops {
-        op.lhs = lhs;
+        op.lhs = value_of(lhs);
         lhs = Arc::new(op) as Arc<dyn Instruction>;
     }
     Ok((input, lhs))
@@ -180,7 +180,7 @@ pub(crate) fn primary(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofPa
     let (input, ins) = alt((
         atom,
         map(preceded(char('-'), atom), |ins| {
-            Arc::new(OpIns { lhs: Arc::new(Base::Literal(Val::Num(Num::Int(-1)))), op: Op::Mul, rhs: ins }) as Arc<dyn Instruction>
+            Arc::new(OpIns { lhs: Arc::new(Base::Literal(Val::Num(Num::Int(-1)))), op: Op::Mul, rhs: value_of(ins) }) as Arc<dyn Instruction>
         })
     )).parse(input)?;
     let (input, _) = space0(input)?;
