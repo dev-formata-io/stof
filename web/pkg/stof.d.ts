@@ -23,6 +23,12 @@ export class Stof {
      */
     binaryImport(bytes: any, format: string, node: any, profile: string): boolean;
     /**
+     * Call a function from Stof source without adding it to the document.
+     * The source's first function runs with self as the node (an object path or ID, the root by default),
+     * and everything the source declares is removed after the call.
+     */
+    call_source_with_gate(src: string, args: any, node: any, acquire: Function, release: Function): Promise<any>;
+    /**
      * Call a singular function in the document (by path).
      * If no arguments, pass undefined as args.
      * Otherwise, pass an array of arguments as args.
@@ -53,6 +59,12 @@ export class Stof {
      */
     parse(stof: string, node: any, profile: string): boolean;
     /**
+     * Remove a field, function, or object by path (Ex. "config.staging"), like drop() in Stof.
+     * A field that holds an object drops the object too, unless shallow (then only the field is removed).
+     * Returns whether anything was removed.
+     */
+    remove(path: string, shallow: boolean): boolean;
+    /**
      * Run functions with the given attribute(s) in this document.
      * Attributes defaults to #[main] functions if null or undefined.
      */
@@ -81,6 +93,11 @@ export class Stof {
      * Async TS lib functions will not work with this, but it will be faster.
      */
     sync_call(path: string, args: any): any;
+    /**
+     * Synchronous call a function from Stof source without adding it to the document.
+     * Async TS lib functions will not work with this, but it will be faster.
+     */
+    sync_call_source(src: string, args: any, node: any): any;
     /**
      * Synchronous run functions with the given attribute(s) in this document.
      * Attributes defaults to #[main] functions if null or undefined.
@@ -122,6 +139,7 @@ export interface InitOutput {
     readonly stof_allowHttp: (a: number) => void;
     readonly stof_binaryExport: (a: number, b: number, c: number, d: any) => [number, number, number];
     readonly stof_binaryImport: (a: number, b: any, c: number, d: number, e: any, f: number, g: number) => [number, number, number];
+    readonly stof_call_source_with_gate: (a: number, b: number, c: number, d: any, e: any, f: any, g: any) => any;
     readonly stof_call_with_gate: (a: number, b: number, c: number, d: any, e: any, f: any) => any;
     readonly stof_docid: (a: number) => [number, number];
     readonly stof_get: (a: number, b: number, c: number, d: any) => any;
@@ -129,12 +147,14 @@ export interface InitOutput {
     readonly stof_new: () => number;
     readonly stof_objImport: (a: number, b: any, c: any) => [number, number, number];
     readonly stof_parse: (a: number, b: number, c: number, d: any, e: number, f: number) => [number, number, number];
+    readonly stof_remove: (a: number, b: number, c: number, d: number) => number;
     readonly stof_run_with_gate: (a: number, b: any, c: any, d: any) => any;
     readonly stof_set: (a: number, b: number, c: number, d: any, e: any) => number;
     readonly stof_setMaxExecutionTime: (a: number, b: number, c: number) => void;
     readonly stof_stringExport: (a: number, b: number, c: number, d: any) => [number, number, number, number];
     readonly stof_stringImport: (a: number, b: number, c: number, d: number, e: number, f: any, g: number, h: number) => [number, number, number];
     readonly stof_sync_call: (a: number, b: number, c: number, d: any) => [number, number, number];
+    readonly stof_sync_call_source: (a: number, b: number, c: number, d: any, e: any) => [number, number, number];
     readonly stof_sync_run: (a: number, b: any) => [number, number, number, number];
     readonly stoffunc_docid: (a: number) => [number, number];
     readonly stoffunc_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: any, h: number) => number;

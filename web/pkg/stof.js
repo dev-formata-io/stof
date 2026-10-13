@@ -58,6 +58,23 @@ export class Stof {
         return ret[0] !== 0;
     }
     /**
+     * Call a function from Stof source without adding it to the document.
+     * The source's first function runs with self as the node (an object path or ID, the root by default),
+     * and everything the source declares is removed after the call.
+     * @param {string} src
+     * @param {any} args
+     * @param {any} node
+     * @param {Function} acquire
+     * @param {Function} release
+     * @returns {Promise<any>}
+     */
+    call_source_with_gate(src, args, node, acquire, release) {
+        const ptr0 = passStringToWasm0(src, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.stof_call_source_with_gate(this.__wbg_ptr, ptr0, len0, args, node, acquire, release);
+        return ret;
+    }
+    /**
      * Call a singular function in the document (by path).
      * If no arguments, pass undefined as args.
      * Otherwise, pass an array of arguments as args.
@@ -149,6 +166,20 @@ export class Stof {
             throw takeFromExternrefTable0(ret[1]);
         }
         return ret[0] !== 0;
+    }
+    /**
+     * Remove a field, function, or object by path (Ex. "config.staging"), like drop() in Stof.
+     * A field that holds an object drops the object too, unless shallow (then only the field is removed).
+     * Returns whether anything was removed.
+     * @param {string} path
+     * @param {boolean} shallow
+     * @returns {boolean}
+     */
+    remove(path, shallow) {
+        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.stof_remove(this.__wbg_ptr, ptr0, len0, shallow);
+        return ret !== 0;
     }
     /**
      * Run functions with the given attribute(s) in this document.
@@ -243,6 +274,23 @@ export class Stof {
         const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.stof_sync_call(this.__wbg_ptr, ptr0, len0, args);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * Synchronous call a function from Stof source without adding it to the document.
+     * Async TS lib functions will not work with this, but it will be faster.
+     * @param {string} src
+     * @param {any} args
+     * @param {any} node
+     * @returns {any}
+     */
+    sync_call_source(src, args, node) {
+        const ptr0 = passStringToWasm0(src, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.stof_sync_call_source(this.__wbg_ptr, ptr0, len0, args, node);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -475,6 +523,9 @@ function __wbg_get_imports() {
                 wasm.__wbindgen_free(deferred0_0, deferred0_1, 1);
             }
         },
+        __wbg_error_c9cf3fc2064683a9: function(arg0) {
+            console.error(arg0);
+        },
         __wbg_from_296ca31f8d0f1c52: function(arg0) {
             const ret = Array.from(arg0);
             return ret;
@@ -591,6 +642,9 @@ function __wbg_get_imports() {
         __wbg_length_d4bdea10311bd9cf: function(arg0) {
             const ret = arg0.length;
             return ret;
+        },
+        __wbg_log_17c30ef363c61cf4: function(arg0) {
+            console.log(arg0);
         },
         __wbg_message_5f8387f0c32b90a7: function(arg0) {
             const ret = arg0.message;
@@ -777,7 +831,7 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbindgen_generic_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 8316, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 8460, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_3b9afeaa82ee37f3___convert__closures_____invoke___wasm_bindgen_3b9afeaa82ee37f3___JsValue__core_608f92abc48d28da___result__Result_____wasm_bindgen_3b9afeaa82ee37f3___JsError___true_);
             return ret;
         },
