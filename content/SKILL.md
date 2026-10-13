@@ -364,6 +364,8 @@ doc.lib('Host', 'now', () => Date.now());        // Stof calls Host::now()
 doc.parse({ extra: true });                      // add more (Stof source, a JS object, or bytes)
 await doc.run();                                 // #[main] functions
 doc.stringify('json'); doc.blobify('bstf'); doc.record();   // export (record = plain JS object)
+await doc.callSource('fn check(x: int) -> bool { x < self.rate }', [1]);   // run once, nothing kept
+doc.remove('rate');                              // remove by path, like drop()
 
 const quick = await stofAsync`fn hi() -> str { 'hi' }`;
 ```
@@ -380,6 +382,8 @@ doc.call('total', [21])        # args: a list, a single value, or none (doc.call
 doc.get('rate'); doc.set('rate', 3)   # optional start object id as a last argument
 doc.run()
 doc.string_export('json'); doc.binary_export()   # bstf of the main root
+doc.call_source('fn check(x: int) -> bool { x < self.rate }', [1])   # run once, nothing kept
+doc.remove('rate')
 ```
 
 **Rust** (`cargo add stof`):
@@ -393,6 +397,8 @@ graph.parse_stof_src("rate: 2\nfn total(units: int) -> float { units * self.rate
 let total = Runtime::call(&mut graph, "total", vec![Val::from(21i64)])?;   // 42
 Runtime::run(&mut graph, None, true)?;                                     // #[main]
 let json = graph.string_export("json", None)?;
+Runtime::call_source(&mut graph, "fn check(x: int) -> bool { x < self.rate }", None, vec![Val::from(1i64)])?;
+graph.remove("rate", false);
 ```
 
 **Sandbox:** embedded documents have no file system, environment, or network access. Hosts opt in:

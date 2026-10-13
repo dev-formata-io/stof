@@ -698,21 +698,7 @@ impl Instruction for StdIns {
                             if path.starts_with(SELF_STR_KEYWORD.as_str()) || path.starts_with(SUPER_STR_KEYWORD.as_str()) {
                                 context = Some(env.self_ptr());
                             }
-                            let mut dropped = false;
-                            if let Some(field_ref) = Field::field_from_path(graph, path.as_str(), context.clone()) {
-                                let mut val = None;
-                                if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
-                                    val = Some(field.value.val.clone());
-                                }
-                                if let Some(val) = val {
-                                    val.read().drop_data(graph);
-                                }
-                                dropped = graph.remove_data(&field_ref, None);
-                            } else if let Some(node) = SPath::node(&graph, path.as_str(), context.clone()) {
-                                dropped = graph.remove_node(&node, true);
-                            } else if let Some(func_ref) = Func::func_from_path(graph, path.as_str(), context) {
-                                dropped = graph.remove_data(&func_ref, None);
-                            }
+                            let dropped = graph.drop_path(path.as_str(), context, false);
                             results.push_back(ValRef::new(Val::Bool(dropped)));
                         },
                         Val::Obj(nref) => {
@@ -747,14 +733,7 @@ impl Instruction for StdIns {
                             if path.starts_with(SELF_STR_KEYWORD.as_str()) || path.starts_with(SUPER_STR_KEYWORD.as_str()) {
                                 context = Some(env.self_ptr());
                             }
-                            let mut dropped = false;
-                            if let Some(field_ref) = Field::field_from_path(graph, path.as_str(), context.clone()) {
-                                dropped = graph.remove_data(&field_ref, None);
-                            } else if let Some(node) = SPath::node(&graph, path.as_str(), context.clone()) {
-                                dropped = graph.remove_node(&node, true);
-                            } else if let Some(func_ref) = Func::func_from_path(graph, path.as_str(), context) {
-                                dropped = graph.remove_data(&func_ref, None);
-                            }
+                            let dropped = graph.drop_path(path.as_str(), context, true);
                             results.push_back(ValRef::new(Val::Bool(dropped)));
                         },
                         Val::Obj(nref) => {

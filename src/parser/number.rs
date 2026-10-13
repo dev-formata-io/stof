@@ -97,6 +97,10 @@ fn whole_number(magnitude: u128, negative: bool) -> Num {
 
 // Parse optional units.
 fn units(input: &str) -> IResult<&str, Option<Units>, StofParseError> {
+    // Every unit starts with a letter: skip the long list when the number isn't followed by one (most numbers)
+    if !input.starts_with(|c: char| c.is_ascii_alphabetic()) {
+        return Ok((input, None));
+    }
     opt(
         alt([
             value(Units::Radians, alt((tag("radians"), tag("rad")))),

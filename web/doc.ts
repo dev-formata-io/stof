@@ -383,6 +383,38 @@ export class StofDoc {
 
 
     /**
+     * Call a function from Stof source without adding it to this document (Ex. a one-off script or check).
+     * The source's first function runs as if it were defined on node (an object's path or ID, the root by default),
+     * and everything the source declares is removed after the call.
+     * Ex. await doc.callSource('fn total(qty: int) -> float { self.price * qty }', [3]);
+     */
+    async callSource(src: string, args: unknown[] = [], node: string | null = null): Promise<unknown> {
+        const acquire = () => StofDoc.wasmMutex.acquire();
+        const release = () => StofDoc.wasmMutex.release();
+        return await this.stof.call_source_with_gate(src, args, node, acquire, release);
+    }
+
+
+    /**
+     * Call a function from Stof source without adding it to this document (synchronously).
+     * Note: any async TS library functions called will not work with synchronous exec (ex. fetch).
+     */
+    sync_callSource(src: string, args: unknown[] = [], node: string | null = null): unknown {
+        return this.stof.sync_call_source(src, args, node);
+    }
+
+
+    /**
+     * Remove a field, function, or object by path (Ex. "config.staging"), like drop() in Stof.
+     * A field that holds an object drops the object too, unless shallow (then only the field is removed).
+     * Returns true if something was removed.
+     */
+    remove(path: string, shallow: boolean = false): boolean {
+        return this.stof.remove(path, shallow);
+    }
+
+
+    /**
      * Get a value from this graph by path and an optional starting object ID.
      */
     get(path: string, start_obj_id: string | null = null): unknown {

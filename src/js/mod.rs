@@ -23,7 +23,7 @@ use js_sys::Uint8Array;
 use nanoid::nanoid;
 use rustc_hash::FxHashSet;
 use wasm_bindgen::prelude::*;
-use crate::{js::{func::StofFunc, value::to_graph_value}, model::{Graph, Profile, import::parse_json_object_value}, runtime::{Runtime, Val, Variable, instruction::Instruction, instructions::Base, proc::ProcEnv}};
+use crate::{js::{func::StofFunc, value::to_graph_value}, model::{Graph, NodeRef, Profile, import::parse_json_object_value}, runtime::{Runtime, Val, Variable, instruction::Instruction, instructions::Base, proc::ProcEnv}};
 
 
 // Workaround for Wasm-Pack Error
@@ -248,6 +248,40 @@ impl Stof {
     }
 
 
+    /// Call a function from Stof source without adding it to the document.
+    /// The source's first function runs with self as the node (an object path or ID, the root by default),
+    /// and everything the source declares is removed after the call.
+    pub async fn call_source_with_gate(&self, src: &str, args: JsValue, node: JsValue, acquire: &js_sys::Function, release: &js_sys::Function) -> Result<JsValue, String> {
+        let (arguments, context) = {
+            let graph = self.graph.borrow();
+            (call_arguments(args, &graph), context_node(node, &graph)?)
+        };
+        match Runtime::async_call_source_with_gate(&self.graph, src, context, arguments, acquire, release).await {
+            Ok(res) => Ok(JsValue::from(res)),
+            Err(err) => Err(err.to_string())
+        }
+    }
+
+    /// Synchronous call a function from Stof source without adding it to the document.
+    /// Async TS lib functions will not work with this, but it will be faster.
+    pub fn sync_call_source(&self, src: &str, args: JsValue, node: JsValue) -> Result<JsValue, String> {
+        let mut graph = self.graph_mut();
+        let arguments = call_arguments(args, &graph);
+        let context = context_node(node, &graph)?;
+        match Runtime::call_source(&mut *graph, src, context, arguments) {
+            Ok(res) => Ok(JsValue::from(res)),
+            Err(err) => Err(err.to_string())
+        }
+    }
+
+    /// Remove a field, function, or object by path (Ex. "config.staging"), like drop() in Stof.
+    /// A field that holds an object drops the object too, unless shallow (then only the field is removed).
+    /// Returns whether anything was removed.
+    pub fn remove(&self, path: &str, shallow: bool) -> bool {
+        self.graph_mut().remove(path, shallow)
+    }
+
+
     /*****************************************************************************
      * Interop.
      *****************************************************************************/
@@ -456,5 +490,28 @@ impl Stof {
             Ok(bytes) => Ok(JsValue::from(Uint8Array::from(bytes.as_ref()))),
             Err(err) => Err(err.to_string())
         }
+    }
+}
+
+
+/// Call arguments from JS: an array of arguments, a single value, or undefined for none.
+fn call_arguments(args: JsValue, graph: &Graph) -> Vec<Val> {
+    match to_graph_value(args, graph) {
+        Val::List(vals) => vals.into_iter().map(|val| val.read().clone()).collect(),
+        Val::Void => vec![],
+        val => vec![val],
+    }
+}
+
+/// The object a call runs on: an object path or ID, or null/undefined for the main root.
+fn context_node(node: JsValue, graph: &Graph) -> Result<Option<NodeRef>, String> {
+    match to_graph_value(node, graph) {
+        Val::Null | Val::Void => Ok(None),
+        Val::Obj(node) if node.node_exists(graph) => Ok(Some(node)),
+        Val::Str(path) => match graph.host_node(&path) {
+            Some(node) => Ok(Some(node)),
+            None => Err(format!("object '{path}' not found")),
+        },
+        _ => Err(format!("node must be an object path or ID")),
     }
 }

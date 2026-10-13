@@ -145,6 +145,48 @@ impl Doc {
         }
     }
 
+    #[pyo3(signature = (src, args = None, node = None))]
+    /// Call a function from Stof source without adding it to the document (Ex. a one-off script or check).
+    /// The source's first function runs as if it were defined on node (an object path or ID, the root by
+    /// default), and everything the source declares is removed after the call.
+    /// Ex. `doc.call_source('fn total(qty: int) -> float { self.price * qty }', [3])`
+    pub fn call_source<'py>(&mut self, py: Python<'py>, src: &str, args: Option<&Bound<'py, PyAny>>, node: Option<&Bound<'py, PyAny>>) -> PyResult<Bound<'py, PyAny>> {
+        let mut arguments = vec![];
+        match args.map(|args| py_any_to_val(args, &self.graph)).unwrap_or(Val::Null) {
+            Val::List(vals) => {
+                for val in vals {
+                    arguments.push(val.read().clone());
+                }
+            },
+            Val::Null |
+            Val::Void => { /* None value. */ },
+            val => {
+                arguments.push(val);
+            }
+        }
+        let context = match node.map(|node| py_any_to_val(node, &self.graph)).unwrap_or(Val::Null) {
+            Val::Null | Val::Void => None,
+            Val::Obj(node) if node.node_exists(&self.graph) => Some(node),
+            Val::Str(path) => match self.graph.host_node(&path) {
+                Some(node) => Some(node),
+                None => return Err(PyValueError::new_err(format!("object '{path}' not found"))),
+            },
+            _ => return Err(PyValueError::new_err("node must be an object path or ID")),
+        };
+        match Runtime::call_source(&mut self.graph, src, context, arguments) {
+            Ok(res) => Ok(val_to_py(py, res)),
+            Err(err) => Err(PyValueError::new_err(err.to_string()))
+        }
+    }
+
+    #[pyo3(signature = (path, shallow = false))]
+    /// Remove a field, function, or object by path (Ex. "config.staging"), like drop() in Stof.
+    /// A field that holds an object drops the object too, unless shallow (then only the field is removed).
+    /// Returns whether anything was removed.
+    pub fn remove(&mut self, path: &str, shallow: bool) -> bool {
+        self.graph.remove(path, shallow)
+    }
+
 
     /*****************************************************************************
      * Interop

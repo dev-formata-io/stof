@@ -43,6 +43,22 @@
   objects declared twice in one document (`#[type]` objects included, so a type is no longer registered twice).
   A field that refers to an object somewhere else is still replaced.
 
+### Added
+
+- **Call a function from source without adding it to the document.** For one-off logic, like a check or a script
+  from a model, that used to need a `drop(this);` at the end. The source's first function is called as if it were
+  defined on the object (the root by default): `self` is that object, and the source's other functions are helpers
+  it can call through `self`. Everything the source declares is removed after the call, even when it fails. Changes
+  the function makes to the document stay. A source function with the same name as one the object already has is
+  an error rather than replacing it.
+  - JavaScript: `await doc.callSource(src, args = [], node = null)` and `doc.sync_callSource(...)`.
+  - Python: `doc.call_source(src, args = None, node = None)`.
+  - Rust: `Runtime::call_source(&mut graph, src, context, args)` (and `async_call_source`).
+- **Remove a field, function, or object by path from the host**, like `drop(path)` in Stof:
+  `doc.remove('pricing.old_total')` (JavaScript and Python) and `graph.remove(path, shallow)` (Rust). With
+  `shallow`, a field that holds an object is removed without dropping the object. Rust also gets
+  `graph.drop_path(path, context, shallow)`, which `drop` now uses.
+
 ### Changed
 
 - **`Obj.run` steps.** Every field and function with `#[run]` is a named step (its name, or
@@ -59,6 +75,8 @@
     the object's own steps, `'only'` only the type's), or just the named steps in that order. An object can set
     either with its own attribute: `#[run({'prototype': 'none'})]`, `#[run({'steps': [...]})]`.
   - Numbered steps, `args`, nested objects, and lists of steps (pipelines) work as before.
+- Faster number parsing: a number not followed by a unit (most of them) skips the unit lookup, which was a large
+  share of parse time in function-heavy documents. Parsing stays as fast as 0.10.5 with this release's other changes.
 - **`pln`, `dbg`, and `err` write to the console in JavaScript** (`console.log` and `console.error`), with the same
   formatting as the native runtime. Before, their output was lost in WebAssembly unless the host replaced `Std.pln`.
 - JavaScript `doc.stringify(format, node)`, `doc.blobify(format, node)`, and `doc.record(node)`, and Python
@@ -71,6 +89,7 @@
   does). The skill said otherwise.
 - Notes on one-parameter schema rules and arrow function captures.
 - `#[run]` steps: definition order, type steps and overrides, numbers, and `run(steps = ..)`.
+- Host `callSource`/`call_source` and `remove` in the embedding examples.
 
 ## 0.10.5
 

@@ -21,7 +21,7 @@ use web_time::{SystemTime, UNIX_EPOCH};
 use colored::Colorize;
 use imbl::Vector;
 use rustc_hash::{FxHashMap, FxHashSet};
-use crate::{model::{DataRef, Field, Func, Graph, NodeRef, SId}, runtime::{instruction::Instruction, instructions::{call::FuncCall, Base}, proc::{ProcRes, Process}, Error, Val, Waker}};
+use crate::{model::{DataRef, Field, Func, Graph, NodeRef, Profile, SId}, runtime::{instruction::Instruction, instructions::{call::FuncCall, Base}, proc::{ProcRes, Process}, Error, Val, Waker}};
 
 #[cfg(feature = "tokio")]
 use parking_lot::RwLock;
@@ -1389,6 +1389,42 @@ impl Runtime {
         Self::eval(graph, instruction)
     }
     
+    /*****************************************************************************
+     * Calling source without adding it to the document.
+     *****************************************************************************/
+
+    /// Call a function from Stof source without adding it to the document (Ex. a one-off script or check).
+    /// The source's first function is called as if it were defined on the context object (the main root by
+    /// default): self is the context, and the source's functions can call each other through self. Nothing
+    /// the source declares stays in the document after the call (its fields are never added), so return
+    /// values rather than objects declared in the source.
+    pub fn call_source(graph: &mut Graph, src: &str, context: Option<NodeRef>, args: Vec<Val>) -> Result<Val, Error> {
+        let (source, instruction) = SourceCall::new(graph, src, context, args)?;
+        let result = Self::eval(graph, instruction);
+        source.finish(graph);
+        result
+    }
+
+    #[cfg(any(feature = "js", feature = "tokio"))]
+    /// Call a function from Stof source without adding it to the document (async functions can be awaited).
+    /// See `call_source`.
+    pub async fn async_call_source(graph: &mut Graph, src: &str, context: Option<NodeRef>, args: Vec<Val>) -> Result<Val, Error> {
+        let (source, instruction) = SourceCall::new(graph, src, context, args)?;
+        let result = Self::async_eval(graph, instruction).await;
+        source.finish(graph);
+        result
+    }
+
+    #[cfg(feature = "js")]
+    /// Call a function from Stof source without adding it to the document (async functions can be awaited).
+    /// See `call_source`.
+    pub async fn async_call_source_with_gate(graph: &RefCell<Graph>, src: &str, context: Option<NodeRef>, args: Vec<Val>, acquire: &js_sys::Function, release: &js_sys::Function) -> Result<Val, Error> {
+        let (source, instruction) = SourceCall::new(&mut graph.borrow_mut(), src, context, args)?;
+        let result = Self::async_eval_with_gate(graph, instruction, acquire, release).await;
+        source.finish(&mut graph.borrow_mut());
+        result
+    }
+
     /// Evaluate a single instruction.
     /// Error returned to a host, with the Stof call stack (when there is one).
     fn located(error: Error, stack: String) -> Error {
@@ -1512,5 +1548,77 @@ impl Runtime {
     pub fn set_tokio_runtime(runtime: tokio::runtime::Handle) {
         let mut tokio_handle = TOKIO_HANDLE_OVERRIDE.write();
         *tokio_handle = Some(runtime);
+    }
+}
+
+/// A function from source, set up to call without adding it to the document (see `Runtime::call_source`).
+/// The source is parsed into a scratch root, and its functions are attached to the context object for the
+/// call (so self is the context and they can call each other), then detached and removed by `finish`.
+struct SourceCall {
+    scratch: NodeRef,
+    context: NodeRef,
+    attached: Vec<DataRef>,
+}
+impl SourceCall {
+    /// Parse the source and make the call to its first function.
+    fn new(graph: &mut Graph, src: &str, context: Option<NodeRef>, args: Vec<Val>) -> Result<(Self, Arc<dyn Instruction>), Error> {
+        let context = match context {
+            Some(context) => context,
+            None => graph.ensure_main_root(),
+        };
+        let scratch = graph.insert_root(format!("__source_{}", nanoid::nanoid!(10)));
+        let mut source = Self { scratch: scratch.clone(), context: context.clone(), attached: Vec::new() };
+
+        let mut profile = Profile::prod();
+        profile.debug_info = true; // errors point at the line in the source (it isn't kept, so size doesn't matter)
+        if let Err(error) = graph.string_import("stof", src, Some(scratch.clone()), &profile) {
+            source.finish(graph);
+            return Err(error);
+        }
+
+        // The source's functions, in order (the first is the one called)
+        let mut funcs = Vec::new();
+        if let Some(node) = scratch.node(graph) {
+            for (name, dref) in &node.data {
+                if dref.type_of::<Func>(graph) { funcs.push((name.clone(), dref.clone())); }
+            }
+        }
+        let Some((_, func)) = funcs.first().cloned() else {
+            source.finish(graph);
+            return Err(Error::Custom("call source: the source has no function to call (Ex. 'fn check(x: int) -> bool { x > 0 }')".into()));
+        };
+
+        // Attach them to the context for the call, without replacing anything it already has
+        if let Some(node) = context.node(graph) {
+            if let Some((name, _)) = funcs.iter().find(|(name, _)| node.data.contains_key(name)) {
+                let message = format!("call source: the source declares '{name}', which the object already has (rename it in the source)");
+                source.finish(graph);
+                return Err(Error::Custom(message.into()));
+            }
+        }
+        for (_, dref) in funcs {
+            if graph.attach_data(&context, &dref) { source.attached.push(dref); }
+        }
+
+        let mut arguments: Vector<Arc<dyn Instruction>> = Vector::default();
+        for arg in args { arguments.push_back(Arc::new(Base::Literal(arg))); }
+        let instruction = Arc::new(FuncCall {
+            as_ref: false,
+            cnull: false,
+            stack: false,
+            func: Some(func),
+            search: None,
+            args: arguments,
+            oself: Some(Arc::new(Base::Literal(Val::Obj(context)))),
+        });
+        Ok((source, instruction))
+    }
+
+    /// Detach the source's functions from the context and remove everything the source declared.
+    fn finish(self, graph: &mut Graph) {
+        for dref in &self.attached {
+            graph.remove_data(dref, Some(self.context.clone()));
+        }
+        graph.remove_node(&self.scratch, true);
     }
 }

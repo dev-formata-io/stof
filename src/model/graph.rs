@@ -174,6 +174,36 @@ impl Graph {
         path.to_string()
     }
 
+    /// Remove a field, function, or object from the document by host path (Ex. "config.staging"), like
+    /// `drop(path)` in Stof. A field that holds an object drops the object too, unless shallow (then only the
+    /// field is removed and the object stays). Returns whether anything was removed.
+    pub fn remove(&mut self, path: &str, shallow: bool) -> bool {
+        let path = self.host_path(path, None);
+        let context = self.main_root();
+        self.drop_path(&path, context, shallow)
+    }
+
+    /// Remove a field, function, or object by path (what Stof's drop does with a path).
+    /// Context is the object a self or super path starts from.
+    /// A field that holds an object drops the object too, unless shallow (then only the field is removed).
+    pub fn drop_path(&mut self, path: &str, context: Option<NodeRef>, shallow: bool) -> bool {
+        if let Some(field_ref) = Field::field_from_path(self, path, context.clone()) {
+            if !shallow {
+                let value = self.get_stof_data::<Field>(&field_ref).map(|field| field.value.val.clone());
+                if let Some(value) = value {
+                    value.read().drop_data(self);
+                }
+            }
+            self.remove_data(&field_ref, None)
+        } else if let Some(node) = SPath::node(self, path, context.clone()) {
+            self.remove_node(&node, true)
+        } else if let Some(func_ref) = crate::model::Func::func_from_path(self, path, context) {
+            self.remove_data(&func_ref, None)
+        } else {
+            false
+        }
+    }
+
     /// Find a root node with a given name.
     pub fn find_root_named(&self, name: impl Into<SId>) -> Option<NodeRef> {
         let name = name.into();
@@ -1725,6 +1755,64 @@ fn deserialize_nodes<'de, D>(deserializer: D) -> Result<FxHashMap<NodeRef, Node>
 #[cfg(test)]
 mod tests {
     use crate::{model::{Data, Field, Graph, ROOT_NODE_NAME, SPath, StofData}, runtime::{Val, Variable}};
+
+    #[test]
+    /// Calling a function from source runs it on the root (or a given object) without adding anything.
+    fn call_source_leaves_no_trace() {
+        use crate::runtime::Runtime;
+        let mut graph = Graph::default();
+        graph.parse_stof_src("price: 2.5\nplans: { pro: { seats: 4 } }", None, crate::model::Profile::prod()).unwrap();
+        let root = graph.main_root().unwrap();
+        let roots = graph.roots.len();
+        let fields = root.node(&graph).unwrap().data.len();
+        let nodes = graph.nodes.len();
+        let data = graph.data.len();
+
+        let src = "fn total(qty: int) -> float { self.price * qty + self.extra() }\nfn extra() -> float { 1 }";
+        assert_eq!(Runtime::call_source(&mut graph, src, None, vec![Val::from(2i64)]).unwrap(), Val::from(6.0));
+        assert_eq!(graph.roots.len(), roots);
+        assert_eq!(root.node(&graph).unwrap().data.len(), fields);
+        assert_eq!(graph.nodes.len(), nodes);
+
+        // on another object, and changes to the document stay
+        let pro = graph.host_node("plans.pro");
+        assert!(pro.is_some());
+        Runtime::call_source(&mut graph, "fn grow() { self.seats += 1; }", pro, vec![]).unwrap();
+        assert_eq!(Runtime::call_source(&mut graph, "fn seats() -> int { self.plans.pro.seats }", None, vec![]).unwrap(), Val::from(5i64));
+
+        // errors leave nothing behind either
+        assert!(Runtime::call_source(&mut graph, "fn bad() -> int { self.missing.call() }", None, vec![]).is_err());
+        assert!(Runtime::call_source(&mut graph, "fn broken( {", None, vec![]).is_err());
+        let err = Runtime::call_source(&mut graph, "x: 1", None, vec![]).unwrap_err().to_string();
+        assert!(err.contains("no function"), "{err}");
+        assert_eq!(graph.roots.len(), roots);
+        assert_eq!(graph.nodes.len(), nodes);
+        assert_eq!(graph.data.len(), data);
+
+        // a function the object already has isn't replaced
+        let err = Runtime::call_source(&mut graph, "fn run() -> int { self.price() }\nfn price() -> int { 1 }", None, vec![]).unwrap_err().to_string();
+        assert!(err.contains("'price'"), "{err}");
+        assert_eq!(Runtime::call(&mut graph, "self.price.round", vec![]).ok(), Some(Val::from(3i64)));
+        assert_eq!(graph.data.len(), data);
+    }
+
+    #[test]
+    /// Removing by path, like drop(): fields, functions, and objects (shallow keeps a field's object).
+    fn remove_by_path() {
+        use crate::runtime::Runtime;
+        let mut graph = Graph::default();
+        graph.parse_stof_src("a: 1\nfn f() -> int { 1 }\nplans: { pro: { seats: 4 } }\nkeep: { x: 1 }", None, crate::model::Profile::prod()).unwrap();
+        assert!(graph.remove("a", false));
+        assert!(!graph.remove("a", false));
+        assert!(graph.remove("f", false));
+        assert!(Runtime::call(&mut graph, "f", vec![]).is_err());
+        assert!(graph.remove("plans.pro", false));
+        assert!(graph.host_node("plans.pro").is_none());
+
+        let keep = graph.host_node("keep").unwrap();
+        assert!(graph.remove("keep", true));
+        assert!(keep.node_exists(&graph)); // the object stays, only the field is gone
+    }
 
     #[test]
     /// Runtime errors returned to a host carry a readable message and the Stof call stack: statement
