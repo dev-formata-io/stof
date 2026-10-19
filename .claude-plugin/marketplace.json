@@ -1,0 +1,15 @@
+{
+  "name": "stof",
+  "description": "The Stof plugin for Claude: write, read, debug, and embed Stof documents.",
+  "owner": {
+    "name": "Formata, Inc.",
+    "url": "https://stof.dev"
+  },
+  "plugins": [
+    {
+      "name": "stof",
+      "source": "./plugin",
+      "description": "Write, read, debug, and embed Stof documents."
+    }
+  ]
+}

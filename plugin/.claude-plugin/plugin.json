@@ -1,0 +1,18 @@
+{
+  "name": "stof",
+  "displayName": "Stof",
+  "version": "0.10.6",
+  "description": "Write, read, debug, and embed Stof documents: JSON with functions, types, units, schemas, and tests that run sandboxed in-process from Rust, TypeScript, or Python.",
+  "author": {
+    "name": "Formata, Inc.",
+    "email": "info@stof.dev",
+    "url": "https://stof.dev"
+  },
+  "homepage": "https://stof.dev",
+  "repository": "https://github.com/dev-formata-io/stof",
+  "license": "Apache-2.0",
+  "keywords": ["stof", "json", "data", "runtime", "sandbox", "wasm", "rust", "typescript", "python", "schema"],
+  "icon": "./icon.png",
+  "documentationUrl": "https://stof.dev",
+  "supportUrl": "https://github.com/dev-formata-io/stof/issues"
+}
