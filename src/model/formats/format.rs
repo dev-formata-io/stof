@@ -15,8 +15,40 @@
 //
 
 use std::{fs, path::PathBuf};
+use arcstr::ArcStr;
 use bytes::Bytes;
-use crate::{model::{FS_LIB, Graph, NodeRef, Profile}, parser::context::ParseContext, runtime::Error};
+use rustc_hash::FxHashMap;
+use crate::{model::{DataRef, FS_LIB, Graph, NodeRef, Profile}, parser::context::ParseContext, runtime::{Error, Val}};
+
+
+/// A function an export calls before writing (Ex. an `#[attr]` function in the html format): computed values.
+/// `Std.stringify` and `Std.blobify` call them in the running process (so async functions are awaited), then the
+/// format writes with their results. Host exports (`Graph::stringify`) call them with a runtime of their own.
+#[derive(Debug, Clone)]
+pub struct ComputedCall {
+    /// The object the value belongs to, and the name of its field or function.
+    pub obj: NodeRef,
+    pub name: ArcStr,
+
+    /// The function to call.
+    pub func: DataRef,
+
+    /// Call it as a method of `obj` (self is the object, Ex. a function from its prototype)? Otherwise the function
+    /// is called as it is (Ex. a field holding an arrow function).
+    pub method: bool,
+}
+
+/// Results of computed calls, by object and field (or function) name.
+#[derive(Debug, Clone, Default)]
+pub struct Computed {
+    pub values: FxHashMap<(NodeRef, ArcStr), Val>,
+}
+impl Computed {
+    /// The computed value for an object's field or function, if it was called.
+    pub fn get(&self, obj: &NodeRef, name: &str) -> Option<&Val> {
+        self.values.get(&(obj.clone(), ArcStr::from(name)))
+    }
+}
 
 
 /// Format.
@@ -170,6 +202,29 @@ pub trait Format: std::fmt::Debug + Send + Sync {
                 Err(error)
             }
         }
+    }
+
+    /// Computed values: the functions this export needs called before it writes, given the values already known.
+    /// Called again with the new results until it returns nothing (a computed value can be an object with computed
+    /// values of its own). Most formats compute nothing.
+    #[allow(unused)]
+    fn computed(&self, graph: &Graph, format: &str, node: Option<NodeRef>, known: &Computed) -> Vec<ComputedCall> {
+        vec![]
+    }
+
+    /// String export with computed values (see `computed`).
+    #[allow(unused)]
+    fn string_export_computed(&self, graph: &Graph, format: &str, node: Option<NodeRef>, computed: &Computed) -> Result<String, Error> {
+        self.string_export(graph, format, node)
+    }
+
+    /// Binary export with computed values (see `computed`).
+    #[allow(unused)]
+    fn binary_export_computed(&self, graph: &Graph, format: &str, node: Option<NodeRef>, computed: &Computed) -> Result<Bytes, Error> {
+        if computed.values.is_empty() {
+            return self.binary_export(graph, format, node);
+        }
+        Ok(Bytes::from(self.string_export_computed(graph, format, node, computed)?))
     }
 
     #[allow(unused)]

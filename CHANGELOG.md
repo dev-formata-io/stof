@@ -1,5 +1,63 @@
 # Changelog
 
+## 0.10.7
+
+### Added
+
+- **HTML and XML formats.** `stringify('html', obj)` and `stringify('xml', obj)` write objects as elements, from three
+  attributes (plus the existing `#[no-export]`):
+  - `#[tag('name')]` names the element. It can go on the field, the object, or a type (instances inherit it);
+    without one, the element is named after its field.
+  - `#[attr]` (or `#[attr('data-id')]`) makes a field or a function an attribute.
+  - `#[text]` writes a value as escaped text inside the element. A `#[text]` function can return objects, which are
+    written as elements.
+  - Child objects are child elements, lists are one element per item, and other values are `<name>value</name>`, all
+    in field order. Lists, maps, and objects in attributes are JSON. Null values and unmarked functions aren't
+    written.
+  - **HTML is safe to put in a page**, whatever the document holds (Ex. a view an AI model wrote):
+    - text and attribute values are always escaped
+    - `script`, `style`, `iframe`, `frame`, `object`, `embed`, `applet`, `base`, `link`, `meta`, `noscript`, and
+      `template` are never written, with their content
+    - `on*` attributes, `srcdoc`, and `javascript:`/`vbscript:` URLs are dropped, and so are `data:` URLs other
+      than images
+    - names that aren't element or attribute names are never written
+    - only the standard HTML elements and custom elements (with a `-` in the name) are written by default. A host
+      can allow exactly a list instead (`graph.allow_html_tags(..)` in Rust, `doc.allowHtmlTags([..])` in JS,
+      `doc.allow_html_tags([..])` in Python, Ex. its own components), and documents can't change it.
+    - An html export of an object without a tag is a fragment (its content, with no element around it).
+  - **XML** starts with a declaration, writes empty elements as `<name/>` and booleans as `true`/`false`, and fails
+    on names that aren't valid XML. Attribute values keep newlines and tabs as character references.
+  - **XML import** (`parse(src, obj, 'xml')`; the new `xml` feature, in `full` and `js`, so in the CLI, Python, and
+    JavaScript) is the reverse of the export, so an exported document parses back to the same document: attributes become `#[attr]` string fields, an element with
+    only text becomes a string field, repeated elements become a list, and text next to attributes or elements
+    becomes a `#[text]` field named `text`. Values stay strings. The root element's content goes into the object
+    being parsed into, which gets `#[tag]` when the names differ. Elements with different names that alternate come
+    back grouped by name.
+- **Computed values in exports.** A format can ask for functions to be called before it writes (Ex. `#[attr]`
+  functions and fields holding functions in html and xml). `stringify` and `blobify` call them in the running process,
+  so async functions are awaited and errors are reported like any call. A computed value can be an object with
+  computed values of its own. Host exports (`Graph::stringify`/`blobify` in Rust, `stringExport`/`binaryExport` in
+  JS, `string_export`/`binary_export` in Python) call them too, with a runtime of their own, so an async host function
+  can't finish there; call `stringify` from Stof for those. Formats implement `Format::computed` and
+  `string_export_computed` (defaults: nothing to compute, the plain export).
+- **`List.map(func)`, `List.filter(func)`, and `List.any(func)`.** Each calls the function for every item, in order,
+  in the running process. `map` of an async function returns its promises (await the list). `any()` without a
+  function still checks for values.
+
+### Fixed
+
+- **`Obj.run` awaits async steps.** An `async fn` step's promise was dropped, so the step finished after `run()`
+  returned (and after the steps that came next). Each step now finishes before the next one starts.
+- **`funcs(attributes)`, `obj.funcs(..)`, and running functions by attribute (`doc.run('attr')`, `#[main]`,
+  `#[test]`) go in definition order.** They came from a hash set, so their order changed between runs. Functions on an
+  object are in the order they're written; across a document, in the order of the objects that hold them.
+- **`List.sort_by` is a stable sort, and an error in the compare function fails it.** Equal values could change
+  order, and a compare function that threw (Ex. a parameter type that doesn't match the items) was read as "equal",
+  leaving the list unsorted without an error.
+- **A cast that isn't possible says so.** It failed with "not implemented"; it's now "cannot cast (int, str) to
+  tup" (the value's type and the target). Ex. a parameter typed `tup`, which is an object type named `tup`: tuples
+  are typed by their items, `(int, str)`.
+
 ## 0.10.6
 
 ### Fixed

@@ -697,7 +697,12 @@ impl Instruction for ListIns {
                                     cloned_env.yield_enabled = false;
                                     let env_cell = std::cell::RefCell::new(cloned_env);
                                     let graph_cell = std::cell::RefCell::new(graph);
-                                    list.sort_by(move |a, b| {
+                                    // the first error from the compare function fails the sort (instead of reading as "equal")
+                                    let failure: std::cell::RefCell<Option<Error>> = std::cell::RefCell::new(None);
+                                    // a stable sort (equal values keep their order), like sort() on most platforms
+                                    let mut items: Vec<_> = list.iter().cloned().collect();
+                                    items.sort_by(|a, b| {
+                                        if failure.borrow().is_some() { return std::cmp::Ordering::Equal; }
                                         let ins: Arc<dyn Instruction> = Arc::new(FuncCall {
                                             func: Some(cmp.clone()),
                                             search: None,
@@ -725,22 +730,30 @@ impl Instruction for ListIns {
                                                                         if i < 0 { return std::cmp::Ordering::Less; }
                                                                         return std::cmp::Ordering::Equal;
                                                                     },
-                                                                    _ => {}
+                                                                    _ => {
+                                                                        *failure.borrow_mut() = Some(Error::ListSortBy);
+                                                                    }
                                                                 }
+                                                            } else {
+                                                                *failure.borrow_mut() = Some(Error::ListSortBy);
                                                             }
                                                         },
-                                                        Err(_err) => {
-                                                            // nothing we can do here...?
+                                                        Err(err) => {
+                                                            *failure.borrow_mut() = Some(err);
                                                         }
                                                     }
                                                 }
                                             },
-                                            Err(_err) => {
-                                                // nothing we can do here...?
+                                            Err(err) => {
+                                                *failure.borrow_mut() = Some(err);
                                             },
                                         }
                                         std::cmp::Ordering::Equal
                                     });
+                                    if let Some(err) = failure.into_inner() {
+                                        return Err(err);
+                                    }
+                                    *list = items.into_iter().collect();
                                     return Ok(None);
                                 },
                                 _ => {}

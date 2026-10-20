@@ -40,6 +40,8 @@ pub enum Error {
 
     JSONStringImport(String),
     JSONStringExport(String),
+    XMLStringImport(String),
+    XMLStringExport(String),
 
     TOMLStringImport(String),
     TOMLStringExport(String),
@@ -313,6 +315,8 @@ pub enum Error {
     ListReplace,
     ListSort,
     ListSortBy,
+    ListMap,
+    ListFilter,
     ListIsUniform,
     ListToUniform,
 
@@ -721,7 +725,7 @@ impl Error {
     fn detail(&self) -> Option<String> {
         match self {
             Self::FormatStringImportNotImplemented(s) | Self::FormatFileImportFsError(s) | Self::FormatFileExportFsError(s) |
-            Self::FormatStringExportNotImplemented(s) | Self::JSONStringImport(s) | Self::JSONStringExport(s) |
+            Self::FormatStringExportNotImplemented(s) | Self::JSONStringImport(s) | Self::JSONStringExport(s) | Self::XMLStringImport(s) | Self::XMLStringExport(s) |
             Self::TOMLStringImport(s) | Self::TOMLStringExport(s) | Self::YAMLStringImport(s) | Self::YAMLStringExport(s) |
             Self::BYTESExport(s) | Self::PKGImport(s) | Self::BSTFImport(s) | Self::BSTFExport(s) | Self::PDFImport(s) |
             Self::PDFExport(s) | Self::ImageImport(s) | Self::ImageExport(s) | Self::DocXImport(s) | Self::FsReadStringError(s) |

@@ -796,3 +796,44 @@ fn schema_rule_with_one_parameter_gets_the_value() {
     using mismatch = new { name: 'abc', count: 2, copy: 3 };
     assert_not(<OneParamRules>.schemafy(mismatch));
 }
+
+
+AsyncRun: {
+    steps: []
+
+    #[test]
+    fn async_steps_are_awaited() {
+        self.run();
+        assert_eq(self.steps, ['sync', 'async', 'last']);
+    }
+
+    #[run(1)]
+    fn first() { self.steps.push_back('sync'); }
+
+    #[run(2)]
+    async fn second() {
+        const value = async 'async';
+        self.steps.push_back(await value);
+    }
+
+    #[run(3)]
+    fn third() { self.steps.push_back('last'); }
+}
+
+
+FuncOrder: {
+    #[tagged] fn a() {}
+    #[tagged] fn b() {}
+    fn c() {}
+    #[tagged] fn d() {}
+    #[tagged] fn e() {}
+    #[tagged] fn f() {}
+
+    #[test]
+    fn funcs_are_in_definition_order() {
+        const names = self.funcs('tagged').map((f: fn): str => f.name());
+        assert_eq(names, ['a', 'b', 'd', 'e', 'f']);
+        const all = self.funcs().map((f: fn): str => f.name());
+        assert_eq(all.filter((n: str): bool => n.len() == 1), ['a', 'b', 'c', 'd', 'e', 'f']);
+    }
+}

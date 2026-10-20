@@ -16,6 +16,16 @@ export class Stof {
         wasm.__wbg_stof_free(ptr, 0);
     }
     /**
+     * Elements the html format may write (Ex. the components your page renders): only these, instead of the
+     * standard HTML elements and custom elements. Documents can't change it. Calling it again adds elements.
+     * @param {string[]} tags
+     */
+    allowHtmlTags(tags) {
+        const ptr0 = passArrayJsValueToWasm0(tags, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.stof_allowHtmlTags(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
      * Give this document network access (the Http library, using fetch). Off by default.
      */
     allowHttp() {
@@ -831,7 +841,7 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbindgen_generic_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 8460, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 8780, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_3b9afeaa82ee37f3___convert__closures_____invoke___wasm_bindgen_3b9afeaa82ee37f3___JsValue__core_608f92abc48d28da___result__Result_____wasm_bindgen_3b9afeaa82ee37f3___JsError___true_);
             return ret;
         },

@@ -151,41 +151,88 @@ impl Func {
         None
     }
 
-    /// Get all functions on a node, optionally filtered by attributes and optionally recursively.
-    pub fn functions(graph: &Graph, node: &NodeRef, attrs: &Option<FxHashSet<String>>, recursive: bool) -> FxHashSet<DataRef> {
-        let mut funcs = FxHashSet::default();
-        if let Some(node) = node.node(&graph) {
-            for (_name, dref) in &node.data {
-                if let Some(func) = graph.get_stof_data::<Self>(dref) {
-                    if func.has_any_attr(attrs) {
-                        funcs.insert(dref.clone());
-                    }
-                }
-            }
-
-            if recursive {
-                for child in &node.children {
-                    for dref in Self::functions(graph, child, attrs, recursive) {
-                        funcs.insert(dref);
-                    }
-                }
-            }
-        }
+    /// Get all functions on a node, optionally filtered by attributes and optionally recursively, in definition order
+    /// (the object's own, then its children's).
+    pub fn functions(graph: &Graph, node: &NodeRef, attrs: &Option<FxHashSet<String>>, recursive: bool) -> Vec<DataRef> {
+        let mut funcs = Vec::new();
+        let mut seen = FxHashSet::default();
+        Self::collect_functions(graph, node, attrs, recursive, &mut funcs, &mut seen);
         funcs
     }
 
-    /// Get all functions in a graph, optionally filtered by attribute.
-    /// One pass over the graph's data: no walk of every node (documents can hold many objects, Ex. customers).
-    pub fn all_functions(graph: &Graph, attrs: &Option<FxHashSet<String>>) -> FxHashSet<DataRef> {
-        let mut funcs = FxHashSet::default();
-        for (dref, data) in &graph.data {
-            if let Some(func) = data.data.as_dyn_any().downcast_ref::<Self>() {
-                if func.has_any_attr(attrs) {
-                    funcs.insert(dref.clone());
+    fn collect_functions(graph: &Graph, node: &NodeRef, attrs: &Option<FxHashSet<String>>, recursive: bool, funcs: &mut Vec<DataRef>, seen: &mut FxHashSet<DataRef>) {
+        if let Some(node) = node.node(&graph) {
+            for (_name, dref) in &node.data {
+                if let Some(func) = graph.get_stof_data::<Self>(dref) {
+                    if func.has_any_attr(attrs) && seen.insert(dref.clone()) {
+                        funcs.push(dref.clone());
+                    }
+                }
+            }
+            if recursive {
+                for child in &node.children {
+                    Self::collect_functions(graph, child, attrs, recursive, funcs, seen);
                 }
             }
         }
-        funcs
+    }
+
+    /// Get all functions in a graph, optionally filtered by attribute, in definition order.
+    /// One pass over the graph's data: no walk of every node (documents can hold many objects, Ex. customers). Only
+    /// the functions found are then ordered, by where they are in the document.
+    pub fn all_functions(graph: &Graph, attrs: &Option<FxHashSet<String>>) -> Vec<DataRef> {
+        let mut keyed = Vec::new();
+        for (dref, data) in &graph.data {
+            if let Some(func) = data.data.as_dyn_any().downcast_ref::<Self>() {
+                if func.has_any_attr(attrs) {
+                    keyed.push((Self::definition_key(graph, dref), dref.clone()));
+                }
+            }
+        }
+        keyed.sort();
+        keyed.into_iter().map(|(_, dref)| dref).collect()
+    }
+
+    /// Where a function is in the document, for ordering: its root (the main root first, then by name), the position
+    /// of each object down to it (as a field of its parent), and its position in its object.
+    fn definition_key(graph: &Graph, dref: &DataRef) -> Vec<usize> {
+        let mut best: Option<Vec<usize>> = None;
+        let Some(data) = graph.data.get(dref) else { return vec![usize::MAX]; };
+        for node in &data.nodes {
+            let mut key = Vec::new();
+            if let Some(obj) = node.node(graph) {
+                key.push(obj.data.get_index_of(data.name.as_ref()).unwrap_or(usize::MAX));
+            }
+            let mut current = node.clone();
+            let mut depth = 0;
+            loop {
+                depth += 1;
+                if depth > 512 { break; } // a parent cycle shouldn't exist; never loop on one
+                let Some(obj) = current.node(graph) else { break; };
+                match &obj.parent {
+                    Some(parent) => {
+                        let index = parent.node(graph).map(|p| {
+                            p.data.get_index_of(obj.name.as_ref())
+                                .unwrap_or_else(|| p.data.len() + p.children.get_index_of(&current).unwrap_or(usize::MAX / 2))
+                        }).unwrap_or(usize::MAX);
+                        key.push(index);
+                        current = parent.clone();
+                    },
+                    None => {
+                        let rank = if graph.main_root().as_ref() == Some(&current) { 0 } else {
+                            let mut names: Vec<&str> = graph.roots.iter().filter_map(|r| r.node(graph).map(|n| n.name.as_ref())).collect();
+                            names.sort();
+                            1 + names.iter().position(|n| *n == obj.name.as_ref()).unwrap_or(names.len())
+                        };
+                        key.push(rank);
+                        break;
+                    },
+                }
+            }
+            key.reverse();
+            if best.as_ref().is_none_or(|b| key < *b) { best = Some(key); }
+        }
+        best.unwrap_or_else(|| vec![usize::MAX])
     }
 
     /// Does this function have any of these attributes (or are there no attributes to filter by)?
@@ -197,14 +244,14 @@ impl Func {
     }
 
     /// Get all main functions in a graph.
-    pub fn main_functions(graph: &Graph) -> FxHashSet<DataRef> {
+    pub fn main_functions(graph: &Graph) -> Vec<DataRef> {
         let mut set = FxHashSet::default();
         set.insert(MAIN_FUNC_ATTR.to_string());
         Self::all_functions(graph, &Some(set))
     }
 
     /// Get all test functions in a graph.
-    pub fn test_functions(graph: &Graph) -> FxHashSet<DataRef> {
+    pub fn test_functions(graph: &Graph) -> Vec<DataRef> {
         let mut set = FxHashSet::default();
         set.insert(TEST_FUNC_ATTR.to_string());
         Self::all_functions(graph, &Some(set))

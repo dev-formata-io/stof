@@ -4,6 +4,7 @@ export const memory: WebAssembly.Memory;
 export const __wbg_stof_free: (a: number, b: number) => void;
 export const __wbg_stoffunc_free: (a: number, b: number) => void;
 export const start: () => void;
+export const stof_allowHtmlTags: (a: number, b: number, c: number) => void;
 export const stof_allowHttp: (a: number) => void;
 export const stof_binaryExport: (a: number, b: number, c: number, d: any) => [number, number, number];
 export const stof_binaryImport: (a: number, b: any, c: number, d: number, e: any, f: number, g: number) => [number, number, number];

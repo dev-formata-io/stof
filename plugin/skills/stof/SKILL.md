@@ -211,6 +211,7 @@ self.unit.area()                    // 6, Rect's function
 self.unit.describe()                // 'rect: 6', inherited from Shape
 self.unit.instance_of('Shape')      // true
 self.unit.area<Shape>()             // 0, call the Shape version explicitly
+// in an override, call the version it replaces the same way: fn area() -> float { self.area<Shape>() + 1 }
 <Rect>.square(3)                    // static call on a type
 const r = new Rect { w: 4, h: 5 } on self.shapes;   // `on` sets the parent (default: self)
 new Geometry.Point { x: 1 }        // types nested in objects or imports: qualified name
@@ -257,16 +258,18 @@ checked, whatever it's named; with more, they're matched by name: `target_val` (
 - `#[run]` steps (functions or fields): `obj.run()` runs them in the order they're written. A type's steps run
   on each instance, first; an instance step with the same name replaces the type's (once, in its place), and
   `#[run] step: null` removes one. `#[run(-1)]`/`#[run(1)]` run before/after the unnumbered steps.
-  `obj.run(steps = ['a', 'b'])` runs just those; `prototype = 'none'` skips the type's steps.
+  `obj.run(steps = ['a', 'b'])` runs just those; `prototype = 'none'` skips the type's steps. An async step is
+  awaited before the next one starts.
 - `#[async]` or `async fn`: calling it returns a `Promise<T>`; `await` it.
 - Custom attributes are data: `#[on-save] fn audit(doc: obj) {...}` and
-  `for (const handler in funcs(attributes = 'on-save')) handler(self);` dispatch events.
+  `for (const handler in funcs(attributes = 'on-save')) handler(self);` dispatch events (in the order they're
+  written).
 - `#[run({'args': [5]})]`: pass arguments to a run step.
 - `#[init]`: runs once after the document is parsed (setup).
 - `#[constructor]` / `#[dropped]` (in a type): run on `new` and on `drop(instance)`.
 - On fields: `#[readonly]`, `#[private]` (only the object's own functions can read it; still exported),
-  `#[no-export]` (left out of `stringify`), `#[schema(...)]`, plus anything
-  custom (read with `self.attributes('field')`).
+  `#[no-export]` (left out of `stringify`), `#[schema(...)]`, `#[attr]`/`#[text]`/`#[tag]` (html and xml, see
+  Imports and formats), plus anything custom (read with `self.attributes('field')`).
 - `#[type_ignore]` on a type's field keeps it on the type only (not copied into instances; read it as
   `<Type>.FIELD`). Use it with `const` for shared constants, so instances don't each carry a copy.
 
@@ -278,9 +281,10 @@ import json './data.json' as self.data;   // explicit format, into a field of th
 import './config.yaml';                    // the file extension picks the format; into the main root
 ```
 
-Formats: `stof`, `json`, `yaml`, `toml`, `urlencoded`, `text`, `md`, `bstf` (binary Stof: the whole document
-including functions), and with features `pdf`, `docx`, and image formats. `@pkg/name` imports a package from
-`stof/pkg/name` under the working directory.
+Formats: `stof`, `json`, `yaml`, `toml`, `urlencoded`, `text`, `md`, `html` and `xml` (xml import is in the CLI,
+Python, and JavaScript; the `xml` feature in Rust), `bstf` (binary Stof: the whole document including functions),
+and with features `pdf`, `docx`, and image formats. `@pkg/name` imports a package from `stof/pkg/name` under the
+working directory.
 
 ```stof
 stringify('json', o)                 // export an object (functions and #[no-export] fields are skipped)
@@ -288,6 +292,47 @@ const back = new {}; parse('{"x": [1, 2]}', back, 'json');   // import into an o
 const bin = blobify('bstf', o);      // binary, with functions; parse(bin, target, 'bstf') restores it
 parse('fn hi() -> str { "hi" }', self);   // documents can add code to themselves
 ```
+
+### HTML and XML
+
+`stringify('html', obj)` and `stringify('xml', obj)` write objects as elements. An element's name is
+`#[tag('name')]` on its field, the object, or its type, and otherwise the field's name. Its fields, in order:
+
+```stof
+#[type]
+#[tag('ui-metric')]
+Metric: {
+    #[attr] str label: '';                    // an attribute
+    #[attr] float | fn value: 0;              // a field holding a function is called for its value
+    #[attr('data-size')] fn size() -> str { self.label.len() > 10 ? 'wide' : 'narrow' }
+}
+
+#[tag('section')]
+dashboard: {
+    #[tag('h2')] title: 'Revenue';            // a value: <h2>Revenue</h2>
+    Metric mrr: { label: 'MRR', value: 1250 } // an object: a child element
+    #[text] fn footer() -> str { 'Updated today' }   // text inside the element (escaped)
+    #[no-export] cache: {}                    // skipped
+}
+```
+
+`stringify('html', self.dashboard)` is
+`<section><h2>Revenue</h2><ui-metric label="MRR" value="1250" data-size="narrow"></ui-metric>Updated today</section>`.
+
+- **Computed values:** `#[attr]` and `#[text]` functions (including the type's) and fields holding functions are
+  called by `stringify`/`blobify` before writing, and async ones are awaited. A `#[text]` function can return
+  objects (or a list of them), which are written as elements: build part of the tree in code.
+- A list is one element per item. Lists, maps, and objects in attributes are JSON. Null values aren't written.
+  Functions without `#[attr]` or `#[text]` aren't written.
+- **HTML is safe to put in a page:** text and attributes are escaped; `script`, `style`, `iframe`, `object`, `embed`,
+  `link`, `meta`, `template` (and their content) are never written; `on*` attributes and `javascript:` URLs are
+  dropped. Only standard HTML elements and custom elements (with a `-`) are written, or exactly the host's list
+  (`allow_html_tags`, which documents can't change). A `true` attribute is written bare, `false` is left out. An
+  html export of an object with no tag is a fragment (its content only).
+- **XML** starts with a declaration, writes booleans as `"true"`/`"false"`, and fails on names that aren't valid XML.
+  `parse(src, obj, 'xml')` reverses it: attributes are `#[attr]` string fields, an element with
+  only text is a string field, repeated elements are a list, and other text is a `#[text]` field named `text`.
+  Values stay strings. The root element's content goes into `obj` (which gets `#[tag]` when the names differ).
 
 ## Async
 
@@ -396,7 +441,7 @@ let mut graph = Graph::default();
 graph.parse_stof_src("rate: 2\nfn total(units: int) -> float { units * self.rate }", None, Default::default())?;
 let total = Runtime::call(&mut graph, "total", vec![Val::from(21i64)])?;   // 42
 Runtime::run(&mut graph, None, true)?;                                     // #[main]
-let json = graph.string_export("json", None)?;
+let json = graph.string_export("json", None)?;   // graph.stringify("html", node) also calls computed values
 Runtime::call_source(&mut graph, "fn check(x: int) -> bool { x < self.rate }", None, vec![Val::from(1i64)])?;
 graph.remove("rate", false);
 ```
@@ -409,6 +454,11 @@ To allow only some hosts: `graph.allow_http_hosts(["api.example.com"])` (Rust), 
 `doc.allowHttp(['api.example.com'])` (JS). Requests and redirects elsewhere fail; `"localhost:8080"` limits the port too.
 A call fails with an execution timeout after 2 minutes by default: `graph.max_execution_time = Some(duration)` (Rust),
 `doc.set_max_execution_time(seconds)` (Python), `doc.setMaxExecutionTime(ms)` (JS); null/None for no limit.
+The html format writes only standard and custom elements by default; to allow exactly a list (Ex. your components):
+`graph.allow_html_tags(["div", "ui-card"])` (Rust), `doc.allow_html_tags([...])` (Python), `doc.allowHtmlTags([...])`
+(JS). Host exports (`graph.stringify` in Rust, `doc.stringify` in JS, `doc.string_export` in Python) call computed
+values too, with a runtime of their own: an async host function can't finish there, so call `stringify` from Stof
+(Ex. `await doc.callSource(...)`) when a computed value needs one.
 
 Host errors from `call`/`run` include the Stof call stack. Parse with the test profile (`'test'` in JS/Python,
 `stof::model::Profile::test()` in Rust) to get statement-level line numbers in runtime errors; the default production profile
@@ -424,7 +474,7 @@ Read `references/libs/<file>` for full signatures and examples.
 | Obj | `Obj.md` | Objects: `fields`, `insert`, `get`, `contains`, `parent`, `children`, `schemafy`, `instance_of`, `run`, `to_map`, `move` |
 | Str | `Str.md` | Strings: `len`, `split`, `lower`, `upper`, `trim`, `replace`, `contains`, `starts_with`, `substring` |
 | Num | `Num.md` | Numbers and units: `abs`, `round`, `floor`, `sqrt`, `pow`, `min`, `max`, `to_units`, `has_units` |
-| List, Map, Set, Tup | `List.md` `Map.md` `Set.md` `Tup.md` | Collections |
+| List, Map, Set, Tup | `List.md` `Map.md` `Set.md` `Tup.md` | Collections (lists: `map`, `filter`, `any`, `sort_by`, ...) |
 | Fn | `Fn.md` | Functions as values: `call`, `params`, `attributes`, `obj`, `bind` |
 | Time | `Time.md` | `Time::now()`, RFC-3339/2822, date math |
 | Ver | `Ver.md` | Semantic versions |

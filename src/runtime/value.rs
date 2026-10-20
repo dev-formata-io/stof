@@ -1165,7 +1165,15 @@ impl Val {
     }
 
     /// Cast this value to a different type.
+    /// A cast that isn't possible fails with "cannot cast <from> to <to>".
     pub fn cast(&mut self, target: &Type, graph: &mut Graph, context: Option<NodeRef>) -> Result<(), Error> {
+        match self.cast_value(target, graph, context) {
+            Err(Error::NotImplemented) => Err(Error::CastVal(self.spec_type(graph), target.clone())),
+            res => res,
+        }
+    }
+
+    fn cast_value(&mut self, target: &Type, graph: &mut Graph, context: Option<NodeRef>) -> Result<(), Error> {
         // Cast object must come before type check here due to "obj" type
         if self.obj() {
             return self.cast_object(target, graph, context);

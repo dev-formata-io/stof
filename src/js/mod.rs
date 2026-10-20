@@ -298,6 +298,13 @@ impl Stof {
         self.graph_mut().allow_http();
     }
 
+    #[wasm_bindgen(js_name = allowHtmlTags)]
+    /// Elements the html format may write (Ex. the components your page renders): only these, instead of the
+    /// standard HTML elements and custom elements. Documents can't change it. Calling it again adds elements.
+    pub fn allow_html_tags(&self, tags: Vec<String>) {
+        self.graph_mut().allow_html_tags(tags);
+    }
+
     #[wasm_bindgen(js_name = setMaxExecutionTime)]
     /// How long a call can run, in milliseconds, before it fails with an execution timeout (null for no limit).
     /// Defaults to 120,000 (2 minutes).
@@ -446,7 +453,13 @@ impl Stof {
                 return Err(format!("export node not found"));
             }
         }
-        match graph.string_export(format, Some(exp_node)) {
+        drop(graph);
+        // computed values (Ex. #[attr] functions in html) are called first, when the document isn't busy
+        let res = match self.graph.try_borrow_mut() {
+            Ok(mut graph) => graph.stringify(format, Some(exp_node)),
+            Err(_) => self.graph.borrow().string_export(format, Some(exp_node)),
+        };
+        match res {
             Ok(val) => Ok(val),
             Err(err) => Err(err.to_string())
         }
@@ -486,7 +499,13 @@ impl Stof {
                 return Err(format!("export node not found"));
             }
         }
-        match graph.binary_export(format, Some(exp_node)) {
+        drop(graph);
+        // computed values (Ex. #[attr] functions in html) are called first, when the document isn't busy
+        let res = match self.graph.try_borrow_mut() {
+            Ok(mut graph) => graph.blobify(format, Some(exp_node)),
+            Err(_) => self.graph.borrow().binary_export(format, Some(exp_node)),
+        };
+        match res {
             Ok(bytes) => Ok(JsValue::from(Uint8Array::from(bytes.as_ref()))),
             Err(err) => Err(err.to_string())
         }

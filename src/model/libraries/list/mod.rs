@@ -17,7 +17,10 @@
 use std::sync::Arc;
 use arcstr::{literal, ArcStr};
 use imbl::vector;
-use crate::{model::{Graph, LibFunc, Param}, runtime::{NumT, Type, Val, instruction::Instructions, instructions::{Base, list::{ANY_LIST, APPEND_LIST, AT_LIST, AT_REF_LIST, CLEAR_LIST, CONTAINS_LIST, EMPTY_LIST, FIRST_LIST, FIRST_REF_LIST, INDEX_OF_LIST, INSERT_LIST, IS_UNIFORM_LIST, JOIN_LIST, LAST_LIST, LAST_REF_LIST, LEN_LIST, ListIns, POP_BACK_LIST, POP_FRONT_LIST, REMOVE_ALL_LIST, REMOVE_FIRST_LIST, REMOVE_LAST_LIST, REMOVE_LIST, REPLACE_LIST, REVERSE_LIST, REVERSED_LIST, SORT_LIST, SORT_LIST_BY, TO_UNIFORM_LIST}}}};
+use crate::{model::{Graph, LibFunc, Param}, runtime::{NumT, Type, Val, instruction::Instructions, instructions::{Base, list::{APPEND_LIST, AT_LIST, AT_REF_LIST, CLEAR_LIST, CONTAINS_LIST, EMPTY_LIST, FIRST_LIST, FIRST_REF_LIST, INDEX_OF_LIST, INSERT_LIST, IS_UNIFORM_LIST, JOIN_LIST, LAST_LIST, LAST_REF_LIST, LEN_LIST, ListIns, POP_BACK_LIST, POP_FRONT_LIST, REMOVE_ALL_LIST, REMOVE_FIRST_LIST, REMOVE_LAST_LIST, REMOVE_LIST, REPLACE_LIST, REVERSE_LIST, REVERSED_LIST, SORT_LIST, SORT_LIST_BY, TO_UNIFORM_LIST}}}};
+
+
+mod each;
 
 
 /// Library name.
@@ -37,7 +40,9 @@ pub fn insert_list_lib(graph: &mut Graph) {
     graph.insert_libfunc(list_len());
     graph.insert_libfunc(list_at());
     graph.insert_libfunc(list_empty());
-    graph.insert_libfunc(list_any());
+    graph.insert_libfunc(each::list_any());
+    graph.insert_libfunc(each::list_map());
+    graph.insert_libfunc(each::list_filter());
     graph.insert_libfunc(list_front());
     graph.insert_libfunc(list_back());
     graph.insert_libfunc(list_join());
@@ -359,31 +364,6 @@ assert_not(array.empty());
     }
 }
 
-/// Any?
-fn list_any() -> LibFunc {
-    LibFunc {
-        library: LIST_LIB.clone(),
-        name: "any".into(),
-        is_async: false,
-        docs: r#"# List.any(array: list) -> bool
-Does this list contain any values?
-```rust
-const array = [1];
-assert(array.any());
-```"#.into(),
-        params: vector![
-            Param { name: "list".into(), param_type: Type::List, default: None }
-        ],
-        return_type: None,
-        unbounded_args: false,
-        args_to_symbol_table: false,
-        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
-            let mut instructions = Instructions::default();
-            instructions.push(ANY_LIST.clone());
-            Ok(instructions)
-        })
-    }
-}
 
 /// Front.
 fn list_front() -> LibFunc {
@@ -730,7 +710,7 @@ fn list_sort_by() -> LibFunc {
         name: "sort_by".into(),
         is_async: false,
         docs: r#"# List.sort_by(array: list, func: fn) -> void
-Sort the values in this array according to a function that takes two list arguments and returns an integer (< 0 for less, > 0 for greater, and 0 for equal).
+Sort the values in this array according to a function that takes two list arguments and returns an integer (< 0 for less, > 0 for greater, and 0 for equal). The sort is stable (equal values keep their order), and an error in the function fails the sort.
 ```rust
 const array = [2, 1, 4, 3];
 array.sort_by((a: int, b: int): int => {

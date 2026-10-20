@@ -44,6 +44,9 @@ pub use bytes::*;
 pub mod urlencoded;
 pub use urlencoded::*;
 
+pub mod element;
+pub use element::{HtmlFormat, XmlFormat};
+
 #[cfg(feature = "pkg")]
 pub mod pkg;
 #[cfg(feature = "pkg")]

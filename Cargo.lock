@@ -3229,7 +3229,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "stof"
-version = "0.10.6"
+version = "0.10.7"
 dependencies = [
  "age",
  "arcstr",
@@ -3254,6 +3254,7 @@ dependencies = [
  "nom 8.0.0",
  "parking_lot",
  "pyo3",
+ "quick-xml",
  "regex",
  "reqwest",
  "rustc-hash 2.1.3",

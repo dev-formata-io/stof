@@ -1,0 +1,134 @@
+//
+// Copyright 2025 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+#[type]
+XmlLine: {
+    #[attr] str sku: '';
+    int qty: 0;
+}
+
+XmlExport: {
+    invoice: {
+        #[attr] id: 'inv_1';
+        #[attr] paid: false;
+        customer: 'Acme & Co';
+        total: 42.5;
+        line: [
+            new XmlLine { sku: 'a', qty: 2 },
+            new XmlLine { sku: 'b', qty: 1 },
+        ];
+        notes: '';
+        missing: null;
+    }
+
+    #[test]
+    fn export_xml() {
+        const xml = stringify('xml', self.invoice);
+        assert_eq(xml, '<?xml version="1.0" encoding="UTF-8"?><invoice id="inv_1" paid="false"><customer>Acme &amp; Co</customer><total>42.5</total><line sku="a"><qty>2</qty></line><line sku="b"><qty>1</qty></line><notes/></invoice>');
+    }
+
+    bad: {
+        #[attr('not valid')] value: 1;
+    }
+
+    #[test]
+    fn invalid_names_are_errors() {
+        let failed = false;
+        try stringify('xml', self.bad);
+        catch failed = true;
+        assert(failed);
+    }
+
+    #[tag('total')]
+    computed: {
+        #[attr] currency: 'USD';
+        #[text] fn amount() -> float { 40 + 2.5 }
+    }
+
+    #[test]
+    fn computed_xml() {
+        assert_eq(stringify('xml', self.computed), '<?xml version="1.0" encoding="UTF-8"?><total currency="USD">42.5</total>');
+    }
+}
+
+
+#[type]
+XmlBook: {
+    #[attr] str id: '';
+    str title: '';
+}
+
+XmlImport: {
+    src: '<?xml version="1.0"?>
+<!-- a catalog -->
+<catalog version="2">
+  <book id="b1"><title>Dune &amp; more</title><author>Frank Herbert</author></book>
+  <book id="b2"><title><![CDATA[<Neuromancer>]]></title></book>
+  <empty/>
+  <note lang="en">Read &#x2764; soon</note>
+  <mixed>Hello <b>there</b> friend</mixed>
+</catalog>';
+
+    /// XML import is in the "xml" feature (export is always there).
+    fn importable() -> bool {
+        const probe = new {} on self;
+        let ok = true;
+        try parse('<a/>', probe, 'xml');
+        catch ok = false;
+        drop(probe);
+        ok
+    }
+
+    #[test]
+    fn parse_xml() {
+        if (!self.importable()) return;
+        const catalog = new {};
+        parse(self.src, catalog, 'xml');
+        assert_eq(catalog.version, '2');
+        assert(catalog.attributes('version').contains('attr'));
+        assert_eq(catalog.book.len(), 2);
+        assert_eq(catalog.book[0].id, 'b1');
+        assert_eq(catalog.book[0].title, 'Dune & more');
+        assert_eq(catalog.book[0].author, 'Frank Herbert');
+        assert_eq(catalog.book[1].title, '<Neuromancer>');
+        assert_eq(catalog.empty, '');
+        assert_eq(catalog.note.lang, 'en');
+        assert_eq(catalog.note.text, 'Read ❤ soon');
+        assert_eq(catalog.mixed.b, 'there');
+        assert_eq(catalog.mixed.text, 'Hello  friend');
+        drop(catalog);
+    }
+
+    #[test]
+    fn xml_round_trip() {
+        if (!self.importable()) return;
+        const invoice = new {};
+        const src = '<?xml version="1.0" encoding="UTF-8"?><invoice id="inv_1" note="two&#10;lines"><customer>Acme &amp; Co</customer><line sku="a"><qty>2</qty></line><line sku="b"><qty>1</qty></line><notes/></invoice>';
+        parse(src, invoice, 'xml');
+        assert_eq(invoice.note, 'two\nlines');
+        assert_eq(stringify('xml', invoice), src);
+        drop(invoice);
+    }
+
+    #[test]
+    fn bad_xml_is_an_error() {
+        let failed = false;
+        try parse('<a><b></a>', new {}, 'xml');
+        catch failed = true;
+        assert(failed);
+    }
+}

@@ -281,3 +281,40 @@ fn quicksort(arr: list, func: fn = null, low: int = 0, high: int = null) {
         this(arr, func, idx + 1, high);
     }
 }
+
+
+#[test]
+fn sort_tuples_by() {
+    const pairs = [(0, 'a'), (0, 'b'), (-1, 'e'), (0, 'c')];
+    pairs.sort_by((p: (int, str), q: (int, str)): int => p[0] - q[0]);
+    assert_eq(pairs, [(-1, 'e'), (0, 'a'), (0, 'b'), (0, 'c')]); // a stable sort
+}
+
+#[test]
+fn sort_by_errors_fail_the_sort() {
+    const pairs = [(0, 'a'), (1, 'b')];
+    let failed = false;
+    try pairs.sort_by((p: int, q: int): int => p - q); // the items aren't ints
+    catch failed = true;
+    assert(failed);
+}
+
+#[test]
+fn map_filter_any() {
+    const nums = [1, 2, 3, 4];
+    assert_eq(nums.map((x: int): int => x * 10), [10, 20, 30, 40]);
+    assert_eq(nums.filter((x: int): bool => x % 2 == 0), [2, 4]);
+    assert(nums.any());
+    assert(nums.any((x: int): bool => x > 3));
+    assert_not(nums.any((x: int): bool => x > 4));
+    assert_not([].any());
+    assert_eq([].map((x: int): int => x), []);
+    assert_eq(nums, [1, 2, 3, 4]); // unchanged
+}
+
+#[test]
+fn map_async() {
+    const nums = [1, 2];
+    const promises = nums.map(async (x: int): int => x + 1);
+    assert_eq(await promises, [2, 3]);
+}

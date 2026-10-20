@@ -227,7 +227,7 @@ async function stofFetch(
  * Stof document.
  */
 export class StofDoc {
-    static readonly VERSION = '0.10.6';
+    static readonly VERSION = '0.10.7';
     private static initialized?: Promise<unknown>;
     private static wasmMutex = new WasmMutex();
     stof: Stof;
@@ -341,6 +341,15 @@ export class StofDoc {
 
 
     /**
+     * Elements the html format may write (Ex. the components your page renders): only these, instead of the
+     * standard HTML elements and custom elements. Documents can't change it. Calling it again adds elements.
+     */
+    allowHtmlTags(tags: string[]): void {
+        this.stof.allowHtmlTags(tags);
+    }
+
+
+    /**
      * Run this document with a given set of Stof attributes.
      * Will run all #[main] functions by default.
      */
@@ -436,6 +445,8 @@ export class StofDoc {
     /**
      * Stringify this doc into a format (JSON by default).
      * Node is an object's path (Ex. "config.production") or ID; the whole document by default.
+     * Computed values (Ex. #[attr] functions in html) are called first; for one that calls an async host function,
+     * stringify from Stof instead (Ex. callSource('fn f() -> str { stringify("html", self) }', [], node)).
      */
     stringify(format: string = "json", node: string | null = null): string {
         return this.stof.stringExport(format, node);

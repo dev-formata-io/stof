@@ -34,6 +34,7 @@ mod assert;
 mod exit;
 mod containers;
 mod ops;
+mod computed;
 
 
 /// Add the std library to a graph.
@@ -861,6 +862,10 @@ impl Instruction for StdIns {
                             },
                         }
 
+                        // formats with computed values call them first, in this process
+                        if let Some(instructions) = computed::computed_export(env, graph, &format, ctx.clone(), true) {
+                            return Ok(Some(instructions));
+                        }
                         let bytes = graph.binary_export(&format, ctx)?;
                         env.stack.push(Variable::val(Val::Blob(bytes)));
                         return Ok(None);
@@ -895,6 +900,10 @@ impl Instruction for StdIns {
                             },
                         }
 
+                        // formats with computed values call them first, in this process
+                        if let Some(instructions) = computed::computed_export(env, graph, &format, ctx.clone(), false) {
+                            return Ok(Some(instructions));
+                        }
                         let src = graph.string_export(&format, ctx)?;
                         env.stack.push(Variable::val(Val::Str(src.into())));
                         return Ok(None);

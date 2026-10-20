@@ -711,7 +711,7 @@ impl Runtime {
 
     #[cfg(feature = "js")]
     /// Run all given functions.
-    pub async fn async_run_functions_with_gate(graph: &RefCell<Graph>, context: Option<String>, functions: FxHashSet<DataRef>, throw: bool, acquire: &js_sys::Function, release: &js_sys::Function) -> Result<String, String> {
+    pub async fn async_run_functions_with_gate(graph: &RefCell<Graph>, context: Option<String>, functions: Vec<DataRef>, throw: bool, acquire: &js_sys::Function, release: &js_sys::Function) -> Result<String, String> {
         let mut rt = Self::default();
         for func_ref in functions {
             let mut gr = graph.borrow_mut();
@@ -815,7 +815,7 @@ impl Runtime {
 
     #[cfg(any(feature = "js", feature = "tokio"))]
     /// Run all given functions.
-    pub async fn async_run_functions(graph: &mut Graph, context: Option<String>, functions: FxHashSet<DataRef>, throw: bool) -> Result<String, String> {
+    pub async fn async_run_functions(graph: &mut Graph, context: Option<String>, functions: Vec<DataRef>, throw: bool) -> Result<String, String> {
         let mut rt = Self::default();
         for func_ref in functions {
             if let Some(context) = &context {
@@ -931,7 +931,7 @@ impl Runtime {
     }
 
     /// Run all given functions.
-    pub fn run_functions(graph: &mut Graph, context: Option<String>, functions: FxHashSet<DataRef>, throw: bool) -> Result<String, String> {
+    pub fn run_functions(graph: &mut Graph, context: Option<String>, functions: Vec<DataRef>, throw: bool) -> Result<String, String> {
         let mut rt = Self::default();
         // the function each process starts with (errors before the call starts have no call stack)
         let mut entry_funcs: FxHashMap<SId, DataRef> = FxHashMap::default();

@@ -5,7 +5,7 @@ import '@cargo' as Rust;
 import pkg '@github' as GitHub;
 
 /// Current version.
-const version: 0.10.6
+const version: 0.10.7
 
 /// Cargo.toml definition.
 Cargo cargo: {
@@ -61,7 +61,7 @@ Cargo cargo: {
     features: {
         default: ['basic']
         basic: ['stof_std', 'system', 'pkg', 'log', 'stacker']
-        full: ['stof_std', 'system', 'pkg', 'log', 'stacker', 'image', 'docx', 'pdf', 'http', 'tokio', 'age_encrypt']
+        full: ['stof_std', 'system', 'pkg', 'log', 'stacker', 'image', 'docx', 'pdf', 'http', 'tokio', 'age_encrypt', 'xml']
 
         stof_std: ['dep:regex']
         system: []
@@ -77,6 +77,9 @@ Cargo cargo: {
         tokio: ['dep:tokio']
         age_encrypt: ['dep:age']
 
+        /// xml import (xml export is always there)
+        xml: ['dep:quick-xml']
+
         /// python bindings for stof with full functionality (TODO min/sandboxing)
         /// when building for python, set this as the only "default" feature
         py: [
@@ -89,6 +92,7 @@ Cargo cargo: {
         js: [
             'stof_std',
             'age_encrypt',
+            'xml',
             'dep:js-sys',
             'dep:wasm-bindgen',
             'dep:serde-wasm-bindgen',
@@ -134,6 +138,10 @@ Cargo cargo: {
             features: ['serde']
         }
         nanoid: 0.4.0
+        quick-xml: {
+            version: 0.41.0
+            optional: true
+        }
         compact_str: {
             version: 0.9.1
             features: ['serde']

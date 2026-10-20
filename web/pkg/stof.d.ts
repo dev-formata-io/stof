@@ -9,6 +9,11 @@ export class Stof {
     free(): void;
     [Symbol.dispose](): void;
     /**
+     * Elements the html format may write (Ex. the components your page renders): only these, instead of the
+     * standard HTML elements and custom elements. Documents can't change it. Calling it again adds elements.
+     */
+    allowHtmlTags(tags: string[]): void;
+    /**
      * Give this document network access (the Http library, using fetch). Off by default.
      */
     allowHttp(): void;
@@ -136,6 +141,7 @@ export interface InitOutput {
     readonly __wbg_stof_free: (a: number, b: number) => void;
     readonly __wbg_stoffunc_free: (a: number, b: number) => void;
     readonly start: () => void;
+    readonly stof_allowHtmlTags: (a: number, b: number, c: number) => void;
     readonly stof_allowHttp: (a: number) => void;
     readonly stof_binaryExport: (a: number, b: number, c: number, d: any) => [number, number, number];
     readonly stof_binaryImport: (a: number, b: any, c: number, d: number, e: any, f: number, g: number) => [number, number, number];

@@ -1,0 +1,203 @@
+//
+// Copyright 2025 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+#[type]
+#[tag('ui-card')]
+UiCard: {
+    #[attr] str label: '';
+    #[attr] bool open: false;
+    #[attr] float | fn value: 0;
+
+    #[attr('data-kind')]
+    fn kind() -> str { 'card:' + self.label }
+}
+
+#[type]
+#[tag('ui-list')]
+UiList: {
+    #[attr] list items: [];
+}
+
+
+Elements: {
+    #[tag('div')]
+    page: {
+        #[attr] id: 'main';
+        #[attr('class')] classes: 'a b';
+
+        #[tag('h1')]
+        title: {
+            #[text] content: 'Hello & <welcome>';
+        }
+
+        UiCard first: {
+            label: 'First';
+            open: true;
+        }
+
+        #[tag('p')] note: 'plain value as text';
+        #[no-export] hidden: 'never written';
+        fn helper() -> str { 'not written' }
+    }
+
+    #[test]
+    fn elements_attributes_and_text() {
+        const html = stringify('html', self.page);
+        assert_eq(html, '<div id="main" class="a b"><h1>Hello &amp; &lt;welcome&gt;</h1><ui-card label="First" open value="0" data-kind="card:First"></ui-card><p>plain value as text</p></div>');
+    }
+}
+
+
+Computed: {
+    #[tag('section')]
+    view: {
+        UiCard metric: {
+            label: 'Revenue';
+            value: (): float => 40 + 2;
+        }
+
+        #[attr]
+        async fn total() -> int {
+            const half = async 3.5;
+            (await half) * 2
+        }
+
+        #[text]
+        fn cards() -> list {
+            const out = [];
+            for (const name in ['a', 'b']) {
+                out.push_back(new UiCard { label: name } on self.made);
+            }
+            out
+        }
+        made: {}
+    }
+
+    #[test]
+    fn computed_values_are_called_and_awaited() {
+        const html = stringify('html', self.view);
+        assert_eq(html, '<section total="7"><ui-card label="Revenue" value="42" data-kind="card:Revenue"></ui-card><ui-card label="a" value="0" data-kind="card:a"></ui-card><ui-card label="b" value="0" data-kind="card:b"></ui-card></section>');
+    }
+
+    #[test]
+    fn computed_values_in_blobify() {
+        const blob = blobify('html', self.view);
+        assert(blob.utf8().starts_with('<section total="7">'));
+    }
+}
+
+
+Fragments: {
+    view: {
+        #[tag('h2')] heading: 'Title';
+        UiList list: {
+            items: ['x', 'y'];
+        }
+        #[tag('li')] rows: ['one', 'two'];
+    }
+
+    #[test]
+    fn untagged_root_is_a_fragment() {
+        const html = stringify('html', self.view);
+        assert_eq(html, '<h2>Title</h2><ui-list items="[&quot;x&quot;,&quot;y&quot;]"></ui-list><li>one</li><li>two</li>');
+    }
+}
+
+
+Safety: {
+    view: {
+        #[tag('script')] code: 'alert(1)';
+        #[tag('style')] css: 'body { display: none }';
+        #[tag('iframe')]
+        frame: {
+            #[attr] src: 'https://example.com';
+        }
+        #[tag('blink')] old: 'not a standard element';
+
+        #[tag('a')]
+        link: {
+            #[attr] href: ' java\tscript:alert(1)';
+            #[attr] onclick: 'alert(1)';
+            #[attr] title: '"quoted" <b>';
+            #[text] label: 'click';
+        }
+        #[tag('img')]
+        image: {
+            #[attr] src: 'data:image/png;base64,AAAA';
+            #[attr] alt: 'ok';
+        }
+        #[tag('img')]
+        svgimage: {
+            #[attr] src: 'data:image/svg+xml;base64,AAAA';
+        }
+        #[tag('br')] spacer: {}
+    }
+
+    #[test]
+    fn unsafe_markup_is_never_written() {
+        const html = stringify('html', self.view);
+        assert_eq(html, '<a title="&quot;quoted&quot; &lt;b&gt;">click</a><img src="data:image/png;base64,AAAA" alt="ok"><img><br>');
+    }
+}
+
+
+#[type]
+#[tag('li')]
+UiItem: {
+    #[attr] int id: 0;
+    #[text] str name: '';
+}
+
+Lists: {
+    #[tag('ul')]
+    view: {
+        items: [
+            new UiItem { id: 1, name: 'one' },
+            new UiItem { id: 2, name: 'two' },
+        ];
+    }
+
+    #[test]
+    fn a_list_is_one_element_per_item() {
+        const html = stringify('html', self.view);
+        assert_eq(html, '<ul><li id="1">one</li><li id="2">two</li></ul>');
+    }
+}
+
+
+#[type]
+#[tag('ui-metric')]
+SkillMetric: {
+    #[attr] str label: '';
+    #[attr] float | fn value: 0;
+    #[attr('data-size')] fn size() -> str { self.label.len() > 10 ? 'wide' : 'narrow' }
+}
+
+SkillExample: {
+    #[tag('section')]
+    dashboard: {
+        #[tag('h2')] title: 'Revenue';
+        SkillMetric mrr: { label: 'MRR', value: 1250 }
+        #[text] fn footer() -> str { 'Updated today' }
+        #[no-export] cache: {}
+    }
+
+    #[test]
+    fn the_skill_example() {
+        assert_eq(stringify('html', self.dashboard), '<section><h2>Revenue</h2><ui-metric label="MRR" value="1250" data-size="narrow"></ui-metric>Updated today</section>');
+    }
+}

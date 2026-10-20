@@ -209,6 +209,12 @@ impl Doc {
         self.graph.allow_http_hosts(hosts);
     }
 
+    /// Elements the html format may write (Ex. the components your page renders): only these, instead of the
+    /// standard HTML elements and custom elements. Documents can't change it. Calling it again adds elements.
+    pub fn allow_html_tags(&mut self, tags: Vec<String>) {
+        self.graph.allow_html_tags(tags);
+    }
+
     /// How long a call can run, in seconds, before it fails with an execution timeout (None for no limit).
     /// Defaults to 120 (2 minutes).
     pub fn set_max_execution_time(&mut self, seconds: Option<f64>) {
@@ -320,7 +326,7 @@ impl Doc {
 
     #[pyo3(signature = (format = "json", node = None))]
     /// String export, using a format of choice.
-    pub fn string_export(&self, format: &str, node: Option<&Bound<'_, PyAny>>) -> PyResult<String> {
+    pub fn string_export(&mut self, format: &str, node: Option<&Bound<'_, PyAny>>) -> PyResult<String> {
         let val;
         if let Some(node) = node {
             val = py_any_to_val(node, &self.graph);
@@ -356,7 +362,7 @@ impl Doc {
                 return Err(PyValueError::new_err("export node not found"));
             }
         }
-        match self.graph.string_export(format, Some(exp_node)) {
+        match self.graph.stringify(format, Some(exp_node)) { // calls computed values (Ex. #[attr] functions in html)
             Ok(val) => Ok(val),
             Err(err) => Err(PyValueError::new_err(err.to_string()))
         }
@@ -364,7 +370,7 @@ impl Doc {
 
     #[pyo3(signature = (format = "bstf", node = None))]
     /// Binary export, using a format of choice (the main root by default).
-    pub fn binary_export<'py>(&self, py: Python<'py>, format: &str, node: Option<&Bound<'py, PyAny>>) -> PyResult<Bound<'py, PyAny>> {
+    pub fn binary_export<'py>(&mut self, py: Python<'py>, format: &str, node: Option<&Bound<'py, PyAny>>) -> PyResult<Bound<'py, PyAny>> {
         let val = node.map(|node| py_any_to_val(node, &self.graph)).unwrap_or(Val::Null);
         let exp_node;
         match val {
@@ -394,7 +400,7 @@ impl Doc {
                 return Err(PyValueError::new_err("export node not found"));
             }
         }
-        match self.graph.binary_export(format, Some(exp_node)) {
+        match self.graph.blobify(format, Some(exp_node)) { // calls computed values (Ex. #[attr] functions in html)
             Ok(val) => Ok(val_to_py(py, Val::Blob(val))),
             Err(err) => Err(PyValueError::new_err(err.to_string()))
         }

@@ -42,6 +42,11 @@ pub(crate) fn json_value_from_node(graph: &Graph, node: &NodeRef) -> Value {
     Value::Object(map)
 }
 
+/// A value as a JSON string (Ex. a list in an html attribute).
+pub(crate) fn json_string(graph: &Graph, val: Val) -> String {
+    serde_json::to_string(&json_value(graph, val)).unwrap_or_default()
+}
+
 /// Get a JSON value from a Val.
 fn json_value(graph: &Graph, val: Val) -> Value {
     match val {

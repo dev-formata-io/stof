@@ -20,7 +20,7 @@ use bytes::Bytes;
 use colored::Colorize;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{BstfFormat, BytesFormat, Data, DataRef, Field, FieldHolders, Format, INVALID_NODE_NEW, JsonFormat, LibFunc, MdDocsFormat, MdFormat, Node, NodeRef, Profile, Prototype, SId, SPath, StofData, StofFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, blob::insert_blob_lib, libraries::{data::insert_data_lib, function::insert_fn_lib}, libs::insert_lib_documentation, list::insert_list_lib, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, prompt::insert_prompt_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, time::insert_time_lib, tup::insert_tup_lib, ver::insert_semver_lib}, parser::context::ParseContext, runtime::{Error, Runtime, Type, Val, ValRef, Variable, proc::DEFAULT_MAX_EXECUTION_TIME, table::SymbolTable}};
+use crate::{model::{BstfFormat, BytesFormat, HtmlFormat, XmlFormat, Data, DataRef, Field, FieldHolders, Format, INVALID_NODE_NEW, JsonFormat, LibFunc, MdDocsFormat, MdFormat, Node, NodeRef, Profile, Prototype, SId, SPath, StofData, StofFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, blob::insert_blob_lib, libraries::{data::insert_data_lib, function::insert_fn_lib}, libs::insert_lib_documentation, list::insert_list_lib, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, prompt::insert_prompt_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, time::insert_time_lib, tup::insert_tup_lib, ver::insert_semver_lib}, parser::context::ParseContext, runtime::{Error, Runtime, Type, Val, ValRef, Variable, proc::DEFAULT_MAX_EXECUTION_TIME, table::SymbolTable}};
 
 #[cfg(feature = "system")]
 use crate::model::{filesys::fs_library};
@@ -87,6 +87,10 @@ pub struct Graph {
     /// Hosts the Http library can reach (None for any host). Set by the host with `allow_http_hosts`.
     #[serde(skip)]
     pub http_hosts: Option<Arc<FxHashSet<String>>>,
+
+    /// Elements the html format may write (None for the defaults). Set by the host with `allow_html_tags`.
+    #[serde(skip)]
+    pub html_tags: Option<Arc<FxHashSet<String>>>,
 }
 
 fn default_max_execution_time() -> Option<Duration> {
@@ -108,6 +112,7 @@ impl Default for Graph {
             libfuncs: Default::default(),
             max_execution_time: default_max_execution_time(),
             http_hosts: None,
+            html_tags: None,
         };
         graph.load_std_formats();
         graph.insert_std_lib();
@@ -1391,6 +1396,8 @@ impl Graph {
             self.load_format(Arc::new(MdFormat{}));
             self.load_format(Arc::new(BytesFormat{}));
             self.load_format(Arc::new(UrlEncodedFormat{}));
+            self.load_format(Arc::new(HtmlFormat{}));
+            self.load_format(Arc::new(XmlFormat{}));
         }
 
         #[cfg(feature = "pkg")]
@@ -1515,6 +1522,47 @@ impl Graph {
         } else {
             Err(Error::GraphFormatNotFound)
         }
+    }
+
+    /// String export that calls the format's computed values first (Ex. `#[attr]` functions in html), like
+    /// `stringify` in Stof. The functions run in a runtime of their own, so an async host function can't finish
+    /// here: for those, call `stringify` from Stof instead (Ex. in an async host call).
+    pub fn stringify(&mut self, format: &str, node: Option<NodeRef>) -> Result<String, Error> {
+        if !self.export_computes(format, &node) {
+            return self.string_export(format, node);
+        }
+        match Runtime::eval(self, Self::export_instruction(format, node, false))? {
+            Val::Str(src) => Ok(src.to_string()),
+            _ => Err(Error::StdStringify("the export didn't produce a string".into())),
+        }
+    }
+
+    /// Binary export that calls the format's computed values first (see `stringify`).
+    pub fn blobify(&mut self, format: &str, node: Option<NodeRef>) -> Result<Bytes, Error> {
+        if !self.export_computes(format, &node) {
+            return self.binary_export(format, node);
+        }
+        match Runtime::eval(self, Self::export_instruction(format, node, true))? {
+            Val::Blob(bytes) => Ok(bytes),
+            _ => Err(Error::StdBlobify("the export didn't produce a blob".into())),
+        }
+    }
+
+    /// Does an export of this node with this format call computed values?
+    fn export_computes(&self, format: &str, node: &Option<NodeRef>) -> bool {
+        let fmt = self.get_format(format).or_else(|| self.get_format_by_content_type(format));
+        fmt.is_some_and(|fmt| !fmt.computed(self, format, node.clone(), &Default::default()).is_empty())
+    }
+
+    /// The Std stringify (or blobify) instruction, with its arguments.
+    fn export_instruction(format: &str, node: Option<NodeRef>, binary: bool) -> Arc<dyn crate::runtime::instruction::Instruction> {
+        use crate::{model::stof_std::StdIns, runtime::instructions::{Base, block::Block}};
+        let ctx = match node { Some(node) => Val::Obj(node), None => Val::Null };
+        Arc::new(Block { ins: imbl::vector![
+            Arc::new(Base::Literal(Val::Str(format.into()))) as Arc<dyn crate::runtime::instruction::Instruction>,
+            Arc::new(Base::Literal(ctx)),
+            Arc::new(if binary { StdIns::Blobify } else { StdIns::Stringify }),
+        ] })
     }
 
     /// Binary export.

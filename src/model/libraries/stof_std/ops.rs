@@ -66,6 +66,13 @@ Use a loaded format to export a string from the given context (or entire graph/d
 const object = new { x: 3.14km, y: 42.5m };
 assert_eq(stringify("json", object), "{\"x\":3.14,\"y\":42.5}"); // lossy as json doesn't have a units concept
 ```
+
+Some formats call functions for their values first (computed values), like `#[attr]` and `#[text]` functions in the html and xml formats. They're called in this process, so async functions are awaited before the export is written.
+```rust
+// in the document:
+// #[tag('p')] note: { #[attr('class')] kind: 'hint'; #[text] fn message() -> str { 'Saved' } }
+assert_eq(stringify('html', self.note), '<p class="hint">Saved</p>');
+```
 "#.into(),
         params: vector![
             Param { name: "format".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))), },

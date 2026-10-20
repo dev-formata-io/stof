@@ -11,11 +11,13 @@ fn main() {
 }
 ```
 
-# List.any(array: list) -> bool
-Does this list contain any values?
+# List.any(array: list, func?: fn) -> bool
+Does this list contain any values? With a function: does it return true (truthy) for any value?
 ```rust
-const array = [1];
+const array = [1, 2, 3];
 assert(array.any());
+assert(array.any((x: int): bool => x > 2));
+assert_not(array.any((x: int): bool => x > 3));
 ```
 
 # List.append(array: list, other: list) -> void
@@ -64,6 +66,13 @@ const array = [1];
 assert_not(array.empty());
 ```
 
+# List.filter(array: list, func: fn) -> list
+A new list with the values the function returns true for (truthy), in order.
+```rust
+const array = [1, 2, 3, 4];
+assert_eq(array.filter((x: int): bool => x % 2 == 0), [2, 4]);
+```
+
 # List.front(array: list) -> unknown
 Get the value at the front of this list, optionally by reference.
 ```rust
@@ -105,6 +114,13 @@ Return the length of this list.
 ```rust
 const array = [1, 2, 3];
 assert_eq(array.len(), 3);
+```
+
+# List.map(array: list, func: fn) -> list
+A new list with the result of calling the function for each value, in order.
+```rust
+const array = [1, 2, 3];
+assert_eq(array.map((x: int): int => x * 2), [2, 4, 6]);
 ```
 
 # List.pop_back(array: list) -> unknown
@@ -205,7 +221,7 @@ assert_eq(array, [1, 2, 3, 4]);
 ```
 
 # List.sort_by(array: list, func: fn) -> void
-Sort the values in this array according to a function that takes two list arguments and returns an integer (< 0 for less, > 0 for greater, and 0 for equal).
+Sort the values in this array according to a function that takes two list arguments and returns an integer (< 0 for less, > 0 for greater, and 0 for equal). The sort is stable (equal values keep their order), and an error in the function fails the sort.
 ```rust
 const array = [2, 1, 4, 3];
 array.sort_by((a: int, b: int): int => {

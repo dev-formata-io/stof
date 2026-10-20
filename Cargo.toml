@@ -2,7 +2,7 @@
 # RUN "stof run project.stof" TO REGENERATE.
 [package]
 name = "stof"
-version = "0.10.6"
+version = "0.10.7"
 authors = ["CJ Cummings <cj@formata.io>"]
 description = "Run AI-generated logic safely inside your app. Stof is JSON with functions: data and logic in one document, sandboxed, in Rust, JavaScript, and Python."
 license = "Apache-2.0"
@@ -21,7 +21,7 @@ doctest = false
 [features]
 default = ["basic"]
 basic = ["stof_std", "system", "pkg", "log", "stacker"]
-full = ["stof_std", "system", "pkg", "log", "stacker", "image", "docx", "pdf", "http", "tokio", "age_encrypt"]
+full = ["stof_std", "system", "pkg", "log", "stacker", "image", "docx", "pdf", "http", "tokio", "age_encrypt", "xml"]
 stof_std = ["dep:regex"]
 system = []
 pkg = ["dep:zip", "dep:regex", "dep:walkdir"]
@@ -33,8 +33,9 @@ pdf = ["dep:lopdf", "image"]
 http = ["dep:reqwest"]
 tokio = ["dep:tokio"]
 age_encrypt = ["dep:age"]
+xml = ["dep:quick-xml"]
 py = ["full", "dep:pyo3"]
-js = ["stof_std", "age_encrypt", "dep:js-sys", "dep:wasm-bindgen", "dep:serde-wasm-bindgen", "dep:getrandom", "dep:wasm-bindgen-futures", "dep:web-sys", "dep:console_error_panic_hook"]
+js = ["stof_std", "age_encrypt", "xml", "dep:js-sys", "dep:wasm-bindgen", "dep:serde-wasm-bindgen", "dep:getrandom", "dep:wasm-bindgen-futures", "dep:web-sys", "dep:console_error_panic_hook"]
 
 [profile.release]
 lto = "fat"
@@ -73,6 +74,10 @@ optional = true
 [dependencies.markdown]
 version = "1.0.0"
 features = ["serde"]
+
+[dependencies.quick-xml]
+version = "0.41.0"
+optional = true
 
 [dependencies.compact_str]
 version = "0.9.1"

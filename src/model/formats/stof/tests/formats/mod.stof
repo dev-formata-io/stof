@@ -22,6 +22,8 @@ import './text' as self.TextFormat;
 import './md' as self.MdFormat;
 import './bytes' as self.BytesFormat;
 import './urlencoded' as self.UrlEncodedFormat;
+import './html' as self.HtmlFormat;
+import './xml' as self.XmlFormat;
 import './package' as self.StofPackageFormat;
 import './pdf' as self.PdfFormat;
 import './image' as self.ImageFormat;
