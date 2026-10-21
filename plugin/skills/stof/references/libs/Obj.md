@@ -350,6 +350,16 @@ fn schemafy_obj() {
 ```
 
 
+# Obj.set(obj: obj, name: str, value: unknown) -> void
+Set the field with exactly this name, or create it. Unlike insert, the name is never a path, so it can have dots (the counterpart of get). A function with the name is an error, and so is a const field.
+```rust
+const obj = new {};
+obj.set("a.b", 1);
+assert_eq(obj.get("a.b"), 1);
+assert_null(obj.a);
+```
+
+
 # Obj.set_prototype(obj: obj, proto: obj | str) -> void
 Set the prototype of this object.
 ```rust
@@ -366,6 +376,16 @@ Create a new map out of this object's fields.
 const obj = new { x: 3km, y: 5.5m };
 const map = obj.to_map();
 assert_eq(map.get("x"), 3km);
+```
+
+
+# Obj.unset(obj: obj, name: str, shallow: bool = false) -> bool
+Remove the field, function, or data with exactly this name, returning true if there was one. Unlike remove, the name is never a path, so it can have dots. A field's object value is dropped too, unless shallow is true.
+```rust
+const obj = new {};
+obj.set("a.b", 1);
+assert(obj.unset("a.b"));
+assert_not(obj.contains("a.b"));
 ```
 
 

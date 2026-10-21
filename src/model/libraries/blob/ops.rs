@@ -15,7 +15,6 @@
 //
 
 use std::sync::Arc;
-use imbl::vector;
 use crate::{model::{blob::{AT_BLOB, BASE64_BLOB, BLOB_LIB, FROM_BASE64_BLOB, FROM_URL_SAFE_BLOB, FROM_UTF8_BLOB, LEN_BLOB, SIZE_BLOB, URL_SAFE_BLOB, UTF8_BLOB}, LibFunc, Param}, runtime::{instruction::Instructions, NumT, Type}};
 
 
@@ -31,7 +30,7 @@ Size of this binary blob (integer number of bytes).
 const bytes: blob = "hello";
 assert_eq(bytes.len(), 5);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "blob".into(), param_type: Type::Blob, default: None }
         ],
         return_type: None,
@@ -57,7 +56,7 @@ Size of this binary blob (in units of bytes).
 const bytes: blob = "hello";
 assert_eq(bytes.size(), 5bytes);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "blob".into(), param_type: Type::Blob, default: None }
         ],
         return_type: None,
@@ -83,7 +82,7 @@ Byte at a specific index within this blob.
 const bytes: blob = "hello";
 assert_eq(bytes[1], 101); // or '.at(1)' or 'Blob.at(bytes, 1)'
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "blob".into(), param_type: Type::Blob, default: None },
             Param { name: "index".into(), param_type: Type::Num(NumT::Int), default: None }
         ],
@@ -111,7 +110,7 @@ const bytes: blob = "hello";
 assert_eq(bytes.utf8(), "hello");
 assert_eq(bytes as str, "hello");
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "blob".into(), param_type: Type::Blob, default: None }
         ],
         return_type: None,
@@ -137,7 +136,7 @@ Transform this blob into a string using Base64 encoding.
 const bytes: blob = "hello";
 assert_eq(bytes.base64(), "aGVsbG8=");
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "blob".into(), param_type: Type::Blob, default: None }
         ],
         return_type: None,
@@ -163,7 +162,7 @@ Transform this blob into a string using URL-safe Base64 encoding.
 const bytes: blob = "hello";
 assert_eq(bytes.url_base64(), "aGVsbG8=");
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "blob".into(), param_type: Type::Blob, default: None }
         ],
         return_type: None,
@@ -189,7 +188,7 @@ Transform a string into a blob, using standard UTF-8 encoding (default for norma
 const bytes: blob = "hello";
 assert_eq(bytes, Blob.from_utf8("hello"));
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Str, default: None }
         ],
         return_type: None,
@@ -215,7 +214,7 @@ Transform a string into a blob, using Base64 encoding.
 const bytes: blob = Blob.from_base64("aGVsbG8=");
 assert_eq(bytes as str, "hello");
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Str, default: None }
         ],
         return_type: None,
@@ -241,7 +240,7 @@ Transform a string into a blob, using URL-safe Base64 encoding.
 const bytes: blob = Blob.from_url_base64("aGVsbG8=");
 assert_eq(bytes as str, "hello");
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Str, default: None }
         ],
         return_type: None,

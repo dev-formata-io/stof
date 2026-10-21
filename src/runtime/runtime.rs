@@ -317,7 +317,7 @@ impl Runtime {
                         // Propagate the error back to the awaiting process, so that it can optionally handle it itself
                         println!("{} {}{}{}{}{}\n{}", "await error".red().bold(), "(".dimmed(), waiting_proc.env.pid.as_ref().dimmed().purple(), " waiting on ".dimmed(), error_proc.env.pid.as_ref().dimmed().cyan(), ")".dimmed(), error_proc.error_report(&graph));
                         if let Some(error) = error_proc.error {
-                            waiting_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Error::AwaitError(Box::new(error)))));
+                            waiting_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Box::new(Error::AwaitError(Box::new(error))))));
                         }
                         to_run.push(id.clone());
                     } else if let Some(max) = &waiting_proc.env.max_execution_time {
@@ -325,7 +325,7 @@ impl Runtime {
                             if &start.elapsed() > max {
                                 // If the waiting process has outlived its ttl, then error
                                 println!("{} {}{}{}{}{}", "await timeout error".red().bold(), "(".dimmed(), waiting_proc.env.pid.as_ref().dimmed().purple(), " waiting on ".dimmed(), wait_id.as_ref().dimmed().cyan(), ")".dimmed());
-                                waiting_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Error::ExecutionTimeout)));
+                                waiting_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Box::new(Error::ExecutionTimeout))));
                                 to_run.push(id.clone());
                             }
                         }
@@ -339,7 +339,7 @@ impl Runtime {
                         if &start.elapsed() > max {
                             // If the sleeping process has outlived its ttl, then error
                             println!("{} {}{}{}", "sleep timeout error".red().bold(), "(".dimmed(), sleeping_proc.env.pid.as_ref().dimmed().purple(), ")".dimmed());
-                            sleeping_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Error::ExecutionTimeout)));
+                            sleeping_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Box::new(Error::ExecutionTimeout))));
                             to_run.push(id.clone());
                         }
                     }
@@ -547,7 +547,7 @@ impl Runtime {
                         // Propagate the error back to the awaiting process, so that it can optionally handle it itself
                         println!("{} {}{}{}{}{}\n{}", "await error".red().bold(), "(".dimmed(), waiting_proc.env.pid.as_ref().dimmed().purple(), " waiting on ".dimmed(), error_proc.env.pid.as_ref().dimmed().cyan(), ")".dimmed(), error_proc.error_report(&graph));
                         if let Some(error) = error_proc.error {
-                            waiting_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Error::AwaitError(Box::new(error)))));
+                            waiting_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Box::new(Error::AwaitError(Box::new(error))))));
                         }
                         to_run.push(id.clone());
                     } else if let Some(max) = &waiting_proc.env.max_execution_time {
@@ -555,7 +555,7 @@ impl Runtime {
                             if &start.elapsed() > max {
                                 // If the waiting process has outlived its ttl, then error
                                 println!("{} {}{}{}{}{}", "await timeout error".red().bold(), "(".dimmed(), waiting_proc.env.pid.as_ref().dimmed().purple(), " waiting on ".dimmed(), wait_id.as_ref().dimmed().cyan(), ")".dimmed());
-                                waiting_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Error::ExecutionTimeout)));
+                                waiting_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Box::new(Error::ExecutionTimeout))));
                                 to_run.push(id.clone());
                             }
                         }
@@ -569,7 +569,7 @@ impl Runtime {
                         if &start.elapsed() > max {
                             // If the sleeping process has outlived its ttl, then error
                             println!("{} {}{}{}", "sleep timeout error".red().bold(), "(".dimmed(), sleeping_proc.env.pid.as_ref().dimmed().purple(), ")".dimmed());
-                            sleeping_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Error::ExecutionTimeout)));
+                            sleeping_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Box::new(Error::ExecutionTimeout))));
                             to_run.push(id.clone());
                         }
                     }

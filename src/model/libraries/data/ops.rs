@@ -15,7 +15,6 @@
 //
 
 use std::sync::Arc;
-use imbl::vector;
 use crate::{model::{libraries::data::{ATTACH, DATA_LIB, DROP, DROP_FROM, EXISTS, FIELD, FROM_BLOB, FROM_ID, ID, INVALIDATE, MOVE, OBJS, TAGNAME, TO_BLOB, VALIDATE}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Type, Val}};
 
 
@@ -32,7 +31,7 @@ const func: fn = self.hi;
 const id = func.data().id();
 assert_eq(Data.from_id(id), func.data());
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "data".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -58,7 +57,7 @@ Get the library name for this data pointer, if applicable.
 const func: fn = self.hi;
 assert_eq(func.data().libname(), "Fn");
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "data".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -86,7 +85,7 @@ const ptr = func.data();
 drop(func);
 assert_not(ptr.exists());
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "data".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -115,7 +114,7 @@ assert(ptr.invalidate('something_happened')); // marks data as invalid
 assert(ptr.validate('something_happened'));
 assert_not(ptr.validate('something_happened')); // already validated
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "data".into(), param_type: Type::Void, default: None },
             Param { name: "symbol".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))) }
         ],
@@ -145,7 +144,7 @@ assert(ptr.invalidate('something_happened'));
 assert(ptr.validate('something_happened'));     // marks the data as valid again
 assert_not(ptr.validate('something_happened')); // already validated
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "data".into(), param_type: Type::Void, default: None },
             Param { name: "symbol".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))) }
         ],
@@ -172,7 +171,7 @@ List of objects that this data is attached to (will always have at least one).
 const func: fn = self.hi;
 assert_eq(func.data().objs().front(), self);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "data".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -198,7 +197,7 @@ Uses bincode serialization to serialize the data (name, attributes, value, etc.)
 const func: fn = self.hi;
 const bin = func.data().blob(); // entire function as a blob
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "data".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -227,7 +226,7 @@ const bin = func.data().blob(); // entire function as a blob
 const other = new {};
 const dref = Data.load_blob(bin, other); // copy of the function is now on "other"
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "bytes".into(), param_type: Type::Blob, default: None },
             Param { name: "context".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) }
         ],
@@ -254,7 +253,7 @@ Drop this data from the document, returning true if the data existed and was rem
 const func: fn = self.hi;
 assert(func.data().drop());
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "data".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -280,7 +279,7 @@ Drop this data from a specific object. If the given object was the only referenc
 const func: fn = self.hi;
 assert(func.data().drop_from(self));
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "data".into(), param_type: Type::Void, default: None },
             Param { name: "obj".into(), param_type: Type::Void, default: None }
         ],
@@ -309,7 +308,7 @@ const other = new {};
 assert(func.data().attach(other));
 assert_eq(other.hi, func);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "data".into(), param_type: Type::Void, default: None },
             Param { name: "obj".into(), param_type: Type::Void, default: None }
         ],
@@ -338,7 +337,7 @@ const other = new {};
 assert(func.data().move(self, other));
 assert_not(self.hi); // func is now on other
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "data".into(), param_type: Type::Void, default: None },
             Param { name: "from".into(), param_type: Type::Void, default: None },
             Param { name: "to".into(), param_type: Type::Void, default: None }
@@ -367,7 +366,7 @@ const func: fn = self.hi;
 const id = func.data().id();
 assert_eq(Data.from_id(id), func.data());
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "id".into(), param_type: Type::Str, default: None }
         ],
         return_type: None,
@@ -393,7 +392,7 @@ Create a data pointer to a field, using a path/name from the current object cont
 const ptr = Data.field('myfield'); // self.myfield
 assert(ptr.exists());
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "path".into(), param_type: Type::Str, default: None }
         ],
         return_type: None,

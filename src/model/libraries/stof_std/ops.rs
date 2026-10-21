@@ -15,7 +15,6 @@
 //
 
 use std::sync::Arc;
-use imbl::vector;
 use crate::{model::{stof_std::{StdIns, BLOBIFY, CALLSTACK, FORMATS, FORMAT_CONTENT_TYPE, GRAPH_ID, HAS_FORMAT, HAS_LIB_FUNC, LIBS, NANO_ID, PARSE, STD_LIB, STRINGIFY}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Num, NumT, Type, Val}};
 
 #[cfg(feature = "system")]
@@ -36,7 +35,7 @@ parse("fn hello() -> str { \"hello\" }");
 assert_eq(self.hello(), "hello"); // can now call it
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "source".into(), param_type: Type::Void, default: None, },
             Param { name: "context".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))), },
             Param { name: "format".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))), }, // default is stof
@@ -74,7 +73,7 @@ Some formats call functions for their values first (computed values), like `#[at
 assert_eq(stringify('html', self.note), '<p class="hint">Saved</p>');
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "format".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))), },
             Param { name: "context".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))), },
         ],
@@ -104,7 +103,7 @@ const export = blobify("json", object); // json string like "stringify", but as 
 assert(export.len() > 0);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "format".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))), },
             Param { name: "context".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))), },
         ],
@@ -133,7 +132,7 @@ assert(format("json"));
 assert_not(format("step"));
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "format".into(), param_type: Type::Str, default: None, },
         ],
         return_type: None,
@@ -161,7 +160,7 @@ const loaded = formats();
 assert(loaded.contains("json"));
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
@@ -186,7 +185,7 @@ Returns the available format's content type (HTTP header value), or null if the 
 assert_eq(format_content_type("json"), "application/json");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "format".into(), param_type: Type::Str, default: None, },
         ],
         return_type: None,
@@ -216,7 +215,7 @@ assert_not(lib("Render")); // no "Render" library loaded
 assert(lib("Num", "abs")); // Num.abs(..) lib function is available
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "lib".into(), param_type: Type::Str, default: None, },
             Param { name: "func".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))), },
         ],
@@ -244,7 +243,7 @@ Set of all available libraries. This will most likely include standard libraries
 assert(libs().superset({"Std", "Fn", "Num", "Set"}));
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
@@ -269,7 +268,7 @@ Generate a URL safe random string ID, using the nanoid algorithm with a specifie
 assert_neq(nanoid(), nanoid(33));
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "length".into(), param_type: Type::Num(NumT::Int), default: Some(Arc::new(Base::Literal(Val::Num(Num::Int(21))))), },
         ],
         return_type: None,
@@ -299,7 +298,7 @@ assert(-inf() < -1e308);
 assert(limit.inf());
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
@@ -326,7 +325,7 @@ assert(value.nan());
 assert_neq(value, value);
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
@@ -351,7 +350,7 @@ Return this graph's unique string ID.
 assert(graph_id().len() > 10);
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
@@ -376,7 +375,7 @@ Return the maximum value of all given arguments. If an argument is a collection,
 assert_eq(max(1km, 2m, 3mm), 1km);
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,
@@ -401,7 +400,7 @@ Return the minimum value of all given arguments. If an argument is a collection,
 assert_eq(min(1km, 2m, 3mm), 3mm);
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,
@@ -429,7 +428,7 @@ for (const func in callstack()) {
 }
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
@@ -455,7 +454,7 @@ trace("Getting here"); // will print "Getting here", then output a trace of the 
 trace(70); // last 70 executed instructions (most recent on bottom and numbered)
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,
@@ -481,7 +480,7 @@ peek("Getting here"); // will print "Getting here", then output a trace of the c
 peek(70); // next 70 instructions
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,
@@ -503,7 +502,7 @@ pub fn std_tracestack() -> LibFunc {
         docs: r#"# Std.dbg_tracestack() -> void
 Print a snapshot of the current stack.
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
@@ -529,7 +528,7 @@ Get an environment variable by name. Requires the "system" feature flag.
 const var = env("HOST");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "var".into(), param_type: Type::Str, default: None }
         ],
         return_type: None,
@@ -557,7 +556,7 @@ Set an environment variable by name with a value. Requires the "system" feature 
 set_env("HOST", "localhost");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "var".into(), param_type: Type::Str, default: None },
             Param { name: "value".into(), param_type: Type::Str, default: None }
         ],
@@ -586,7 +585,7 @@ Remove an environment variable by name. Requires the "system" feature flag.
 remove_env("HOST");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "var".into(), param_type: Type::Str, default: None }
         ],
         return_type: None,
@@ -614,7 +613,7 @@ Get a map of the current environment variables (str, str). Requires the "system"
 const vars: map = env_vars();
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,

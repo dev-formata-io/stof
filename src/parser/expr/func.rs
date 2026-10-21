@@ -56,6 +56,7 @@ pub fn func_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseEr
     let dref = DataRef::default();
     let mut arrow_func = Func::new(params.into_iter().collect(), rtype, Instructions::from(instructions), Some(attrs));
     arrow_func.src = source::locate(start);
+    if source::keep_source_enabled() { arrow_func.source = Some(start[..start.len() - input.len()].into()); }
     arrow_func.capture_names = capture_names;
     Ok((input, Arc::new(FuncLit { dref, func: arrow_func }) as Arc<dyn Instruction>))
 }

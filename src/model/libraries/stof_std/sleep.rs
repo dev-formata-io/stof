@@ -15,7 +15,6 @@
 //
 
 use std::sync::Arc;
-use imbl::vector;
 use crate::{model::{stof_std::{SLEEP, STD_LIB}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Num, NumT, Type, Val}};
 
 
@@ -31,7 +30,7 @@ Instruct this process to sleep for an amount of time, while others continue exec
 sleep(1s); // sleep for 1 second
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "time".into(), param_type: Type::Num(NumT::Float), default: Some(Arc::new(Base::Literal(Val::Num(Num::Float(1000.))))) }
         ],
         return_type: None,

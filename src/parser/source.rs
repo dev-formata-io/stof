@@ -51,6 +51,8 @@ struct Source {
     line_starts: Vec<usize>,
     /// Emit statement location markers (debug profiles)?
     markers: bool,
+    /// Keep function source text (the host's `keep_source`)?
+    keep: bool,
 }
 
 thread_local! {
@@ -112,17 +114,23 @@ impl Drop for SourceGuard {
 
 /// Register a source text while it is being parsed.
 /// The line index is one pass over the bytes (negligible next to parsing).
-pub fn push_source(text: &str, file: Option<ArcStr>, markers: bool) -> SourceGuard {
+pub fn push_source(text: &str, file: Option<ArcStr>, markers: bool, keep: bool) -> SourceGuard {
     let mut line_starts = Vec::with_capacity(text.len() / 32 + 1);
     line_starts.push(0);
     for (index, byte) in text.bytes().enumerate() {
         if byte == b'\n' { line_starts.push(index + 1); }
     }
-    let source = Source { start: text.as_ptr() as usize, len: text.len(), file, line_starts, markers };
+    let source = Source { start: text.as_ptr() as usize, len: text.len(), file, line_starts, markers, keep };
     SOURCES.with(|sources| sources.borrow_mut().push(source));
     SourceGuard
 }
 
+
+#[inline]
+/// Keep function source text for the document being parsed?
+pub fn keep_source_enabled() -> bool {
+    SOURCES.with(|sources| sources.borrow().last().map(|source| source.keep).unwrap_or(false))
+}
 
 #[inline]
 /// Emit statement location markers for the document being parsed?
@@ -135,6 +143,20 @@ pub fn markers_enabled() -> bool {
 /// Columns are byte based (exact for ASCII).
 pub fn locate(position: &str) -> Option<SrcLoc> {
     locate_addr(position.as_ptr() as usize)
+}
+
+/// Byte offset of a position (a slice starting there) in the innermost registered source that contains it.
+pub fn offset(position: &str) -> Option<usize> {
+    let addr = position.as_ptr() as usize;
+    SOURCES.with(|sources| {
+        let sources = sources.borrow();
+        for source in sources.iter().rev() {
+            if addr >= source.start && addr <= source.start + source.len {
+                return Some(addr - source.start);
+            }
+        }
+        None
+    })
 }
 
 /// Location of a position address (see `locate`).
@@ -207,7 +229,7 @@ mod tests {
     #[test]
     fn locates_positions() {
         let text = "a: 1\nfn main() {\n    let x = 5\n}";
-        let _guard = push_source(text, Some("main.stof".into()), false);
+        let _guard = push_source(text, Some("main.stof".into()), false, false);
         let loc = locate(&text[text.find("let").unwrap()..]).unwrap();
         assert_eq!((loc.line, loc.col), (3, 5));
         assert_eq!(loc.display(), "main.stof:3:5");

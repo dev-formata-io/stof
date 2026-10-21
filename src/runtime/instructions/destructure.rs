@@ -81,7 +81,7 @@ impl DestructureIns {
     fn bind(&self, instructions: &mut Instructions, part: Option<Variable>, target: &Pattern, default: &Option<Arc<dyn Instruction>>) {
         let part: Arc<dyn Instruction> = Arc::new(Base::Variable(part.unwrap_or_else(|| Variable::val(Val::Null))));
         match default {
-            Some(default) => instructions.push(Arc::new(NullcheckIns { ins: part, ifnull: default.clone() })),
+            Some(default) => instructions.push(Arc::new(NullcheckIns::new(part, default.clone()))),
             None => instructions.push(part),
         }
         match target {

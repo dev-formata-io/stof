@@ -15,7 +15,6 @@
 //
 
 use std::sync::Arc;
-use imbl::vector;
 use crate::{model::{LibFunc, Param, num::{ABS, ACOS, ACOSH, ASIN, ASINH, ATAN, ATAN2, ATANH, BIN, CBRT, CEIL, COS, COSH, EXP, EXP2, FLOOR, FRACT, HAS_UNITS, HEX, INF, IS_ANGLE, IS_LENGTH, IS_MASS, IS_MEMORY, IS_TEMP, IS_TIME, LN, LOG, NAN, NUM_LIB, OCT, POW, REMOVE_UNITS, ROUND2, SIGNUM, SIN, SINH, SQRT, STRING, TAN, TANH, TO_UNITS, TRUNC}}, runtime::{Num, Type, Val, instruction::Instructions, instructions::Base}};
 
 
@@ -31,7 +30,7 @@ Return the absolute value of the given number.
 const v = -2;
 assert_eq(v.abs(), 2);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -57,7 +56,7 @@ Return the square root of a number.
 const v = 4;
 assert_eq(v.sqrt(), 2);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -83,7 +82,7 @@ Return the cube root of a number.
 const v = 8;
 assert_eq(v.cbrt(), 2);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -109,7 +108,7 @@ Return the largest integer less than or equal to the given value.
 const v = 2.4;
 assert_eq(v.floor(), 2);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -135,7 +134,7 @@ Return the smallest integer greater than or equal to the given value.
 const v = 2.4;
 assert_eq(v.ceil(), 3);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -161,7 +160,7 @@ Return the integer part of the given value.
 const v = 2.4;
 assert_eq(v.trunc(), 2);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -187,7 +186,7 @@ Return the fractional part of this number.
 const v = 2.4;
 assert_eq(v.fract().round(2), 0.4); // 0.3999999999999999 before rounding (float precision)
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -213,7 +212,7 @@ Return a number representing the sign of this value (-1 or 1).
 assert_eq((42).signum(), 1);
 assert_eq((-42).signum(), -1);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -238,7 +237,7 @@ Exponential function (e^(val)).
 ```rust
 assert_eq((1).exp().round(3), 2.718);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -263,7 +262,7 @@ Exponential 2 function (2^(val)).
 ```rust
 assert_eq((2).exp2(), 4);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -288,7 +287,7 @@ Natural log.
 ```rust
 assert_eq((1).ln(), 0);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -313,7 +312,7 @@ Return true if this value is NaN.
 ```rust
 assert_not((14).nan());
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -338,7 +337,7 @@ Return true if this value is infinity.
 ```rust
 assert_not((14).inf());
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -361,7 +360,7 @@ pub fn num_sin() -> LibFunc {
         docs: r#"# Num.sin(val: int | float) -> float
 Sine function.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -384,7 +383,7 @@ pub fn num_cos() -> LibFunc {
         docs: r#"# Num.cos(val: int | float) -> float
 Cosine function.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -407,7 +406,7 @@ pub fn num_tan() -> LibFunc {
         docs: r#"# Num.tan(val: int | float) -> float
 Tangent function.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -430,7 +429,7 @@ pub fn num_asin() -> LibFunc {
         docs: r#"# Num.asin(val: int | float) -> rad
 Arc Sine function (returns a float with radian units).
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -453,7 +452,7 @@ pub fn num_acos() -> LibFunc {
         docs: r#"# Num.acos(val: int | float) -> rad
 Arc Cosine function (returns a float with radian units).
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -476,7 +475,7 @@ pub fn num_atan() -> LibFunc {
         docs: r#"# Num.atan(val: int | float) -> rad
 Arc Tangent function (returns a float with radian units).
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -499,7 +498,7 @@ pub fn num_sinh() -> LibFunc {
         docs: r#"# Num.sinh(val: int | float) -> float
 Hyperbolic Sine function.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -522,7 +521,7 @@ pub fn num_cosh() -> LibFunc {
         docs: r#"# Num.cosh(val: int | float) -> float
 Hyperbolic Cosine function.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -545,7 +544,7 @@ pub fn num_tanh() -> LibFunc {
         docs: r#"# Num.tanh(val: int | float) -> float
 Hyperbolic Tangent function.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -568,7 +567,7 @@ pub fn num_asinh() -> LibFunc {
         docs: r#"# Num.asinh(val: int | float) -> float
 Inverse hyperbolic Sine function.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -591,7 +590,7 @@ pub fn num_acosh() -> LibFunc {
         docs: r#"# Num.acosh(val: int | float) -> float
 Inverse hyperbolic Cosine function.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -614,7 +613,7 @@ pub fn num_atanh() -> LibFunc {
         docs: r#"# Num.atanh(val: int | float) -> float
 Inverse hyperbolic Tangent function.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -640,7 +639,7 @@ Returns this number represented as a hexidecimal string.
 assert_eq((10).hex(), "A");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -666,7 +665,7 @@ Returns this number represented as a binary string.
 assert_eq((10).bin(), "1010");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -692,7 +691,7 @@ Returns this number represented as an octal string.
 assert_eq((10).oct(), "12");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -719,7 +718,7 @@ assert_eq((10).to_string(), "10");
 assert_eq(str(10), "10"); // prefer Std.str(..)
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -746,7 +745,7 @@ const val = 10kg;
 assert(val.has_units());
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -775,7 +774,7 @@ assert_eq(val.to_units(units), 10_000g);
 assert_eq(val, 10kg); // unmodified
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None },
             Param { name: "units".into(), param_type: Type::Void, default: None },
         ],
@@ -803,7 +802,7 @@ const val = 10kg;
 assert_eq(typeof val.remove_units(), "float");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -830,7 +829,7 @@ const val = 10deg;
 assert(val.is_angle());
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -857,7 +856,7 @@ const val = 10F;
 assert(val.is_temp());
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -884,7 +883,7 @@ const val = 10m;
 assert(val.is_length());
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -911,7 +910,7 @@ const val = 10s;
 assert(val.is_time());
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -938,7 +937,7 @@ const val = 10kg;
 assert(val.is_mass());
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -965,7 +964,7 @@ const val = 10MB;
 assert(val.is_memory());
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -993,7 +992,7 @@ assert_eq(val.round(2), 10.35);
 assert_eq(val.round(), 10);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None },
             Param { name: "places".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Num(Num::Int(0))))) }
         ],
@@ -1022,7 +1021,7 @@ assert_eq(val.pow(to = 2), 100);
 assert_eq(val.pow(), 100);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None },
             Param { name: "to".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Num(Num::Int(2))))) }
         ],
@@ -1049,7 +1048,7 @@ Log function with a given base value.
 assert_eq((2).log().round(3), 0.301);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None },
             Param { name: "base".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Num(Num::Int(10))))) }
         ],
@@ -1076,7 +1075,7 @@ Computes the four quadrant arctangent of self (y) and other (x) in radians.
 assert_eq((Num.atan2(1, 2) as deg).round(), 27deg);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "y".into(), param_type: Type::Void, default: None },
             Param { name: "x".into(), param_type: Type::Void, default: None }
         ],

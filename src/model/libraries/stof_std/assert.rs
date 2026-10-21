@@ -16,7 +16,6 @@
 
 use std::sync::Arc;
 use arcstr::literal;
-use imbl::vector;
 use crate::{model::{stof_std::{ASSERT, ASSERT_EQ, ASSERT_NEQ, ASSERT_NOT, ASSERT_NOT_NULL, ASSERT_NULL, STD_LIB, THROW}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Type, Val}};
 
 
@@ -32,7 +31,7 @@ Throw an error with an optional value. Optionally catch this value within a try-
 throw("error message");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "value".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Str(literal!("Error"))))) }
         ],
         return_type: None,
@@ -60,7 +59,7 @@ assert(true);
 assert(false); // errors
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "value".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Bool(false)))) }
         ],
         return_type: None,
@@ -88,7 +87,7 @@ assert_not(false);
 assert_not(true); // errors
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "value".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Bool(true)))) }
         ],
         return_type: None,
@@ -116,7 +115,7 @@ assert_eq('a', 'a');
 assert_eq(43, 42); // errors
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "first".into(), param_type: Type::Void, default: None },
             Param { name: "second".into(), param_type: Type::Void, default: None }
         ],
@@ -145,7 +144,7 @@ assert_neq('a', 'b');
 assert_neq(34, 34); // errors
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "first".into(), param_type: Type::Void, default: None },
             Param { name: "second".into(), param_type: Type::Void, default: None }
         ],
@@ -174,7 +173,7 @@ assert_null(null);
 assert_null(42); // errors
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "value".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -202,7 +201,7 @@ assert_not_null(42);
 assert_not_null(null); // errors
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "value".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,

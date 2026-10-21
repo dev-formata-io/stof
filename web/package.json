@@ -1,6 +1,6 @@
 {
     "name": "@formata/stof",
-    "version": "0.10.7",
+    "version": "0.10.8",
     "description": "Run AI-generated logic safely inside your app. Stof is JSON with functions: data and logic in one document, sandboxed, in Rust, JavaScript, and Python.",
     "type": "module",
     "main": "./dist/doc.js",

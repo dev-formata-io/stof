@@ -18,6 +18,7 @@ use std::fs;
 use rustc_hash::FxHashSet;
 use crate::{model::{FS_LIB, Format, Graph, NodeRef, Profile, stof::export::StofExportContext}, parser::{context::ParseContext, doc::document}, runtime::Error};
 mod export;
+pub mod readable;
 
 
 #[derive(Debug, Default)]
@@ -25,7 +26,7 @@ mod export;
 pub struct StofFormat;
 impl Format for StofFormat {
     fn identifiers(&self) -> Vec<String> {
-        vec!["stof".into(), "stof:human".into()]
+        vec!["stof".into(), "stof:graph".into(), "stof:human".into()]
     }
     fn content_type(&self) -> String {
         "application/stof".into()
@@ -49,7 +50,7 @@ impl Format for StofFormat {
             if !src.is_empty() { document(&src, context)?; }
             return Ok(());
         }
-        if let Some(_lib) = context.graph.libfunc(&FS_LIB, "read_string") {
+        if context.graph.has_libfunc(&FS_LIB, "read_string") {
             #[cfg(not(feature = "system"))]
             {
                 use imbl::vector;
@@ -103,7 +104,7 @@ impl Format for StofFormat {
                     return Err(Error::FormatFileImportFsError(format!("{}: {}", error.to_string(), path)));
                 }
             }
-        } else if let Some(_lib) = context.graph.libfunc(&FS_LIB, "read") {
+        } else if context.graph.has_libfunc(&FS_LIB, "read") {
             match fs::read(path) {
                 Ok(content) => {
                     match std::str::from_utf8(&content) {
@@ -126,6 +127,11 @@ impl Format for StofFormat {
         Err(Error::FormatFileImportNotAllowed)
     }
     fn string_export(&self, graph: &Graph, format: &str, node: Option<NodeRef>) -> Result<String, Error> {
+        // 'stof': readable Stof. 'stof:graph' (and 'stof:human', the same with comments): the exact form, with IDs,
+        // references, and compiled functions as data blocks.
+        if !format.contains("graph") && !format.contains("human") {
+            return Ok(readable::readable_export(graph, node));
+        }
         let mut context = StofExportContext::default();
         context.human = format.contains("human");
         let mut seen = FxHashSet::default();
@@ -240,9 +246,9 @@ mod tests {
     fn sandboxed_by_default() {
         use crate::model::{FS_LIB, stof_std::STD_LIB};
         let mut graph = Graph::default();
-        assert!(graph.libfunc(&FS_LIB, "read").is_none());
-        assert!(graph.libfunc(&STD_LIB, "env").is_none());
-        assert!(graph.libfunc(&"Http".into(), "fetch").is_none());
+        assert!(!graph.has_libfunc(&FS_LIB, "read"));
+        assert!(!graph.has_libfunc(&STD_LIB, "env"));
+        assert!(!graph.has_libfunc("Http", "fetch"));
 
         // file imports are refused, and so is the fs library
         let error = graph.parse_stof_src("import text './Cargo.toml' as self.cargo;", None, Profile::default()).unwrap_err();
@@ -252,8 +258,8 @@ mod tests {
 
         // the host opts in
         graph.allow_system();
-        assert!(graph.libfunc(&FS_LIB, "read").is_some());
-        assert!(graph.libfunc(&STD_LIB, "env").is_some());
+        assert!(graph.has_libfunc(&FS_LIB, "read"));
+        assert!(graph.has_libfunc(&STD_LIB, "env"));
         graph.parse_stof_src("import text './Cargo.toml' as self.cargo;", None, Profile::default()).unwrap();
         assert!(Runtime::call(&mut graph, "read", vec![]).is_ok());
     }
@@ -262,6 +268,7 @@ mod tests {
     fn stof_suite() {
         let mut graph = Graph::default();
         graph.allow_system(); // the suite imports files and tests the fs library
+        graph.keep_source(true); // the readable export tests write functions as source
         #[cfg(feature = "http")]
         graph.allow_http(); // the Http tests (full features)
         match graph.parse_stof_file("stof", "src/model/formats/stof/tests/tests.stof", None, Profile::test()) {

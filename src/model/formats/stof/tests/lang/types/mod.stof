@@ -51,3 +51,54 @@ fn typeof_is_unary() {
     assert_eq(typeofx, 3);
     assert_eq(typeof await async 5, 'int');
 }
+
+
+TypedSources: {
+    float price: 2.5
+
+    #[test]
+    /// A variable declared without a type takes no type from where its value came from.
+    fn untyped_let_is_untyped() {
+        let x = self.price;
+        x = 'hello';
+        assert_eq(x, 'hello');
+        assert_eq(self.price, 2.5);
+
+        let n: float = 1.5;
+        let failed = false;
+        try n = 'no';
+        catch failed = true;
+        assert(failed);
+
+        let y = n;
+        y = 'yes';
+        assert_eq(y, 'yes');
+    }
+}
+
+
+Nullcheck: {
+    a: 3
+    calls: 0
+
+    fn bump() -> int { self.calls += 1; 10 }
+    fn nothing() {}
+
+    #[test]
+    fn values_and_defaults() {
+        assert_eq(self.a ?? 0, 3);
+        assert_eq(self.missing ?? 1, 1);
+        assert_eq(self.missing ?? self.other ?? 'last', 'last');
+        assert_eq(self.nothing() ?? 'void', 'void');
+        assert_eq(null ?? false, false);
+        assert_eq(0 ?? 1, 0);
+        assert_eq('' ?? 'x', '');
+        assert_eq(self.a ?? self.bump(), 3);
+        assert_eq(self.calls, 0); // the default only runs when needed
+        assert_eq(self.missing ?? self.bump(), 10);
+        assert_eq(self.calls, 1);
+        let total = 0;
+        for (const v in [1, null, 2]) total += v ?? 100;
+        assert_eq(total, 103);
+    }
+}

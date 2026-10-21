@@ -15,7 +15,6 @@
 //
 
 use std::sync::Arc;
-use imbl::vector;
 use crate::{model::{LibFunc, Param, function::BIND, libraries::function::{ATTRIBUTES, DATA, FUNC_LIB, FuncIns, HAS_ATTR, ID, IS_ASYNC, NAME, OBJ, OBJS, PARAMS, RETURN_TYPE}}, runtime::{Type, instruction::Instructions}};
 
 
@@ -31,7 +30,7 @@ Get the data ID for this function (shorthand for "func.data().id()").
 const func: fn = self.hi;
 assert_eq(func.id(), func.data().id());
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "fn".into(), param_type: Type::Fn, default: None }
         ],
         return_type: None,
@@ -57,7 +56,7 @@ Get the data pointer for this function.
 const func: fn = self.hi;
 assert(func.data().exists());
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "fn".into(), param_type: Type::Fn, default: None }
         ],
         return_type: None,
@@ -87,7 +86,7 @@ func.bind(to);
 
 assert_eq(func(), 'hi');
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "fn".into(), param_type: Type::Fn, default: None },
             Param { name: "to".into(), param_type: Type::Void, default: None },
         ],
@@ -114,7 +113,7 @@ Get the name of this function.
 const func: fn = self.hi; // fn hi() {}
 assert_eq(func.name(), "hi");
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "fn".into(), param_type: Type::Fn, default: None }
         ],
         return_type: None,
@@ -140,7 +139,7 @@ Get a list of expected parameters for this function (tuple containing the name a
 const func: fn = self.hi; // fn hi(a: int) {}
 assert_eq(func.params(), [("a", "int")]);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "fn".into(), param_type: Type::Fn, default: None }
         ],
         return_type: None,
@@ -166,7 +165,7 @@ Get the return type for the given function.
 const func: fn = self.hi; // fn hi() -> int { 42 }
 assert_eq(func.return_type(), "int");
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "fn".into(), param_type: Type::Fn, default: None }
         ],
         return_type: None,
@@ -192,7 +191,7 @@ Returns true if the given function has an attribute with the given name.
 const func: fn = self.hi; // #[hi] fn hi() {}
 assert(func.has_attribute("hi"));
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "fn".into(), param_type: Type::Fn, default: None },
             Param { name: "name".into(), param_type: Type::Str, default: None }
         ],
@@ -219,7 +218,7 @@ Get a map of attributes (name & value) that this function has, if any.
 const func: fn = self.hi; // #[hi] fn hi() {}
 assert_eq(func.attributes(), {"hi": null});
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "fn".into(), param_type: Type::Fn, default: None }
         ],
         return_type: None,
@@ -245,7 +244,7 @@ Get the first object found that references this function.
 const func: fn = self.hi;
 assert_eq(func.obj(), self);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "fn".into(), param_type: Type::Fn, default: None }
         ],
         return_type: None,
@@ -271,7 +270,7 @@ Get a list of all objects that this function is attached to.
 const func: fn = self.hi;
 assert_eq(func.objs(), [self]);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "fn".into(), param_type: Type::Fn, default: None }
         ],
         return_type: None,
@@ -297,7 +296,7 @@ Is this function async? This is just shorthand for checking if an "async" attrib
 const func: fn = self.hi; // async fn hi() {}
 assert(func.is_async());
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "fn".into(), param_type: Type::Fn, default: None }
         ],
         return_type: None,
@@ -323,7 +322,7 @@ Call this function, using any arguments given after the function itself (some li
 const func: fn = (name: str):str => "Hi, " + name;
 assert_eq(func.call("Bob"), "Hi, Bob");
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "fn".into(), param_type: Type::Fn, default: None }
             // Unbounded parameters after the first function reference
         ],
@@ -350,7 +349,7 @@ Call this function, using any arguments given after the function itself. However
 const func: fn = (name: str):str => "Hi, " + name;
 assert_eq(func.call_expanded(["Bob"]), "Hi, Bob");
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "fn".into(), param_type: Type::Fn, default: None }
             // Unbounded parameters after the first function reference
         ],

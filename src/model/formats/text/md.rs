@@ -16,7 +16,6 @@
 
 use std::sync::Arc;
 use arcstr::{literal, ArcStr};
-use imbl::vector;
 use markdown::{to_html, to_mdast, ParseOptions};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -39,7 +38,7 @@ const md = '# Title\nList.\n- one\n- two';
 const html = Md.html(md);
 assert_eq(html, '<h1>Title</h1>\n<p>List.</p>\n<ul>\n<li>one</li>\n<li>two</li>\n</ul>');
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "md".into(), param_type: Type::Str, default: None, }
         ],
         unbounded_args: false,
@@ -63,7 +62,7 @@ Turn a markdown string into a JSON string.
 const md = '# Title\nList.\n- one\n- two';
 const json = Md.json(md); // lots of info from the markdown parser
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "md".into(), param_type: Type::Str, default: None, }
         ],
         unbounded_args: false,

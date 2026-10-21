@@ -54,6 +54,25 @@ pub struct Def {
     pub end: Option<SrcLoc>,
     /// Doc comments.
     pub docs: String,
+    /// Byte offsets in the text it was parsed from (fields and functions only).
+    pub span: Option<DefSpan>,
+}
+
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// Where a field or function is in its text, as byte offsets (see `parser::edit`).
+pub struct DefSpan {
+    /// Where the statement starts: right after the statement before it, so it includes the whitespace, comments,
+    /// and attributes before the definition.
+    pub outer_start: usize,
+    /// The name (with its quotes, if quoted).
+    pub name_start: usize,
+    pub name_end: usize,
+    /// The value: a field's value after the `:`, or a function from `fn` (or `async`) to the end of its body.
+    pub value_start: usize,
+    pub value_end: usize,
+    /// After the value and its separator (`,` or `;`), if it has one.
+    pub outer_end: usize,
 }
 
 
@@ -77,6 +96,10 @@ pub struct ParseInfo {
     pub files: Vec<String>,
     /// Stof texts parsed instead of the files at these paths (see `parse_with_info`).
     pub overlay: FxHashMap<String, String>,
+    /// Only the definitions matter (see `parser::edit`): nothing in the text runs (field expressions and attribute
+    /// values aren't evaluated, init functions aren't called), and typed fields aren't cast, so a text can use types
+    /// it doesn't define (Ex. `Limitr policy: {..}` without the engine).
+    pub outline_only: bool,
 }
 
 
@@ -100,6 +123,20 @@ pub fn parse_with_info(graph: &mut Graph, format: &str, path: &str, overlay: FxH
     context.warnings.clear(); // in the info instead of stderr
     context.init_funcs.clear(); // don't run code in an editor
     (res, info)
+}
+
+
+/// Parse one Stof text (no file), recording its definitions and warnings, with the object its top-level
+/// definitions are on. Init functions are not run. Used by `parser::edit`.
+pub fn parse_text_with_info(graph: &mut Graph, text: &str, profile: Profile) -> (Result<(), Error>, ParseInfo, NodeRef) {
+    let mut context = ParseContext::new(graph, profile);
+    context.info = Some(Box::new(ParseInfo { outline_only: true, ..Default::default() }));
+    let top = context.self_ptr();
+    let res = crate::parser::doc::document(text, &mut context);
+    let info = context.info.take().map(|info| *info).unwrap_or_default();
+    context.warnings.clear();
+    context.init_funcs.clear();
+    (res, info, top)
 }
 
 

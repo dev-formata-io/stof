@@ -16,7 +16,6 @@
 
 use std::sync::Arc;
 use arcstr::literal;
-use imbl::vector;
 use crate::{model::{LibFunc, Param, string::{AT, CONTAINS, ENDS_WITH, FIND_ALL, FIRST, INDEX_OF, IS_MATCH, LAST, LEN, LOWER, PUSH, REPLACE, SPLIT, STARTS_WITH, STR_LIB, SUBSTRING, TRIM, TRIM_END, TRIM_START, UPPER}}, runtime::{Num, NumT, Type, Val, instruction::Instructions, instructions::Base}};
 
 
@@ -32,7 +31,7 @@ Returns the length (number of characters) in this string.
 assert_eq("hello".len(), 5);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Str, default: None }
         ],
         return_type: None,
@@ -59,7 +58,7 @@ const val = "hello";
 assert_eq(val[1], "e");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Str, default: None },
             Param { name: "index".into(), param_type: Type::Num(NumT::Int), default: None }
         ],
@@ -87,7 +86,7 @@ const val = "hello";
 assert_eq(val.first(), "h");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Str, default: None }
         ],
         return_type: None,
@@ -114,7 +113,7 @@ const val = "hello";
 assert_eq(val.last(), "o");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Str, default: None }
         ],
         return_type: None,
@@ -141,7 +140,7 @@ const val = "hello";
 assert(val.starts_with("he"));
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Str, default: None },
             Param { name: "seq".into(), param_type: Type::Str, default: None }
         ],
@@ -169,7 +168,7 @@ const val = "hello";
 assert(val.ends_with("llo"));
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Str, default: None },
             Param { name: "seq".into(), param_type: Type::Str, default: None }
         ],
@@ -198,7 +197,7 @@ val.push(", world");
 assert_eq(val, "hello, world");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Str, default: None },
             Param { name: "other".into(), param_type: Type::Str, default: None }
         ],
@@ -226,7 +225,7 @@ const val = "hello, world";
 assert(val.contains(", w"));
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Str, default: None },
             Param { name: "seq".into(), param_type: Type::Str, default: None }
         ],
@@ -254,7 +253,7 @@ const val = "hello, world";
 assert_eq(val.index_of(", w"), 5);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Str, default: None },
             Param { name: "seq".into(), param_type: Type::Str, default: None }
         ],
@@ -282,7 +281,7 @@ const val = "hello john";
 assert_eq(val.replace(" ", ", "), "hello, john");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Str, default: None },
             Param { name: "find".into(), param_type: Type::Str, default: None },
             Param { name: "replace".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Str(literal!(""))))) }
@@ -311,7 +310,7 @@ const val = "hello, world";
 assert_eq(val.split(", "), ["hello", "world"]);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Str, default: None },
             Param { name: "sep".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Str(" ".into())))) }
         ],
@@ -339,7 +338,7 @@ const val = "hello";
 assert_eq(val.upper(), "HELLO");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Str, default: None }
         ],
         return_type: None,
@@ -366,7 +365,7 @@ const val = "HELLO";
 assert_eq(val.lower(), "hello");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Str, default: None }
         ],
         return_type: None,
@@ -393,7 +392,7 @@ const val = "\n\thello\t\n";
 assert_eq(val.trim(), "hello");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Str, default: None }
         ],
         return_type: None,
@@ -420,7 +419,7 @@ const val = "\n\thello\t\n";
 assert_eq(val.trim_start(), "hello\t\n");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Str, default: None }
         ],
         return_type: None,
@@ -447,7 +446,7 @@ const val = "\n\thello\t\n";
 assert_eq(val.trim_end(), "\n\thello");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Str, default: None }
         ],
         return_type: None,
@@ -476,7 +475,7 @@ assert_eq(val.substring(7), "world");
 assert_eq(val.substring(3, 8), "lo, w");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Str, default: None },
             Param { name: "start".into(), param_type: Type::Num(NumT::Int), default: Some(Arc::new(Base::Literal(Val::Num(Num::Int(0))))) },
             Param { name: "end".into(), param_type: Type::Num(NumT::Int), default: Some(Arc::new(Base::Literal(Val::Num(Num::Int(-1))))) }
@@ -506,7 +505,7 @@ const regex = "\\b\\w{13}\\b";
 assert(val.matches(regex));
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Str, default: None },
             Param { name: "regex".into(), param_type: Type::Str, default: None },
         ],
@@ -535,7 +534,7 @@ const regex = "\\b\\w{13}\\b";
 assert_eq(val.find_matches(regex), [("categorically", 2, 15)]);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Str, default: None },
             Param { name: "regex".into(), param_type: Type::Str, default: None },
         ],

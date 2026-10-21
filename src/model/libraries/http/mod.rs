@@ -86,7 +86,7 @@ Make an HTTP request, using the thread pool in the background so that other Stof
 const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
 assert(Http.text(resp).len() > 100); // response map: status, ok, headers, content_type, bytes
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "url".into(), param_type: Type::Str, default: None },
             Param { name: "method".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Str("get".into())))) },
             Param { name: "body".into(), param_type: Type::Union(vector![Type::Blob, Type::Str]), default: Some(Arc::new(Base::Literal(Val::Null))) },
@@ -120,7 +120,7 @@ const body = new {};
 try Http.parse(resp, body);
 catch { /* didn't work out.. */ }
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "response".into(), param_type: Type::Map, default: None },
             Param { name: "context".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) },
         ],
@@ -145,7 +145,7 @@ Extract a UTF-8 text body from this response map (Equivalent to Http.blob(respon
 const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
 const body = Http.text(resp);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "response".into(), param_type: Type::Map, default: None },
         ],
         return_type: None,
@@ -169,7 +169,7 @@ Extract the response body size in bytes.
 const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
 const mib_body_size = Http.size(resp) as MiB;
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "response".into(), param_type: Type::Map, default: None },
         ],
         return_type: None,
@@ -193,7 +193,7 @@ Extract the body of this response as bytes.
 const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
 const body = Http.blob(resp);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "response".into(), param_type: Type::Map, default: None },
         ],
         return_type: None,
@@ -217,7 +217,7 @@ Was the request successful? Meaning, is the response 'status' between [200, 299]
 const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
 assert(Http.success(resp));
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "response".into(), param_type: Type::Map, default: None },
         ],
         return_type: None,
@@ -241,7 +241,7 @@ Was the request a client error? Meaning, is the response 'status' between [400, 
 const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
 assert_not(Http.client_error(resp));
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "response".into(), param_type: Type::Map, default: None },
         ],
         return_type: None,
@@ -265,7 +265,7 @@ Was the request a server error? Meaning, is the response 'status' between [500, 
 const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
 assert_not(Http.server_error(resp));
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "response".into(), param_type: Type::Map, default: None },
         ],
         return_type: None,

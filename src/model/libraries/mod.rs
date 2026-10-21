@@ -17,8 +17,7 @@
 pub mod time;
 use std::{fmt::{Debug, Display}, sync::Arc};
 use arcstr::{literal, ArcStr};
-use imbl::Vector;
-use crate::{model::{Graph, Param}, runtime::{instruction::Instructions, proc::ProcEnv, Error, Type}};
+use crate::{model::{Graph, Params}, runtime::{instruction::Instructions, proc::ProcEnv, Error, Type}};
 
 #[cfg(feature = "system")]
 pub mod filesys;
@@ -67,7 +66,7 @@ pub struct LibFunc {
 
     /// Parameters for this function.
     /// Arguments will be placed in this order, according to name.
-    pub params: Vector<Param>,
+    pub params: Params,
 
     /// Allow unbounded arguments? Ex. pln(a, b, c, d, ...)
     pub unbounded_args: bool,

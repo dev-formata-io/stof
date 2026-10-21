@@ -215,6 +215,13 @@ impl Doc {
         self.graph.allow_html_tags(tags);
     }
 
+    #[pyo3(signature = (keep = true))]
+    /// Keep each function's source text from now on (off by default), so the readable `stof` export writes
+    /// functions as Stof. It costs the memory of the text.
+    pub fn keep_source(&mut self, keep: bool) {
+        self.graph.keep_source(keep);
+    }
+
     /// How long a call can run, in seconds, before it fails with an execution timeout (None for no limit).
     /// Defaults to 120 (2 minutes).
     pub fn set_max_execution_time(&mut self, seconds: Option<f64>) {
@@ -322,6 +329,23 @@ impl Doc {
             Ok(_) => Ok(true),
             Err(err) => Err(PyValueError::new_err(err.to_string()))
         }
+    }
+
+    #[staticmethod]
+    /// The fields and functions in a Stof text: a list of dicts with kind ("field" or "fn"), path, name, object,
+    /// line, col, and value (its source).
+    pub fn outline<'py>(py: Python<'py>, text: &str) -> PyResult<Bound<'py, PyAny>> {
+        let defs = crate::parser::edit::outline(text).map_err(|error| PyValueError::new_err(error.to_string()))?;
+        let json = crate::parser::edit::outline_json(text, &defs).to_string();
+        py.import("json")?.call_method1("loads", (json,))
+    }
+
+    #[staticmethod]
+    /// Edit a Stof text in place: a list of edits like {"set": "a.b", "value": 1}, {"set": "a.b", "stof": "1GB"},
+    /// {"set_fn": "a.f", "stof": "fn f() {}"}, {"remove": "a.b"}, or {"rename": "a.b", "to": "c"}.
+    pub fn edit<'py>(py: Python<'py>, text: &str, edits: &Bound<'py, PyAny>) -> PyResult<String> {
+        let edits: String = py.import("json")?.call_method1("dumps", (edits,))?.extract()?;
+        crate::parser::edit::edit_json(text, &edits).map_err(|error| PyValueError::new_err(error.to_string()))
     }
 
     #[pyo3(signature = (format = "json", node = None))]

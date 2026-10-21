@@ -45,7 +45,7 @@ assert(array.any());
 assert(array.any((x: int): bool => x > 2));
 assert_not(array.any((x: int): bool => x > 3));
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "func".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) },
         ],
@@ -84,7 +84,7 @@ fn each_lib(name: &str, each: Each, docs: &str) -> LibFunc {
         name: name.into(),
         is_async: false,
         docs: docs.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "func".into(), param_type: Type::Fn, default: None },
         ],

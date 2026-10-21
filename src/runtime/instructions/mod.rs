@@ -145,7 +145,7 @@ pub enum Base {
     // Load a promise onto the stack, then insert this instruction to wait for the process to complete.
     CtrlAwait,
     CtrlAwaitCast(Type), // Special cast instruction for awaits with custom rules
-    CtrlAwaitError(Error), // Special error propagation for other processes
+    CtrlAwaitError(Box<Error>), // Special error propagation for other processes (boxed: errors are large, and every instruction is as large as the largest)
 
     // Does nothing...
     CtrlNoOp,
@@ -208,8 +208,8 @@ pub enum Base {
         // End tag for the while loop.
         end_tag: ArcStr,
 
-        // Inner instructions.
-        ins: Vector<Arc<dyn Instruction>>,
+        // Inner instructions (shared: this instruction is cloned on every pass, and kept small).
+        ins: Arc<Vector<Arc<dyn Instruction>>>,
 
         // Continue tag & end of while.
         continue_tag: ArcStr,
@@ -226,7 +226,7 @@ pub enum Base {
     ValidateFuncRet,
 
     // Spawn a new process.
-    Spawn((Instructions, Type)),
+    Spawn(Arc<(Instructions, Type)>), // shared, so every instruction stays small (serialized the same)
 
     // Symbol table / Graph.
     PushSymbolScope,
@@ -338,7 +338,7 @@ impl Instruction for Base {
             Self::CtrlAwait => {}, // Nothing here...
             Self::CtrlExit => {}, // Nothing here...
             Self::CtrlAwaitCast(_) => {}, // Nothing here...
-            Self::CtrlAwaitError(err) => { return Err(err.clone()); },
+            Self::CtrlAwaitError(err) => { return Err(err.as_ref().clone()); },
             Self::CtrlNoOp => {}, // Does nothing
 
             /*****************************************************************************
@@ -458,7 +458,7 @@ impl Instruction for Base {
                 
                 // Do the thing
                 instructions.push(PUSH_SYMBOL_SCOPE.clone());
-                instructions.append(ins);
+                instructions.append(ins.as_ref());
 
                 // Continue statements will go to here
                 instructions.push(Arc::new(Base::Tag(continue_tag.clone())));
@@ -480,7 +480,8 @@ impl Instruction for Base {
              * Spawn a new process.
              *****************************************************************************/
             
-            Self::Spawn((async_ins, ty)) => {
+            Self::Spawn(spawn) => {
+                let (async_ins, ty) = spawn.as_ref();
                 // Creates a new PID every time here, avoiding a lot of issues...
                 let mut proc = Process::from(async_ins.clone());
                 let pid = proc.env.pid.clone();
@@ -547,9 +548,8 @@ impl Instruction for Base {
                 if name.contains('.') || name == &SELF_STR_KEYWORD || name == &SUPER_STR_KEYWORD { return Err(Error::DeclareInvalidName); }
                 if let Some(mut var) = env.stack.pop() {
                     var.mutable = true;
-                    if !vtype.empty() {
-                        var.vtype = Some(vtype.clone());
-                    }
+                    // a declared type, else none: `let x = self.price` doesn't take the field's type
+                    var.vtype = if vtype.empty() { None } else { Some(vtype.clone()) };
                     env.table.insert(name, var);
                 } else {
                     return Err(Error::StackError);
@@ -560,9 +560,7 @@ impl Instruction for Base {
                 if name.contains('.') || name == &SELF_STR_KEYWORD || name == &SUPER_STR_KEYWORD { return Err(Error::DeclareInvalidName); }
                 if let Some(mut var) = env.stack.pop() {
                     var.mutable = false;
-                    if !vtype.empty() {
-                        var.vtype = Some(vtype.clone());
-                    }
+                    var.vtype = if vtype.empty() { None } else { Some(vtype.clone()) };
                     env.table.insert(name, var);
                 } else {
                     return Err(Error::StackError);

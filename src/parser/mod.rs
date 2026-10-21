@@ -38,6 +38,7 @@ pub mod import;
 pub mod data;
 pub mod source;
 pub mod info;
+pub mod edit;
 
 
 /// Parse attributes.
@@ -129,7 +130,8 @@ pub(self) fn parse_attribute<'a>(input: &'a str, context: &mut ParseContext) -> 
     let (input, _) = preceded(multispace0, char(']')).parse(input).map_err(err_fail)?;
 
     let mut val = Val::Null;
-    if let Some(expr) = value_expr {
+    let outline_only = context.info.as_ref().map(|info| info.outline_only).unwrap_or(false); // see parser::edit
+    if let Some(expr) = value_expr.filter(|_| !outline_only) {
         match context.eval(expr) {
             Ok(res) => {
                 val = res;

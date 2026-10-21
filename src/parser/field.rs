@@ -20,11 +20,13 @@ use imbl::vector;
 use nanoid::nanoid;
 use nom::{branch::alt, bytes::complete::{tag, take_until}, character::complete::{char, multispace0, multispace1, space0}, combinator::{map, opt, peek, recognize}, error::ParseError, sequence::{delimited, pair, preceded, terminated}, IResult, Parser};
 use rustc_hash::FxHashMap;
-use crate::{model::{Field, FieldDoc, SId, NOFIELD_FIELD_ATTR}, parser::{context::ParseContext, info::{Def, DefKind}, source, doc::{document_statement, err_fail, StofParseError}, expr::expr, ident::ident, parse_attributes, string::{double_string, single_string}, types::parse_type, whitespace::{doc_comment, whitespace}}, runtime::{Val, Variable}};
+use crate::{model::{Field, FieldDoc, SId, NOFIELD_FIELD_ATTR}, parser::{context::ParseContext, info::{Def, DefKind, DefSpan}, source, doc::{document_statement, err_fail, StofParseError}, expr::expr, ident::ident, parse_attributes, string::{double_string, single_string}, types::parse_type, whitespace::{doc_comment, whitespace}}, runtime::{Val, Variable}};
 
 
 /// Parse a field into a parse context.
 pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, (), StofParseError> {
+    let outer_start = input;
+
     // Doc comments & whitespace before a field definition
     let (input, mut comments) = doc_comment(input)?;
 
@@ -65,11 +67,14 @@ pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
     let (input, _) = delimited(multispace0, char(':'), multispace0).parse(input)?;
 
     // Value (variable)
+    let value_start = input;
     let (input, mut value) = value(input, &name, context, &mut attributes, do_insert_field).map_err(err_fail)?;
+    let value_end = input;
     if is_const.is_some() {
         value.mutable = false; // this field is const
     }
-    if let Some(cast_type) = field_type {
+    let outline_only = context.info.as_ref().map(|info| info.outline_only).unwrap_or(false);
+    if let Some(cast_type) = field_type.filter(|_| !outline_only) {
         let context_node = Some(context.self_ptr());
         if let Err(error) = value.cast(&cast_type, &mut context.graph, context_node) {
             let message = format!("'{name}' ({:?}) cannot be cast to type '{}': {}", value.val.read().deref(), cast_type.rt_type_of(&context.graph), error.to_string());
@@ -80,6 +85,7 @@ pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
 
     // Optionally end the field declaration with a semicolon or a comma
     let (input, _) = opt(preceded(multispace0, alt((char(';'), char(','))))).parse(input).map_err(err_fail)?;
+    let span = if context.info.is_some() { def_span(outer_start, signature, value_start, value_end, input) } else { None };
 
     // Check the do_insert_field, which will check attributes and profile for ignored fields and such after parsing
     if !do_insert_field {
@@ -99,7 +105,7 @@ pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
     // check for #[no-field] on an object value, which only creates the object, not a field in addition
     // this is typically done within/for the stof export
     if value.try_obj().is_some() && attributes.contains_key(NOFIELD_FIELD_ATTR.as_str()) {
-        record_def(context, &name, signature, input, None, value.try_obj(), &comments);
+        record_def(context, &name, signature, input, None, value.try_obj(), &comments, span);
         return Ok((input, ()));
     }
     
@@ -110,7 +116,7 @@ pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
     let Some(field_ref) = context.graph.insert_stof_data(&self_ptr, &name, Box::new(field), None) else {
         return Err(nom::Err::Failure(StofParseError::from(format!("could not create field '{name}': the object it belongs to no longer exists"))));
     };
-    record_def(context, &name, signature, input, Some(field_ref.clone()), obj, &comments);
+    record_def(context, &name, signature, input, Some(field_ref.clone()), obj, &comments, span);
 
     // Insert the field doc comments also if requested
     if context.profile.docs && comments.len() > 0 {
@@ -126,7 +132,7 @@ pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
 
 /// Record a field definition (editor tooling only).
 /// The signature is "name", "type name", or either with a quoted name.
-fn record_def(context: &mut ParseContext, name: &str, signature: &str, end: &str, data: Option<crate::model::DataRef>, obj: Option<crate::model::NodeRef>, docs: &str) {
+fn record_def(context: &mut ParseContext, name: &str, signature: &str, end: &str, data: Option<crate::model::DataRef>, obj: Option<crate::model::NodeRef>, docs: &str, span: Option<DefSpan>) {
     if context.info.is_none() { return; }
     let mut name_offset = signature.rfind(char::is_whitespace).map(|index| index + 1).unwrap_or(0);
     for quote in ['"', '\''] {
@@ -137,8 +143,32 @@ fn record_def(context: &mut ParseContext, name: &str, signature: &str, end: &str
     let Some(start) = source::locate(&signature[name_offset..]) else { return; };
     let parent = context.self_ptr();
     if let Some(info) = &mut context.info {
-        info.defs.push(Def { kind: DefKind::Field, name: name.to_string(), parent, data, obj, target: None, start, end: source::locate(end), docs: docs.to_string() });
+        info.defs.push(Def { kind: DefKind::Field, name: name.to_string(), parent, data, obj, target: None, start, end: source::locate(end), docs: docs.to_string(), span });
     }
+}
+
+
+/// Byte offsets of a field definition (editor tooling only). The signature is "name", "type name", or either with
+/// a quoted name; its end is the end of the name.
+fn def_span(outer_start: &str, signature: &str, value_start: &str, value_end: &str, outer_end: &str) -> Option<DefSpan> {
+    let mut name_offset = signature.rfind(char::is_whitespace).map(|index| index + 1).unwrap_or(0);
+    for quote in ['"', '\'']{
+        if signature.len() > 1 && signature.ends_with(quote) {
+            name_offset = signature[..signature.len() - 1].rfind(quote).unwrap_or(0);
+        }
+    }
+    let name_start = source::offset(&signature[name_offset..])?;
+    let value_len = value_start.len().saturating_sub(value_end.len());
+    let value_text = &value_start[..value_len];
+    let value_start = source::offset(value_start)?;
+    Some(DefSpan {
+        outer_start: source::offset(outer_start)?,
+        name_start,
+        name_end: name_start + signature.len() - name_offset,
+        value_start,
+        value_end: value_start + value_text.trim_end().len(), // values can take the whitespace after them
+        outer_end: source::offset(outer_end)?,
+    })
 }
 
 
@@ -180,8 +210,11 @@ fn value_inner<'a>(input: &'a str, name: &str, context: &mut ParseContext, attri
         }
     }
 
-    // Finally try an expression
+    // Finally try an expression (not run when only the definitions matter: see parser::edit)
     let (input, expr) = expr(input)?;
+    if context.info.as_ref().map(|info| info.outline_only).unwrap_or(false) {
+        return Ok((input, Variable::val(Val::Null)));
+    }
     match context.eval(expr) {
         Ok(val) => {
             Ok((input, Variable::val(val)))
@@ -282,7 +315,8 @@ fn object_value<'a>(input: &'a str, name: &str, context: &mut ParseContext, attr
 
     // Optional object cast at the end (useful when creating arrays especially)
     let (input, cast_type) = opt(preceded(preceded(multispace0, tag("as")), preceded(multispace0, parse_type))).parse(input)?;
-    if let Some(cast_type) = cast_type {
+    let outline_only = context.info.as_ref().map(|info| info.outline_only).unwrap_or(false);
+    if let Some(cast_type) = cast_type.filter(|_| !outline_only) {
         let context_node = Some(context.self_ptr());
         if let Err(error) = value.cast(&cast_type, &mut context.graph, context_node) {
             let message = format!("'{}' cannot be cast to type '{}': {}", name, cast_type.rt_type_of(&context.graph), error.to_string());

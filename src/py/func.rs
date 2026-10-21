@@ -15,7 +15,6 @@
 //
 
 use std::{cell::RefCell, collections::BTreeMap, sync::Arc};
-use imbl::vector;
 use pyo3::{Py, PyAny, Python, exceptions::PyValueError};
 use serde::{Deserialize, Serialize};
 use crate::{model::{Graph, LibFunc, stof_std::THROW}, py::value::{py_any_to_val, val_to_py}, runtime::{Val, Variable, instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv}};
@@ -45,7 +44,7 @@ pub fn set_py_lib_func(graph: &mut Graph, lib: &str, name: &str, func: Py<PyAny>
         name: name.into(),
         is_async,
         docs: String::default(),
-        params: vector![],
+        params: crate::params![],
         unbounded_args: true,
         return_type: None,
         args_to_symbol_table: false,

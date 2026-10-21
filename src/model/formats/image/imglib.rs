@@ -17,7 +17,6 @@
 use std::{ops::Deref, sync::Arc};
 use arcstr::{literal, ArcStr};
 use image::imageops::FilterType;
-use imbl::vector;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use crate::{model::{image::image::Image, Graph, LibFunc, Param}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, NumT, Type, Val, Variable}};
@@ -33,7 +32,7 @@ pub fn insert_image_library(graph: &mut Graph) {
         docs: r#"# Image.width(img: Data\<Image>) -> int
 Width in pixels of this image.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
         unbounded_args: false,
@@ -54,7 +53,7 @@ Width in pixels of this image.
         docs: r#"# Image.height(img: Data\<Image>) -> int
 Height in pixels of this image.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
         unbounded_args: false,
@@ -75,7 +74,7 @@ Height in pixels of this image.
         docs: r#"# Image.grayscale(img: Data\<Image>) -> void
 Turn this image into grayscale.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
         unbounded_args: false,
@@ -96,7 +95,7 @@ Turn this image into grayscale.
         docs: r#"# Image.invert(img: Data\<Image>) -> void
 Invert this image.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
         unbounded_args: false,
@@ -117,7 +116,7 @@ Invert this image.
         docs: r#"# Image.flip_vertical(img: Data\<Image>) -> void
 Flip this image vertically.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
         unbounded_args: false,
@@ -138,7 +137,7 @@ Flip this image vertically.
         docs: r#"# Image.flip_horizontal(img: Data\<Image>) -> void
 Flip this image horizontally.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
         unbounded_args: false,
@@ -159,7 +158,7 @@ Flip this image horizontally.
         docs: r#"# Image.rotate_90(img: Data\<Image>) -> void
 Rotate this image 90 degrees clockwise.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
         unbounded_args: false,
@@ -180,7 +179,7 @@ Rotate this image 90 degrees clockwise.
         docs: r#"# Image.rotate_180(img: Data\<Image>) -> void
 Rotate this image 180 degrees clockwise.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
         unbounded_args: false,
@@ -201,7 +200,7 @@ Rotate this image 180 degrees clockwise.
         docs: r#"# Image.rotate_270(img: Data\<Image>) -> void
 Rotate this image 270 degrees clockwise.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
         unbounded_args: false,
@@ -222,7 +221,7 @@ Rotate this image 270 degrees clockwise.
         docs: r#"# Image.resize(img: Data\<Image>, width: int, height: int) -> bool
 Resize this image, preserving it's aspect ratio. Will return true if the image was successfully resized.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
             Param { name: "width".into(), param_type: Type::Num(NumT::Int), default: None, },
             Param { name: "height".into(), param_type: Type::Num(NumT::Int), default: None, },
@@ -245,7 +244,7 @@ Resize this image, preserving it's aspect ratio. Will return true if the image w
         docs: r#"# Image.resize_exact(img: Data\<Image>, width: int, height: int) -> bool
 Resize this image, without preserving it's aspect ratio. Will return true if the image was successfully resized.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
             Param { name: "width".into(), param_type: Type::Num(NumT::Int), default: None, },
             Param { name: "height".into(), param_type: Type::Num(NumT::Int), default: None, },
@@ -268,7 +267,7 @@ Resize this image, without preserving it's aspect ratio. Will return true if the
         docs: r#"# Image.thumbnail(img: Data\<Image>, width: int, height: int) -> bool
 Resize this image into a thumbnail, preserving it's aspect ratio. Will return true if the image was successfully resized.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
             Param { name: "width".into(), param_type: Type::Num(NumT::Int), default: None, },
             Param { name: "height".into(), param_type: Type::Num(NumT::Int), default: None, },
@@ -291,7 +290,7 @@ Resize this image into a thumbnail, preserving it's aspect ratio. Will return tr
         docs: r#"# Image.thumbnail_exact(img: Data\<Image>, width: int, height: int) -> bool
 Resize this image into a thumbnail, without preserving it's aspect ratio. Will return true if the image was successfully resized.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
             Param { name: "width".into(), param_type: Type::Num(NumT::Int), default: None, },
             Param { name: "height".into(), param_type: Type::Num(NumT::Int), default: None, },
@@ -314,7 +313,7 @@ Resize this image into a thumbnail, without preserving it's aspect ratio. Will r
         docs: r#"# Image.blur(img: Data\<Image>, blur: float) -> void
 Blur this image with the given blur value (sigma in a gaussian blur).
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
             Param { name: "blur".into(), param_type: Type::Num(NumT::Float), default: None, },
         ],
@@ -336,7 +335,7 @@ Blur this image with the given blur value (sigma in a gaussian blur).
         docs: r#"# Image.fast_blur(img: Data\<Image>, blur: float) -> void
 Blur this image with the given blur value (sigma in a gaussian blur).
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
             Param { name: "blur".into(), param_type: Type::Num(NumT::Float), default: None, },
         ],
@@ -358,7 +357,7 @@ Blur this image with the given blur value (sigma in a gaussian blur).
         docs: r#"# Image.contrast(img: Data\<Image>, contrast: float) -> void
 Set the contrast of this image (positive to increase, negative to decrease).
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
             Param { name: "contrast".into(), param_type: Type::Num(NumT::Float), default: None, },
         ],
@@ -380,7 +379,7 @@ Set the contrast of this image (positive to increase, negative to decrease).
         docs: r#"# Image.brighten(img: Data\<Image>, brighten: int) -> void
 Brighten this image with the given value (positive to increase each pixel and negative to decrease).
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
             Param { name: "brighten".into(), param_type: Type::Num(NumT::Int), default: None, },
         ],
@@ -402,7 +401,7 @@ Brighten this image with the given value (positive to increase each pixel and ne
         docs: r#"# Image.blob(img: Data\<Image>) -> blob
 Transform this image into a binary blob value (raw binary is a PNG).
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
         unbounded_args: false,
@@ -423,7 +422,7 @@ Transform this image into a binary blob value (raw binary is a PNG).
         docs: r#"# Image.png(img: Data\<Image>) -> blob
 Transform this image into a binary blob value that is in PNG format.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
         unbounded_args: false,
@@ -444,7 +443,7 @@ Transform this image into a binary blob value that is in PNG format.
         docs: r#"# Image.jpeg(img: Data\<Image>) -> blob
 Transform this image into a binary blob value that is in JPEG format.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
         unbounded_args: false,
@@ -465,7 +464,7 @@ Transform this image into a binary blob value that is in JPEG format.
         docs: r#"# Image.gif(img: Data\<Image>) -> blob
 Transform this image into a binary blob value that is in GIF format.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
         unbounded_args: false,
@@ -486,7 +485,7 @@ Transform this image into a binary blob value that is in GIF format.
         docs: r#"# Image.webp(img: Data\<Image>) -> blob
 Transform this image into a binary blob value that is in WEBP format.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
         unbounded_args: false,
@@ -507,7 +506,7 @@ Transform this image into a binary blob value that is in WEBP format.
         docs: r#"# Image.tiff(img: Data\<Image>) -> blob
 Transform this image into a binary blob value that is in TIFF format.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
         unbounded_args: false,
@@ -528,7 +527,7 @@ Transform this image into a binary blob value that is in TIFF format.
         docs: r#"# Image.bmp(img: Data\<Image>) -> blob
 Transform this image into a binary blob value that is in BMP format.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
         unbounded_args: false,
@@ -549,7 +548,7 @@ Transform this image into a binary blob value that is in BMP format.
         docs: r#"# Image.ico(img: Data\<Image>) -> blob
 Transform this image into a binary blob value that is in ICO format.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "img".into(), param_type: Type::Data(IMAGE_LIB.clone()), default: None, },
         ],
         unbounded_args: false,
@@ -570,7 +569,7 @@ Transform this image into a binary blob value that is in ICO format.
         docs: r#"# Image.from_blob(bytes: blob) -> Data\<Image>
 Create an image (on the calling/current object) given a binary blob, attempting to auto-detect the image's format.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "bytes".into(), param_type: Type::Blob, default: None, },
         ],
         unbounded_args: false,

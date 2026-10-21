@@ -16,7 +16,6 @@
 
 
 use std::sync::Arc;
-use imbl::vector;
 use crate::{model::{stof_std::{StdIns, STD_LIB}, LibFunc}, runtime::instruction::Instructions};
 
 
@@ -35,7 +34,7 @@ const promise = async {
 exit(promise);
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,

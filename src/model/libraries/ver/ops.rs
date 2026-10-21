@@ -15,7 +15,6 @@
 //
 
 use std::sync::Arc;
-use imbl::vector;
 use crate::{model::{ver::{BUILD, CLEAR_BUILD, CLEAR_RELEASE, MAJOR, MINOR, PATCH, RELEASE, SET_BUILD, SET_MAJOR, SET_MINOR, SET_PATCH, SET_RELEASE, VER_LIB}, LibFunc, Param}, runtime::{instruction::Instructions, NumT, Type}};
 
 
@@ -32,7 +31,7 @@ const ver = 1.2.3-release+build;
 assert_eq(ver.major(), 1);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ver".into(), param_type: Type::Ver, default: None }
         ],
         return_type: None,
@@ -59,7 +58,7 @@ const ver = 1.2.3-release+build;
 assert_eq(ver.minor(), 2);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ver".into(), param_type: Type::Ver, default: None }
         ],
         return_type: None,
@@ -86,7 +85,7 @@ const ver = 1.2.3-release+build;
 assert_eq(ver.patch(), 3);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ver".into(), param_type: Type::Ver, default: None }
         ],
         return_type: None,
@@ -113,7 +112,7 @@ const ver = 1.2.3-release+build;
 assert_eq(ver.release(), "release");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ver".into(), param_type: Type::Ver, default: None }
         ],
         return_type: None,
@@ -140,7 +139,7 @@ const ver = 1.2.3-release+build;
 assert_eq(ver.build(), "build");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ver".into(), param_type: Type::Ver, default: None }
         ],
         return_type: None,
@@ -168,7 +167,7 @@ ver.set_major(4);
 assert_eq(ver, 4.2.3-release+build);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ver".into(), param_type: Type::Ver, default: None },
             Param { name: "val".into(), param_type: Type::Num(NumT::Int), default: None }
         ],
@@ -197,7 +196,7 @@ ver.set_minor(4);
 assert_eq(ver, 1.4.3-release+build);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ver".into(), param_type: Type::Ver, default: None },
             Param { name: "val".into(), param_type: Type::Num(NumT::Int), default: None }
         ],
@@ -226,7 +225,7 @@ ver.set_patch(4);
 assert_eq(ver, 1.2.4-release+build);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ver".into(), param_type: Type::Ver, default: None },
             Param { name: "val".into(), param_type: Type::Num(NumT::Int), default: None }
         ],
@@ -255,7 +254,7 @@ ver.set_release("modified");
 assert_eq(ver, 1.2.3-modified+build);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ver".into(), param_type: Type::Ver, default: None },
             Param { name: "val".into(), param_type: Type::Str, default: None }
         ],
@@ -284,7 +283,7 @@ ver.set_build("modified");
 assert_eq(ver, 1.2.3-release+modified);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ver".into(), param_type: Type::Ver, default: None },
             Param { name: "val".into(), param_type: Type::Str, default: None }
         ],
@@ -313,7 +312,7 @@ ver.clear_release();
 assert_eq(ver, 1.2.3+build);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ver".into(), param_type: Type::Ver, default: None }
         ],
         return_type: None,
@@ -341,7 +340,7 @@ ver.clear_build();
 assert_eq(ver, 1.2.3-release);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ver".into(), param_type: Type::Ver, default: None }
         ],
         return_type: None,

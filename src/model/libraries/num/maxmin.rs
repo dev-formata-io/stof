@@ -16,7 +16,6 @@
 
 
 use std::sync::Arc;
-use imbl::vector;
 use crate::{model::{num::{NumIns, NUM_LIB}, LibFunc}, runtime::instruction::Instructions};
 
 
@@ -32,7 +31,7 @@ Return the maximum value of all given arguments. If the argument is a collection
 assert_eq(Num.max(12, 23, 10, 42, 0), 42);
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,
@@ -57,7 +56,7 @@ Return the minimum value of all given arguments. If the argument is a collection
 assert_eq(Num.min(12, 23, 10, 42, 0), 0);
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,

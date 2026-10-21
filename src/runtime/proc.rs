@@ -120,7 +120,7 @@ impl ProcEnv {
             if let Some(this) = graph.get_stof_data::<Func>(func) {
                 let mut params = String::default();
                 let mut first = true;
-                for param in &this.params {
+                for param in this.params.iter() {
                     if first {
                         first = false;
                         params.push_str(&format!("{}: {}", param.name.as_ref(), param.param_type.rt_type_of(graph)));

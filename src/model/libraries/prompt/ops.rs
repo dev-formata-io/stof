@@ -30,7 +30,7 @@ Convert this prompt into a string, just like a cast to 'str' would do.
 const p = prompt('hello', 'greet');
 assert_eq(p.str(), '<greet>hello</greet>');
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "prompt".into(), param_type: Type::Prompt, default: None }
         ],
         return_type: None,
@@ -55,7 +55,7 @@ Get the text portion of this prompt (ignoring any sub-prompts & tag).
 const p = prompt('hello', 'greet');
 assert_eq(p.text(), 'hello');
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "prompt".into(), param_type: Type::Prompt, default: None }
         ],
         return_type: None,
@@ -80,7 +80,7 @@ Get the string tag for this prompt, or null if not present.
 const p = prompt('hello', 'greet');
 assert_eq(p.tag(), 'greet');
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "prompt".into(), param_type: Type::Prompt, default: None }
         ],
         return_type: None,
@@ -106,7 +106,7 @@ const p = prompt('hello', 'greet', prompt('a thing', 'sub'));
 assert_eq(p.str(), '<greet>hello<sub>a thing</sub></greet>');
 assert_eq(p.prompts(), [prompt('a thing', 'sub')]);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "prompt".into(), param_type: Type::Prompt, default: None }
         ],
         return_type: None,
@@ -132,7 +132,7 @@ const p = prompt('hello', 'greet');
 p.set_text('hello, world');
 assert_eq(p.str(), '<greet>hello, world</greet>');
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "prompt".into(), param_type: Type::Prompt, default: None },
             Param { name: "text".into(), param_type: Type::Str, default: None }
         ],
@@ -159,7 +159,7 @@ const p = prompt('hello', 'greet');
 p.set_tag('msg');
 assert_eq(p.str(), '<msg>hello</msg>');
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "prompt".into(), param_type: Type::Prompt, default: None },
             Param { name: "tag".into(), param_type: Type::Str, default: None }
         ],
@@ -185,7 +185,7 @@ The number of sub-prompts contained within this prompt.
 const p = prompt('hello', 'greet', prompt('hello, world'));
 assert_eq(p.len(), 1);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "prompt".into(), param_type: Type::Prompt, default: None }
         ],
         return_type: None,
@@ -211,7 +211,7 @@ const p = prompt('hello', 'greet', prompt('hello there'));
 const sub = p[0];
 assert_eq(sub, prompt('hello there'));
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "prompt".into(), param_type: Type::Prompt, default: None },
             Param { name: "index".into(), param_type: Type::Num(NumT::Int), default: None }
         ],
@@ -237,7 +237,7 @@ Does this prompt have any sub-prompts?
 const p = prompt('hello', 'greet');
 assert(!p.any());
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "prompt".into(), param_type: Type::Prompt, default: None }
         ],
         return_type: None,
@@ -262,7 +262,7 @@ Returns true if the prompt does not have any sub-prompts.
 const p = prompt('hello', 'greet');
 assert(p.empty());
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "prompt".into(), param_type: Type::Prompt, default: None }
         ],
         return_type: None,
@@ -288,7 +288,7 @@ const p = prompt('hello', 'greet');
 p.push(', world');
 assert_eq(p as str, '<greet>hello, world</greet>');
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "prompt".into(), param_type: Type::Prompt, default: None },
             Param { name: "other".into(), param_type: Type::Union(vector![Type::Str, Type::Prompt]), default: None },
             Param { name: "tag".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))) },
@@ -317,7 +317,7 @@ p.push(', world');
 p.pop();
 assert_eq(p as str, '<greet>hello</greet>');
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "prompt".into(), param_type: Type::Prompt, default: None }
         ],
         return_type: None,
@@ -344,7 +344,7 @@ p.push(', world');
 p.clear();
 assert_eq(p as str, '<greet>hello</greet>');
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "prompt".into(), param_type: Type::Prompt, default: None }
         ],
         return_type: None,
@@ -372,7 +372,7 @@ p.push('hello');
 p.reverse();
 assert_eq(p as str, '<greet>hello, world</greet>');
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "prompt".into(), param_type: Type::Prompt, default: None }
         ],
         return_type: None,
@@ -400,7 +400,7 @@ p.push(', world');
 p.remove(1);
 assert_eq(p as str, '<greet>hello</greet>');
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "prompt".into(), param_type: Type::Prompt, default: None },
             Param { name: "index".into(), param_type: Type::Num(NumT::Int), default: None }
         ],
@@ -428,7 +428,7 @@ p.push('hello');
 p.insert(1, ', world');
 assert_eq(p as str, '<greet>hello, world</greet>');
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "prompt".into(), param_type: Type::Prompt, default: None },
             Param { name: "index".into(), param_type: Type::Num(NumT::Int), default: None },
             Param { name: "other".into(), param_type: Type::Prompt, default: None }
@@ -457,7 +457,7 @@ p.push('hello');
 p.replace(0, 'yo');
 assert_eq(p as str, '<greet>yo</greet>');
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "prompt".into(), param_type: Type::Prompt, default: None },
             Param { name: "index".into(), param_type: Type::Num(NumT::Int), default: None },
             Param { name: "other".into(), param_type: Type::Prompt, default: None }

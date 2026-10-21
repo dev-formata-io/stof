@@ -16,7 +16,6 @@
 
 use std::sync::Arc;
 use arcstr::{literal, ArcStr};
-use imbl::vector;
 use crate::{model::{Graph, LibFunc, Param}, runtime::{instruction::Instructions, instructions::map::{ANY_MAP, APPEND_MAP, AT_MAP, AT_REF_MAP, CLEAR_MAP, CONTAINS_MAP, EMPTY_MAP, FIRST_MAP, FIRST_REF_MAP, GET_MAP, GET_REF_MAP, INSERT_MAP, KEYS_MAP, LAST_MAP, LAST_REF_MAP, LEN_MAP, POP_FIRST_MAP, POP_LAST_MAP, REMOVE_MAP, VALUES_MAP, VALUES_REF_MAP}, NumT, Type}};
 
 
@@ -58,7 +57,7 @@ const map = {"a": 1};
 map.append({"b": 2});
 assert_eq(map, {"a": 1, "b": 2});
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "map".into(), param_type: Type::Map, default: None },
             Param { name: "other".into(), param_type: Type::Map, default: None }
         ],
@@ -86,7 +85,7 @@ const map = {"a": 1};
 map.clear();
 assert(map.empty());
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "map".into(), param_type: Type::Map, default: None }
         ],
         return_type: None,
@@ -112,7 +111,7 @@ Returns true if this map contains a key that equals the given value.
 const map = {"a": 1};
 assert(map.contains("a"));
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "map".into(), param_type: Type::Map, default: None },
             Param { name: "key".into(), param_type: Type::Void, default: None }
         ],
@@ -139,7 +138,7 @@ Return the first key-value pair in this ordered map, or null if the map is empty
 const map = {"a": 1};
 assert_eq(map.first(), ("a", 1));
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "map".into(), param_type: Type::Map, default: None }
         ],
         return_type: None,
@@ -169,7 +168,7 @@ Return the last key-value pair in this ordered map, or null if the map is empty.
 const map = {"a": 1, "b": 3};
 assert_eq(map.last(), ("b", 3));
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "map".into(), param_type: Type::Map, default: None }
         ],
         return_type: None,
@@ -199,7 +198,7 @@ Return a value for the given key in this map, optionally by reference.
 const map = {"a": 1};
 assert_eq(map.get("a"), 1);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "map".into(), param_type: Type::Map, default: None },
             Param { name: "key".into(), param_type: Type::Void, default: None }
         ],
@@ -231,7 +230,7 @@ const map = {"a": 1};
 assert_eq(map.insert("a", 3), 1);
 assert_eq(map, {"a": 3});
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "map".into(), param_type: Type::Map, default: None },
             Param { name: "key".into(), param_type: Type::Void, default: None },
             Param { name: "value".into(), param_type: Type::Void, default: None }
@@ -259,7 +258,7 @@ Is this map empty?
 const map = map();
 assert(map.empty());
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "map".into(), param_type: Type::Map, default: None }
         ],
         return_type: None,
@@ -285,7 +284,7 @@ Does this map contain any key-value pairs?
 const map = map();
 assert_not(map.any());
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "map".into(), param_type: Type::Map, default: None }
         ],
         return_type: None,
@@ -311,7 +310,7 @@ A set of this map's keys.
 const map = {"a": 1, "b": 2};
 assert_eq(map.keys(), {"a", "b"});
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "map".into(), param_type: Type::Map, default: None }
         ],
         return_type: None,
@@ -337,7 +336,7 @@ A list of this map's values.
 const map = {"a": 1, "b": 2};
 assert_eq(map.values(), [1, 2]);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "map".into(), param_type: Type::Map, default: None }
         ],
         return_type: None,
@@ -367,7 +366,7 @@ The number of key-value pairs in this map.
 const map = {"a": 1, "b": 2};
 assert_eq(map.len(), 2);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "map".into(), param_type: Type::Map, default: None }
         ],
         return_type: None,
@@ -393,7 +392,7 @@ The key-value pair at the given index in this sorted map.
 const map = {"a": 1, "b": 2};
 assert_eq(map.at(1), ("b", 2));
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "map".into(), param_type: Type::Map, default: None },
             Param { name: "index".into(), param_type: Type::Num(NumT::Int), default: None }
         ],
@@ -424,7 +423,7 @@ Remove the smallest key-value pair from this map and return it.
 const map = {"a": 1, "b": 2};
 assert_eq(map.pop_first(), ("a", 1));
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "map".into(), param_type: Type::Map, default: None }
         ],
         return_type: None,
@@ -449,7 +448,7 @@ Remove the largest key-value pair from this map and return it.
 ```rust
 const map = {"a": 1, "b": 2};
 assert_eq(map.pop_last(), ("b", 2));
-```"#.into(),params: vector![
+```"#.into(),params: crate::params![
             Param { name: "map".into(), param_type: Type::Map, default: None }
         ],
         return_type: None,
@@ -476,7 +475,7 @@ const map = {"a": 1, "b": 2};
 assert_eq(map.remove("b"), 2);
 assert_eq(map, {"a": 1});
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "map".into(), param_type: Type::Map, default: None },
             Param { name: "key".into(), param_type: Type::Void, default: None }
         ],

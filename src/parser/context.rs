@@ -200,7 +200,7 @@ impl<'ctx> ParseContext<'ctx> {
         for (name, call, addr) in referenced {
             if vars.iter().any(|var| var == &name) || !seen.insert(name.clone()) { continue; }
             if call {
-                if self.graph.libfunc(&literal!("Std"), &name).is_some() { continue; }
+                if self.graph.has_libfunc(&literal!("Std"), &name) { continue; }
             } else if self.is_lib_name(&name) {
                 continue; // Ex. Num.abs(x)
             }

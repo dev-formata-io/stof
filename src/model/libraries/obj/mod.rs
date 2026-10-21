@@ -21,7 +21,7 @@ use lazy_static::lazy_static;
 use nanoid::nanoid;
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
-use crate::{model::{Field, Func, Graph, PROTOTYPE_DATA_NAME, PROTOTYPE_TYPE_ATTR, Prototype, SId, obj::{ops::{obj_any, obj_at, obj_attributes, obj_children, obj_contains, obj_create_type, obj_diff, obj_dist, obj_dump_graph, obj_empty, obj_exists, obj_fields, obj_from_id, obj_from_map, obj_funcs, obj_get, obj_id, obj_insert, obj_instance_of_proto, obj_is_parent, obj_is_root, obj_len, obj_move, obj_move_field, obj_name, obj_parent, obj_path, obj_proto, obj_remove, obj_remove_proto, obj_root, obj_run, obj_schemafy, obj_set_proto, obj_to_map, obj_upcast}, validate::validation}, stof_std::{COPY, StdIns}}, runtime::{Error, Num, Type, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack, DUPLICATE, EQUAL, POP_SELF, POP_STACK, PUSH_SELF, TRUTHY, ifs::IfIns}, proc::ProcEnv}};
+use crate::{model::{Field, Func, Graph, PROTOTYPE_DATA_NAME, PROTOTYPE_TYPE_ATTR, Prototype, SId, obj::{ops::{obj_any, obj_at, obj_attributes, obj_children, obj_contains, obj_create_type, obj_diff, obj_dist, obj_dump_graph, obj_empty, obj_exists, obj_fields, obj_from_id, obj_from_map, obj_funcs, obj_get, obj_id, obj_insert, obj_instance_of_proto, obj_is_parent, obj_is_root, obj_len, obj_move, obj_move_field, obj_name, obj_parent, obj_path, obj_proto, obj_remove, obj_remove_proto, obj_root, obj_run, obj_schemafy, obj_set, obj_set_proto, obj_unset, obj_to_map, obj_upcast}, validate::validation}, stof_std::{COPY, StdIns}}, runtime::{Error, Num, Type, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack, DUPLICATE, EQUAL, POP_SELF, POP_STACK, PUSH_SELF, TRUTHY, ifs::IfIns}, proc::ProcEnv}};
 mod validate;
 mod ops;
 mod run;
@@ -56,6 +56,8 @@ pub fn insert_obj_lib(graph: &mut Graph) {
     graph.insert_libfunc(obj_contains());
     graph.insert_libfunc(obj_insert());
     graph.insert_libfunc(obj_remove());
+    graph.insert_libfunc(obj_set());
+    graph.insert_libfunc(obj_unset());
     graph.insert_libfunc(obj_move_field());
     graph.insert_libfunc(obj_fields());
     graph.insert_libfunc(obj_funcs());
@@ -174,6 +176,11 @@ pub enum ObjIns {
 
     /// Run with options from the call: (obj, prototype mode, step names).
     RunWith,
+
+    /// Set or create the field with exactly this name (no path): (obj, name, value).
+    Set,
+    /// Remove the field, function, or data with exactly this name (no path): (obj, name, shallow).
+    Unset,
 }
 #[typetag::serde(name = "ObjIns")]
 impl Instruction for ObjIns {
@@ -621,6 +628,54 @@ impl Instruction for ObjIns {
                     }
                 }
                 Err(Error::ObjRemove)
+            },
+            Self::Set => {
+                let (Some(value_var), Some(name_var), Some(var)) = (env.stack.pop(), env.stack.pop(), env.stack.pop()) else { return Err(Error::ObjInsert); };
+                let Some(obj) = var.try_obj() else { return Err(Error::ObjInsert); };
+                let Val::Str(name) = name_var.val.read().clone() else { return Err(Error::ObjInsert); };
+                let existing = obj.node(graph).and_then(|node| node.get_data(name.as_str()).cloned());
+                match existing {
+                    Some(dref) => {
+                        let Some(field) = graph.get_stof_data::<Field>(&dref) else {
+                            // a function or other data has this name
+                            return Err(Error::ObjInsert);
+                        };
+                        if !field.can_set() { return Err(Error::FieldReadOnlySet); }
+                        let mut fvar = field.value.clone();
+                        fvar.set(&value_var, graph, Some(obj.clone()))?;
+                        if let Some(field) = graph.get_mut_stof_data::<Field>(&dref) {
+                            field.value = fvar;
+                        }
+                        if let Some(data) = dref.data_mut(graph) {
+                            data.invalidate_value();
+                        }
+                    },
+                    None => {
+                        let mut value = value_var;
+                        value.mutable = true;
+                        graph.insert_stof_data(&obj, name.as_str(), Box::new(Field::new(value, None)), None);
+                    },
+                }
+                Ok(None)
+            },
+            Self::Unset => {
+                let (Some(shallow_var), Some(name_var), Some(var)) = (env.stack.pop(), env.stack.pop(), env.stack.pop()) else { return Err(Error::ObjRemove); };
+                let Some(obj) = var.try_obj() else { return Err(Error::ObjRemove); };
+                let Val::Str(name) = name_var.val.read().clone() else { return Err(Error::ObjRemove); };
+                let existing = obj.node(graph).and_then(|node| node.get_data(name.as_str()).cloned());
+                let mut removed = false;
+                if let Some(dref) = existing {
+                    // like drop: a field's object value goes too, unless shallow
+                    if !shallow_var.truthy() {
+                        let value = graph.get_stof_data::<Field>(&dref).map(|field| field.value.val.clone());
+                        if let Some(value) = value {
+                            value.read().drop_data(graph);
+                        }
+                    }
+                    removed = graph.remove_data(&dref, Some(obj.clone()));
+                }
+                env.stack.push(Variable::val(Val::Bool(removed)));
+                Ok(None)
             },
             Self::MoveField => {
                 if let Some(dest_var) = env.stack.pop() {

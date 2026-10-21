@@ -16,7 +16,6 @@
 
 use std::sync::Arc;
 use arcstr::{literal, ArcStr};
-use imbl::vector;
 use crate::{model::{Graph, LibFunc, Param}, runtime::{NumT, Type, Val, instruction::Instructions, instructions::{Base, list::{APPEND_LIST, AT_LIST, AT_REF_LIST, CLEAR_LIST, CONTAINS_LIST, EMPTY_LIST, FIRST_LIST, FIRST_REF_LIST, INDEX_OF_LIST, INSERT_LIST, IS_UNIFORM_LIST, JOIN_LIST, LAST_LIST, LAST_REF_LIST, LEN_LIST, ListIns, POP_BACK_LIST, POP_FRONT_LIST, REMOVE_ALL_LIST, REMOVE_FIRST_LIST, REMOVE_LAST_LIST, REMOVE_LIST, REPLACE_LIST, REVERSE_LIST, REVERSED_LIST, SORT_LIST, SORT_LIST_BY, TO_UNIFORM_LIST}}}};
 
 
@@ -74,7 +73,7 @@ const array = [1, 2, 3];
 array.append([4, 5]);
 assert_eq(array, [1, 2, 3, 4, 5]);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "other".into(), param_type: Type::List, default: None }
         ],
@@ -102,7 +101,7 @@ const array = [1, 2, 3];
 array.push_back(4, 5);
 assert_eq(array, [1, 2, 3, 4, 5]);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
         return_type: None,
@@ -129,7 +128,7 @@ const array = [1, 2, 3];
 array.push_front(4, 5);
 assert_eq(array, [5, 4, 1, 2, 3]);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
         return_type: None,
@@ -156,7 +155,7 @@ const array = [1, 2, 3];
 assert_eq(array.pop_front(), 1);
 assert_eq(array, [2, 3]);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
         return_type: None,
@@ -183,7 +182,7 @@ const array = [1, 2, 3];
 assert_eq(array.pop_back(), 3);
 assert_eq(array, [1, 2]);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
         return_type: None,
@@ -210,7 +209,7 @@ const array = [1, 2, 3];
 array.clear();
 assert_eq(array, []);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
         return_type: None,
@@ -237,7 +236,7 @@ const array = [1, 2, 3];
 array.reverse();
 assert_eq(array, [3, 2, 1]);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
         return_type: None,
@@ -265,7 +264,7 @@ const other = array.reversed();
 assert_eq(array, [1, 2, 3]);
 assert_eq(other, [3, 2, 1]);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
         return_type: None,
@@ -291,7 +290,7 @@ Return the length of this list.
 const array = [1, 2, 3];
 assert_eq(array.len(), 3);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
         return_type: None,
@@ -319,7 +318,7 @@ let v = &array[1]; // &List.at(array, 1);
 v = 5;
 assert_eq(array, [1, 5, 3]);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "index".into(), param_type: Type::Num(NumT::Int), default: None }
         ],
@@ -350,7 +349,7 @@ Is this list empty?
 const array = [1];
 assert_not(array.empty());
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
         return_type: None,
@@ -377,7 +376,7 @@ Get the value at the front of this list, optionally by reference.
 const array = [1];
 assert_eq(array.front(), 1);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
         return_type: None,
@@ -407,7 +406,7 @@ Get the value at the back of this list, optionally by reference.
 const array = [1, 2];
 assert_eq(array.back(), 2);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
         return_type: None,
@@ -437,7 +436,7 @@ Join the values in this array together into a single string.
 const array = ["hello", "world"];
 assert_eq(array.join(", "), "hello, world");
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "sep".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Str(literal!(" "))))) }
         ],
@@ -464,7 +463,7 @@ Does this list contain the given value?
 const array = [1];
 assert(array.contains(1));
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "search".into(), param_type: Type::Void, default: None }
         ],
@@ -491,7 +490,7 @@ If the list contains the given value, return the index of the first matched valu
 const array = [1, 2, 3];
 assert_eq(array.index_of(2), 1);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "search".into(), param_type: Type::Void, default: None }
         ],
@@ -519,7 +518,7 @@ const array = [1];
 assert_eq(array.remove(0), 1);
 assert(array.empty());
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "index".into(), param_type: Type::Num(NumT::Int), default: None }
         ],
@@ -547,7 +546,7 @@ const array = [2, 1, 1, 2];
 assert_eq(array.remove_first(2), 2);
 assert_eq(array, [1, 1, 2]);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "search".into(), param_type: Type::Void, default: None }
         ],
@@ -575,7 +574,7 @@ const array = [2, 1, 1, 2];
 assert_eq(array.remove_last(2), 2);
 assert_eq(array, [2, 1, 1]);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "search".into(), param_type: Type::Void, default: None }
         ],
@@ -603,7 +602,7 @@ const array = [2, 1, 1, 2];
 assert(array.remove_all(2));
 assert_eq(array, [1, 1]);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "search".into(), param_type: Type::Void, default: None }
         ],
@@ -631,7 +630,7 @@ const array = [2, 1];
 array.insert(1, 3);
 assert_eq(array, [2, 3, 1]);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "index".into(), param_type: Type::Num(NumT::Int), default: None },
             Param { name: "value".into(), param_type: Type::Void, default: None }
@@ -660,7 +659,7 @@ const array = [2, 1];
 assert_eq(array.replace(1, 4), 1);
 assert_eq(array, [2, 4]);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "index".into(), param_type: Type::Num(NumT::Int), default: None },
             Param { name: "value".into(), param_type: Type::Void, default: None }
@@ -689,7 +688,7 @@ const array = [2, 1, 4, 3];
 array.sort();
 assert_eq(array, [1, 2, 3, 4]);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
         return_type: None,
@@ -720,7 +719,7 @@ array.sort_by((a: int, b: int): int => {
 });
 assert_eq(array, [4, 3, 2, 1]);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "func".into(), param_type: Type::Fn, default: None }
         ],
@@ -747,7 +746,7 @@ Returns true if every value in this list has the same specific type (does not ac
 const array = ["hi", true];
 assert_not(array.is_uniform());
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None }
         ],
         return_type: None,
@@ -774,7 +773,7 @@ const array = [1, "hi", true];
 array.to_uniform("str");
 assert_eq(array, ["1", "hi", "true"]);
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "list".into(), param_type: Type::List, default: None },
             Param { name: "type".into(), param_type: Type::Str, default: None }
         ],

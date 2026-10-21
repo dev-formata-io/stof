@@ -23,7 +23,7 @@ use crate::{model::{Param, ARROW_FUNC_ATTR, ASYNC_FUNC_ATTR, DataRef, Field, Fun
 
 
 /// A descriptive argument error, Ex. "missing argument 'units' for total(units: int)".
-fn args_error(name: &str, params: &Vector<Param>, problem: String) -> Error {
+fn args_error(name: &str, params: &[Param], problem: String) -> Error {
     let signature = params.iter()
         .map(|param| {
             let optional = if param.default.is_some() { "?" } else { "" };
@@ -37,7 +37,7 @@ fn args_error(name: &str, params: &Vector<Param>, problem: String) -> Error {
 }
 
 /// The argument problem once binding is done: missing (the first param without a value) or too many.
-fn count_problem(given: usize, params: &Vector<Param>) -> String {
+fn count_problem(given: usize, params: &[Param]) -> String {
     if given < params.len() {
         format!("missing argument '{}'", params[given].name.as_ref())
     } else {
@@ -95,7 +95,7 @@ impl FuncCall {
         if !self.stack {
             if let Some((lib, func)) = path.split_once("::") {
                 let libname = ArcStr::from(lib);
-                if graph.libfunc(&libname, func).is_some() {
+                if graph.has_libfunc(&libname, func) {
                     return Ok(CallContext { lib: Some(libname), stack_arg: None, prototype_self: None, func: SId::from(func) });
                 }
                 return Err(Error::FuncDne(path.into()));
@@ -178,7 +178,7 @@ impl FuncCall {
             // Only a valid libcall if the length is 2 and a library function exists
             if split_path.len() == 2 {
                 let libname = ArcStr::from(split_path[0]);
-                if graph.libfunc(&libname, split_path[1]).is_some() {
+                if graph.has_libfunc(&libname, split_path[1]) {
                     return Ok(CallContext { lib: Some(libname), stack_arg: None, prototype_self: None, func: SId::from(split_path[1]) });
                 }
             }
@@ -357,7 +357,7 @@ impl FuncCall {
             } else if start.is_none() && graph.roots.len() > 0 {
                 // Only an Obj library call if Obj has this function; otherwise let the caller fall back to a
                 // library of the same name (Ex. a "Num" root without "round" must not break Num.round(..))
-                let obj_func = graph.libfunc(&literal!("Obj"), func_name).is_some();
+                let obj_func = graph.has_libfunc(&literal!("Obj"), func_name);
                 // Absolute path (starts at a graph root), like every other path without self/super
                 if let Some(obj) = graph.find_node_named(pth, None).filter(|_| obj_func || !graph.libfuncs.contains_key(pth)) {
                     return Ok(CallContext {
@@ -398,7 +398,7 @@ impl FuncCall {
             if let Some(named) = arg.as_dyn_any().downcast_ref::<NamedArg>() {
                 let mut index = 0;
                 let mut found = false;
-                for pn in &params {
+                for pn in params.iter() {
                     if pn.name == named.name {
                         named_args.push((index, named.ins.clone()));
                         found = true; break;
@@ -491,7 +491,7 @@ impl FuncCall {
                 inner_rtype = rtype;
             }
             let mut async_instructions = Instructions::default();
-            async_instructions.push(Arc::new(Base::Spawn((instructions, inner_rtype)))); // adds a Promise<rtype> to the stack when executed!
+            async_instructions.push(Arc::new(Base::Spawn(Arc::new((instructions, inner_rtype))))); // adds a Promise<rtype> to the stack when executed!
             async_instructions.push(SUSPEND.clone()); // make sure to spawn the process right after with the runtime... this is not an await
             Ok(Some(async_instructions))
         } else {
@@ -601,7 +601,7 @@ impl Instruction for FuncCall {
             if let Some(named) = arg.as_dyn_any().downcast_ref::<NamedArg>() {
                 let mut index = 0;
                 let mut found = false;
-                for pn in &params {
+                for pn in params.iter() {
                     if pn.name == named.name {
                         named_args.push((index, named.ins.clone()));
                         found = true; break;
@@ -724,7 +724,7 @@ impl Instruction for FuncCall {
         // Handle async function call
         if is_async {
             let mut async_instructions = Instructions::default();
-            async_instructions.push(Arc::new(Base::Spawn((instructions, rtype)))); // adds a Promise<rtype> to the stack when executed!
+            async_instructions.push(Arc::new(Base::Spawn(Arc::new((instructions, rtype))))); // adds a Promise<rtype> to the stack when executed!
             async_instructions.push(SUSPEND.clone()); // make sure to spawn the process right after with the runtime... this is not an await
             Ok(Some(async_instructions))
         } else {

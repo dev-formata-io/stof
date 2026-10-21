@@ -228,7 +228,7 @@ fn locate_parse_error(text: &str, statement: &str, mut error: StofParseError) ->
 /// Parse a Stof document into a context (graph).
 pub fn document(mut input: &str, context: &mut ParseContext) -> Result<(), Error> {
     let text = input;
-    let _source = source::push_source(text, context.current_file().map(ArcStr::from), context.profile.debug_info);
+    let _source = source::push_source(text, context.current_file().map(ArcStr::from), context.profile.debug_info, context.graph.keep_source);
     loop {
         take_furthest(); // per statement
         let res = document_statement(input, context);
@@ -432,7 +432,7 @@ fn root_statements<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
     if context.info.is_some() {
         if let (Some(start), Some(name)) = (source::locate(statement), name) {
             let parent = context.self_ptr();
-            let def = Def { kind: DefKind::Root, name, parent, data: None, obj: Some(root), target: None, start, end: source::locate(input), docs: String::new() };
+            let def = Def { kind: DefKind::Root, name, parent, data: None, obj: Some(root), target: None, start, end: source::locate(input), docs: String::new(), span: None };
             if let Some(info) = &mut context.info { info.defs.push(def); }
         }
     }

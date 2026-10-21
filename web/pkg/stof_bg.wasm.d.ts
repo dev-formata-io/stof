@@ -4,6 +4,8 @@ export const memory: WebAssembly.Memory;
 export const __wbg_stof_free: (a: number, b: number) => void;
 export const __wbg_stoffunc_free: (a: number, b: number) => void;
 export const start: () => void;
+export const stofEdit: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+export const stofOutline: (a: number, b: number) => [number, number, number, number];
 export const stof_allowHtmlTags: (a: number, b: number, c: number) => void;
 export const stof_allowHttp: (a: number) => void;
 export const stof_binaryExport: (a: number, b: number, c: number, d: any) => [number, number, number];
@@ -13,6 +15,7 @@ export const stof_call_with_gate: (a: number, b: number, c: number, d: any, e: a
 export const stof_docid: (a: number) => [number, number];
 export const stof_get: (a: number, b: number, c: number, d: any) => any;
 export const stof_js_library_function: (a: number, b: number) => void;
+export const stof_keepSource: (a: number, b: number) => void;
 export const stof_new: () => number;
 export const stof_objImport: (a: number, b: any, c: any) => [number, number, number];
 export const stof_parse: (a: number, b: number, c: number, d: any, e: number, f: number) => [number, number, number];

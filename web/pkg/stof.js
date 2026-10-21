@@ -138,6 +138,14 @@ export class Stof {
         wasm.stof_js_library_function(this.__wbg_ptr, ptr0);
     }
     /**
+     * Keep each function's source text from now on (off by default), so the readable `stof` export writes
+     * functions as Stof. It costs the memory of the text.
+     * @param {boolean | null} [keep]
+     */
+    keepSource(keep) {
+        wasm.stof_keepSource(this.__wbg_ptr, isLikeNone(keep) ? 0xFFFFFF : keep ? 1 : 0);
+    }
+    /**
      * Construct a new document.
      */
     constructor() {
@@ -399,6 +407,61 @@ if (Symbol.dispose) StofFunc.prototype[Symbol.dispose] = StofFunc.prototype.free
 
 export function start() {
     wasm.start();
+}
+
+/**
+ * Edit a Stof text in place, with edits as JSON text (see `parser::edit::edits_from_json`).
+ * @param {string} text
+ * @param {string} edits
+ * @returns {string}
+ */
+export function stofEdit(text, edits) {
+    let deferred4_0;
+    let deferred4_1;
+    try {
+        const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(edits, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.stofEdit(ptr0, len0, ptr1, len1);
+        var ptr3 = ret[0];
+        var len3 = ret[1];
+        if (ret[3]) {
+            ptr3 = 0; len3 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred4_0 = ptr3;
+        deferred4_1 = len3;
+        return getStringFromWasm0(ptr3, len3);
+    } finally {
+        wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
+    }
+}
+
+/**
+ * The fields and functions in a Stof text, as JSON (see `parser::edit::outline_json`).
+ * @param {string} text
+ * @returns {string}
+ */
+export function stofOutline(text) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(text, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.stofOutline(ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
 }
 function __wbg_get_imports() {
     const import0 = {
@@ -841,7 +904,7 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbindgen_generic_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 8780, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 8857, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_3b9afeaa82ee37f3___convert__closures_____invoke___wasm_bindgen_3b9afeaa82ee37f3___JsValue__core_608f92abc48d28da___result__Result_____wasm_bindgen_3b9afeaa82ee37f3___JsError___true_);
             return ret;
         },

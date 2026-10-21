@@ -33,7 +33,7 @@ pub fn insert_age_encrypt_library(graph: &mut Graph) {
         docs: r#"# Age.parse(age: Data<Age>, bin: blob, context: obj = self, format: str = "stof") -> bool
 Parse an age-encrypted binary. Similar to Std.parse, but requires an Age identity (secret private key).
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "age".into(), param_type: Type::Data(AGE_LIB.clone()), default: None, },
             Param { name: "bin".into(), param_type: Type::Blob, default: None, },
             Param { name: "context".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))), },
@@ -58,7 +58,7 @@ Parse an age-encrypted binary. Similar to Std.parse, but requires an Age identit
         docs: r#"# Age.pass_parse(passphrase: str, bin: blob, context: obj = self, format: str = "stof") -> bool
 Parse an age-encrypted binary with a passphrase. Similar to Std.parse, but requires a passphrase for decryption.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "passphrase".into(), param_type: Type::Str, default: None, },
             Param { name: "bin".into(), param_type: Type::Blob, default: None, },
             Param { name: "context".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))), },
@@ -83,7 +83,7 @@ Parse an age-encrypted binary with a passphrase. Similar to Std.parse, but requi
         docs: r#"# Age.blobify(recipients: str | list | Data<Age>, format: str = 'stof', context?: obj) -> blob
 Std.blobify, but with age public-key recipients. The resulting blob can only be parsed by a recipient's private key.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "recipients".into(), param_type: Type::Union(vector![Type::Str, Type::List, Type::Data(AGE_LIB.clone())]), default: None, },
             Param { name: "format".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))), },
             Param { name: "context".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))), },
@@ -106,7 +106,7 @@ Std.blobify, but with age public-key recipients. The resulting blob can only be 
         docs: r#"# Age.pass_blobify(passphrase: str, format: str = 'stof', context?: obj) -> blob
 Std.blobify, but with an age passphrase recipient. The resulting blob can only be parsed with the provided passphrase.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "passphrase".into(), param_type: Type::Str, default: None, },
             Param { name: "format".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))), },
             Param { name: "context".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))), },
@@ -129,7 +129,7 @@ Std.blobify, but with an age passphrase recipient. The resulting blob can only b
         docs: r#"# Age.generate(context: obj = self) -> Data<Age>
 Generate a new Age Identity (Data<Age>) on the given context object (default is self).
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "context".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))), },
         ],
         unbounded_args: false,
@@ -150,7 +150,7 @@ Generate a new Age Identity (Data<Age>) on the given context object (default is 
         docs: r#"# Age.public(age: Data<Age>) -> str
 Get the public key for a given age identity.
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "age".into(), param_type: Type::Data(AGE_LIB.clone()), default: None, },
         ],
         unbounded_args: false,

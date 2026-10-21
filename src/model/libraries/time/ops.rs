@@ -15,7 +15,6 @@
 //
 
 use std::sync::Arc;
-use imbl::vector;
 use crate::{model::{time::{ADD_DAYS, ADD_MONTHS, DAY_OF_MONTH, DAY_OF_WEEK, DAYS_IN_MONTH, DIFF, DIFF_NANO, FROM_RFC2822, FROM_RFC3339, HOUR, MINUTE, MONTH, NOW, NOW_NANO, NOW_RFC2822, NOW_RFC3339, SECOND, SLEEP, START_OF_DAY, START_OF_MONTH, START_OF_PERIOD, START_OF_WEEK, START_OF_YEAR, TIME_LIB, TO_RFC2822, TO_RFC3339, YEAR}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Num, NumT, Type, Val}};
 
 
@@ -32,7 +31,7 @@ const ts = Time.now();
 assert(Time.now() >= ts);
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
@@ -57,7 +56,7 @@ const ts = Time.now_ns();
 assert(Time.now_ns() >= ts);
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
@@ -84,7 +83,7 @@ const diff = Time.diff(ts);
 assert(diff >= 50ms);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "prev".into(), param_type: Type::Num(NumT::Float), default: None }
         ],
         return_type: None,
@@ -113,7 +112,7 @@ const diff = Time.diff_ns(ts);
 assert(diff >= 50ms);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "prev".into(), param_type: Type::Num(NumT::Float), default: None }
         ],
         return_type: None,
@@ -142,7 +141,7 @@ const diff = Time.diff(ts);
 assert(diff >= 50ms);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "time".into(), param_type: Type::Num(NumT::Float), default: Some(Arc::new(Base::Literal(Val::Num(Num::Float(1000.))))) }
         ],
         return_type: None,
@@ -169,7 +168,7 @@ const now = Time.now_rfc3339();
 pln(now); // "2025-08-13T16:22:43.028375200+00:00" when these docs were written
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
@@ -194,7 +193,7 @@ const now = Time.now_rfc2822();
 pln(now); // "Wed, 13 Aug 2025 16:24:12 +0000" when these docs were written
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,
@@ -219,7 +218,7 @@ const now = Time.to_rfc3339(Time.now());
 pln(now); // "2025-08-13T16:22:43.028375200+00:00" when these docs were written
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "time".into(), param_type: Type::Num(NumT::Float), default: None }
         ],
         return_type: None,
@@ -246,7 +245,7 @@ const now = Time.to_rfc2822(Time.now());
 pln(now); // "Wed, 13 Aug 2025 16:24:12 +0000" when these docs were written
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "time".into(), param_type: Type::Num(NumT::Float), default: None }
         ],
         return_type: None,
@@ -273,7 +272,7 @@ const ts = Time.from_rfc3339("2025-08-13T16:22:43.028375200+00:00");
 assert(ts < Time.now());
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "time".into(), param_type: Type::Str, default: None }
         ],
         return_type: None,
@@ -300,7 +299,7 @@ const ts = Time.from_rfc2822("Wed, 13 Aug 2025 16:24:12 +0000");
 assert(ts < Time.now());
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "time".into(), param_type: Type::Str, default: None }
         ],
         return_type: None,
@@ -326,7 +325,7 @@ const today = Time.start_of_day(Time.now());
 assert(today <= Time.now());
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ts".into(), param_type: Type::Num(NumT::Float), default: None }
         ],
         return_type: None,
@@ -354,7 +353,7 @@ assert(som <= Time.now());
 assert(Time.day_of_month(som) == 1);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ts".into(), param_type: Type::Num(NumT::Float), default: None }
         ],
         return_type: None,
@@ -381,7 +380,7 @@ const dom = Time.day_of_month(Time.now());
 assert(dom >= 1 && dom <= 31);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ts".into(), param_type: Type::Num(NumT::Float), default: None }
         ],
         return_type: None,
@@ -409,7 +408,7 @@ const dow = Time.day_of_week(Time.now());
 assert(dow >= 0 && dow <= 6);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ts".into(), param_type: Type::Num(NumT::Float), default: None }
         ],
         return_type: None,
@@ -437,7 +436,7 @@ const dim = Time.days_in_month(Time.now());
 assert(dim >= 28 && dim <= 31);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ts".into(), param_type: Type::Num(NumT::Float), default: None }
         ],
         return_type: None,
@@ -466,7 +465,7 @@ const next = Time.add_months(Time.now(), 1);
 assert(next > Time.now());
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ts".into(), param_type: Type::Num(NumT::Float), default: None },
             Param { name: "n".into(), param_type: Type::Num(NumT::Float), default: None }
         ],
@@ -496,7 +495,7 @@ const yesterday = Time.add_days(Time.now(), -1);
 assert(yesterday < Time.now());
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ts".into(), param_type: Type::Num(NumT::Float), default: None },
             Param { name: "n".into(), param_type: Type::Num(NumT::Float), default: None }
         ],
@@ -553,7 +552,7 @@ const quarterly = Time.start_of_period(Time.now(), 'quarterly:1');
 assert(quarterly <= Time.now());
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ts".into(), param_type: Type::Num(NumT::Float), default: None },
             Param { name: "schedule".into(), param_type: Type::Str, default: None }
         ],
@@ -581,7 +580,7 @@ const y = Time.year(Time.now());
 assert(y >= 2025);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ts".into(), param_type: Type::Num(NumT::Float), default: None }
         ],
         return_type: None,
@@ -608,7 +607,7 @@ const m = Time.month(Time.now());
 assert(m >= 1 && m <= 12);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ts".into(), param_type: Type::Num(NumT::Float), default: None }
         ],
         return_type: None,
@@ -635,7 +634,7 @@ const h = Time.hour(Time.now());
 assert(h >= 0 && h <= 23);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ts".into(), param_type: Type::Num(NumT::Float), default: None }
         ],
         return_type: None,
@@ -662,7 +661,7 @@ const m = Time.minute(Time.now());
 assert(m >= 0 && m <= 59);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ts".into(), param_type: Type::Num(NumT::Float), default: None }
         ],
         return_type: None,
@@ -689,7 +688,7 @@ const s = Time.second(Time.now());
 assert(s >= 0 && s <= 59);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ts".into(), param_type: Type::Num(NumT::Float), default: None }
         ],
         return_type: None,
@@ -720,7 +719,7 @@ const sun = Time.start_of_week(Time.now(), 6);    // week starting Sunday
 assert(sun <= Time.now());
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ts".into(), param_type: Type::Num(NumT::Float), default: None },
             Param { name: "start_day".into(), param_type: Type::Num(NumT::Float), default: Some(Arc::new(Base::Literal(Val::Num(Num::Int(0))))) }
         ],
@@ -751,7 +750,7 @@ assert(Time.month(soy) == 1);
 assert(Time.day_of_month(soy) == 1);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "ts".into(), param_type: Type::Num(NumT::Float), default: None }
         ],
         return_type: None,

@@ -48,10 +48,10 @@ pub fn for_in_loop(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, S
         declare_instructions.push(inner.expr);
         declare_instructions.push(Arc::new(Base::DeclareConstVar(literal!("iterable"), Type::Void)));
         
-        declare_instructions.push(Arc::new(NullcheckIns {
-            ins: Arc::new(FuncCall { func: None, search: Some(literal!("iterable.len")), stack: false, args: vector![], as_ref: false, cnull: true, oself: None, }),
-            ifnull: Arc::new(Base::Literal(Val::Num(Num::Int(0))))
-        }));
+        declare_instructions.push(Arc::new(NullcheckIns::new(
+            Arc::new(FuncCall { func: None, search: Some(literal!("iterable.len")), stack: false, args: vector![], as_ref: false, cnull: true, oself: None, }),
+            Arc::new(Base::Literal(Val::Num(Num::Int(0)))),
+        )));
         declare_instructions.push(COPY.clone()); // make sure the length is not a reference
         declare_instructions.push(Arc::new(Base::DeclareConstVar(length_var.clone(), Type::Void)));
 

@@ -291,7 +291,15 @@ stringify('json', o)                 // export an object (functions and #[no-exp
 const back = new {}; parse('{"x": [1, 2]}', back, 'json');   // import into an object
 const bin = blobify('bstf', o);      // binary, with functions; parse(bin, target, 'bstf') restores it
 parse('fn hi() -> str { "hi" }', self);   // documents can add code to themselves
+stringify('stof', o)                 // the object as readable Stof (parse it back with 'stof')
 ```
+
+`stringify('stof', o)` writes Stof a person or a model can read: objects with their types, attributes, and doc
+comments, and values as literals (`1GB`, `set(..)`, `map((k, v))`). Comments and formatting aren't kept, and
+neither are object IDs. Functions are written as their source only when the host keeps it (`doc.keepSource()` in JS,
+`doc.keep_source()` in Python, `graph.keep_source(true)` in Rust, before parsing; off by default to save memory).
+Otherwise, and for functions loaded from BSTF, a function is written as a `data@v1` block.
+`stringify('stof:graph', o)` is the exact form (IDs, references, compiled functions), for copying a document exactly.
 
 ### HTML and XML
 
@@ -460,6 +468,16 @@ The html format writes only standard and custom elements by default; to allow ex
 values too, with a runtime of their own: an async host function can't finish there, so call `stringify` from Stof
 (Ex. `await doc.callSource(...)`) when a computed value needs one.
 
+**Editing Stof text in place** (Ex. an app or agent changing a document people also edit by hand):
+`StofDoc.outline(text)` / `StofDoc.edit(text, edits)` (JS), `Doc.outline(text)` / `Doc.edit(text, edits)` (Python),
+`stof::parser::edit::{outline, edit}` (Rust). The outline lists every field and function with its path (Ex.
+`['policy', 'plans', 'pro']`), and whether it's an object, and its source. Edits go by path (a list, or names
+separated by dots): `{ set: 'a.b', value: 1 }` (a JSON value), `{ set: 'a.limit', stof: '1GB' }` (Stof source),
+`{ set_fn: 'a.f', stof: 'fn f() -> int { 1 }' }`, `{ remove: 'a.b' }`, `{ rename: 'a.b', to: 'c' }`. A set adds what
+isn't there (with the objects on its path), matching how the object is written. Only what an edit names changes:
+comments, formatting, and everything else stay exactly as they were. A remove takes the attributes and the comments
+directly above. If the text or the result doesn't parse, or an edit doesn't make sense, it fails and changes nothing.
+
 Host errors from `call`/`run` include the Stof call stack. Parse with the test profile (`'test'` in JS/Python,
 `stof::model::Profile::test()` in Rust) to get statement-level line numbers in runtime errors; the default production profile
 keeps documents smaller.
@@ -471,7 +489,7 @@ Read `references/libs/<file>` for full signatures and examples.
 | Library | File | For |
 |---|---|---|
 | Std | `Std.md` | Called bare: `pln`, `assert*`, `throw`, `parse`, `stringify`, `blobify`, `copy`, `drop`, `swap`, `funcs`, `sleep`, `env`, `format`, `nanoid`, `min`/`max` |
-| Obj | `Obj.md` | Objects: `fields`, `insert`, `get`, `contains`, `parent`, `children`, `schemafy`, `instance_of`, `run`, `to_map`, `move` |
+| Obj | `Obj.md` | Objects: `fields`, `insert`, `get`, `set`/`unset` (by name, not path), `contains`, `parent`, `children`, `schemafy`, `instance_of`, `run`, `to_map`, `move` |
 | Str | `Str.md` | Strings: `len`, `split`, `lower`, `upper`, `trim`, `replace`, `contains`, `starts_with`, `substring` |
 | Num | `Num.md` | Numbers and units: `abs`, `round`, `floor`, `sqrt`, `pow`, `min`, `max`, `to_units`, `has_units` |
 | List, Map, Set, Tup | `List.md` `Map.md` `Set.md` `Tup.md` | Collections (lists: `map`, `filter`, `any`, `sort_by`, ...) |

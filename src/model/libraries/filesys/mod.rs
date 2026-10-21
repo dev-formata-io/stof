@@ -40,7 +40,7 @@ If available, will read a file from a path into a binary blob.
 ```rust
 const bytes = fs.read("src/lib.rs");
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "path".into(), param_type: Type::Str, default: None }
         ],
         return_type: None,
@@ -66,7 +66,7 @@ If available, will read a file from a path into a string.
 ```rust
 const content = fs.read_string("src/lib.rs");
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "path".into(), param_type: Type::Str, default: None }
         ],
         return_type: None,
@@ -92,7 +92,7 @@ If available, will write content into a file at the given path. Will throw an er
 ```rust
 fs.write("src/text.txt", "testing");
 ```"#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "path".into(), param_type: Type::Str, default: None },
             Param { name: "content".into(), param_type: Type::Union(vector![Type::Str, Type::Blob]), default: None }
         ],

@@ -52,6 +52,11 @@ export class Stof {
      */
     js_library_function(func: StofFunc): void;
     /**
+     * Keep each function's source text from now on (off by default), so the readable `stof` export writes
+     * functions as Stof. It costs the memory of the text.
+     */
+    keepSource(keep?: boolean | null): void;
+    /**
      * Construct a new document.
      */
     constructor();
@@ -134,6 +139,16 @@ export class StofFunc {
 
 export function start(): void;
 
+/**
+ * Edit a Stof text in place, with edits as JSON text (see `parser::edit::edits_from_json`).
+ */
+export function stofEdit(text: string, edits: string): string;
+
+/**
+ * The fields and functions in a Stof text, as JSON (see `parser::edit::outline_json`).
+ */
+export function stofOutline(text: string): string;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
@@ -141,6 +156,8 @@ export interface InitOutput {
     readonly __wbg_stof_free: (a: number, b: number) => void;
     readonly __wbg_stoffunc_free: (a: number, b: number) => void;
     readonly start: () => void;
+    readonly stofEdit: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+    readonly stofOutline: (a: number, b: number) => [number, number, number, number];
     readonly stof_allowHtmlTags: (a: number, b: number, c: number) => void;
     readonly stof_allowHttp: (a: number) => void;
     readonly stof_binaryExport: (a: number, b: number, c: number, d: any) => [number, number, number];
@@ -150,6 +167,7 @@ export interface InitOutput {
     readonly stof_docid: (a: number) => [number, number];
     readonly stof_get: (a: number, b: number, c: number, d: any) => any;
     readonly stof_js_library_function: (a: number, b: number) => void;
+    readonly stof_keepSource: (a: number, b: number) => void;
     readonly stof_new: () => number;
     readonly stof_objImport: (a: number, b: any, c: any) => [number, number, number];
     readonly stof_parse: (a: number, b: number, c: number, d: any, e: number, f: number) => [number, number, number];

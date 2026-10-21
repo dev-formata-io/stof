@@ -89,7 +89,7 @@ impl Instruction for WhileIns {
                 top_tag,
                 test: self.test.clone(),
                 end_tag: end_tag.clone(),
-                ins: self.ins.clone(),
+                ins: Arc::new(self.ins.clone()),
                 continue_tag,
                 loop_count: while_count,
                 scope_count,

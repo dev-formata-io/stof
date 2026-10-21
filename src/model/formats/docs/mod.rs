@@ -304,7 +304,7 @@ impl MdDocsFormat {
                 }
                 structure.push_str(&format!("{indent}fn {name}("));
                 let mut first = true;
-                for param in &func.params {
+                for param in func.params.iter() {
                     if first {
                         first = false;
                     } else {
@@ -339,7 +339,7 @@ impl Format for MdDocsFormat {
     }
     /// Takes a directory path and populates the directory with documentation for this graph & node.
     fn file_export(&self, graph: &Graph, _format: &str, path: &str, node: Option<NodeRef>) -> Result<(), Error> {
-        if let Some(_lib) = graph.libfunc(&FS_LIB, "write") {
+        if graph.has_libfunc(&FS_LIB, "write") {
             let buf = PathBuf::from(path);
             if buf.is_dir() {
                 // nada

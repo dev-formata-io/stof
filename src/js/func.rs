@@ -15,7 +15,6 @@
 //
 
 use std::{cell::RefCell, collections::BTreeMap, sync::Arc};
-use imbl::vector;
 use js_sys::{Function, Promise};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
@@ -75,7 +74,7 @@ impl StofFunc {
             name: name.into(),
             is_async,
             docs: String::default(),
-            params: vector![],
+            params: crate::params![],
             unbounded_args: true,
             return_type: None,
             args_to_symbol_table: false,

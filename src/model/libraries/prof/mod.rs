@@ -15,7 +15,6 @@
 //
 
 use arcstr::ArcStr;
-use imbl::vector;
 use std::{ops::Deref, sync::Arc};
 use serde::{Deserialize, Serialize};
 use crate::{model::{Graph, LibFunc, Param, Profile, stof_std::STD_LIB}, runtime::{Error, Type, Val, Variable, instruction::{Instruction, Instructions}, proc::ProcEnv}};
@@ -36,7 +35,7 @@ Is/was this graph parsed last with the given profile name?
 const test = prof('test');
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "name".into(), param_type: Type::Str, default: None, },
         ],
         return_type: None,

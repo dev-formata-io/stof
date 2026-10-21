@@ -15,7 +15,6 @@
 //
 
 use std::sync::Arc;
-use imbl::vector;
 use crate::{model::{stof_std::{StdIns, COPY, FUNCTIONS, STD_LIB, SWAP}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Type, Val}};
 
 
@@ -31,7 +30,7 @@ Construct a new list with the given arguments.
 assert_eq(list(1, 2, 3), [1, 2, 3]);
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,
@@ -55,7 +54,7 @@ Construct a new set with the given arguments.
 assert_eq(set(1, 2, 3), {1, 2, 3});
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,
@@ -79,7 +78,7 @@ Construct a new map with the given arguments (tuples of key & value). Helpful as
 assert_eq(map(("a", 1), ("b", 2)), {"a": 1, "b": 2});
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,
@@ -106,7 +105,7 @@ b.clear();
 assert_neq(a, b);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -136,7 +135,7 @@ assert_eq(a, -55);
 assert_eq(b, 42);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "first".into(), param_type: Type::Void, default: None },
             Param { name: "second".into(), param_type: Type::Void, default: None }
         ],
@@ -166,7 +165,7 @@ const results = drop("self.field", func, object);
 assert_eq(results, [true, true, true]);
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,
@@ -194,7 +193,7 @@ for (const func in funcs({"test", "main"})) {
 }
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "attributes".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) },
         ],
         return_type: None,
@@ -223,7 +222,7 @@ assert_not(self.field); // note: this will still work if the objects name is "fi
 assert(object.exists()); // object was kept around
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,

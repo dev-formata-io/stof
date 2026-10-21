@@ -16,7 +16,6 @@
 
 use std::sync::Arc;
 use arcstr::{literal, ArcStr};
-use imbl::vector;
 use crate::{model::{Graph, LibFunc, Param}, runtime::{instruction::Instructions, instructions::tup::{AT_REF_TUP, AT_TUP, LEN_TUP}, NumT, Type}};
 
 
@@ -44,7 +43,7 @@ const tup = ("hi", 42, true);
 assert_eq(tup.len(), 3);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "tup".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -72,7 +71,7 @@ const tup = ("hi", 42, true);
 assert_eq(&tup[1], 42);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "tup".into(), param_type: Type::Void, default: None },
             Param { name: "index".into(), param_type: Type::Num(NumT::Int), default: None }
         ],

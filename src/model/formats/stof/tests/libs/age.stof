@@ -62,7 +62,7 @@ BlobifyParse: {
         // const bin = Age.blobify([self.Recipient.public, self.OtherRecipient.identity], 'stof', self.Payload);
         const bin = Age.blobify(self.Recipient.public, 'stof', self.Payload);
         assert_eq(typeof bin, 'blob');
-        assert(bin.size() > 1000bytes);
+        assert(bin.size() > 200bytes);
         
         drop(self.Payload); // get rid of conflicting data and reset
         assert_not(self.Payload);

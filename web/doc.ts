@@ -15,7 +15,7 @@
 //
 
 // @deno-types="./pkg/stof.d.ts"
-import init, { Stof, StofFunc } from './pkg/stof.js';
+import init, { Stof, StofFunc, stofOutline, stofEdit } from './pkg/stof.js';
 // @deno-types="./pkg/stof.d.ts"
 export * from './pkg/stof.js';
 
@@ -224,10 +224,38 @@ async function stofFetch(
 
 
 /**
+ * A field or function in a Stof text (see `StofDoc.outline`).
+ */
+export interface StofOutlineDef {
+    kind: 'field' | 'fn';
+    /** Path from the top level, ending with the name. */
+    path: string[];
+    name: string;
+    /** A field whose value is an object written inline (it can have children). */
+    object: boolean;
+    /** Where the name is (1-based line, byte column). */
+    line: number;
+    col: number;
+    /** Its source, as if written at column 0: a field's value, or a function from `fn` to the end of its body. */
+    value: string;
+}
+
+/**
+ * An edit to a Stof text (see `StofDoc.edit`). A path is a list of names, or names separated by dots.
+ */
+export type StofEdit =
+    | { set: string | string[]; value: unknown }
+    | { set: string | string[]; stof: string }
+    | { set_fn: string | string[]; stof: string }
+    | { remove: string | string[] }
+    | { rename: string | string[]; to: string };
+
+
+/**
  * Stof document.
  */
 export class StofDoc {
-    static readonly VERSION = '0.10.7';
+    static readonly VERSION = '0.10.8';
     private static initialized?: Promise<unknown>;
     private static wasmMutex = new WasmMutex();
     stof: Stof;
@@ -247,6 +275,28 @@ export class StofDoc {
             StofDoc.initialized = init();
         }
         return StofDoc.initialized;
+    }
+
+
+    /**
+     * The fields and functions in a Stof text, with their paths, in the order they're written.
+     * Throws if the text doesn't parse. Types the text uses don't need to be defined.
+     * Note: make sure initialize has been called on the wasm.
+     */
+    static outline(text: string): StofOutlineDef[] {
+        return JSON.parse(stofOutline(text)) as StofOutlineDef[];
+    }
+
+
+    /**
+     * Edit a Stof text in place: set, add, remove, or rename fields and functions by path. Everything else in the
+     * text (comments, formatting, other definitions) stays exactly as it was. Throws (changing nothing) if the
+     * text or the result doesn't parse, or an edit doesn't make sense.
+     * Values are JSON values, or Stof source with `stof` (Ex. `{ set: 'limit.value', stof: '1GB' }`).
+     * Note: make sure initialize has been called on the wasm.
+     */
+    static edit(text: string, edits: StofEdit[]): string {
+        return stofEdit(text, JSON.stringify(edits));
     }
 
 
@@ -346,6 +396,15 @@ export class StofDoc {
      */
     allowHtmlTags(tags: string[]): void {
         this.stof.allowHtmlTags(tags);
+    }
+
+
+    /**
+     * Keep each function's source text when parsing from now on (off by default), so `stringify('stof')` writes
+     * functions as Stof instead of data blocks. It costs the memory of the text. Call it before parsing.
+     */
+    keepSource(keep: boolean = true): void {
+        this.stof.keepSource(keep);
     }
 
 

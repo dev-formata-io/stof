@@ -37,7 +37,7 @@ const text = self.pdf.extract_text();
 assert_eq(text, "Example Stof\nDocument\n");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "pdf".into(), param_type: Type::Data(PDF_LIB.clone()), default: None, },
         ],
         unbounded_args: false,
@@ -64,7 +64,7 @@ assert_eq(images[0].get('height'), 500);
 assert_eq(images[0].get('width'), 1250);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "pdf".into(), param_type: Type::Data(PDF_LIB.clone()), default: None, },
         ],
         unbounded_args: false,

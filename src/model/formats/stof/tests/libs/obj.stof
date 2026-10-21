@@ -837,3 +837,61 @@ FuncOrder: {
         assert_eq(all.filter((n: str): bool => n.len() == 1), ['a', 'b', 'c', 'd', 'e', 'f']);
     }
 }
+
+
+ByName: {
+    named: {
+        x: 1
+        sub: { y: 2 }
+    }
+    other: {
+        child: { z: 1 }
+    }
+
+    #[test]
+    /// set and unset take a name, never a path (the counterparts of get).
+    fn set_and_unset() {
+        const obj = self.named;
+        obj.set('a.b', 5);
+        assert_eq(obj.get('a.b'), 5);
+        assert_null(obj.a);
+        assert(obj.contains('a.b'));
+
+        obj.set('x', 'changed'); // an existing field
+        assert_eq(obj.x, 'changed');
+        obj.set('sub.y', 3); // a new field named 'sub.y', not obj.sub.y
+        assert_eq(obj.sub.y, 2);
+        assert_eq(obj.get('sub.y'), 3);
+
+        assert(obj.unset('a.b'));
+        assert_not(obj.contains('a.b'));
+        assert_not(obj.unset('nope'));
+
+        // an object value is dropped too, unless shallow
+        const inner = obj.sub;
+        assert(obj.unset('sub', true));
+        assert(inner.exists());
+        const other = self.other;
+        const child = other.child;
+        assert(other.unset('child'));
+        assert_not(child.exists());
+    }
+
+    typed: {
+        int count: 0
+        fn f() -> int { 1 }
+    }
+
+    #[test]
+    fn set_respects_types_and_functions() {
+        const obj = self.typed;
+        obj.set('count', 2.0);
+        assert_eq(typeof obj.count, 'int');
+        let failed = false;
+        try obj.set('f', 1);
+        catch failed = true;
+        assert(failed);
+        assert(obj.unset('f'));
+        assert_not(obj.contains('f'));
+    }
+}

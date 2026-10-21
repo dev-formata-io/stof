@@ -1,0 +1,137 @@
+//
+// Copyright 2025 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+/*!
+ * The readable Stof export: stringify('stof', obj) writes Stof a person or a model can read.
+ * stringify('stof:graph', obj) is the exact form (IDs, references, compiled functions).
+ */
+
+#[type]
+ReadableShape: {
+    str name: 'shape'
+    fn area() -> float { 0 }
+}
+
+#[type]
+#[extends('ReadableShape')]
+ReadableSquare: {
+    float side: 1
+    fn area() -> float {
+        const s = self.side;
+        s * s
+    }
+}
+
+Doc: {
+    // a comment (comments aren't kept)
+    label: 'Hello\nthere it\'s'
+    count: 3
+    ratio: 2.0
+    size: 1.5GB
+    wait: 30days
+    version: 0.1.0
+    nothing: null
+    flags: [true, false]
+    tup: (1, 'a')
+    set: set(1, 2)
+    map: map(('a', 1), ('b', [2]))
+    emptymap: map()
+    blob: |1, 2, 3|
+    const fixed: 'no'
+    str! typed: 'x'
+    #[tag('div')] #[attr]
+    marked: 'm'
+    nested: {
+        deep: { x: 1 }
+        empty: {}
+    }
+    ReadableSquare sq: { side: 3 }
+    records: [new { a: 1, b: 'two' }, new { a: 2, b: 'three' }]
+    arrow: (x: int): int => x * 2
+    ref: self.nested.deep
+
+    async fn later() -> int { 1 }
+    fn plain(a: int, b?: str) -> str {
+        if (a > 1) {
+            return `big ${b ?? ''}`;
+        }
+        'small'
+    }
+}
+
+#[test]
+fn readable_text() {
+    const text = stringify('stof', self.Doc);
+    assert(text.starts_with("label: 'Hello\\nthere it\\'s'\ncount: 3\nratio: 2.0\nsize: 1.5GB\nwait: 30days\nversion: 0.1.0\n"));
+    assert(text.contains("set: set(1, 2)\nmap: map(('a', 1), ('b', [2]))\nemptymap: map()\nblob: |1, 2, 3|\nconst fixed: 'no'\nstr! typed: 'x'\n#[attr]\n#[tag('div')]\nmarked: 'm'\n"));
+    assert(text.contains("\nnested: {\n    deep: {\n        x: 1\n    }\n\n    empty: {}\n}\n"));
+    assert(text.contains("\nReadableSquare sq: {\n    side: 3.0\n"));
+    assert(text.contains("records: [new { a: 1, b: 'two' }, new { a: 2, b: 'three' }]\narrow: (x: int): int => x * 2\nref: self.nested.deep\n"));
+    assert(text.contains("\nasync fn later() -> int { 1 }\n\nfn plain(a: int, b?: str) -> str {\n    if (a > 1) {\n        return `big ${b ?? ''}`;\n    }\n    'small'\n}\n"));
+    assert_not(text.contains('data@v1'));
+}
+
+#[test]
+fn reads_back_the_same() {
+    const text = stringify('stof', self.Doc);
+    using back = new {};
+    parse(text, back, 'stof');
+    assert_eq(back.sq.area(), 9);
+    assert_eq(back.sq.name, 'shape');
+    assert_eq(back.arrow(4), 8);
+    assert_eq(back.plain(3, 'x'), 'big x');
+    assert_eq(await back.later(), 1);
+    assert_eq(typeof back.ratio, 'float');
+    assert_eq(back.size, 1.5GB);
+    assert_eq(back.wait, 30days);
+    assert_eq(back.records[1].b, 'three');
+    assert_eq(back.ref, back.nested.deep);
+    assert_eq(back.map.get('b'), [2]);
+    assert_eq(back.set, set(1, 2));
+    assert_eq(back.blob, |1, 2, 3|);
+    assert_eq(back.label, 'Hello\nthere it\'s');
+    assert_eq(back.attributes('marked').get('tag'), 'div');
+    assert_eq(stringify('stof', back), text);
+}
+
+Funcs: {
+    items: [new { a: 1 }]
+
+    #[test]
+    fn objects_with_functions_in_lists() {
+        using holder = new {};
+        parse("pairs: [new { n: 1 }]", holder);
+        const special = new {} on holder;
+        parse("fn double() -> int { self.n * 2 }\nn: 21", special);
+        holder.pairs.push_back(special);
+        const text = stringify('stof', holder);
+        assert(text.contains('#[no-field]'));
+        using back = new {};
+        parse(text, back, 'stof');
+        assert_eq(back.pairs.len(), 2);
+        assert_eq(back.pairs[0].n, 1);
+        assert_eq(back.pairs[1].double(), 42);
+    }
+
+    #[test]
+    fn graph_form_is_still_exact() {
+        const text = stringify('stof:graph', self);
+        assert(text.contains('data@v1'));
+        using back = new {};
+        parse(text, back, 'stof');
+        assert_eq(back.items[0].a, 1);
+    }
+}

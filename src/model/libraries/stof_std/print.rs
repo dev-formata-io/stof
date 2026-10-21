@@ -15,7 +15,6 @@
 //
 
 use std::sync::Arc;
-use imbl::vector;
 use crate::{model::{stof_std::{StdIns, STD_LIB, XMLTAG}, LibFunc, Param}, runtime::{instruction::Instructions, instructions::Base, Type, Val}};
 
 
@@ -31,7 +30,7 @@ Prints all arguments to the standard output stream.
 pln("hello, world");
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: true, // allow an unbounded number of arguments
         args_to_symbol_table: false, // keep the arg on the stack instead of putting it into st
@@ -55,7 +54,7 @@ Prints all arguments to a string, just like it would be to an output stream.
 assert_eq(str("hello, world"), "hello, world");
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: true, // allow an unbounded number of arguments
         args_to_symbol_table: false, // keep the arg on the stack instead of putting it into st
@@ -79,7 +78,7 @@ A helper function to create an XML-tagged string.
 assert_eq(xml("hello, world", "msg"), "<msg>hello, world</msg>");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "text".into(), param_type: Type::Str, default: None },
             Param { name: "tag".into(), param_type: Type::Str, default: None }
         ],
@@ -109,7 +108,7 @@ p += prompt('another thing', 'sub');
 assert_eq(p as str, '<instruction><sub>do a thing</sub><sub>another thing</sub></instruction>');
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "text".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Str("".into())))) },
             Param { name: "tag".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))) }
         ],
@@ -136,7 +135,7 @@ Prints all arguments as debug output to the standard output stream.
 dbg("hello, world");
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: true, // allow an unbounded number of arguments
         args_to_symbol_table: false, // keep the arg on the stack instead of putting it into st
@@ -160,7 +159,7 @@ Prints all arguments to the error output stream.
 err("hello, world");
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: true, // allow an unbounded number of arguments
         args_to_symbol_table: false, // keep the arg on the stack instead of putting it into st
@@ -185,7 +184,7 @@ Logs all arguments as an error using the "log" crate.
 log_error("we have a problem");
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,
@@ -210,7 +209,7 @@ Logs all arguments as a warnging using the "log" crate.
 log_warn("we encountered something, but are handling it");
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,
@@ -235,7 +234,7 @@ Logs all arguments as info using the "log" crate.
 log_info("we just did something cool");
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,
@@ -260,7 +259,7 @@ Logs all arguments as debug info using the "log" crate.
 log_debug("this is what just happened, in case you need to debug me");
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,
@@ -285,7 +284,7 @@ Logs all arguments as a trace using the "log" crate.
 log_trace("we have a problem");
 ```
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: true,
         args_to_symbol_table: false,

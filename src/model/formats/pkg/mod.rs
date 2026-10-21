@@ -202,7 +202,7 @@ impl Format for StofPackageFormat {
         "application/octet-stream+pkg".into()
     }
     fn binary_import(&self, graph: &mut Graph, format: &str, bytes: Bytes, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
-        if graph.libfunc(&FS_LIB, "read").is_none() { return Err(Error::FormatFileImportNotAllowed); } // file system access is opt-in
+        if !graph.has_libfunc(&FS_LIB, "read") { return Err(Error::FormatFileImportNotAllowed); } // file system access is opt-in
         if let Some(path) = self.unzip_bytes_to_temp(&bytes) {
             let res = self.file_import(graph, format, &path, node, profile);
             let _ = fs::remove_dir_all(&path);
@@ -212,7 +212,7 @@ impl Format for StofPackageFormat {
         }
     }
     fn parser_import(&self, _format: &str, path: &str, context: &mut ParseContext) -> Result<(), Error> {
-        if context.graph.libfunc(&FS_LIB, "read").is_none() { return Err(Error::FormatFileImportNotAllowed); } // file system access is opt-in
+        if !context.graph.has_libfunc(&FS_LIB, "read") { return Err(Error::FormatFileImportNotAllowed); } // file system access is opt-in
         let mut package_path = path.to_string();
         let mut cleanup_dir = None;
 
@@ -266,7 +266,7 @@ impl Format for StofPackageFormat {
         Ok(())
     }
     fn file_import(&self, graph: &mut Graph, _format: &str, path: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
-        if graph.libfunc(&FS_LIB, "read").is_none() { return Err(Error::FormatFileImportNotAllowed); } // file system access is opt-in
+        if !graph.has_libfunc(&FS_LIB, "read") { return Err(Error::FormatFileImportNotAllowed); } // file system access is opt-in
         let mut package_path = path.to_string();
         let mut cleanup_dir = None;
 

@@ -69,7 +69,7 @@ pub trait Format: std::fmt::Debug + Send + Sync {
     /// File import.
     #[allow(unused)]
     fn file_import(&self, graph: &mut Graph, format: &str, path: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
-        if let Some(_lib) = graph.libfunc(&FS_LIB, "read_string") {
+        if graph.has_libfunc(&FS_LIB, "read_string") {
             #[cfg(not(feature = "system"))]
             {
                 use imbl::vector;
@@ -115,7 +115,7 @@ pub trait Format: std::fmt::Debug + Send + Sync {
                     return Err(Error::FormatFileImportFsError(format!("{}: {}", error.to_string(), path)));
                 }
             }
-        } else if let Some(_lib) = graph.libfunc(&FS_LIB, "read") {
+        } else if graph.has_libfunc(&FS_LIB, "read") {
             // Only allow reads if the FS library function is available
             match fs::read(path) {
                 Ok(content) => {
@@ -133,7 +133,7 @@ pub trait Format: std::fmt::Debug + Send + Sync {
     /// File export.
     /// Try exporting a string (binary if failed) and write the output to a file located at 'path'.
     fn file_export(&self, graph: &Graph, format: &str, path: &str, node: Option<NodeRef>) -> Result<(), Error> {
-        if let Some(_lib) = graph.libfunc(&FS_LIB, "write") {
+        if graph.has_libfunc(&FS_LIB, "write") {
             // make sure a directory exists at the requested path before writing to it
             let buf = PathBuf::from(path);
             if let Some(path) = buf.parent() {

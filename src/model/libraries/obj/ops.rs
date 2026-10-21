@@ -15,8 +15,7 @@
 //
 
 use std::sync::Arc;
-use imbl::vector;
-use crate::{model::{LibFunc, Param, obj::{ANY, AT, AT_REF, ATTRIBUTES, CHILDREN, CONTAINS, CREATE_TYPE, DIFF, DISTANCE, DUMP, EMPTY, EXISTS, FIELDS, FROM_ID, FROM_MAP, FUNCS, GET, GET_REF, ID, INSERT, INSTANCE_OF, IS_PARENT, IS_ROOT, LEN, MOVE, MOVE_FIELD, NAME, OBJ_LIB, PARENT, PATH, PROTO, REMOVE, REMOVE_PROTO, ROOT, RUN_WITH, SCHEMAFY, SET_PROTO, TO_MAP, TO_MAP_REF, UPCAST}}, runtime::{NumT, Type, Val, instruction::Instructions, instructions::Base}};
+use crate::{model::{LibFunc, Param, obj::{ObjIns, ANY, AT, AT_REF, ATTRIBUTES, CHILDREN, CONTAINS, CREATE_TYPE, DIFF, DISTANCE, DUMP, EMPTY, EXISTS, FIELDS, FROM_ID, FROM_MAP, FUNCS, GET, GET_REF, ID, INSERT, INSTANCE_OF, IS_PARENT, IS_ROOT, LEN, MOVE, MOVE_FIELD, NAME, OBJ_LIB, PARENT, PATH, PROTO, REMOVE, REMOVE_PROTO, ROOT, RUN_WITH, SCHEMAFY, SET_PROTO, TO_MAP, TO_MAP_REF, UPCAST}}, runtime::{NumT, Type, Val, instruction::Instructions, instructions::Base}};
 
 
 #[inline(always)]
@@ -33,7 +32,7 @@ const obj = new {};
 assert(obj.name().len() > 0);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -61,7 +60,7 @@ const obj = new {};
 assert(obj.id().len() > 0);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -88,7 +87,7 @@ Return the path of this object as a dot '.' separated string.
 assert_eq(self.path(), "root.TestObject"); // if self is "TestObject" and it's parent is "root"
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -116,7 +115,7 @@ const obj = new {};
 assert_eq(obj.parent(), self);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -144,7 +143,7 @@ const obj = new {};
 assert(self.is_parent(obj));
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None },
             Param { name: "other".into(), param_type: Type::Void, default: None }
         ],
@@ -173,7 +172,7 @@ const obj = new {};
 assert(obj.exists());
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -201,7 +200,7 @@ const obj = new {};
 assert_eq(self.children(), [obj]);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -229,7 +228,7 @@ const obj = new {};
 assert_eq(obj.root(), self); // if self is a root
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -256,7 +255,7 @@ Returns true if this object is a root.
 assert(self.is_root()); // if self is a root
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -283,7 +282,7 @@ Returns the prototype object for this object or null if this object doesn't have
 assert_not(self.prototype()); // no prototype
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -317,7 +316,7 @@ assert_eq(typename ins, "MyType");
 assert_eq(ins.prototype(), obj);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None },
             Param { name: "typename".into(), param_type: Type::Str, default: None }
         ],
@@ -347,7 +346,7 @@ assert(obj.upcast());
 assert_eq(typename obj, "SuperType");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -377,7 +376,7 @@ obj.set_prototype(proto);
 assert_eq(obj.prototype(), proto);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None },
             Param { name: "proto".into(), param_type: Type::Void, default: None }
         ],
@@ -407,7 +406,7 @@ obj.remove_prototype();
 assert_eq(typename obj, "obj");
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -435,7 +434,7 @@ const obj = new MyType {};
 assert(obj.instance_of("MyType"));
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None },
             Param { name: "proto".into(), param_type: Type::Void, default: None }
         ],
@@ -464,7 +463,7 @@ const obj = new { x: 0, y: 0 };
 assert_eq(obj.len(), 2);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -492,7 +491,7 @@ const obj = new { x: 0, y: 0 };
 assert_eq(obj[1], ("y", 0));
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None },
             Param { name: "index".into(), param_type: Type::Num(NumT::Int), default: None }
         ],
@@ -525,7 +524,7 @@ const obj = new { x: 0, y: 0 };
 assert_eq(obj.get("x"), 0);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None },
             Param { name: "name".into(), param_type: Type::Str, default: None }
         ],
@@ -558,7 +557,7 @@ const obj = new { x: 0, y: 0 };
 assert(obj.contains("y"));
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None },
             Param { name: "name".into(), param_type: Type::Str, default: None }
         ],
@@ -588,7 +587,7 @@ obj.insert("z", 9);
 assert_eq(obj.z, 9);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None },
             Param { name: "path".into(), param_type: Type::Str, default: None },
             Param { name: "value".into(), param_type: Type::Void, default: None }
@@ -623,7 +622,7 @@ assert(obj.remove("x"));
 assert_not(obj.x);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None },
             Param { name: "path".into(), param_type: Type::Str, default: None },
             Param { name: "shallow".into(), param_type: Type::Bool, default: Some(Arc::new(Base::Literal(Val::Bool(false)))) }
@@ -634,6 +633,70 @@ assert_not(obj.x);
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(REMOVE.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+#[inline(always)]
+/// Set (by name, not path).
+pub fn obj_set() -> LibFunc {
+    LibFunc {
+        library: OBJ_LIB.clone(),
+        name: "set".into(),
+        is_async: false,
+        docs: r#"# Obj.set(obj: obj, name: str, value: unknown) -> void
+Set the field with exactly this name, or create it. Unlike insert, the name is never a path, so it can have dots (the counterpart of get). A function with the name is an error, and so is a const field.
+```rust
+const obj = new {};
+obj.set("a.b", 1);
+assert_eq(obj.get("a.b"), 1);
+assert_null(obj.a);
+```
+"#.into(),
+        params: crate::params![
+            Param { name: "obj".into(), param_type: Type::Void, default: None },
+            Param { name: "name".into(), param_type: Type::Str, default: None },
+            Param { name: "value".into(), param_type: Type::Void, default: None }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(ObjIns::Set));
+            Ok(instructions)
+        })
+    }
+}
+
+#[inline(always)]
+/// Unset (by name, not path).
+pub fn obj_unset() -> LibFunc {
+    LibFunc {
+        library: OBJ_LIB.clone(),
+        name: "unset".into(),
+        is_async: false,
+        docs: r#"# Obj.unset(obj: obj, name: str, shallow: bool = false) -> bool
+Remove the field, function, or data with exactly this name, returning true if there was one. Unlike remove, the name is never a path, so it can have dots. A field's object value is dropped too, unless shallow is true.
+```rust
+const obj = new {};
+obj.set("a.b", 1);
+assert(obj.unset("a.b"));
+assert_not(obj.contains("a.b"));
+```
+"#.into(),
+        params: crate::params![
+            Param { name: "obj".into(), param_type: Type::Void, default: None },
+            Param { name: "name".into(), param_type: Type::Str, default: None },
+            Param { name: "shallow".into(), param_type: Type::Bool, default: Some(Arc::new(Base::Literal(Val::Bool(false)))) }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(ObjIns::Unset));
             Ok(instructions)
         })
     }
@@ -655,7 +718,7 @@ assert_eq(obj.dude, 0);
 assert_not(obj.x);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None },
             Param { name: "source".into(), param_type: Type::Str, default: None },
             Param { name: "dest".into(), param_type: Type::Str, default: None }
@@ -685,7 +748,7 @@ const obj = new { x: 0, y: 0 };
 assert_eq(obj.fields(), [("x", 0), ("y", 0)]);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -713,7 +776,7 @@ Returns a list of functions on this object, optionally filtering by attributes (
 assert_eq(self.funcs("myfunc"), [self.func]);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None },
             Param { name: "attributes".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) },
         ],
@@ -742,7 +805,7 @@ const obj = new { x: 0, y: 0 };
 assert_not(obj.empty());
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -770,7 +833,7 @@ const obj = new { x: 0, y: 0 };
 assert(obj.any());
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None }
         ],
         return_type: None,
@@ -797,7 +860,7 @@ Returns a map of attributes, either for this object if the path is null, or for 
 assert_eq(self.attributes(), {"a": null}); // if self was defined as a field with the attribute #[a]
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None },
             Param { name: "path".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))) }
         ],
@@ -828,7 +891,7 @@ obj.move(other);
 assert_eq(obj.parent(), other);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None },
             Param { name: "dest".into(), param_type: Type::Void, default: None }
         ],
@@ -857,7 +920,7 @@ const obj = new { x: 0, y: 0 };
 assert_eq(obj.dist(self), 1);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None },
             Param { name: "other".into(), param_type: Type::Void, default: None }
         ],
@@ -917,7 +980,7 @@ fn example() {
 }
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None },
             Param { name: "prototype".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) },
             Param { name: "steps".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) },
@@ -953,7 +1016,7 @@ assert_eq(difference.x, null);
 assert_eq(difference.y, 5.6m);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "schema".into(), param_type: Type::Void, default: None },
             Param { name: "target".into(), param_type: Type::Void, default: None },
             Param { name: "symmetric".into(), param_type: Type::Bool, default: Some(Arc::new(Base::Literal(Val::Bool(false)))) },
@@ -1010,7 +1073,7 @@ fn schemafy_obj() {
 }
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "schema".into(), param_type: Type::Void, default: None },
             Param { name: "target".into(), param_type: Type::Void, default: None },
             Param { name: "remove_invalid".into(), param_type: Type::Bool, default: Some(Arc::new(Base::Literal(Val::Bool(false)))) },
@@ -1042,7 +1105,7 @@ const map = obj.to_map();
 assert_eq(map.get("x"), 3km);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "obj".into(), param_type: Type::Void, default: None },
         ],
         return_type: None,
@@ -1075,7 +1138,7 @@ const obj = Obj.from_map(map);
 assert_eq(obj.x, 0);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "map".into(), param_type: Type::Map, default: None },
         ],
         return_type: None,
@@ -1104,7 +1167,7 @@ const ptr = Obj.from_id(obj.id());
 assert_eq(ptr, obj);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "id".into(), param_type: Type::Str, default: None },
         ],
         return_type: None,
@@ -1128,7 +1191,7 @@ pub fn obj_dump_graph() -> LibFunc {
         docs: r#"# Obj.dbg_graph() -> void
 Utility function for dumping the complete graph, helpful for some debugging cases. To dump a specific node, use Std.dbg(..) with the desired object(s).
 "#.into(),
-        params: vector![],
+        params: crate::params![],
         return_type: None,
         unbounded_args: false,
         args_to_symbol_table: false,

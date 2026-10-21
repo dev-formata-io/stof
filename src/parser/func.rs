@@ -16,12 +16,13 @@
 
 use std::sync::Arc;
 use nom::{bytes::complete::tag, branch::alt, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded, terminated}, IResult, Parser};
-use crate::{model::{Func, FuncDoc, Param, SId, ASYNC_FUNC_ATTR}, parser::{source, context::ParseContext, info::{Def, DefKind}, doc::{err_fail, StofParseError}, expr::expr, ident::ident, parse_attributes, statement::{block, declare::{clear_used_names, take_declared_names, take_referenced_names}}, types::parse_type, whitespace::{doc_comment, paren_list, whitespace}}, runtime::{instruction::Instruction, instructions::Base, Val}};
+use crate::{model::{Func, FuncDoc, Param, SId, ASYNC_FUNC_ATTR}, parser::{source, context::ParseContext, info::{Def, DefKind, DefSpan}, doc::{err_fail, StofParseError}, expr::expr, ident::ident, parse_attributes, statement::{block, declare::{clear_used_names, take_declared_names, take_referenced_names}}, types::parse_type, whitespace::{doc_comment, paren_list, whitespace}}, runtime::{instruction::Instruction, instructions::Base, Val}};
 
 
 /// Parse a function into a parse context.
 pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str, (), StofParseError> {
     let mut func = Func::default();
+    let outer_start = input;
 
     // Doc comments & whitespace before a function definition
     let (input, mut comments) = doc_comment(input)?;
@@ -39,6 +40,7 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
     do_create_func = do_create_func && do_insert;
     let (input, _) = whitespace(input)?; // clean up anything more before signature...
     let start = input;
+    let fn_start = input;
 
     let (input, async_fn) = opt(terminated(tag("async"), multispace0)).parse(input)?;
     if async_fn.is_some() && !func.attributes.contains_key(ASYNC_FUNC_ATTR.as_str()) {
@@ -55,6 +57,7 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
     take_referenced_names();
     clear_used_names();
     let (input, instructions) = block(input).map_err(err_fail)?;
+    let value_end = input;
     let mut var_names = take_declared_names();
     var_names.extend(params.iter().map(|param| param.name.as_ref().to_string()));
     let referenced = take_referenced_names();
@@ -66,10 +69,11 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
     context.warn_if_vars_shadow_lib(name, &var_names);
     context.check_names(name, &var_names, referenced);
 
-    for param in params { func.params.push_back(param); }
+    func.params = params.into_iter().collect();
     func.return_type = return_type.unwrap_or_default(); // default is void
     func.instructions = instructions;
     func.src = source::locate(start);
+    if source::keep_source_enabled() { func.source = Some(fn_start[..fn_start.len() - input.len()].into()); }
 
     // Is this function an init function (has an #[init] attribute)?
     // These functions will get called automatically when the context is dropped (after parse complete).
@@ -86,7 +90,11 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
     // Record the definition (editor tooling only)
     if context.info.is_some() {
         if let Some(start) = source::locate(name_pos) {
-            let def = Def { kind: DefKind::Func, name: name.to_string(), parent: self_ptr.clone(), data: Some(func_ref.clone()), obj: None, target: None, start, end: source::locate(input), docs: comments.clone() };
+            let span = match (source::offset(outer_start), source::offset(name_pos), source::offset(fn_start), source::offset(value_end), source::offset(value_end)) {
+                (Some(outer_start), Some(name_start), Some(value_start), Some(value_end), Some(outer_end)) => Some(DefSpan { outer_start, name_start, name_end: name_start + name.len(), value_start, value_end, outer_end }),
+                _ => None,
+            };
+            let def = Def { kind: DefKind::Func, name: name.to_string(), parent: self_ptr.clone(), data: Some(func_ref.clone()), obj: None, target: None, start, end: source::locate(value_end), docs: comments.clone(), span };
             if let Some(info) = &mut context.info { info.defs.push(def); }
         }
     }

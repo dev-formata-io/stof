@@ -16,7 +16,6 @@
 
 
 use std::sync::Arc;
-use imbl::vector;
 use crate::{model::{num::{AT, NUM_LIB}, LibFunc, Param}, runtime::{instruction::Instructions, NumT, Type}};
 
 
@@ -32,7 +31,7 @@ Length of this number (helpful for iteration).
 assert_eq((10).len(), 10);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
         return_type: Some(Type::Num(NumT::Int)),
@@ -59,7 +58,7 @@ assert_eq((10).at(5), 5);
 assert_eq((10).at(20), 10);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "val".into(), param_type: Type::Void, default: None },
             Param { name: "index".into(), param_type: Type::Num(NumT::Int), default: None }
         ],

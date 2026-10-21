@@ -1,7 +1,7 @@
 {
   "name": "stof",
   "displayName": "Stof",
-  "version": "0.10.7",
+  "version": "0.10.8",
   "description": "Write, read, debug, and embed Stof documents: JSON with functions, types, units, schemas, and tests that run sandboxed in-process from Rust, TypeScript, or Python.",
   "author": {
     "name": "Formata, Inc.",

@@ -91,6 +91,11 @@ pub struct Graph {
     /// Elements the html format may write (None for the defaults). Set by the host with `allow_html_tags`.
     #[serde(skip)]
     pub html_tags: Option<Arc<FxHashSet<String>>>,
+
+    /// Keep each function's source text when parsing (off by default), so the readable `stof` export can write
+    /// functions as Stof instead of data blocks. Set by the host with `keep_source`.
+    #[serde(skip)]
+    pub keep_source: bool,
 }
 
 fn default_max_execution_time() -> Option<Duration> {
@@ -113,6 +118,7 @@ impl Default for Graph {
             max_execution_time: default_max_execution_time(),
             http_hosts: None,
             html_tags: None,
+            keep_source: false,
         };
         graph.load_std_formats();
         graph.insert_std_lib();
@@ -220,6 +226,12 @@ impl Graph {
             }
         }
         None
+    }
+
+    /// Keep each function's source text when parsing from now on (off by default). The readable `stof` export
+    /// writes functions as their source, and as `data@v1` blocks when they have none. It costs the memory of the text.
+    pub fn keep_source(&mut self, keep: bool) {
+        self.keep_source = keep;
     }
 
     #[inline]
@@ -424,6 +436,12 @@ impl Graph {
             funcs.insert(libfunc.name.clone(), libfunc);
             self.libfuncs.insert(lib, funcs);
         }
+    }
+
+    #[inline]
+    /// Is there a library function with this name? (Doesn't copy it, unlike `libfunc`.)
+    pub fn has_libfunc(&self, library: &str, name: &str) -> bool {
+        self.libfuncs.get(library).is_some_and(|lib| lib.contains_key(name))
     }
 
     /// Get a library function.

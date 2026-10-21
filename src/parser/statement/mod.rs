@@ -199,7 +199,7 @@ fn async_block(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofP
     ))).parse(input)?;
 
     let res: Vector<Arc<dyn Instruction>> = vector![
-        Arc::new(Base::Spawn((Instructions::from(ins), Type::Void))) as Arc<dyn Instruction>,
+        Arc::new(Base::Spawn(Arc::new((Instructions::from(ins), Type::Void)))) as Arc<dyn Instruction>,
         POP_STACK.clone(), // pop the promise from the stack
         SUSPEND.clone(), // start the new process
     ];

@@ -42,10 +42,21 @@ pub const UNSELF_FUNC_ATTR: ArcStr = literal!("unself");
 pub const ARROW_FUNC_ATTR: ArcStr = literal!("arrow");
 
 
+/// A function's parameters, in order. Shared (cloning is a reference count), and sized to the parameters: an
+/// `imbl::Vector` allocates a 64-slot chunk even for one parameter, a large share of a document's memory.
+/// Serialized as a sequence, the same as before, so BSTF is unchanged.
+pub type Params = Arc<[Param]>;
+
+#[macro_export]
+/// Parameters for a function (Ex. `params![Param { .. }, Param { .. }]`), like `vec!`.
+macro_rules! params {
+    ($($param:expr),* $(,)?) => { $crate::model::Params::from([$($param),*]) };
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 /// Function.
 pub struct Func {
-    pub params: Vector<Param>,
+    pub params: Params,
     pub return_type: Type,
     pub attributes: FxHashMap<String, Val>,
     pub instructions: Vector<Arc<dyn Instruction>>,
@@ -54,6 +65,12 @@ pub struct Func {
     /// Set by the parser and never stored in documents (BSTF stays the same).
     #[serde(skip)]
     pub src: Option<SrcLoc>,
+
+    /// The function's source text as written (from `fn`, `async`, or an arrow's parameters to the end of its
+    /// body), for the readable Stof export. Set by the parser only when the host asks (`Graph::keep_source`), and
+    /// never stored in documents (a function loaded from BSTF has none).
+    #[serde(skip)]
+    pub source: Option<ArcStr>,
 
     /// Arrow functions: the variables visible where the arrow was last evaluated (shared with them, so an
     /// assignment in the arrow is seen by the variable it captured). Runtime only, never stored in documents.
@@ -109,7 +126,7 @@ pub struct Param {
 
 impl Func {
     /// Create a new function.
-    pub fn new(params: Vector<Param>, return_type: Type, instructions: Instructions, attrs: Option<FxHashMap<String, Val>>) -> Self {
+    pub fn new(params: Params, return_type: Type, instructions: Instructions, attrs: Option<FxHashMap<String, Val>>) -> Self {
         let mut attributes = FxHashMap::default();
         if let Some(attr) = attrs {
             attributes = attr;
@@ -120,6 +137,7 @@ impl Func {
             instructions: instructions.instructions.into_iter().collect(),
             attributes,
             src: None,
+            source: None,
             captured: None,
             capture_names: None,
         }

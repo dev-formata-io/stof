@@ -42,6 +42,20 @@ fn start() {
 }
 
 
+#[wasm_bindgen(js_name = stofOutline)]
+/// The fields and functions in a Stof text, as JSON (see `parser::edit::outline_json`).
+pub fn stof_outline(text: &str) -> Result<String, String> {
+    let defs = crate::parser::edit::outline(text).map_err(|error| error.to_string())?;
+    Ok(crate::parser::edit::outline_json(text, &defs).to_string())
+}
+
+#[wasm_bindgen(js_name = stofEdit)]
+/// Edit a Stof text in place, with edits as JSON text (see `parser::edit::edits_from_json`).
+pub fn stof_edit(text: &str, edits: &str) -> Result<String, String> {
+    crate::parser::edit::edit_json(text, edits).map_err(|error| error.to_string())
+}
+
+
 #[wasm_bindgen]
 /// Stof Document.
 /// This is the entire interface for wasm/js (Runtime + Graph).
@@ -303,6 +317,13 @@ impl Stof {
     /// standard HTML elements and custom elements. Documents can't change it. Calling it again adds elements.
     pub fn allow_html_tags(&self, tags: Vec<String>) {
         self.graph_mut().allow_html_tags(tags);
+    }
+
+    #[wasm_bindgen(js_name = keepSource)]
+    /// Keep each function's source text from now on (off by default), so the readable `stof` export writes
+    /// functions as Stof. It costs the memory of the text.
+    pub fn keep_source(&self, keep: Option<bool>) {
+        self.graph_mut().keep_source(keep.unwrap_or(true));
     }
 
     #[wasm_bindgen(js_name = setMaxExecutionTime)]

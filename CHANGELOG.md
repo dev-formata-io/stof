@@ -1,5 +1,70 @@
 # Changelog
 
+## 0.10.8
+
+### Added
+
+- **Edit Stof text in place.** `outline(text)` lists a text's fields and functions with their paths and where they
+  are, from the parser itself. `edit(text, edits)` sets, adds, removes, and renames fields and functions by path
+  and changes nothing else: comments, formatting, and every other definition stay exactly as they were. It's for apps
+  and agents that change documents people also write by hand (Ex. a no-code editor saving into a hand-written
+  policy).
+  - Edits: `{ set: path, value }` (a JSON value), `{ set: path, stof }` (Stof source), `{ set_fn: path, stof }` (a
+    function: an existing one keeps its attributes and doc comments unless the source starts with its own),
+    `{ remove: path }`, and `{ rename: path, to }`. A path is a list of names, or names separated by dots.
+  - The outline gives each definition's path, whether it's an object, its value (a field's value, or a function from
+    `fn`), and its source (with its attributes and the comments directly above it).
+  - A set on a field that isn't there adds it, and any objects on its path, in the style of the object it goes
+    into: one field per line or on one line, its separators, and its indent. Added text uses the text's line
+    endings.
+  - A remove takes the definition's attributes, the comments directly above it (not past a blank line), its
+    separator, and a comment at the end of its line.
+  - Each edit is checked: the text has to parse before and after, a path has to be defined once, and only objects
+    written inline have children. A failed edit changes nothing.
+  - Nothing in the text runs: field expressions and attribute values aren't evaluated, and init functions aren't
+    called. So any text is safe to outline or edit, including one a user or an agent sent.
+  - Typed fields don't need their types (Ex. `Limitr policy: {..}` outlines without the Limitr engine).
+  - Rust: `stof::parser::edit::{outline, edit, Edit}`; JS: `StofDoc.outline(text)` and `StofDoc.edit(text, edits)`;
+    Python: `Doc.outline(text)` and `Doc.edit(text, edits)`.
+- **Readable Stof export.** `stringify('stof', obj)` (and host exports in the `stof` format) now writes Stof a person
+  or a model can read and edit, instead of the exact graph form:
+  - objects with their types (`Plan pro: { .. }`), attributes, and doc comments
+  - values as literals: units (`1GB`), versions, lists, tuples, and blobs, with `set(..)` and `map((k, v), ..)`
+  - functions as their source text, when the host asked the parser to keep it (see below)
+  - objects in lists as `new Type { .. }` when they only hold values, else as `#[no-field]` objects before the field
+  - references to other objects as paths (`self.a`, `super.b`), and type definitions first so they're defined before
+    they're used
+
+  Function source is kept only when the host turns it on before parsing: `graph.keep_source(true)` in Rust,
+  `doc.keepSource()` in JS, `doc.keep_source()` in Python. It's off by default, so documents don't hold the text of
+  every function. A function without source text (not kept, or loaded from BSTF) is written as a `data@v1` block, and
+  nothing is lost.
+  Comments, formatting, and object IDs aren't kept. The Stof test suite, written this way and parsed back, passes
+  except the tests of declared object IDs.
+- **`stof:graph`** is the exact export the `stof` format used to write: IDs, references, and compiled functions as
+  data blocks. `stof:human` (the same with comments) is unchanged.
+- **`Obj.set(name, value)` and `Obj.unset(name, shallow = false)`:** set, create, or remove the field with exactly this
+  name, never a path, so a name can have dots. They're the counterparts of `Obj.get`. `insert` and `remove` still
+  take paths.
+- Parse info (for editor tooling) records byte spans for fields and functions (`Def::span`).
+
+### Changed
+
+- **`a ?? b` costs less.** It's the value and one check now, instead of a jump to a generated tag.
+- **`Age.blobify(.., 'stof', ..)` encrypts readable Stof** (the `stof` export). Decrypting with `Age.parse` reads it
+  the same way. Pass `'stof:graph'` for the exact form.
+- **A variable declared without a type takes no type from its value.** `let x = self.price` (a `float` field) and
+  then `x = 'text'` used to fail with "cannot cast str to float". A declared type (`let x: float = ..`) still holds.
+  The field itself is never changed by assigning to the variable.
+- **Documents use about half the memory.** An empty document went from about 2.2 MB to 0.24 MB, and the Limitr
+  engine from about 7.4 MB to 3.5 MB. BSTF is unchanged: documents written by 0.10.7 load in 0.10.8, and the reverse.
+  - Function parameters (`Func::params`, `LibFunc::params`) are `Params` (`Arc<[Param]>`), sized to the parameters.
+    The `imbl::Vector` they used allocated room for 64 parameters each. Rust hosts building a `LibFunc` write
+    `params: params![..]` instead of `vector![..]` (or any `Arc<[Param]>`).
+  - Each instruction takes less room: the few large, rarely used instructions are shared or boxed, since every
+    instruction is as large as the largest.
+- Resolving a call no longer copies a library function just to check that it exists (`Graph::has_libfunc(lib, name)`).
+
 ## 0.10.7
 
 ### Added

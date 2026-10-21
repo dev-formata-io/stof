@@ -72,10 +72,7 @@ fn expr_inner(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError
     // Nullcheck operator "??"
     let (input, nullcheck) = opt(preceded(delimited(multispace0, tag("??"), multispace0), expr)).parse(input)?;
     if let Some(nullcheck) = nullcheck {
-        ins = Arc::new(NullcheckIns {
-            ins: value_of(ins),
-            ifnull: nullcheck
-        });
+        ins = Arc::new(NullcheckIns::new(value_of(ins), nullcheck));
     }
 
     // Ternary operator "?"
@@ -310,7 +307,7 @@ pub fn async_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseE
 
     // Spawn will put a new Promise<unknown> on the stack for you use if you want
     let mut block = Block::default();
-    block.ins.push_back(Arc::new(Base::Spawn((Instructions::from(ins), Type::Void)))); // no casting by default
+    block.ins.push_back(Arc::new(Base::Spawn(Arc::new((Instructions::from(ins), Type::Void))))); // no casting by default
     block.ins.push_back(SUSPEND.clone()); // start the new process right away
 
     Ok((input, Arc::new(block)))

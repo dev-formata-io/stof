@@ -46,7 +46,7 @@ pub fn import<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str
                 let path_pos = statement.find(['\'', '"']).map(|index| &statement[index..]).unwrap_or(statement);
                 if let Some(start) = source::locate(path_pos) {
                     let parent = context.self_ptr();
-                    let def = Def { kind: DefKind::Import, name: path.clone(), parent, data: None, obj: node, target: context.last_import.take(), start, end: source::locate(input), docs: String::new() };
+                    let def = Def { kind: DefKind::Import, name: path.clone(), parent, data: None, obj: node, target: context.last_import.take(), start, end: source::locate(input), docs: String::new(), span: None };
                     if let Some(info) = &mut context.info { info.defs.push(def); }
                 }
             }

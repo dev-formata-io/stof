@@ -137,7 +137,7 @@ impl Instruction for FuncIns {
                     if let Some(dref) = var.try_func() {
                         if let Some(func) = graph.get_stof_data::<Func>(&dref) {
                             let mut params = vector![];
-                            for param in &func.params {
+                            for param in func.params.iter() {
                                 let tup = vector![
                                     ValRef::new(Val::Str(param.name.as_ref().into())),
                                     ValRef::new(Val::Str(param.param_type.rt_type_of(&graph)))

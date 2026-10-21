@@ -16,7 +16,6 @@
 
 use std::sync::Arc;
 use arcstr::{literal, ArcStr};
-use imbl::vector;
 use crate::{model::{Graph, LibFunc, Param}, runtime::{instruction::Instructions, instructions::set::{ANY_SET, APPEND_SET, AT_REF_SET, AT_SET, CLEAR_SET, CONTAINS_SET, DIFF_SET, DISJOINT_SET, EMPTY_SET, FIRST_REF_SET, FIRST_SET, INSERT_SET, INTERSECTION_SET, IS_UNIFORM_SET, LAST_REF_SET, LAST_SET, LEN_SET, POP_FIRST_SET, POP_LAST_SET, REMOVE_SET, SPLIT_SET, SUBSET_SET, SUPERSET_SET, SYMMETRIC_DIFF_SET, TO_UNIFORM_SET, UNION_SET}, NumT, Type}};
 
 
@@ -66,7 +65,7 @@ set.append({3, 4});
 assert_eq(set, {1, 2, 3, 4});
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "set".into(), param_type: Type::Set, default: None },
             Param { name: "other".into(), param_type: Type::Set, default: None }
         ],
@@ -95,7 +94,7 @@ set.clear();
 assert_eq(set, {});
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "set".into(), param_type: Type::Set, default: None }
         ],
         return_type: None,
@@ -122,7 +121,7 @@ const set = {1, 2, 3};
 assert(set.contains(3));
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "set".into(), param_type: Type::Set, default: None },
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -150,7 +149,7 @@ const set = {1, 2, 3};
 assert_eq(set.first(), 1);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "set".into(), param_type: Type::Set, default: None }
         ],
         return_type: None,
@@ -181,7 +180,7 @@ const set = {1, 2, 3};
 assert_eq(set.last(), 3);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "set".into(), param_type: Type::Set, default: None }
         ],
         return_type: None,
@@ -212,7 +211,7 @@ const set = {1, 2};
 assert(set.insert(3));
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "set".into(), param_type: Type::Set, default: None },
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -240,7 +239,7 @@ const set = {1, 2, 3};
 assert_eq(set.split(2), ({1}, {3}));
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "set".into(), param_type: Type::Set, default: None },
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -268,7 +267,7 @@ const set = {1, 2, 3};
 assert_not(set.empty());
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "set".into(), param_type: Type::Set, default: None }
         ],
         return_type: None,
@@ -295,7 +294,7 @@ const set = {1, 2, 3};
 assert(set.any());
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "set".into(), param_type: Type::Set, default: None }
         ],
         return_type: None,
@@ -322,7 +321,7 @@ const set = {1, 2, 3};
 assert_eq(set.len(), 3);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "set".into(), param_type: Type::Set, default: None }
         ],
         return_type: None,
@@ -349,7 +348,7 @@ const set = {1, 2, 3};
 assert_eq(set[1], 2);
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "set".into(), param_type: Type::Set, default: None },
             Param { name: "index".into(), param_type: Type::Num(NumT::Int), default: None }
         ],
@@ -382,7 +381,7 @@ assert_eq(set.pop_first(), 1);
 assert_eq(set, {2, 3});
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "set".into(), param_type: Type::Set, default: None }
         ],
         return_type: None,
@@ -410,7 +409,7 @@ assert_eq(set.pop_last(), 3);
 assert_eq(set, {1, 2});
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "set".into(), param_type: Type::Set, default: None }
         ],
         return_type: None,
@@ -438,7 +437,7 @@ assert_eq(set.remove(2), 2);
 assert_eq(set, {1, 3});
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "set".into(), param_type: Type::Set, default: None },
             Param { name: "val".into(), param_type: Type::Void, default: None }
         ],
@@ -467,7 +466,7 @@ const other = {4, 5};
 assert_eq(set.union(other), {1, 2, 3, 4, 5});
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "set".into(), param_type: Type::Set, default: None },
             Param { name: "other".into(), param_type: Type::Set, default: None }
         ],
@@ -495,7 +494,7 @@ const set = {1, 2, 3};
 assert_eq(set.difference({2, 3}), {1});
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "set".into(), param_type: Type::Set, default: None },
             Param { name: "other".into(), param_type: Type::Set, default: None }
         ],
@@ -523,7 +522,7 @@ const set = {1, 2, 3};
 assert_eq(set.intersection({3, 4}), {3});
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "set".into(), param_type: Type::Set, default: None },
             Param { name: "other".into(), param_type: Type::Set, default: None }
         ],
@@ -551,7 +550,7 @@ const set = {1, 2, 3};
 assert_eq(set.symmetric_difference({2, 3, 4}), {1, 4});
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "set".into(), param_type: Type::Set, default: None },
             Param { name: "other".into(), param_type: Type::Set, default: None }
         ],
@@ -580,7 +579,7 @@ const other = {4, 5};
 assert(set.disjoint(other));
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "set".into(), param_type: Type::Set, default: None },
             Param { name: "other".into(), param_type: Type::Set, default: None }
         ],
@@ -609,7 +608,7 @@ const other = {2, 3, 4};
 assert(set.subset(other));
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "set".into(), param_type: Type::Set, default: None },
             Param { name: "other".into(), param_type: Type::Set, default: None }
         ],
@@ -638,7 +637,7 @@ const other = {2, 3, 4};
 assert(other.superset(set));
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "set".into(), param_type: Type::Set, default: None },
             Param { name: "other".into(), param_type: Type::Set, default: None }
         ],
@@ -666,7 +665,7 @@ const set = {2, 3};
 assert(set.is_uniform());
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "set".into(), param_type: Type::Set, default: None }
         ],
         return_type: None,
@@ -694,7 +693,7 @@ set.to_uniform("km");
 assert_eq(set, {2km, 3km});
 ```
 "#.into(),
-        params: vector![
+        params: crate::params![
             Param { name: "set".into(), param_type: Type::Set, default: None },
             Param { name: "type".into(), param_type: Type::Str, default: None }
         ],
