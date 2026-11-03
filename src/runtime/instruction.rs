@@ -434,6 +434,9 @@ impl Instructions {
                     Err(error) => {
                         if let Some(try_tag) = env.try_stack.pop() {
                             self.forward_to(&try_tag);
+                            // the readable message under the catch value: `catch (e, message)` takes both, and
+                            // `catch (e)` (or code compiled before messages) takes the value on top
+                            env.stack.push(Variable::val(Val::Str(error.message().into())));
                             env.stack.push(Variable::val(error.catch_value()));
                             continue 'exec_loop;
                         } else {

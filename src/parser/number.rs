@@ -23,6 +23,20 @@ pub fn number(input: &str) -> IResult<&str, Val, StofParseError> {
     let (input , _) = whitespace(input)?;
     let input = input.trim_start_matches("+");
 
+    // Infinity, -Infinity, and NaN (whole words: Infinity_cap or NaNcy are still names)
+    {
+        let negative = input.starts_with('-');
+        let unsigned = if negative { &input[1..] } else { input };
+        for (word, value) in [("Infinity", f64::INFINITY), ("NaN", f64::NAN)] {
+            if let Some(rest) = unsigned.strip_prefix(word) {
+                if !rest.starts_with(|c: char| c.is_alphanumeric() || c == '_') {
+                    let value = if negative { -value } else { value };
+                    return Ok((rest, Val::Num(Num::Float(value))));
+                }
+            }
+        }
+    }
+
     // binary, octal, hex: an optional leading sign, the prefix, then digits (and "_")
     for (prefix, radix) in [("0b", 2u32), ("0o", 8), ("0x", 16)] {
         let negative = input.starts_with('-');
@@ -176,6 +190,19 @@ fn units(input: &str) -> IResult<&str, Option<Units>, StofParseError> {
 #[cfg(test)]
 mod tests {
     use crate::{parser::number::number, runtime::{Units, Val}};
+
+    #[test]
+    fn infinity_and_nan() {
+        assert_eq!(number("Infinity").unwrap().1, Val::from(f64::INFINITY));
+        assert_eq!(number("-Infinity").unwrap().1, Val::from(f64::NEG_INFINITY));
+        assert_eq!(number("+Infinity").unwrap().1, Val::from(f64::INFINITY));
+        let (rest, nan) = number("NaN;").unwrap();
+        assert!(matches!(nan, Val::Num(crate::runtime::Num::Float(v)) if v.is_nan()));
+        assert_eq!(rest, ";");
+        assert!(number("Infinity_cap").is_err());
+        assert!(number("NaNcy").is_err());
+        assert!(number("Infinityx").is_err());
+    }
 
     #[test]
     fn integer() {

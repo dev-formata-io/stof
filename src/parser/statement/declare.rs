@@ -99,6 +99,22 @@ pub(crate) fn clear_used_names() {
     USED_NAMES.with(|names| names.borrow_mut().clear());
 }
 
+thread_local! {
+    /// Bare names used as map keys (Ex. "b" in "{ b: 1 }"): a key is an expression, so "b" is a variable, which
+    /// is easy to mistake for an object field (an object is "new { b: 1 }"). Used to explain the warning.
+    static MAP_KEY_NAMES: RefCell<Vec<String>> = RefCell::new(Vec::new());
+}
+
+/// Note a bare name used as a map key.
+pub(crate) fn note_map_key(name: &str) {
+    MAP_KEY_NAMES.with(|names| names.borrow_mut().push(name.to_string()));
+}
+
+/// Take (and clear) the map key names noted so far.
+pub(crate) fn take_map_key_names() -> Vec<String> {
+    MAP_KEY_NAMES.with(|names| std::mem::take(&mut *names.borrow_mut()))
+}
+
 /// Take (and clear) the names referenced since the last call.
 pub(crate) fn take_referenced_names() -> Vec<(String, bool, usize)> {
     REFERENCED_NAMES.with(|names| std::mem::take(&mut *names.borrow_mut()))

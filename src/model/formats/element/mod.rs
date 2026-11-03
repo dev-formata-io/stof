@@ -188,7 +188,11 @@ impl<'a> Writer<'a> {
     fn root(&mut self, root: &NodeRef) -> Result<(), Error> {
         if self.markup == Markup::Xml {
             self.out.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-            let name = self.tag_of(None, root).unwrap_or_else(|| root.node(self.graph).map(|n| n.name.as_ref().to_string()).unwrap_or_default());
+            // an object without a name of its own (Ex. `new {}`) is named by its random ID, which isn't always
+            // an XML name (it can start with a digit): it's written as <root>, so the export doesn't fail by chance
+            let name = self.tag_of(None, root).unwrap_or_else(|| root.node(self.graph).map(|n| {
+                if n.name == n.id { "root".to_string() } else { n.name.as_ref().to_string() }
+            }).unwrap_or_default());
             return self.element(&name, root);
         }
         match self.tag_of(None, root) {
@@ -592,6 +596,7 @@ mod tests {
 
         // a document can't widen it
         let mut graph = view_graph();
+        graph.quiet(true); // warns: allow_html_tags isn't a Stof function
         graph.allow_html_tags(["div"]);
         graph.parse_stof_src("#[main] fn main() { allow_html_tags(['span']); }", None, Profile::default()).unwrap();
         let _ = graph.run(None, true);

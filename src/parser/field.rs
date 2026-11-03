@@ -352,6 +352,5 @@ mod tests {
             "#, &mut context).unwrap();
         }
 
-        graph.dump(true);
     }
 }

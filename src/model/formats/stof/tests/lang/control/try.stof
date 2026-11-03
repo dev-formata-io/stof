@@ -191,3 +191,44 @@ fn catch_variable_scope() {
     assert_eq(seen, ['a', 'b']);
     assert_null(?e);
 }
+
+#[test]
+/// catch (e, message): the error as always, and its readable message.
+fn catch_message() {
+    let code = ''; let text = '';
+    try nanoid(0);
+    catch (e: str, message: str) { code = e; text = message; }
+    assert_eq(code, 'FuncArgs');
+    assert_eq(text, 'nanoid length must be from 1 to 4096 (got 0)');
+
+    try assert_eq(1, 2, 'totals');
+    catch (e, message) text = message;
+    assert_eq(text, "assertion failed: totals: '1' does not equal '2'");
+
+    try throw('plain text');
+    catch (e, message) { code = e; text = message; }
+    assert_eq(code, 'plain text');
+    assert_eq(text, 'plain text');
+
+    let thrown = null;
+    try throw({1, 2});
+    catch (e, message: str) { thrown = e; text = message; }
+    assert_eq(thrown, {1, 2});
+    assert(text.contains('error thrown'), text);
+
+    // the one-name and no-name forms are unchanged
+    try nanoid(0);
+    catch (e: str) code = e;
+    assert_eq(code, 'FuncArgs');
+    let caught = false;
+    try nanoid(0);
+    catch caught = true;
+    assert(caught);
+}
+
+#[test]
+/// The message variable is scoped to its catch block, like the error.
+fn catch_message_scope() {
+    try throw('a'); catch (e, message) {}
+    try throw('b'); catch (e, message) { assert_eq(message, 'b'); }
+}

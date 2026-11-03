@@ -255,7 +255,7 @@ export type StofEdit =
  * Stof document.
  */
 export class StofDoc {
-    static readonly VERSION = '0.10.8';
+    static readonly VERSION = '0.10.9';
     private static initialized?: Promise<unknown>;
     private static wasmMutex = new WasmMutex();
     stof: Stof;
@@ -356,6 +356,9 @@ export class StofDoc {
 
     /**
      * Add JS library function.
+     * The function can call back into this document with the async methods (await doc.call(..), doc.callSource(..)),
+     * which run once Stof's current step is done. Synchronous methods (get, set, sync_call, stringify, ..) called
+     * before the function's first await find the document busy and throw; call them after an await instead.
      */
     // deno-lint-ignore ban-types
     lib(library: string, name: string, func: Function, is_async?: boolean, params?: string[]) {
@@ -405,6 +408,15 @@ export class StofDoc {
      */
     keepSource(keep: boolean = true): void {
         this.stof.keepSource(keep);
+    }
+
+
+    /**
+     * Print nothing to the console (off by default): no parse warnings, test progress, or pln/err/dbg output.
+     * Results and errors still come back (Ex. `test` still returns its report).
+     */
+    quiet(quiet: boolean = true): void {
+        this.stof.quiet(quiet);
     }
 
 

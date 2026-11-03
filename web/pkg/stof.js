@@ -23,13 +23,19 @@ export class Stof {
     allowHtmlTags(tags) {
         const ptr0 = passArrayJsValueToWasm0(tags, wasm.__wbindgen_malloc);
         const len0 = WASM_VECTOR_LEN;
-        wasm.stof_allowHtmlTags(this.__wbg_ptr, ptr0, len0);
+        const ret = wasm.stof_allowHtmlTags(this.__wbg_ptr, ptr0, len0);
+        if (ret[1]) {
+            throw takeFromExternrefTable0(ret[0]);
+        }
     }
     /**
      * Give this document network access (the Http library, using fetch). Off by default.
      */
     allowHttp() {
-        wasm.stof_allowHttp(this.__wbg_ptr);
+        const ret = wasm.stof_allowHttp(this.__wbg_ptr);
+        if (ret[1]) {
+            throw takeFromExternrefTable0(ret[0]);
+        }
     }
     /**
      * Binary export (Uint8Array), using a format of choice.
@@ -126,7 +132,10 @@ export class Stof {
         const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.stof_get(this.__wbg_ptr, ptr0, len0, start);
-        return ret;
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
     }
     /**
      * Insert a JS function as a library function, available in Stof.
@@ -135,7 +144,10 @@ export class Stof {
     js_library_function(func) {
         _assertClass(func, StofFunc);
         var ptr0 = func.__destroy_into_raw();
-        wasm.stof_js_library_function(this.__wbg_ptr, ptr0);
+        const ret = wasm.stof_js_library_function(this.__wbg_ptr, ptr0);
+        if (ret[1]) {
+            throw takeFromExternrefTable0(ret[0]);
+        }
     }
     /**
      * Keep each function's source text from now on (off by default), so the readable `stof` export writes
@@ -143,7 +155,10 @@ export class Stof {
      * @param {boolean | null} [keep]
      */
     keepSource(keep) {
-        wasm.stof_keepSource(this.__wbg_ptr, isLikeNone(keep) ? 0xFFFFFF : keep ? 1 : 0);
+        const ret = wasm.stof_keepSource(this.__wbg_ptr, isLikeNone(keep) ? 0xFFFFFF : keep ? 1 : 0);
+        if (ret[1]) {
+            throw takeFromExternrefTable0(ret[0]);
+        }
     }
     /**
      * Construct a new document.
@@ -186,6 +201,17 @@ export class Stof {
         return ret[0] !== 0;
     }
     /**
+     * Print nothing to the console (off by default): no parse warnings, test progress, or pln/err/dbg output.
+     * Results and errors still come back (Ex. `test` still returns its report).
+     * @param {boolean | null} [quiet]
+     */
+    quiet(quiet) {
+        const ret = wasm.stof_quiet(this.__wbg_ptr, isLikeNone(quiet) ? 0xFFFFFF : quiet ? 1 : 0);
+        if (ret[1]) {
+            throw takeFromExternrefTable0(ret[0]);
+        }
+    }
+    /**
      * Remove a field, function, or object by path (Ex. "config.staging"), like drop() in Stof.
      * A field that holds an object drops the object too, unless shallow (then only the field is removed).
      * Returns whether anything was removed.
@@ -197,7 +223,10 @@ export class Stof {
         const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.stof_remove(this.__wbg_ptr, ptr0, len0, shallow);
-        return ret !== 0;
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return ret[0] !== 0;
     }
     /**
      * Run functions with the given attribute(s) in this document.
@@ -217,7 +246,10 @@ export class Stof {
      * @param {number | null} [ms]
      */
     setMaxExecutionTime(ms) {
-        wasm.stof_setMaxExecutionTime(this.__wbg_ptr, !isLikeNone(ms), isLikeNone(ms) ? 0 : ms);
+        const ret = wasm.stof_setMaxExecutionTime(this.__wbg_ptr, !isLikeNone(ms), isLikeNone(ms) ? 0 : ms);
+        if (ret[1]) {
+            throw takeFromExternrefTable0(ret[0]);
+        }
     }
     /**
      * Set a value onto this graph using the Stof runtime.
@@ -230,7 +262,10 @@ export class Stof {
         const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.stof_set(this.__wbg_ptr, ptr0, len0, value, start);
-        return ret !== 0;
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return ret[0] !== 0;
     }
     /**
      * String export, using a format of choice.
@@ -904,7 +939,7 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbindgen_generic_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 8857, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 8865, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_3b9afeaa82ee37f3___convert__closures_____invoke___wasm_bindgen_3b9afeaa82ee37f3___JsValue__core_608f92abc48d28da___result__Result_____wasm_bindgen_3b9afeaa82ee37f3___JsError___true_);
             return ret;
         },

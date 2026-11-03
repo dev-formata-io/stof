@@ -59,8 +59,38 @@ Imports: {
 }
 
 #[test]
-/// JSON has no infinity or NaN: they export as null (like JSON.stringify) instead of panicking.
+/// JSON has no infinity or NaN: they export as the strings "Infinity", "-Infinity", and "NaN" (it used to panic, then
+/// write null). Units aren't written in JSON, for any number.
 fn stringify_non_finite() {
     const doc = new { a: 1.0 / 0.0, b: -1.0 / 0.0, c: 0.0 / 0.0, d: 1.5, e: [1.0 / 0.0, 2], f: (1.0 / 0.0) as kg };
-    assert_eq(stringify('json', doc), '{"a":null,"b":null,"c":null,"d":1.5,"e":[null,2],"f":null}');
+    assert_eq(stringify('json', doc), '{"a":"Infinity","b":"-Infinity","c":"NaN","d":1.5,"e":["Infinity",2],"f":"Infinity"}');
+}
+
+#[test]
+/// JSON has no infinity or NaN: they're the strings "Infinity", "-Infinity", and "NaN", which read back as numbers.
+fn non_finite() {
+    const o = new { a: Infinity, b: -Infinity, c: NaN, l: [Infinity, NaN], n: new { x: -Infinity }, s: 'Infinity and beyond' };
+    const json = stringify('json', o);
+    assert(json.contains('"a":"Infinity"'), json);
+    assert(json.contains('"b":"-Infinity"'), json);
+    assert(json.contains('"c":"NaN"'), json);
+    const back = new {};
+    parse(json, back, 'json');
+    assert_eq(back.a, Infinity);
+    assert_eq(back.b, -Infinity);
+    assert(back.c.nan());
+    assert_eq(back.l[0], Infinity);
+    assert(back.l[1].nan());
+    assert_eq(back.n.x, -Infinity);
+    assert_eq(back.s, 'Infinity and beyond');       // only the exact words are numbers
+    drop(o);
+    drop(back);
+
+    const words = new {};
+    parse('{"a": "infinity", "b": "inf", "c": "nan", "d": "Infinity"}', words, 'json');
+    assert_eq(words.a, 'infinity');
+    assert_eq(words.b, 'inf');
+    assert_eq(words.c, 'nan');
+    assert_eq(words.d, Infinity);
+    drop(words);
 }

@@ -295,7 +295,7 @@ impl Instruction for StdIns {
                 }
                 let mut sep = "";
                 if !seen_str { sep = ", " }
-                print_line(&output.join(sep));
+                if !graph.quiet { print_line(&output.join(sep)); }
             },
             Self::Dbg(arg_count) => {
                 let mut values = Vec::new();
@@ -317,7 +317,7 @@ impl Instruction for StdIns {
                 }
                 let mut sep = "";
                 if !seen_str { sep = ", " }
-                print_line(&output.join(sep));
+                if !graph.quiet { print_line(&output.join(sep)); }
             },
             Self::Err(arg_count) => {
                 let mut values = Vec::new();
@@ -339,7 +339,7 @@ impl Instruction for StdIns {
                 }
                 let mut sep = "";
                 if !seen_str { sep = ", " }
-                print_error_line(&output.join(sep));
+                if !graph.quiet { print_error_line(&output.join(sep)); }
             }
             
             // xml(text: str, tag: str) -> str
@@ -437,55 +437,61 @@ impl Instruction for StdIns {
             },
 
             Self::Assert => {
+                let message = assert_message(env, graph);
                 if let Some(val) = env.stack.pop() {
                     if !val.val.read().truthy() {
-                        let message = format!("'{}' is not truthy", val.val.read().print(&graph));
-                        return Err(Error::AssertFailed(message));
+                        let detail = format!("'{}' is not truthy", val.val.read().print(&graph));
+                        return Err(Error::AssertFailed(with_message(message, detail)));
                     }
                 }
             },
             Self::AssertNot => {
+                let message = assert_message(env, graph);
                 if let Some(val) = env.stack.pop() {
                     if val.val.read().truthy() {
-                        let message = format!("'{}' is truthy", val.val.read().print(&graph));
-                        return Err(Error::AssertNotFailed(message));
+                        let detail = format!("'{}' is truthy", val.val.read().print(&graph));
+                        return Err(Error::AssertNotFailed(with_message(message, detail)));
                     }
                 }
             },
             Self::AssertEq => {
+                let message = assert_message(env, graph);
                 if let Some(val) = env.stack.pop() {
                     if let Some(other) = env.stack.pop() {
                         if let Ok(res) = val.equal(&other) {
                             if !res.val.read().truthy() {
-                                let message = format!("'{}' does not equal '{}'", other.val.read().print(&graph), val.val.read().print(&graph));
-                                return Err(Error::AssertEqFailed(message));
+                                let detail = format!("'{}' does not equal '{}'", other.val.read().print(&graph), val.val.read().print(&graph));
+                                return Err(Error::AssertEqFailed(with_message(message, detail)));
                             }
                         }
                     }
                 }
             },
             Self::AssertNull => {
+                let message = assert_message(env, graph);
                 if let Some(val) = env.stack.pop() {
                     if !val.val.read().empty() {
-                        let message = format!("'{}' is not null", val.val.read().print(&graph));
-                        return Err(Error::AssertFailed(message));
+                        let detail = format!("'{}' is not null", val.val.read().print(&graph));
+                        return Err(Error::AssertFailed(with_message(message, detail)));
                     }
                 }
             },
             Self::AssertNotNull => {
+                let message = assert_message(env, graph);
                 if let Some(val) = env.stack.pop() {
                     if val.val.read().empty() {
-                        return Err(Error::AssertNotFailed("value is null".into()));
+                        return Err(Error::AssertNotFailed(with_message(message, "value is null".into())));
                     }
                 }
             },
             Self::AssertNeq => {
+                let message = assert_message(env, graph);
                 if let Some(val) = env.stack.pop() {
                     if let Some(other) = env.stack.pop() {
                         if let Ok(res) = val.equal(&other) {
                             if res.val.read().truthy() {
-                                let message = format!("'{}' equals '{}'", other.val.read().print(&graph), val.val.read().print(&graph));
-                                return Err(Error::AssertNotEqFailed(message));
+                                let detail = format!("'{}' equals '{}'", other.val.read().print(&graph), val.val.read().print(&graph));
+                                return Err(Error::AssertNotEqFailed(with_message(message, detail)));
                             }
                         }
                     }
@@ -1001,7 +1007,12 @@ impl Instruction for StdIns {
                 if let Some(length_var) = env.stack.pop() {
                     match length_var.val.read().deref() {
                         Val::Num(num) => {
-                            let size = num.int() as usize;
+                            // nanoid loops forever on a length of 0 (or a negative one, as a huge usize)
+                            let length = num.int();
+                            if !(1..=4096).contains(&length) {
+                                return Err(Error::FuncArgsInfo(format!("nanoid length must be from 1 to 4096 (got {length})")));
+                            }
+                            let size = length as usize;
                             env.stack.push(Variable::val(Val::Str(nanoid!(size).into())));
                         },
                         _ => {}
@@ -1109,7 +1120,7 @@ impl Instruction for StdIns {
                 return Ok(Some(instructions));
             },
             Self::TraceStack => {
-                println!("{:?}", &env.stack);
+                if !graph.quiet { println!("{:?}", &env.stack); }
             },
 
             #[cfg(feature = "system")]
@@ -1306,4 +1317,21 @@ pub fn insert_env_functions(graph: &mut Graph) {
     graph.insert_libfunc(std_set_env());
     graph.insert_libfunc(std_remove_env());
     graph.insert_libfunc(std_env_vars());
+}
+
+
+/// The optional message an assert was called with (its last argument), or None for null.
+fn assert_message(env: &mut ProcEnv, graph: &Graph) -> Option<String> {
+    let var = env.stack.pop()?;
+    let val = var.val.read();
+    if val.empty() { return None; }
+    Some(val.print(graph))
+}
+
+/// An assert's error text: the caller's message first when there is one, then what failed.
+fn with_message(message: Option<String>, detail: String) -> String {
+    match message {
+        Some(message) => format!("{message}: {detail}"),
+        None => detail,
+    }
 }

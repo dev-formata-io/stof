@@ -269,6 +269,7 @@ mod tests {
         let mut graph = Graph::default();
         graph.allow_system(); // the suite imports files and tests the fs library
         graph.keep_source(true); // the readable export tests write functions as source
+        graph.quiet(true); // its report (below) is the output: the tests of errors and warnings print nothing
         #[cfg(feature = "http")]
         graph.allow_http(); // the Http tests (full features)
         match graph.parse_stof_file("stof", "src/model/formats/stof/tests/tests.stof", None, Profile::test()) {
@@ -325,6 +326,7 @@ mod tests {
     /// Name.func() looks for an object first, then the library; Name::func() is always the library.
     fn library_calls_with_root_objects() {
         let mut graph = Graph::default();
+        graph.quiet(true); // warns for the roots named Num and Str, as it should
         graph.parse_stof_src(r#"
             root Num { x: 1 }                                     // no "round": falls back to the library
             root Str { fn upper(v: str) -> str { return 'mine'; } } // intentional override
@@ -354,6 +356,7 @@ mod tests {
     /// "Other.z" for a "root Other {..}"). Objects are never found by name alone.
     fn paths_without_self_are_absolute() {
         let mut graph = Graph::default();
+        graph.quiet(true); // warns for top and inner, as it should
         graph.parse_stof_src(r#"
             top: { x: 1  fn f() -> int { 10 } }
             root Other { z: 5  fn h() -> int { 30 } }
@@ -419,6 +422,25 @@ mod tests {
             assert!(!warned(quiet), "unexpected warning for {quiet}: {warnings:?}");
         }
         assert_eq!(warnings.len(), 3, "{warnings:?}");
+    }
+
+    #[test]
+    /// A bare map key is a variable: say so, and how to write an object or a text key instead.
+    fn warns_on_map_keys_that_are_names() {
+        let mut graph = Graph::default();
+        let mut context = ParseContext::new(&mut graph, Profile::prod());
+        document(r#"
+            fn f() -> map {
+                const key = 'k';
+                const t = new { a: { b: 1 } };                       // warn: b (a map, not an object)
+                const ok = { key: 1, 'text': 2, 3: 4 };              // a variable, text, and a number: fine
+                t.a
+            }
+        "#, &mut context).expect("parses");
+        let warnings = context.take_warnings();
+        drop(context);
+        assert_eq!(warnings.len(), 1, "{warnings:?}");
+        assert!(warnings[0].contains("unknown name 'b'") && warnings[0].contains("new { b: .. }") && warnings[0].contains("{ 'b': .. }"), "{warnings:?}");
     }
 
     #[test]

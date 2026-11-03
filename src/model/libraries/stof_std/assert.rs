@@ -52,15 +52,17 @@ pub fn assert() -> LibFunc {
         library: STD_LIB.clone(),
         name: "assert".into(),
         is_async: false,
-        docs: r#"# Std.assert(value: unknown = false) -> void
-Throw an error if the given value is not truthy.
+        docs: r#"# Std.assert(value: unknown = false, message: str = null) -> void
+Throw an error if the given value is not truthy. An optional message comes first in the error.
 ```rust
 assert(true);
 assert(false); // errors
+assert(self.items.len() > 0, 'items should not be empty'); // errors with the message
 ```
 "#.into(),
         params: crate::params![
-            Param { name: "value".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Bool(false)))) }
+            Param { name: "value".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Bool(false)))) },
+            Param { name: "message".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) }
         ],
         return_type: None,
         unbounded_args: false,
@@ -80,15 +82,17 @@ pub fn assert_not() -> LibFunc {
         library: STD_LIB.clone(),
         name: "assert_not".into(),
         is_async: false,
-        docs: r#"# Std.assert_not(value: unknown = true) -> void
-Throw an error if the given value is truthy.
+        docs: r#"# Std.assert_not(value: unknown = true, message: str = null) -> void
+Throw an error if the given value is truthy. An optional message comes first in the error.
 ```rust
 assert_not(false);
 assert_not(true); // errors
+assert_not(self.deleted, 'the record was deleted'); // errors with the message
 ```
 "#.into(),
         params: crate::params![
-            Param { name: "value".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Bool(true)))) }
+            Param { name: "value".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Bool(true)))) },
+            Param { name: "message".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) }
         ],
         return_type: None,
         unbounded_args: false,
@@ -108,16 +112,18 @@ pub fn assert_eq() -> LibFunc {
         library: STD_LIB.clone(),
         name: "assert_eq".into(),
         is_async: false,
-        docs: r#"# Std.assert_eq(first: unknown, second: unknown) -> void
-Throw an error if the first value does not equal the second.
+        docs: r#"# Std.assert_eq(first: unknown, second: unknown, message: str = null) -> void
+Throw an error if the first value does not equal the second. An optional message comes first in the error.
 ```rust
 assert_eq('a', 'a');
 assert_eq(43, 42); // errors
+assert_eq(total, 42, 'total after the refund'); // errors: "total after the refund: '43' does not equal '42'"
 ```
 "#.into(),
         params: crate::params![
             Param { name: "first".into(), param_type: Type::Void, default: None },
-            Param { name: "second".into(), param_type: Type::Void, default: None }
+            Param { name: "second".into(), param_type: Type::Void, default: None },
+            Param { name: "message".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) }
         ],
         return_type: None,
         unbounded_args: false,
@@ -137,16 +143,18 @@ pub fn assert_neq() -> LibFunc {
         library: STD_LIB.clone(),
         name: "assert_neq".into(),
         is_async: false,
-        docs: r#"# Std.assert_neq(first: unknown, second: unknown) -> void
-Throw an error if the first value equals the second.
+        docs: r#"# Std.assert_neq(first: unknown, second: unknown, message: str = null) -> void
+Throw an error if the first value equals the second. An optional message comes first in the error.
 ```rust
 assert_neq('a', 'b');
 assert_neq(34, 34); // errors
+assert_neq(new_id, old_id, 'a copy gets a new id'); // errors with the message
 ```
 "#.into(),
         params: crate::params![
             Param { name: "first".into(), param_type: Type::Void, default: None },
-            Param { name: "second".into(), param_type: Type::Void, default: None }
+            Param { name: "second".into(), param_type: Type::Void, default: None },
+            Param { name: "message".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) }
         ],
         return_type: None,
         unbounded_args: false,
@@ -166,15 +174,16 @@ pub fn assert_null() -> LibFunc {
         library: STD_LIB.clone(),
         name: "assert_null".into(),
         is_async: false,
-        docs: r#"# Std.assert_null(value: unknown) -> void
-Throw an error if the given value is not null (void, the result of a function without a return value, counts as null).
+        docs: r#"# Std.assert_null(value: unknown, message: str = null) -> void
+Throw an error if the given value is not null (void, the result of a function without a return value, counts as null). An optional message comes first in the error.
 ```rust
 assert_null(null);
 assert_null(42); // errors
 ```
 "#.into(),
         params: crate::params![
-            Param { name: "value".into(), param_type: Type::Void, default: None }
+            Param { name: "value".into(), param_type: Type::Void, default: None },
+            Param { name: "message".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) }
         ],
         return_type: None,
         unbounded_args: false,
@@ -194,15 +203,17 @@ pub fn assert_not_null() -> LibFunc {
         library: STD_LIB.clone(),
         name: "assert_not_null".into(),
         is_async: false,
-        docs: r#"# Std.assert_not_null(value: unknown) -> void
-Throw an error if the given value is null (or void).
+        docs: r#"# Std.assert_not_null(value: unknown, message: str = null) -> void
+Throw an error if the given value is null (or void). An optional message comes first in the error.
 ```rust
 assert_not_null(42);
 assert_not_null(null); // errors
+assert_not_null(self.customer, 'customer was not created'); // errors with the message
 ```
 "#.into(),
         params: crate::params![
-            Param { name: "value".into(), param_type: Type::Void, default: None }
+            Param { name: "value".into(), param_type: Type::Void, default: None },
+            Param { name: "message".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) }
         ],
         return_type: None,
         unbounded_args: false,

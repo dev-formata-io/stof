@@ -56,3 +56,29 @@ Imports: {
         assert_eq(self.Imported.person.age, 42);
     }
 }
+
+#[test]
+/// YAML has its own infinity and NaN (.inf, -.inf, .nan): written and read as numbers.
+fn non_finite() {
+    const o = new { a: Infinity, b: -Infinity, c: NaN, l: [Infinity, NaN] };
+    const yaml = stringify('yaml', o);
+    assert_eq(yaml, 'a: .inf\nb: -.inf\nc: .nan\nl:\n- .inf\n- .nan\n');
+    const back = new {};
+    parse(yaml, back, 'yaml');
+    assert_eq(back.a, Infinity);
+    assert_eq(back.b, -Infinity);
+    assert(back.c.nan());
+    assert_eq(back.l[0], Infinity);
+    assert(back.l[1].nan());
+    drop(o);
+    drop(back);
+
+    const other = new {};
+    parse('x: .Inf\ny: -.INF\nz: .NaN\ns: Infinity\nq: "text"', other, 'yaml');
+    assert_eq(other.x, Infinity);
+    assert_eq(other.y, -Infinity);
+    assert(other.z.nan());
+    assert_eq(other.s, Infinity);                   // the word JSON uses reads the same way
+    assert_eq(other.q, 'text');
+    drop(other);
+}

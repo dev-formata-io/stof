@@ -252,8 +252,8 @@ impl Num {
     pub fn print(&self) -> String {
         match self {
             Self::Int(val) => format!("{val}"),
-            Self::Float(val) => format!("{val}"),
-            Self::Units(val, units) => format!("{val}{}", units.to_string())
+            Self::Float(val) => float_text(*val),
+            Self::Units(val, units) => format!("{}{}", float_text(*val), units.to_string())
         }
     }
 
@@ -1763,4 +1763,13 @@ fn round_to(v: f64, digits: i64) -> f64 {
     let scaled = v * scale;
     if !scaled.is_finite() || !scale.is_finite() { return v; }
     scaled.round() / scale
+}
+
+
+/// A float as text, with infinity and NaN as Stof (and JavaScript) write them: Infinity, -Infinity, and NaN
+/// (Rust writes inf and NaN). So printing a number gives text Stof reads back.
+pub fn float_text(val: f64) -> String {
+    if val.is_nan() { return "NaN".into(); }
+    if val.is_infinite() { return if val > 0. { "Infinity".into() } else { "-Infinity".into() }; }
+    format!("{val}")
 }

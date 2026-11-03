@@ -246,11 +246,11 @@ impl Runtime {
                             },
                             ProcRes::Trace(n) => {
                                 let trace = proc.trace(&graph, n);
-                                println!("{trace}");
+                                if !graph.quiet { println!("{trace}"); }
                             },
                             ProcRes::Peek(n) => {
                                 let trace = proc.peek(&graph, n);
-                                println!("{trace}");
+                                if !graph.quiet { println!("{trace}"); }
                             },
                             ProcRes::More => {
                                 if let Some(spawn) = proc.env.spawn.take() {
@@ -315,7 +315,7 @@ impl Runtime {
                         to_run.push(id.clone());
                     } else if let Some(error_proc) = self.errored.remove(wait_id) {
                         // Propagate the error back to the awaiting process, so that it can optionally handle it itself
-                        println!("{} {}{}{}{}{}\n{}", "await error".red().bold(), "(".dimmed(), waiting_proc.env.pid.as_ref().dimmed().purple(), " waiting on ".dimmed(), error_proc.env.pid.as_ref().dimmed().cyan(), ")".dimmed(), error_proc.error_report(&graph));
+                        if !graph.quiet { println!("{} {}{}{}{}{}\n{}", "await error".red().bold(), "(".dimmed(), waiting_proc.env.pid.as_ref().dimmed().purple(), " waiting on ".dimmed(), error_proc.env.pid.as_ref().dimmed().cyan(), ")".dimmed(), error_proc.error_report(&graph)); }
                         if let Some(error) = error_proc.error {
                             waiting_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Box::new(Error::AwaitError(Box::new(error))))));
                         }
@@ -324,7 +324,7 @@ impl Runtime {
                         if let Some(start) = &waiting_proc.env.start_time {
                             if &start.elapsed() > max {
                                 // If the waiting process has outlived its ttl, then error
-                                println!("{} {}{}{}{}{}", "await timeout error".red().bold(), "(".dimmed(), waiting_proc.env.pid.as_ref().dimmed().purple(), " waiting on ".dimmed(), wait_id.as_ref().dimmed().cyan(), ")".dimmed());
+                                if !graph.quiet { println!("{} {}{}{}{}{}", "await timeout error".red().bold(), "(".dimmed(), waiting_proc.env.pid.as_ref().dimmed().purple(), " waiting on ".dimmed(), wait_id.as_ref().dimmed().cyan(), ")".dimmed()); }
                                 waiting_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Box::new(Error::ExecutionTimeout))));
                                 to_run.push(id.clone());
                             }
@@ -338,7 +338,7 @@ impl Runtime {
                     if let Some(start) = &sleeping_proc.env.start_time {
                         if &start.elapsed() > max {
                             // If the sleeping process has outlived its ttl, then error
-                            println!("{} {}{}{}", "sleep timeout error".red().bold(), "(".dimmed(), sleeping_proc.env.pid.as_ref().dimmed().purple(), ")".dimmed());
+                            if !graph.quiet { println!("{} {}{}{}", "sleep timeout error".red().bold(), "(".dimmed(), sleeping_proc.env.pid.as_ref().dimmed().purple(), ")".dimmed()); }
                             sleeping_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Box::new(Error::ExecutionTimeout))));
                             to_run.push(id.clone());
                         }
@@ -476,11 +476,11 @@ impl Runtime {
                             },
                             ProcRes::Trace(n) => {
                                 let trace = proc.trace(&graph, n);
-                                println!("{trace}");
+                                if !graph.quiet { println!("{trace}"); }
                             },
                             ProcRes::Peek(n) => {
                                 let trace = proc.peek(&graph, n);
-                                println!("{trace}");
+                                if !graph.quiet { println!("{trace}"); }
                             },
                             ProcRes::More => {
                                 if let Some(spawn) = proc.env.spawn.take() {
@@ -545,7 +545,7 @@ impl Runtime {
                         to_run.push(id.clone());
                     } else if let Some(error_proc) = self.errored.remove(wait_id) {
                         // Propagate the error back to the awaiting process, so that it can optionally handle it itself
-                        println!("{} {}{}{}{}{}\n{}", "await error".red().bold(), "(".dimmed(), waiting_proc.env.pid.as_ref().dimmed().purple(), " waiting on ".dimmed(), error_proc.env.pid.as_ref().dimmed().cyan(), ")".dimmed(), error_proc.error_report(&graph));
+                        if !graph.quiet { println!("{} {}{}{}{}{}\n{}", "await error".red().bold(), "(".dimmed(), waiting_proc.env.pid.as_ref().dimmed().purple(), " waiting on ".dimmed(), error_proc.env.pid.as_ref().dimmed().cyan(), ")".dimmed(), error_proc.error_report(&graph)); }
                         if let Some(error) = error_proc.error {
                             waiting_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Box::new(Error::AwaitError(Box::new(error))))));
                         }
@@ -554,7 +554,7 @@ impl Runtime {
                         if let Some(start) = &waiting_proc.env.start_time {
                             if &start.elapsed() > max {
                                 // If the waiting process has outlived its ttl, then error
-                                println!("{} {}{}{}{}{}", "await timeout error".red().bold(), "(".dimmed(), waiting_proc.env.pid.as_ref().dimmed().purple(), " waiting on ".dimmed(), wait_id.as_ref().dimmed().cyan(), ")".dimmed());
+                                if !graph.quiet { println!("{} {}{}{}{}{}", "await timeout error".red().bold(), "(".dimmed(), waiting_proc.env.pid.as_ref().dimmed().purple(), " waiting on ".dimmed(), wait_id.as_ref().dimmed().cyan(), ")".dimmed()); }
                                 waiting_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Box::new(Error::ExecutionTimeout))));
                                 to_run.push(id.clone());
                             }
@@ -568,7 +568,7 @@ impl Runtime {
                     if let Some(start) = &sleeping_proc.env.start_time {
                         if &start.elapsed() > max {
                             // If the sleeping process has outlived its ttl, then error
-                            println!("{} {}{}{}", "sleep timeout error".red().bold(), "(".dimmed(), sleeping_proc.env.pid.as_ref().dimmed().purple(), ")".dimmed());
+                            if !graph.quiet { println!("{} {}{}{}", "sleep timeout error".red().bold(), "(".dimmed(), sleeping_proc.env.pid.as_ref().dimmed().purple(), ")".dimmed()); }
                             sleeping_proc.instructions.instructions.push_front(Arc::new(Base::CtrlAwaitError(Box::new(Error::ExecutionTimeout))));
                             to_run.push(id.clone());
                         }
@@ -623,38 +623,34 @@ impl Runtime {
     #[cfg(feature = "js")]
     /// Single step async.
     pub async fn async_single_step_with_gate(&mut self, graph: &RefCell<Graph>, yield_to_outer: bool, acquire: &js_sys::Function, release: &js_sys::Function) -> bool {
-        // Acquire the gate before touching WASM memory
-        let acquire_promise = acquire.call0(&wasm_bindgen::JsValue::NULL).expect("acquire failed");
-        wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(acquire_promise)).await.expect("acquire await failed");
-        
-        let res = {
-            let mut gr = graph.borrow_mut();
-            self.run_single_step(&mut *gr)
+        // Acquire the gate before touching WASM memory. A host gate that throws or rejects fails the calls
+        // that were running (with the reason), instead of crashing the engine.
+        let acquired = match acquire.call0(&wasm_bindgen::JsValue::NULL) {
+            Ok(promise) => wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(promise)).await.map(|_| ()),
+            Err(err) => Err(err),
+        };
+        if let Err(err) = acquired {
+            self.fail_all(Error::Custom(format!("the host's call gate failed to acquire: {}", js_reason(&err)).into()));
+            return false;
+        }
+
+        let res = match graph.try_borrow_mut() {
+            Ok(mut gr) => self.run_single_step(&mut *gr),
+            Err(_) => {
+                // something else holds the document (it never should while the gate is held): fail, don't crash
+                let _ = release.call0(&wasm_bindgen::JsValue::NULL);
+                self.fail_all(Error::Custom("the document is busy: another call holds it while the call gate is acquired".into()));
+                return false;
+            },
         };
 
         // Release the gate — WASM memory is safe for others
-        release.call0(&wasm_bindgen::JsValue::NULL).expect("release failed");
-        {
-            if yield_to_outer {
-                // Yield to the macrotask queue so async JS operations (fetch, etc.) can execute.
-                // Using setTimeout(0) instead of Promise microtasks ensures proper event loop yielding.
-                let promise = js_sys::Promise::new(&mut |resolve, _reject| {
-                    use wasm_bindgen::JsCast;
-                    let global = js_sys::global();
-
-                    // Get setTimeout from global (works in Node.js, Browser, Deno, Bun)
-                    let set_timeout = js_sys::Reflect::get(&global, &"setTimeout".into()).expect("setTimeout not available");
-                    let set_timeout_fn = set_timeout.dyn_into::<js_sys::Function>().expect("setTimeout is not a function");
-                    
-                    // Call setTimeout(resolve, 0)
-                    let args = js_sys::Array::new();
-                    args.push(&resolve);
-                    args.push(&0.into()); // 0ms - yields to macrotask queue
-                    
-                    set_timeout_fn.apply(&global, &args).expect("setTimeout failed");
-                });
-                wasm_bindgen_futures::JsFuture::from(promise).await.expect("setTimeout promise failed");
-            }
+        if let Err(err) = release.call0(&wasm_bindgen::JsValue::NULL) {
+            self.fail_all(Error::Custom(format!("the host's call gate failed to release: {}", js_reason(&err)).into()));
+            return false;
+        }
+        if yield_to_outer {
+            yield_to_event_loop().await;
         }
         res
     }
@@ -667,29 +663,22 @@ impl Runtime {
         let _ = yield_to_outer; // only used to yield to the JS event loop
 
         #[cfg(feature = "js")]
-        {
-            if yield_to_outer {
-                // Yield to the macrotask queue so async JS operations (fetch, etc.) can execute.
-                // Using setTimeout(0) instead of Promise microtasks ensures proper event loop yielding.
-                let promise = js_sys::Promise::new(&mut |resolve, _reject| {
-                    use wasm_bindgen::JsCast;
-                    let global = js_sys::global();
-
-                    // Get setTimeout from global (works in Node.js, Browser, Deno, Bun)
-                    let set_timeout = js_sys::Reflect::get(&global, &"setTimeout".into()).expect("setTimeout not available");
-                    let set_timeout_fn = set_timeout.dyn_into::<js_sys::Function>().expect("setTimeout is not a function");
-                    
-                    // Call setTimeout(resolve, 0)
-                    let args = js_sys::Array::new();
-                    args.push(&resolve);
-                    args.push(&0.into()); // 0ms - yields to macrotask queue
-                    
-                    set_timeout_fn.apply(&global, &args).expect("setTimeout failed");
-                });
-                wasm_bindgen_futures::JsFuture::from(promise).await.expect("setTimeout promise failed");
-            }
+        if yield_to_outer {
+            yield_to_event_loop().await;
         }
         res
+    }
+
+    #[cfg(feature = "js")]
+    /// End every unfinished process with this error (Ex. the host's call gate failed), so each call returns it.
+    fn fail_all(&mut self, error: Error) {
+        let mut unfinished: Vec<Process> = self.running.drain(..).collect();
+        unfinished.extend(self.waiting.drain().map(|(_, proc)| proc));
+        unfinished.extend(self.sleeping.drain().map(|(_, proc)| proc));
+        for mut proc in unfinished {
+            proc.error = Some(error.clone());
+            self.errored.insert(proc.env.pid.clone(), proc);
+        }
     }
 
     #[cfg(feature = "js")]
@@ -1148,7 +1137,7 @@ impl Runtime {
                                                 for node in func_ref.data_nodes(graph) {
                                                     func_path = node.node_path(graph, true).map(|path| path.join(".")).unwrap_or_default();
                                                 }
-                                                println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "failed".bold().red());
+                                                if !graph.quiet { println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "failed".bold().red()); }
                                             }
                                             return false; // push to error instead of done
                                         } else if !func.attributes.contains_key("silent") {
@@ -1156,7 +1145,7 @@ impl Runtime {
                                             for node in func_ref.data_nodes(graph) {
                                                 func_path = node.node_path(graph, true).map(|path| path.join(".")).unwrap_or_default();
                                             }
-                                            println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "ok".bold().green());
+                                            if !graph.quiet { println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "ok".bold().green()); }
                                         }
                                     }
                                 }
@@ -1181,7 +1170,7 @@ impl Runtime {
                                 for node in func_ref.data_nodes(graph) {
                                     func_path = node.node_path(graph, true).map(|path| path.join(".")).unwrap_or_default();
                                 }
-                                println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "ok".bold().green());
+                                if !graph.quiet { println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "ok".bold().green()); }
                             }
                             return false; // push to done instead of to errored
                         } else if !func.attributes.contains_key("silent") {
@@ -1189,7 +1178,7 @@ impl Runtime {
                             for node in func_ref.data_nodes(graph) {
                                 func_path = node.node_path(graph, true).map(|path| path.join(".")).unwrap_or_default();
                             }
-                            println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "failed".bold().red());
+                            if !graph.quiet { println!("{} {} {} {} {}", "test".purple(), func_path.italic().dimmed(), name.as_ref().italic().blue(), "...".dimmed(), "failed".bold().red()); }
                         }
                     }
                 }
@@ -1198,7 +1187,7 @@ impl Runtime {
         }));
 
         // Run to completion
-        println!("{} {} {} {}", "running".bold(), count, "tests".bold(), "...".dimmed());
+        if !graph.quiet { println!("{} {} {} {}", "running".bold(), count, "tests".bold(), "...".dimmed()); }
         let start = SystemTime::now();
         // (test function, leaked objects): only filled in leak mode
         let mut leaked: Vec<(DataRef, Vec<NodeRef>)> = Vec::new();
@@ -1621,4 +1610,36 @@ impl SourceCall {
         }
         graph.remove_node(&self.scratch, true);
     }
+}
+
+#[cfg(feature = "js")]
+/// Yield to the JS macrotask queue (setTimeout 0), so async host work (fetch, timers) can run.
+/// Promise microtasks wouldn't let the event loop turn. Without a setTimeout, it doesn't yield.
+async fn yield_to_event_loop() {
+    use wasm_bindgen::JsCast;
+    let promise = js_sys::Promise::new(&mut |resolve, _reject| {
+        let global = js_sys::global();
+        let set_timeout = js_sys::Reflect::get(&global, &"setTimeout".into()).ok()
+            .and_then(|f| f.dyn_into::<js_sys::Function>().ok());
+        let scheduled = set_timeout.is_some_and(|set_timeout| {
+            let args = js_sys::Array::new();
+            args.push(&resolve);
+            args.push(&0.into());
+            set_timeout.apply(&global, &args).is_ok()
+        });
+        if !scheduled {
+            let _ = resolve.call0(&wasm_bindgen::JsValue::NULL);
+        }
+    });
+    let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
+}
+
+#[cfg(feature = "js")]
+/// A thrown JS value as text (an Error's message, a string, or its debug form).
+fn js_reason(err: &wasm_bindgen::JsValue) -> String {
+    use wasm_bindgen::JsCast;
+    if let Some(error) = err.dyn_ref::<js_sys::Error>() {
+        return String::from(error.message());
+    }
+    err.as_string().unwrap_or_else(|| format!("{err:?}"))
 }

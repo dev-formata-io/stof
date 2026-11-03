@@ -163,7 +163,10 @@ impl<'ctx> ParseContext<'ctx> {
 
     /// Is this name a library (Ex. "Num", "Str", "Std")?
     pub fn is_lib_name(&self, name: &str) -> bool {
-        self.graph.libfuncs.contains_key(name)
+        // libraries that only some builds or hosts have count too, so a document that guards them with
+        // lib('Age') doesn't warn where they're missing (it can run in a host that has them)
+        const OPTIONAL: [&str; 6] = ["Age", "Http", "fs", "Image", "Pdf", "Md"];
+        self.graph.libfuncs.contains_key(name) || OPTIONAL.contains(&name)
     }
 
     /// Warn if this node shadows a library in "Lib.func()" calls.
@@ -211,11 +214,14 @@ impl<'ctx> ParseContext<'ctx> {
     /// Warn for unknown names once the document is parsed (roots can be declared after the function).
     pub(crate) fn finish_name_checks(&mut self) {
         let assigned = crate::parser::statement::declare::take_assigned_names();
+        let map_keys = crate::parser::statement::declare::take_map_key_names();
         for (func, name, call, loc) in std::mem::take(&mut self.pending_names) {
             if !call && (self.graph.find_root_named(name.as_str()).is_some() || assigned.contains(&name)) { continue; }
             let place = loc.as_ref().map(|loc| format!(" ({})", loc.display())).unwrap_or_default();
             let message = if call {
                 format!("unknown function '{name}' in fn {func}{place}: not a variable or standard library function (use self.{name}() for a function on this object)")
+            } else if map_keys.contains(&name) {
+                format!("unknown name '{name}' in fn {func}{place}: in a map like {{ {name}: .. }}, keys are values, so '{name}' is a variable (always null here); for an object, use new {{ {name}: .. }}, and for a text key, {{ '{name}': .. }}")
             } else {
                 format!("unknown name '{name}' in fn {func}{place}: not a parameter, variable, or root, so it is always null (use self.{name} for a field)")
             };
@@ -531,8 +537,9 @@ fn normalize_path(path: &Path) -> PathBuf {
 impl<'ctx> Drop for ParseContext<'ctx> {
     fn drop(&mut self) {
         // Parse warnings (stderr; a no-op in wasm)
+        let quiet = self.graph.quiet;
         for warning in self.take_warnings() {
-            eprintln!("{} {}", "warning:".bold().yellow(), warning);
+            if !quiet { eprintln!("{} {}", "warning:".bold().yellow(), warning); }
         }
 
         // If we parsed docs, instruct the graph to insert library documentation
@@ -555,7 +562,7 @@ impl<'ctx> Drop for ParseContext<'ctx> {
                 self.runtime.push_running_proc(Process::from(ins), &mut self.graph);
             }
             self.runtime.err_callback = Some(Box::new(|graph, errored| {
-                if errored.env.call_stack.len() > 0 {
+                if errored.env.call_stack.len() > 0 && !graph.quiet {
                     let func_ref = errored.env.call_stack.first().unwrap();
                     if let Some(name) = func_ref.data_name(graph) {
                         let mut func_path = String::from("<unknown>");

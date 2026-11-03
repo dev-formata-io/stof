@@ -99,6 +99,11 @@ pub struct Graph {
     /// functions as Stof instead of data blocks. Set by the host with `keep_source`.
     #[serde(skip)]
     pub keep_source: bool,
+
+    /// Print nothing to the console (off by default): no parse warnings, test progress, init failures, or
+    /// pln/err/dbg output. Reports are still returned (Ex. `test` returns its report). Set by the host with `quiet`.
+    #[serde(skip)]
+    pub quiet: bool,
 }
 
 fn default_max_execution_time() -> Option<Duration> {
@@ -122,6 +127,7 @@ impl Default for Graph {
             http_hosts: None,
             html_tags: None,
             keep_source: false,
+            quiet: false,
         };
         graph.load_std_formats();
         graph.insert_std_lib();
@@ -235,6 +241,12 @@ impl Graph {
     /// writes functions as their source, and as `data@v1` blocks when they have none. It costs the memory of the text.
     pub fn keep_source(&mut self, keep: bool) {
         self.keep_source = keep;
+    }
+
+    /// Print nothing to the console from now on (Ex. a host that collects output itself, or a test that runs
+    /// programs it expects to fail): no parse warnings, test progress, init failures, or pln/err/dbg output.
+    pub fn quiet(&mut self, quiet: bool) {
+        self.quiet = quiet;
     }
 
     #[inline]
@@ -1961,9 +1973,29 @@ mod tests {
     }
 
     #[test]
+    /// A quiet graph prints nothing but still returns everything: the test report, call errors, warnings.
+    fn quiet_still_reports() {
+        use crate::runtime::Runtime;
+        let mut graph = Graph::default();
+        graph.quiet(true);
+        graph.parse_stof_src(r#"
+            #[test]
+            fn passes() { pln('not printed'); }
+            #[test]
+            fn fails() { assert_eq(1, 2, 'expected'); }
+            fn throws() { throw('reported'); }
+        "#, None, crate::model::Profile::test()).unwrap();
+        let report = Runtime::test(&mut graph, None, false).unwrap(); // throw = false: the report comes back as Ok
+        assert!(report.contains("fails") && report.contains("expected"), "{report}");
+        let error = Runtime::call(&mut graph, "throws", vec![]).unwrap_err();
+        assert!(format!("{error:?}").contains("reported"), "{error:?}");
+    }
+
+    #[test]
     fn failed_async_child_keeps_parent_using_values() {
         use crate::runtime::{Runtime, Val};
         let mut graph = Graph::default();
+        graph.quiet(true); // the child's error is expected
         graph.parse_stof_src(r#"
             fn parent() -> bool {
                 using kept = new { v: 1 };
@@ -2298,7 +2330,6 @@ mod tests {
         
         let mut other = Graph::default();
         let _ = other.age_decrypt_import("stof", bytes, None, &key, None);
-        other.dump(true);
     }
 
     #[test]

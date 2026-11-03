@@ -419,6 +419,19 @@ Ids: {
 
         id = Std.nanoid(32);
         assert_eq(id.len(), 32);
+        assert_eq(nanoid(1).len(), 1);
+        assert_eq(nanoid(4096).len(), 4096);
+    }
+
+    #[test]
+    /// A length of 0 or less (or a huge one) is an error, instead of looping forever.
+    fn nanoid_length_out_of_range() {
+        for (const length in [0, -1, 4097, 9223372036854775807]) {
+            let caught = '';
+            try nanoid(length);
+            catch (e: str) caught = e;
+            assert_eq(caught, 'FuncArgs', `nanoid(${length})`); // catch sees the code; the host sees the message
+        }
     }
 
     #[test]
@@ -515,6 +528,61 @@ fn assert_not_null_fails() {
     assert_not_null(null);
 }
 
+#[test]
+fn assert_messages() {
+    // passing asserts ignore the message
+    assert(true, 'not shown');
+    assert_not(false, 'not shown');
+    assert_eq(1, 1, 'not shown');
+    assert_neq(1, 2, 'not shown');
+    assert_null(null, 'not shown');
+    assert_not_null(1, 'not shown');
+
+    // a failing assert puts the message first, then what failed
+    let caught = '';
+    try assert_eq(43, 42, 'total after the refund');
+    catch (e: str) caught = e;
+    assert(caught.contains("total after the refund: '43' does not equal '42'"), caught);
+
+    caught = '';
+    try assert(false, 'items should not be empty');
+    catch (e: str) caught = e;
+    assert(caught.contains("items should not be empty: 'false' is not truthy"), caught);
+
+    caught = '';
+    try assert_not(true, `checked ${1 + 1} times`);
+    catch (e: str) caught = e;
+    assert(caught.contains("checked 2 times: 'true' is truthy"), caught);
+
+    caught = '';
+    try assert_neq('a', 'a', 'ids differ');
+    catch (e: str) caught = e;
+    assert(caught.contains("ids differ: 'a' equals 'a'"), caught);
+
+    caught = '';
+    try assert_null(3, 'nothing returned');
+    catch (e: str) caught = e;
+    assert(caught.contains("nothing returned: '3' is not null"), caught);
+
+    caught = '';
+    try assert_not_null(null, 'customer was created');
+    catch (e: str) caught = e;
+    assert(caught.contains('customer was created: value is null'), caught);
+
+    // without a message, the error is what it always was
+    caught = '';
+    try assert_eq(43, 42);
+    catch (e: str) caught = e;
+    assert(caught.contains("'43' does not equal '42'"), caught);
+    assert_not(caught.contains(": '43'"), caught);
+}
+
+#[test]
+#[errors]
+fn assert_message_still_fails() {
+    assert_eq(1, 2, 'a message does not make it pass');
+}
+
 
 #[test]
 fn inf_and_nan() {
@@ -528,5 +596,58 @@ fn inf_and_nan() {
     const inf = 3;                             // a local named inf doesn't shadow the Std function
     assert_eq(inf() > inf, true);
     assert_eq(Std::inf(), inf());
+}
+
+infinite_cap: Infinity
+floor: -Infinity
+missing: NaN
+Infinity_limit: 7   // a name that starts with a literal word is still a name
+NaNcy: 'a name'
+
+#[test]
+fn infinity_and_nan_literals() {
+    assert_eq(Infinity, inf());
+    assert_eq(-Infinity, -inf());
+    assert_eq(+Infinity, inf());
+    assert(NaN.nan());
+    assert_neq(NaN, NaN);
+    assert_eq(typeof Infinity, 'float');
+    assert_eq(typeof NaN, 'float');
+
+    // in fields, expressions, and lists
+    assert_eq(self.infinite_cap, inf());
+    assert_eq(self.floor, -inf());
+    assert(self.missing.nan());
+    assert(5 < Infinity);
+    assert(-Infinity < -1e308);
+    assert_eq(min(3, Infinity), 3);
+    assert_eq(max(-Infinity, -3), -3);
+    assert_eq([1, Infinity, -Infinity].len(), 3);
+    assert(Infinity.inf());
+    assert_eq(Infinity as kg, inf() as kg);
+
+    // whole words only
+    assert_eq(self.Infinity_limit, 7);
+    assert_eq(self.NaNcy, 'a name');
+    const Infinityish = 2;
+    assert_eq(Infinityish, 2);
+}
+
+#[test]
+fn infinity_and_nan_readable_round_trip() {
+    const o = new { a: Infinity, b: -Infinity, c: NaN, d: Infinity as kg, e: 2.5 };
+    const text = stringify('stof', o);
+    assert(text.contains('Infinity'), text);
+    assert(text.contains('-Infinity'), text);
+    assert(text.contains('NaN'), text);
+    const back = new {};
+    parse(text, back, 'stof');
+    assert_eq(back.a, Infinity);
+    assert_eq(back.b, -Infinity);
+    assert(back.c.nan());
+    assert_eq(back.d, Infinity as kg);
+    assert_eq(back.e, 2.5);
+    drop(o);
+    drop(back);
 }
 

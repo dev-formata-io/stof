@@ -1,9 +1,36 @@
 # Changelog
 
-## Unreleased
+## 0.10.9
 
 ### Fixed
 
+- **Crashes and hangs found by a new robustness test are fixed.** A panic kills the whole engine in WebAssembly, and
+  hosts run text people and models write. The test (below) parses and runs about 60,000 broken and edge-case inputs
+  on every run (238,000 at `STOF_FUZZ_SCALE=4`); every one now ends in a value or an error. What it found:
+  - `nanoid(length)` with a length of 0, a negative one, or a huge one looped forever (the execution time limit
+    can't interrupt a single call). The length must be from 1 to 4096, else the error says so.
+  - `Str.at` on an empty string crashed. It returns `''`.
+  - `Str.at`, `first`, `last`, and `substring` on text that isn't ASCII returned part of a character, or crashed when
+    an offset fell inside one. Offsets are still bytes, like `len` and `index_of`; an offset inside a character means
+    that character (`'日本'.at(1)` is `'日'`, and `substring` starts at its first byte).
+- **JavaScript: a synchronous call back into a running document throws, instead of crashing the engine.** A
+  `doc.lib(..)` function can still call back with the async methods (`await doc.call(..)`), which run after Stof's
+  current step, as before. A synchronous method (`get`, `set`, `sync_call`, an export) called during the step
+  (before the function's first await) found the document borrowed and aborted the WebAssembly module; it now throws
+  "the document is busy running a step ..." with what to do instead.
+- **JavaScript: a call gate that throws or rejects ends the calls with an error**, instead of crashing the engine.
+  Where `setTimeout` isn't available, a long call skips its yield to the event loop instead of crashing.
+- A type name that isn't a type expression (from a host or a library) is an object type's name, instead of a crash.
+- **Infinity and NaN in every format.** Each value comes back as the number it was, or is written the way the format
+  writes numbers:
+  - JSON has no infinity or NaN: it wrote `null` (the value was lost). It writes the strings `"Infinity"`,
+    `"-Infinity"`, and `"NaN"` (valid JSON; JavaScript's `Number()` reads them), and JSON import reads exactly those
+    strings as the numbers. Other words (`"inf"`, `"nan"`, `"infinity and beyond"`) stay strings.
+  - YAML wrote `null` too. It writes YAML's own `.inf`, `-.inf`, and `.nan`, and reads them (and the JSON words).
+  - urlencoded reads `Infinity`, `-Infinity`, and `NaN` as numbers, like JSON (other words stay text, as before).
+  - TOML (`inf`, `nan`), BSTF, and Stof already round-tripped.
+  - Printed numbers (`str(x)`, templates, `pln`, urlencoded, XML, HTML, `stof:human`) say `Infinity`, `-Infinity`,
+    and `NaN` instead of Rust's `inf`, so printed text reads back as Stof.
 - **Dropped objects no longer stay in memory.** A graph kept every removed object and field in its deadpools, and
   nothing emptied them, so every object created and dropped (`using`, `drop`, `remove`, `call_source`) stayed in
   memory for the life of the document: about 1.5 to 9 KB each. A Limitr `allow()` left about 14 KB behind per call.
@@ -12,11 +39,45 @@
   (`Graph::default()`).
   - Rust code that reads `node_deadpool` or `data_deadpool` (Ex. for `flush_join`) turns them on with
     `graph.set_deadpools_enabled(true)` and empties them with `flush`, `gc_table(.., true)`, or the clear functions.
+- **XML export of an unnamed object failed about one time in six.** `stringify('xml', new { a: 1 })` named the root
+  element after the object's random ID, which isn't an XML name when it starts with a digit. An object without a
+  name of its own is written as `<root>`.
 - `roundtrip_bstf_types` compared a timestamp with `<` and failed when the test ran within one millisecond; it
   compares with `<=`.
 
+- **A passing `cargo test` reads as passing.** With `--nocapture` (as CI ran it) a green run printed hundreds of
+  lines that looked like failures: errors and warnings from tests that check errors, and the readable-export test's
+  re-run of the suite, whose object ID tests fail by design. Those graphs are quiet now (`Graph::quiet`, below), and
+  the run prints the suite's own report and the tests' intended output.
+- A name for a library that only some builds have (`Age`, `Http`, `fs`, `Image`, `Pdf`, `Md`) no longer warns
+  "unknown name ... always null" in a build without it. The same document can run in a host that has it, and code
+  guards it with `lib('Age')`.
+- The Http tests (all features) failed whenever GitHub's limit on requests without a token was reached (403), as on
+  shared CI runners. A limited response still counts as a response.
+- CI runs the tests with all features too, and checks the JavaScript build. It no longer passes `--nocapture`, so a
+  run shows output only for a test that fails.
+- The JavaScript build no longer warns about an unused import (`imbl::vector` in the Http library).
+
 ### Added
 
+- **Messages on asserts.** `assert`, `assert_not`, `assert_eq`, `assert_neq`, `assert_null`, and `assert_not_null`
+  take an optional last argument, written first in the error: `assert_eq(total, 42, 'total after the refund')`
+  fails with "total after the refund: '43' does not equal '42'". Without one, errors read as before.
+- **`Infinity`, `-Infinity`, and `NaN` literals** (whole words: `Infinity_cap` and `NaNcy` are still names). The
+  readable `stof` export writes them (it wrote `inf()` and `nan()`), and keeps units on an infinite value
+  (`Infinity as kg`, which it used to drop).
+- **The message of a caught error.** `catch (e, message)` names the readable message too (Ex. `e` is
+  `'FuncArgs'` and `message` is "nanoid length must be from 1 to 4096 (got 0)"). `e` is unchanged, so code that
+  compares codes keeps working, and documents compiled before 0.10.9 still run.
+- **A clearer warning for a map key that's a name.** `{ b: 1 }` inside an expression is a map whose key is the
+  variable `b`, not an object. When `b` isn't a variable, the warning says so and shows `new { b: .. }` (an object)
+  and `{ 'b': .. }` (a text key).
+- **`quiet`: print nothing to the console.** `graph.quiet(true)` (Rust), `doc.quiet()` (JS and Python) turns off
+  parse warnings, test progress, init failures, and `pln`/`err`/`dbg` output, for hosts that log their own way.
+  Results and errors still come back: `test` returns its report, and calls return their errors.
+- `tests/robustness.rs`: every `.stof` file in the repo cut off and randomly edited, every library function called
+  with edge values, and every format parsing garbage and writing odd objects. It fails on any panic, and a watchdog
+  fails it when one input runs for 15 seconds. `STOF_FUZZ_SCALE=N` runs more.
 - `tests/memory.rs`: calls 13 kinds of functions (objects with `using`, nested objects, arenas, `drop`, typed
   objects with constructors, `call_source`, lists, maps, try and catch) 20,000 times each, and fails if the graph
   or the heap grows (live bytes, counted by the test's own allocator).

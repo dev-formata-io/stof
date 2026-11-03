@@ -65,6 +65,6 @@ pub fn parse_data<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a
     
     // Do not throw an error here - failing to load data should be allowed for various reasons...
     let path = self_ptr.node_path(&context.graph, true).map(|path| path.join(".")).unwrap_or_default();
-    println!("{} {} {}", "failed to deserialize stof data @".dimmed(), path.purple(), "missing data".red());
+    if !context.graph.quiet { println!("{} {} {}", "failed to deserialize stof data @".dimmed(), path.purple(), "missing data".red()); }
     return Ok((input, ()));
 }

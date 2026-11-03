@@ -10,48 +10,53 @@ fn main() {
 }
 ```
 
-# Std.assert(value: unknown = false) -> void
-Throw an error if the given value is not truthy.
+# Std.assert(value: unknown = false, message: str = null) -> void
+Throw an error if the given value is not truthy. An optional message comes first in the error.
 ```rust
 assert(true);
 assert(false); // errors
+assert(self.items.len() > 0, 'items should not be empty'); // errors with the message
 ```
 
 
-# Std.assert_eq(first: unknown, second: unknown) -> void
-Throw an error if the first value does not equal the second.
+# Std.assert_eq(first: unknown, second: unknown, message: str = null) -> void
+Throw an error if the first value does not equal the second. An optional message comes first in the error.
 ```rust
 assert_eq('a', 'a');
 assert_eq(43, 42); // errors
+assert_eq(total, 42, 'total after the refund'); // errors: "total after the refund: '43' does not equal '42'"
 ```
 
 
-# Std.assert_neq(first: unknown, second: unknown) -> void
-Throw an error if the first value equals the second.
+# Std.assert_neq(first: unknown, second: unknown, message: str = null) -> void
+Throw an error if the first value equals the second. An optional message comes first in the error.
 ```rust
 assert_neq('a', 'b');
 assert_neq(34, 34); // errors
+assert_neq(new_id, old_id, 'a copy gets a new id'); // errors with the message
 ```
 
 
-# Std.assert_not(value: unknown = true) -> void
-Throw an error if the given value is truthy.
+# Std.assert_not(value: unknown = true, message: str = null) -> void
+Throw an error if the given value is truthy. An optional message comes first in the error.
 ```rust
 assert_not(false);
 assert_not(true); // errors
+assert_not(self.deleted, 'the record was deleted'); // errors with the message
 ```
 
 
-# Std.assert_not_null(value: unknown) -> void
-Throw an error if the given value is null (or void).
+# Std.assert_not_null(value: unknown, message: str = null) -> void
+Throw an error if the given value is null (or void). An optional message comes first in the error.
 ```rust
 assert_not_null(42);
 assert_not_null(null); // errors
+assert_not_null(self.customer, 'customer was not created'); // errors with the message
 ```
 
 
-# Std.assert_null(value: unknown) -> void
-Throw an error if the given value is not null (void, the result of a function without a return value, counts as null).
+# Std.assert_null(value: unknown, message: str = null) -> void
+Throw an error if the given value is not null (void, the result of a function without a return value, counts as null). An optional message comes first in the error.
 ```rust
 assert_null(null);
 assert_null(42); // errors
@@ -279,7 +284,7 @@ assert_neq(value, value);
 
 
 # Std.nanoid(length: int = 21) -> str
-Generate a URL safe random string ID, using the nanoid algorithm with a specified length (default is 21 characters). Probability of a collision is very low, and inversely proportional to ID length.
+Generate a URL safe random string ID, using the nanoid algorithm with a specified length (default is 21 characters, from 1 to 4096). Probability of a collision is very low, and inversely proportional to ID length.
 ```rust
 assert_neq(nanoid(), nanoid(33));
 ```

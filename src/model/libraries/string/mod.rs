@@ -123,10 +123,16 @@ impl Instruction for StrIns {
                             let mut index = num.int() as usize;
                             match var.val.read().deref() {
                                 Val::Str(str) => {
+                                    // byte offsets, like len and index_of; an offset inside a character gives that character
+                                    if str.is_empty() {
+                                        env.stack.push(Variable::val(Val::Str(literal!(""))));
+                                        return Ok(None);
+                                    }
                                     if index >= str.len() {
                                         index = str.len() - 1;
                                     }
-                                    let char = str.as_bytes()[index] as char;
+                                    let start = floor_char_boundary(str, index);
+                                    let char = str[start..].chars().next().unwrap_or(' ');
                                     env.stack.push(Variable::val(Val::Str(String::from(char).into())));
                                     return Ok(None);
                                 },
@@ -145,7 +151,7 @@ impl Instruction for StrIns {
                             if str.len() < 1 {
                                 char = ' ';
                             } else {
-                                char = str.as_bytes()[0] as char;
+                                char = str.chars().next().unwrap_or(' ');
                             }
                             env.stack.push(Variable::val(Val::Str(String::from(char).into())));
                             return Ok(None);
@@ -163,7 +169,7 @@ impl Instruction for StrIns {
                             if str.len() < 1 {
                                 char = ' ';
                             } else {
-                                char = str.as_bytes()[str.len() - 1] as char;
+                                char = str.chars().next_back().unwrap_or(' ');
                             }
                             env.stack.push(Variable::val(Val::Str(String::from(char).into())));
                             return Ok(None);
@@ -414,6 +420,9 @@ impl Instruction for StrIns {
                                                     else if end < start { end_u = start_u; }
                                                     else { end_u = end as usize; }
 
+                                                    // byte offsets inside a character move back to its start
+                                                    let start_u = floor_char_boundary(val, start_u);
+                                                    let end_u = floor_char_boundary(val, end_u).max(start_u);
                                                     let substr = val.substr(start_u..end_u);
                                                     env.stack.push(Variable::val(Val::Str(ArcStr::from(substr.as_str()))));
                                                     return Ok(None);
@@ -492,4 +501,13 @@ impl Instruction for StrIns {
             }
         }
     }
+}
+
+
+/// The nearest character boundary at or before a byte offset (an offset inside a multibyte character moves back to
+/// its start), so slicing never splits a character.
+fn floor_char_boundary(text: &str, offset: usize) -> usize {
+    let mut offset = offset.min(text.len());
+    while offset > 0 && !text.is_char_boundary(offset) { offset -= 1; }
+    offset
 }

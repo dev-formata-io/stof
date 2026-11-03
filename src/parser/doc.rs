@@ -560,7 +560,6 @@ mod tests {
             "#, &mut context).unwrap();
         }
 
-        graph.dump(true);
 
         let res = Runtime::call(&mut graph, "root.main", vec![Val::from(10)]).unwrap();
         assert_eq!(res, 6000.into());

@@ -37,18 +37,25 @@ pub fn try_catch_statement(input: &str) -> IResult<&str, Vector<Arc<dyn Instruct
 
     // Catch instructions
     let (input, _) = delimited(multispace0, tag("catch"), multispace0).parse(input)?;
-    let (input, error_param) = opt(delimited(char('('), error_parameter, char(')'))).parse(input)?;
+    let (input, error_param) = opt(delimited(char('('), (error_parameter, opt(preceded(char(','), error_parameter))), char(')'))).parse(input)?;
     let (input, catch_ins) = alt((
         block,
         statement
     )).parse(input)?;
 
+    // the stack has the error's readable message, then the error value on top (TryCatchIns pops what's left)
     let mut err_ins = vector![];
-    if let Some(error_param) = error_param {
+    if let Some((error_param, message_param)) = error_param {
         note_declared(error_param.name.as_ref());
         // declare const variable that is the error (type irrelivant)
         err_ins.push_back(Arc::new(Base::Cast(error_param.param_type.clone())) as Arc<dyn Instruction>);
         err_ins.push_back(Arc::new(Base::DeclareConstVar(ArcStr::from(error_param.name.as_ref()), error_param.param_type)));
+        if let Some(message_param) = message_param {
+            // catch (e, message): the readable message (Ex. "nanoid length must be from 1 to 4096 (got 0)")
+            note_declared(message_param.name.as_ref());
+            err_ins.push_back(Arc::new(Base::Cast(message_param.param_type.clone())) as Arc<dyn Instruction>);
+            err_ins.push_back(Arc::new(Base::DeclareConstVar(ArcStr::from(message_param.name.as_ref()), message_param.param_type)));
+        }
     } else {
         // pop error from stack
         err_ins.push_back(POP_STACK.clone() as Arc<dyn Instruction>);

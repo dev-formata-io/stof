@@ -64,12 +64,29 @@ fn parse_nested() {
 }
 
 #[test]
-/// Words that Rust parses as non-finite floats ("nan", "inf", "infinity") stay text.
+/// "Infinity", "-Infinity", and "NaN" exactly are numbers (as Stof writes them, and as JSON reads them); other words
+/// that Rust parses as non-finite floats ("nan", "inf", "infinity") stay text.
 fn parse_non_finite_words() {
     const object = new {};
-    parse('name=Nan&n=inf&i=Infinity&x=2.5', object, 'urlencoded');
+    parse('name=Nan&n=inf&w=infinity&i=Infinity&m=-Infinity&z=NaN&x=2.5', object, 'urlencoded');
     assert_eq(object.name, 'Nan');
     assert_eq(object.n, 'inf');
-    assert_eq(object.i, 'Infinity');
+    assert_eq(object.w, 'infinity');
+    assert_eq(object.i, Infinity);
+    assert_eq(object.m, -Infinity);
+    assert(object.z.nan());
     assert_eq(object.x, 2.5);
+}
+
+#[test]
+fn stringify_non_finite() {
+    const o = new { a: Infinity, b: -Infinity, c: NaN };
+    assert_eq(stringify('urlencoded', o), 'a=Infinity&b=-Infinity&c=NaN');
+    const back = new {};
+    parse(stringify('urlencoded', o), back, 'urlencoded');
+    assert_eq(back.a, Infinity);
+    assert_eq(back.b, -Infinity);
+    assert(back.c.nan());
+    drop(o);
+    drop(back);
 }

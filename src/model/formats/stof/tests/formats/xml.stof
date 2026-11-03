@@ -132,3 +132,22 @@ XmlImport: {
         assert(failed);
     }
 }
+
+#[test]
+/// XML text is text: infinity and NaN are written as Stof writes them, and read back as strings (like every number).
+fn non_finite() {
+    const o = new { a: Infinity, b: -Infinity, c: NaN };
+    const xml = stringify('xml', o);
+    assert(xml.contains('<a>Infinity</a><b>-Infinity</b><c>NaN</c>'), xml);
+    drop(o);
+}
+
+#[test]
+/// An object without a name of its own is named by its random ID, which can start with a digit: it's <root>.
+fn unnamed_object_is_root() {
+    for (let i in 200) {
+        const o = new { a: i };
+        assert_eq(stringify('xml', o), `<?xml version="1.0" encoding="UTF-8"?><root><a>${i}</a></root>`);
+        drop(o);
+    }
+}

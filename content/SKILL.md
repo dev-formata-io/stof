@@ -59,7 +59,8 @@ Read these before writing Stof. Each one is a real mistake that produces wrong r
 10. **Template strings are always `str`.** `` `${a}${b}` `` concatenates text even for numbers; null prints
     `null`. `\$` escapes a dollar sign.
 11. **Catch values are error codes.** `catch (e: str)` receives `'AssignConst'`, `FuncDne("Num.split")`, or the
-    value passed to `throw(...)`. Don't match on the human-readable message.
+    value passed to `throw(...)`. Match on the code; for the human-readable message (to log or show), name a
+    second variable: `catch (e, message) { err(message); }`.
 12. **Arguments are cast to the parameter type.** `fn f(v: int)` called with `'5'` receives `5`; an impossible
     cast throws (`CastVal(...)`).
 13. **`int / int` is integer division.** `7 / 2 == 3`. Use a float operand (`7 / 2.0`, `(n as float) / 2`) for
@@ -132,7 +133,7 @@ mass `Gt Mt t kg g mg ug ng pg Ton lb oz`; data `bit byte KB MB GB TB PB … KiB
 and `v.to_units('GB')` converts by name.
 
 **Literals:** `'single'`, `"double"`, `` `template ${expr}` ``, `r#"raw"#`, `[list]`, `{'map': 1}`, `{1, 2}`
-(set), `(1, 'two')` (tuple), `1_000`, `0xFF`, `1e3`, `1.2.3` (version).
+(set), `(1, 'two')` (tuple), `1_000`, `0xFF`, `1e3`, `Infinity`, `-Infinity`, `NaN`, `1.2.3` (version).
 
 ## Functions
 
@@ -174,6 +175,7 @@ const sign = i > 0 ? '+' : '-';
 
 try { throw('bad input'); }
 catch (e: str) { pln(e); }          // typed catch; `catch { }` and `catch (e) { }` work too
+try nanoid(0); catch (e, message) { err(message); } // e: 'FuncArgs', message: 'nanoid length must be ...'
 try { throw(new { code: 42 }); } catch (e: obj) { pln(e.code); }
 ```
 
@@ -301,6 +303,10 @@ neither are object IDs. Functions are written as their source only when the host
 Otherwise, and for functions loaded from BSTF, a function is written as a `data@v1` block.
 `stringify('stof:graph', o)` is the exact form (IDs, references, compiled functions), for copying a document exactly.
 
+Infinity and NaN survive every format: JSON (which has neither) writes the strings `"Infinity"`, `"-Infinity"`, and
+`"NaN"` and reads exactly those back as numbers; YAML uses `.inf`/`.nan`, TOML `inf`/`nan`; Stof and BSTF are exact.
+Printed, they're `Infinity`, `-Infinity`, and `NaN`.
+
 ### HTML and XML
 
 `stringify('html', obj)` and `stringify('xml', obj)` write objects as elements. An element's name is
@@ -362,6 +368,7 @@ fn totals() {
     assert_eq(self.add(1, 2), 3);
     assert(self.unit.instance_of('Shape'));
     assert_null(self.nope?.deeper);
+    assert_eq(self.add(2, 2), 4, 'add after reset');   // optional message: "add after reset: '5' does not equal '4'"
 }
 
 #[test(55)]
@@ -462,6 +469,8 @@ To allow only some hosts: `graph.allow_http_hosts(["api.example.com"])` (Rust), 
 `doc.allowHttp(['api.example.com'])` (JS). Requests and redirects elsewhere fail; `"localhost:8080"` limits the port too.
 A call fails with an execution timeout after 2 minutes by default: `graph.max_execution_time = Some(duration)` (Rust),
 `doc.set_max_execution_time(seconds)` (Python), `doc.setMaxExecutionTime(ms)` (JS); null/None for no limit.
+To print nothing (no parse warnings, test progress, or `pln`/`err`/`dbg` output; reports and errors still come back):
+`graph.quiet(true)` (Rust), `doc.quiet()` (Python and JS).
 The html format writes only standard and custom elements by default; to allow exactly a list (Ex. your components):
 `graph.allow_html_tags(["div", "ui-card"])` (Rust), `doc.allow_html_tags([...])` (Python), `doc.allowHtmlTags([...])`
 (JS). Host exports (`graph.stringify` in Rust, `doc.stringify` in JS, `doc.string_export` in Python) call computed

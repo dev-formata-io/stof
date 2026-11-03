@@ -57,7 +57,7 @@ pub(crate) fn parse_json_field_value(graph: &mut Graph, node: &NodeRef, value: V
             Field::new(Variable::new(graph, true, val, false), None)
         },
         Value::String(v)  => {
-            Field::new(Variable::new(graph, true, Val::from(v.as_str()), false), None)
+            Field::new(Variable::new(graph, true, string_value(&v), false), None)
         },
         Value::Bool(v) => {
             Field::new(Variable::new(graph, true, Val::from(v), false), None)
@@ -105,7 +105,7 @@ pub(crate) fn parse_json_array_values(graph: &mut Graph, node: &NodeRef, vals: V
                 res.push_back(ValRef::new(val));
             },
             Value::String(v)  => {
-                res.push_back(ValRef::new(Val::from(v.as_str())));
+                res.push_back(ValRef::new(string_value(&v)));
             },
             Value::Bool(v) => {
                 res.push_back(ValRef::new(Val::from(v)));
@@ -122,5 +122,17 @@ pub(crate) fn parse_json_array_values(graph: &mut Graph, node: &NodeRef, vals: V
                 res.push_back(ValRef::new(Val::Obj(child_node)));
             },
         }
+    }
+}
+
+
+/// A JSON string as a value: "Infinity", "-Infinity", and "NaN" exactly are the numbers JSON can't write (how JSON
+/// export writes them); any other string is a string.
+fn string_value(text: &str) -> Val {
+    match text {
+        "Infinity" => Val::from(f64::INFINITY),
+        "-Infinity" => Val::from(f64::NEG_INFINITY),
+        "NaN" => Val::from(f64::NAN),
+        _ => Val::from(text),
     }
 }

@@ -5,7 +5,7 @@ import '@cargo' as Rust;
 import pkg '@github' as GitHub;
 
 /// Current version.
-const version: 0.10.8
+const version: 0.10.9
 
 /// Cargo.toml definition.
 Cargo cargo: {
@@ -306,7 +306,15 @@ github: {
                         },
                         {
                             name: 'Run tests'
-                            run: 'cargo test --verbose -- --nocapture'
+                            run: 'cargo test --verbose'
+                        },
+                        {
+                            name: 'Run tests (all features)'
+                            run: 'cargo test --verbose --features full'
+                        },
+                        {
+                            name: 'Check the JavaScript build'
+                            run: 'cargo check --verbose --features js'
                         }
                     ]
                 }

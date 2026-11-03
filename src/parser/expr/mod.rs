@@ -274,6 +274,9 @@ pub fn map_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseErr
     let mut block = Block::default();
     block.ins.push_back(NEW_MAP.clone());
     for expr in exprs {
+        if let Some(Base::LoadVariable(name, false, false)) = expr.0.as_dyn_any().downcast_ref::<Base>() {
+            if !name.contains('.') { crate::parser::statement::declare::note_map_key(name); }
+        }
         block.ins.push_back(Arc::new(MapIns::AppendMap(expr)));
     }
     if let Some(additional) = additional {

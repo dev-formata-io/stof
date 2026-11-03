@@ -85,11 +85,15 @@ fn value_from_array(graph: &Graph, vals: Vector<ValRef<Val>>) -> Value {
 }
 
 /// JSON number for a Stof number.
-/// JSON has no infinity or NaN: those export as null, like JSON.stringify and serde_json do.
+/// JSON has no infinity or NaN, so those are the strings "Infinity", "-Infinity", and "NaN" (valid JSON that keeps
+/// the value; JavaScript's Number() reads them, and JSON import reads them back as numbers).
 fn num_value(value: Num) -> Value {
     match value {
         Num::Int(v) => Value::Number(Number::from(v)),
         Num::Float(v) |
-        Num::Units(v, _) => Number::from_f64(v).map(Value::Number).unwrap_or(Value::Null),
+        Num::Units(v, _) => match Number::from_f64(v) {
+            Some(number) => Value::Number(number),
+            None => Value::String(crate::runtime::float_text(v)),
+        },
     }
 }

@@ -71,10 +71,20 @@ impl From<Graph> for Stof {
         }
     }
 }
+/// While Stof runs a step, the document is borrowed. A library function can call back into it with the async methods
+/// (`await doc.call(..)`): those run after the step, once the document is free. A synchronous method called during
+/// the step (Ex. `doc.get` before the function's first await) finds it busy: this error, instead of crashing the engine.
+const BUSY: &str = "the document is busy running a step: from a library function, call back with the async methods (await doc.call(..), doc.callSource(..)), or call synchronous ones (get, set, sync_call, ..) after an await";
+
 impl Stof {
     #[inline]
-    fn graph_mut(&self) -> std::cell::RefMut<'_, Graph> {
-        self.graph.borrow_mut()
+    fn graph_mut(&self) -> Result<std::cell::RefMut<'_, Graph>, String> {
+        self.graph.try_borrow_mut().map_err(|_| BUSY.to_string())
+    }
+
+    #[inline]
+    fn graph_ref(&self) -> Result<std::cell::Ref<'_, Graph>, String> {
+        self.graph.try_borrow().map_err(|_| BUSY.to_string())
     }
 }
 #[wasm_bindgen]
@@ -94,9 +104,9 @@ impl Stof {
     }
     
     /// Get a value from this graph using the Stof runtime (all language features supported).
-    pub fn get(&self, path: &str, start: JsValue) -> JsValue {
+    pub fn get(&self, path: &str, start: JsValue) -> Result<JsValue, String> {
         let mut proc_env = ProcEnv::default();
-        let mut graph = self.graph_mut();
+        let mut graph = self.graph_mut()?;
         if let Some(main) = graph.main_root() {
             proc_env.self_stack.push(main);
         }
@@ -112,16 +122,16 @@ impl Stof {
         let _ = instruction.exec(&mut proc_env, &mut *graph); // don't care about res
         
         if let Some(var) = proc_env.stack.pop() {
-            JsValue::from(var.val.read().clone())
+            Ok(JsValue::from(var.val.read().clone()))
         } else {
-            JsValue::NULL
+            Ok(JsValue::NULL)
         }
     }
 
     /// Set a value onto this graph using the Stof runtime.
-    pub fn set(&self, path: &str, value: JsValue, start: JsValue) -> bool {
+    pub fn set(&self, path: &str, value: JsValue, start: JsValue) -> Result<bool, String> {
         let mut proc_env = ProcEnv::default();
-        let mut graph = self.graph_mut();
+        let mut graph = self.graph_mut()?;
         if let Some(main) = graph.main_root() {
             proc_env.self_stack.push(main);
         }
@@ -135,8 +145,8 @@ impl Stof {
         let path = graph.host_path(path, proc_env.self_stack.last());
         let instruction: Arc<dyn Instruction> = Arc::new(Base::SetVariable(path.into()));
         match instruction.exec(&mut proc_env, &mut *graph) {
-            Ok(_res) => true,
-            Err(_err) => false
+            Ok(_res) => Ok(true),
+            Err(_err) => Ok(false)
         }
     }
 
@@ -150,7 +160,7 @@ impl Stof {
     pub async fn run_with_gate(&self, attributes: JsValue, acquire: &js_sys::Function, release: &js_sys::Function) -> Result<String, String> {
         let mut attrs = FxHashSet::default();
         {
-            let graph = self.graph.borrow();
+            let graph = self.graph_ref()?;
             match to_graph_value(attributes, &graph) {
                 Val::Str(attribute) => {
                     attrs.insert(attribute.to_string());
@@ -184,7 +194,7 @@ impl Stof {
     /// Async TS lib functions will not work with this, but it will be faster.
     pub fn sync_run(&self, attributes: JsValue) -> Result<String, String> {
         let mut attrs = FxHashSet::default();
-        let mut graph = self.graph_mut();
+        let mut graph = self.graph_mut()?;
         match to_graph_value(attributes, &graph) {
             Val::Str(attribute) => {
                 attrs.insert(attribute.to_string());
@@ -218,7 +228,7 @@ impl Stof {
     pub async fn call_with_gate(&self, path: &str, args: JsValue, acquire: &js_sys::Function, release: &js_sys::Function) -> Result<JsValue, String> {
         let mut arguments = vec![];
         {
-            let graph = self.graph.borrow();
+            let graph = self.graph_ref()?;
             match to_graph_value(args, &graph) {
                 Val::List(vals) => {
                     for val in vals {
@@ -243,7 +253,7 @@ impl Stof {
     /// Async TS lib functions will not work with this, but it will be faster.
     pub fn sync_call(&self, path: &str, args: JsValue) -> Result<JsValue, String> {
         let mut arguments = vec![];
-        let mut graph = self.graph_mut();
+        let mut graph = self.graph_mut()?;
         match to_graph_value(args, &graph) {
             Val::List(vals) => {
                 for val in vals {
@@ -267,7 +277,7 @@ impl Stof {
     /// and everything the source declares is removed after the call.
     pub async fn call_source_with_gate(&self, src: &str, args: JsValue, node: JsValue, acquire: &js_sys::Function, release: &js_sys::Function) -> Result<JsValue, String> {
         let (arguments, context) = {
-            let graph = self.graph.borrow();
+            let graph = self.graph_ref()?;
             (call_arguments(args, &graph), context_node(node, &graph)?)
         };
         match Runtime::async_call_source_with_gate(&self.graph, src, context, arguments, acquire, release).await {
@@ -279,7 +289,7 @@ impl Stof {
     /// Synchronous call a function from Stof source without adding it to the document.
     /// Async TS lib functions will not work with this, but it will be faster.
     pub fn sync_call_source(&self, src: &str, args: JsValue, node: JsValue) -> Result<JsValue, String> {
-        let mut graph = self.graph_mut();
+        let mut graph = self.graph_mut()?;
         let arguments = call_arguments(args, &graph);
         let context = context_node(node, &graph)?;
         match Runtime::call_source(&mut *graph, src, context, arguments) {
@@ -291,8 +301,8 @@ impl Stof {
     /// Remove a field, function, or object by path (Ex. "config.staging"), like drop() in Stof.
     /// A field that holds an object drops the object too, unless shallow (then only the field is removed).
     /// Returns whether anything was removed.
-    pub fn remove(&self, path: &str, shallow: bool) -> bool {
-        self.graph_mut().remove(path, shallow)
+    pub fn remove(&self, path: &str, shallow: bool) -> Result<bool, String> {
+        Ok(self.graph_mut()?.remove(path, shallow))
     }
 
 
@@ -301,36 +311,48 @@ impl Stof {
      *****************************************************************************/
     
     /// Insert a JS function as a library function, available in Stof.
-    pub fn js_library_function(&self, func: StofFunc) {
-        let mut graph = self.graph_mut();
+    pub fn js_library_function(&self, func: StofFunc) -> Result<(), String> {
+        let mut graph = self.graph_mut()?;
         graph.insert_libfunc(func.get_func());
+        Ok(())
     }
 
     #[wasm_bindgen(js_name = allowHttp)]
     /// Give this document network access (the Http library, using fetch). Off by default.
-    pub fn allow_http(&self) {
-        self.graph_mut().allow_http();
+    pub fn allow_http(&self) -> Result<(), String> {
+        self.graph_mut()?.allow_http();
+        Ok(())
     }
 
     #[wasm_bindgen(js_name = allowHtmlTags)]
     /// Elements the html format may write (Ex. the components your page renders): only these, instead of the
     /// standard HTML elements and custom elements. Documents can't change it. Calling it again adds elements.
-    pub fn allow_html_tags(&self, tags: Vec<String>) {
-        self.graph_mut().allow_html_tags(tags);
+    pub fn allow_html_tags(&self, tags: Vec<String>) -> Result<(), String> {
+        self.graph_mut()?.allow_html_tags(tags);
+        Ok(())
     }
 
     #[wasm_bindgen(js_name = keepSource)]
     /// Keep each function's source text from now on (off by default), so the readable `stof` export writes
     /// functions as Stof. It costs the memory of the text.
-    pub fn keep_source(&self, keep: Option<bool>) {
-        self.graph_mut().keep_source(keep.unwrap_or(true));
+    pub fn keep_source(&self, keep: Option<bool>) -> Result<(), String> {
+        self.graph_mut()?.keep_source(keep.unwrap_or(true));
+        Ok(())
+    }
+
+    /// Print nothing to the console (off by default): no parse warnings, test progress, or pln/err/dbg output.
+    /// Results and errors still come back (Ex. `test` still returns its report).
+    pub fn quiet(&self, quiet: Option<bool>) -> Result<(), String> {
+        self.graph_mut()?.quiet(quiet.unwrap_or(true));
+        Ok(())
     }
 
     #[wasm_bindgen(js_name = setMaxExecutionTime)]
     /// How long a call can run, in milliseconds, before it fails with an execution timeout (null for no limit).
     /// Defaults to 120,000 (2 minutes).
-    pub fn set_max_execution_time(&self, ms: Option<f64>) {
-        self.graph_mut().max_execution_time = ms.map(|ms| std::time::Duration::from_millis(ms.max(0.) as u64));
+    pub fn set_max_execution_time(&self, ms: Option<f64>) -> Result<(), String> {
+        self.graph_mut()?.max_execution_time = ms.map(|ms| std::time::Duration::from_millis(ms.max(0.) as u64));
+        Ok(())
     }
 
 
@@ -347,7 +369,7 @@ impl Stof {
     /// Import a JS object value.
     pub fn js_obj_import(&self, js_obj: JsValue, node: JsValue) -> Result<bool, String> {
         if let Ok(value) = serde_wasm_bindgen::from_value::<serde_json::Value>(js_obj) {
-            let mut graph = self.graph_mut();
+            let mut graph = self.graph_mut()?;
             let val = to_graph_value(node, &graph);
             let mut parse_node = graph.ensure_main_root();
             match val {
@@ -373,7 +395,7 @@ impl Stof {
     #[wasm_bindgen(js_name = stringImport)]
     /// String import, using a format of choice (including stof).
     pub fn string_import(&self, src: &str, format: &str, node: JsValue, profile: &str) -> Result<bool, String> {
-        let mut graph = self.graph_mut();
+        let mut graph = self.graph_mut()?;
         let val = to_graph_value(node, &graph);
         let mut parse_node = graph.ensure_main_root();
         match val {
@@ -409,7 +431,7 @@ impl Stof {
     /// Binary import (Uint8Array), using a format of choice.
     /// Format can also be a content type (for HTTP-like situations).
     pub fn binary_import(&self, bytes: JsValue, format: &str, node: JsValue, profile: &str) -> Result<bool, String> {
-        let mut graph = self.graph_mut();
+        let mut graph = self.graph_mut()?;
         let val = to_graph_value(node, &graph);
         let mut parse_node = graph.ensure_main_root();
         match val {
@@ -444,7 +466,7 @@ impl Stof {
     #[wasm_bindgen(js_name = stringExport)]
     /// String export, using a format of choice.
     pub fn string_export(&self, format: &str, node: JsValue) -> Result<String, String> {
-        let graph = self.graph.borrow();
+        let graph = self.graph_ref()?;
         let val = to_graph_value(node, &graph);
         let exp_node;
         match val {
@@ -478,7 +500,7 @@ impl Stof {
         // computed values (Ex. #[attr] functions in html) are called first, when the document isn't busy
         let res = match self.graph.try_borrow_mut() {
             Ok(mut graph) => graph.stringify(format, Some(exp_node)),
-            Err(_) => self.graph.borrow().string_export(format, Some(exp_node)),
+            Err(_) => self.graph_ref()?.string_export(format, Some(exp_node)),
         };
         match res {
             Ok(val) => Ok(val),
@@ -490,7 +512,7 @@ impl Stof {
     /// Binary export (Uint8Array), using a format of choice.
     /// Format can also be a content type (for HTTP-like situations).
     pub fn binary_export(&self, format: &str, node: JsValue) -> Result<JsValue, String> {
-        let graph = self.graph.borrow();
+        let graph = self.graph_ref()?;
         let val = to_graph_value(node, &graph);
         let exp_node;
         match val {
@@ -524,7 +546,7 @@ impl Stof {
         // computed values (Ex. #[attr] functions in html) are called first, when the document isn't busy
         let res = match self.graph.try_borrow_mut() {
             Ok(mut graph) => graph.blobify(format, Some(exp_node)),
-            Err(_) => self.graph.borrow().binary_export(format, Some(exp_node)),
+            Err(_) => self.graph_ref()?.binary_export(format, Some(exp_node)),
         };
         match res {
             Ok(bytes) => Ok(JsValue::from(Uint8Array::from(bytes.as_ref()))),

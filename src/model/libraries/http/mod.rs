@@ -37,6 +37,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::runtime::{wake, WakeRef, NumT};
 
 use arcstr::{literal, ArcStr};
+#[cfg(feature = "http")]
 use imbl::vector;
 use serde::{Deserialize, Serialize};
 use crate::{model::{Graph, LibFunc, Param, Profile}, runtime::{Error, Num, Type, Units, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv}};

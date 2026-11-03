@@ -263,7 +263,7 @@ pub fn std_nanoid() -> LibFunc {
         name: "nanoid".into(),
         is_async: false,
         docs: r#"# Std.nanoid(length: int = 21) -> str
-Generate a URL safe random string ID, using the nanoid algorithm with a specified length (default is 21 characters). Probability of a collision is very low, and inversely proportional to ID length.
+Generate a URL safe random string ID, using the nanoid algorithm with a specified length (default is 21 characters, from 1 to 4096). Probability of a collision is very low, and inversely proportional to ID length.
 ```rust
 assert_neq(nanoid(), nanoid(33));
 ```

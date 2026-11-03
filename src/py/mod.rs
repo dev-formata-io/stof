@@ -222,6 +222,13 @@ impl Doc {
         self.graph.keep_source(keep);
     }
 
+    #[pyo3(signature = (quiet = true))]
+    /// Print nothing to the console (off by default): no parse warnings, test progress, or pln/err/dbg output.
+    /// Results and errors still come back (Ex. `test` still returns its report).
+    pub fn quiet(&mut self, quiet: bool) {
+        self.graph.quiet(quiet);
+    }
+
     /// How long a call can run, in seconds, before it fails with an execution timeout (None for no limit).
     /// Defaults to 120 (2 minutes).
     pub fn set_max_execution_time(&mut self, seconds: Option<f64>) {

@@ -68,3 +68,20 @@ fn toml_non_finite() {
     assert_eq(o.b, -inf);
     assert(o.c.nan());
 }
+
+#[test]
+/// TOML has its own infinity and NaN (inf, -inf, nan): written and read as numbers.
+fn non_finite() {
+    const o = new { a: Infinity, b: -Infinity, c: NaN };
+    const toml = stringify('toml', o);
+    assert(toml.contains('a = inf'), toml);
+    assert(toml.contains('b = -inf'), toml);
+    assert(toml.contains('c = nan'), toml);
+    const back = new {};
+    parse(toml, back, 'toml');
+    assert_eq(back.a, Infinity);
+    assert_eq(back.b, -Infinity);
+    assert(back.c.nan());
+    drop(o);
+    drop(back);
+}

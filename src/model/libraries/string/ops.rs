@@ -52,7 +52,7 @@ pub fn str_at() -> LibFunc {
         name: "at".into(),
         is_async: false,
         docs: r#"# Str.at(val: str, index: int) -> str
-Returns a character at the given index within the string, or the last character if the index is out of bounds.
+Returns the character at the given byte index within the string (indexes are bytes, like `len` and `index_of`; an index inside a multibyte character gives that character), or the last character if the index is out of bounds. An empty string gives an empty string.
 ```rust
 const val = "hello";
 assert_eq(val[1], "e");
@@ -467,7 +467,7 @@ pub fn str_substr() -> LibFunc {
         name: "substring".into(),
         is_async: false,
         docs: r#"# Str.substring(val: str, start: int = 0, end: int = -1) -> str
-Return a new string that is the substring of the given value from a start index up to, but not including an end index. Default start is the beginning of the string and the default end is the entire length of the string.
+Return a new string that is the substring of the given value from a start index up to, but not including an end index. Indexes are bytes, like `len` and `index_of`; an index inside a multibyte character moves back to that character's start. Default start is the beginning of the string and the default end is the entire length of the string.
 ```rust
 const val = "hello, world";
 assert_eq(val.substring(), "hello, world");

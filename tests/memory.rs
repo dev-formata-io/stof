@@ -90,7 +90,7 @@ fn repeated_calls_do_not_grow_memory() {
         measure("write a number field", "x: 1\nfn f() { self.x = self.x + 1; }", call("f")),
         measure("write a string field", "s: 'a'\nfn f() { self.s = `hello ${self.s.len()}`; }", call("f")),
         measure("using an object", "fn f() { using t = new { a: 1, b: 'x' }; t.a = 2; }", call("f")),
-        measure("nested objects with using", "fn f() { using t = new { a: { b: { c: 1 } }, l: [1, 2, 3] }; t.a.b.c = 2; }", call("f")),
+        measure("nested objects with using", "fn f() { using t = new { a: new { b: new { c: 1 } }, l: [1, 2, 3] }; t.a.b.c = 2; }", call("f")),
         measure("new on an arena, drop the arena", "fn f() { const arena = new {}; for (let i = 0; i < 5; i += 1) { new { i: i } on arena; } drop(arena); }", call("f")),
         measure("replace an object field, drop the old one", "o: { a: 1 }\nfn f() { const old = self.o; self.o = new { a: 2 }; drop(old); }", call("f")),
         measure("remove a field holding an object", "fn f() { self.tmp = new { a: 1 }; self.remove('tmp'); }", call("f")),

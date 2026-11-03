@@ -145,3 +145,24 @@ fn find_matches() {
     const regex = "\\b\\w{13}\\b";
     assert_eq(val.find_matches(regex), [("categorically", 2, 15)]);
 }
+
+#[test]
+/// Offsets are bytes (like len and index_of), and nothing splits a character or reads past the end.
+fn non_ascii_and_empty() {
+    const val = '日本語 é';                         // 日, 本, and 語 are 3 bytes each, é is 2
+    assert_eq(val.len(), 12);
+    assert_eq(val.at(0), '日');
+    assert_eq(val.at(1), '日');                     // inside 日: the whole character
+    assert_eq(val.at(3), '本');
+    assert_eq(val.at(100), 'é');                    // past the end: the last character
+    assert_eq(val.first(), '日');
+    assert_eq(val.last(), 'é');
+    assert_eq(val.substring(3), '本語 é');
+    assert_eq(val.substring(4), '本語 é');           // inside 本: from its start
+    assert_eq(val.substring(0, 4), '日');
+    assert_eq(val.substring(val.index_of('é')), 'é');
+    assert_eq(val.substring(2, 1), '');
+    assert_eq(''.at(0), '');
+    assert_eq(''.at(-1), '');
+    assert_eq(''.substring(1, 5), '');
+}

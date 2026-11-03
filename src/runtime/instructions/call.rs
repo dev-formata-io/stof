@@ -185,13 +185,13 @@ impl FuncCall {
 
             // Now we are looking for a path + implied library function
             if split_path.len() > 1 {
-                let func_name = split_path.pop().unwrap();
+                let func_name = split_path.pop().unwrap_or_default();
                 let path = split_path.join(".");
 
                 // using Base.LoadVariable as a meta instruction for accuracy
                 // var will be loaded onto the env.stack!
                 Base::LoadVariable(path.into(), false, false).exec(env, graph)?;
-                let var = env.stack.pop().unwrap(); // yup, cool
+                let var = env.stack.pop().ok_or(Error::StackError)?;
 
                 let libname = var.lib_name(&graph);
                 return Ok(CallContext { lib: Some(libname), stack_arg: Some(Arc::new(Base::Variable(var))), prototype_self: None, func: SId::from(func_name) });

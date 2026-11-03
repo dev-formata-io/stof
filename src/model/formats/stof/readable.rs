@@ -504,15 +504,16 @@ fn num_text(num: &Num) -> String {
         Num::Int(v) => v.to_string(),
         Num::Float(v) => float_text(*v),
         Num::Units(v, units) => {
-            if matches!(units, Units::None | Units::Undefined) || !v.is_finite() { return float_text(*v); }
+            if matches!(units, Units::None | Units::Undefined) { return float_text(*v); }
+            if !v.is_finite() { return format!("{} as {}", float_text(*v), units.to_string()); }
             format!("{v}{}", units.to_string())
         },
     }
 }
 
 fn float_text(v: f64) -> String {
-    if v.is_nan() { return "nan()".into(); }
-    if v.is_infinite() { return if v > 0. { "inf()".into() } else { "-inf()".into() }; }
+    if v.is_nan() { return "NaN".into(); }
+    if v.is_infinite() { return if v > 0. { "Infinity".into() } else { "-Infinity".into() }; }
     format!("{v:?}") // keeps a decimal point (2.0), so it reads back as a float
 }
 
@@ -574,7 +575,7 @@ root Other {
 
     #[test]
     fn whole_graph_with_roots_types_and_docs() {
-        let mut graph = Graph::default();
+        let mut graph = Graph::default(); graph.quiet(true);
         graph.keep_source(true);
         graph.parse_stof_src(DOC, None, Profile::docs(false)).unwrap();
         let text = graph.string_export("stof", None).unwrap();
@@ -582,7 +583,7 @@ root Other {
         assert!(text.contains("\npolicy: {\n    Plan pro: {\n        label: 'Pro'\n\n        #[custom]\n        fn price() -> float {\n            20\n        }\n    }\n    limits: [new { value: 1GB }]\n}\n"), "{text}");
         assert!(text.ends_with("\nroot Other {\n    x: 1\n}\n"), "{text}");
 
-        let mut back = Graph::default();
+        let mut back = Graph::default(); back.quiet(true); // its expected failures below would look alarming
         back.keep_source(true);
         back.parse_stof_src(&text, None, Profile::docs(false)).unwrap();
         assert_eq!(back.string_export("stof", None).unwrap(), text);
@@ -593,15 +594,15 @@ root Other {
     #[test]
     fn source_is_kept_only_when_asked() {
         // by default, functions keep no text: written as data blocks (exact), and they still work
-        let mut graph = Graph::default();
+        let mut graph = Graph::default(); graph.quiet(true);
         graph.parse_stof_src("obj: { n: 2\nfn double() -> int { self.n * 2 } }", None, Profile::default()).unwrap();
         let text = graph.string_export("stof", None).unwrap();
         assert!(text.contains("n: 2") && text.contains("data@v1 |") && !text.contains("fn double"), "{text}");
-        let mut back = Graph::default();
+        let mut back = Graph::default(); back.quiet(true); // its expected failures below would look alarming
         back.parse_stof_src(&text, None, Profile::default()).unwrap();
         assert_eq!(Runtime::call(&mut back, "obj.double", vec![]).unwrap(), Val::from(4));
 
-        let mut kept = Graph::default();
+        let mut kept = Graph::default(); kept.quiet(true);
         kept.keep_source(true);
         kept.parse_stof_src("obj: { n: 2\nfn double() -> int { self.n * 2 } }", None, Profile::default()).unwrap();
         assert!(kept.string_export("stof", None).unwrap().contains("fn double() -> int { self.n * 2 }"));
@@ -610,22 +611,22 @@ root Other {
     #[test]
     fn functions_from_bstf_are_exact() {
         // functions loaded from BSTF have no source text: written as data blocks, so nothing is lost
-        let mut graph = Graph::default();
+        let mut graph = Graph::default(); graph.quiet(true);
         graph.parse_stof_src("obj: { n: 2\nfn double() -> int { self.n * 2 } }", None, Profile::default()).unwrap();
         let bytes = graph.binary_export("bstf", None).unwrap();
-        let mut loaded = Graph::default();
+        let mut loaded = Graph::default(); loaded.quiet(true);
         loaded.binary_import("bstf", bytes, None, &Profile::default()).unwrap();
         let text = loaded.string_export("stof", None).unwrap();
         assert!(text.contains("obj: {\n    n: 2\n\n    data@v1 |"), "{text}");
 
-        let mut back = Graph::default();
+        let mut back = Graph::default(); back.quiet(true); // its expected failures below would look alarming
         back.parse_stof_src(&text, None, Profile::default()).unwrap();
         assert_eq!(Runtime::call(&mut back, "obj.double", vec![]).unwrap(), Val::from(4));
     }
 
     #[test]
     fn the_text_can_be_outlined_and_edited() {
-        let mut graph = Graph::default();
+        let mut graph = Graph::default(); graph.quiet(true);
         graph.keep_source(true);
         graph.parse_stof_src(DOC, None, Profile::default()).unwrap();
         let text = graph.string_export("stof", None).unwrap();
@@ -658,12 +659,12 @@ mod corpus {
         let mut failures = Vec::new();
         for file in files {
             let text = std::fs::read_to_string(&file).unwrap();
-            let mut graph = Graph::default();
+            let mut graph = Graph::default(); graph.quiet(true);
             graph.keep_source(true);
             if graph.parse_stof_src(&text, None, Profile::default()).is_err() { continue; }
             checked += 1;
             let exported = graph.string_export("stof", None).unwrap();
-            let mut back = Graph::default();
+            let mut back = Graph::default(); back.quiet(true); // its expected failures below would look alarming
             back.keep_source(true);
             if let Err(error) = back.parse_stof_src(&exported, None, Profile::default()) {
                 failures.push(format!("{}: doesn't parse: {:?}", file.display(), error));
@@ -691,12 +692,12 @@ mod suite {
     /// The whole Stof suite, written with the readable export and parsed from that, still passes. Only the tests of
     /// declared object IDs fail: the readable form doesn't keep IDs (`stof:graph` does).
     fn suite_from_export() {
-        let mut graph = Graph::default();
+        let mut graph = Graph::default(); graph.quiet(true);
         graph.allow_system();
         graph.keep_source(true);
         graph.parse_stof_file("stof", "src/model/formats/stof/tests/tests.stof", None, Profile::test()).unwrap();
         let text = graph.string_export("stof", None).unwrap();
-        let mut back = Graph::default();
+        let mut back = Graph::default(); back.quiet(true); // its expected failures below would look alarming
         back.allow_system();
         back.keep_source(true);
         back.parse_stof_src(&text, None, Profile::test()).unwrap();

@@ -455,7 +455,8 @@ impl Type {
 }
 impl<T: AsRef<str>> From<T> for Type {
     fn from(value: T) -> Self {
-        parse_type_complete(value.as_ref()).expect(&format!("failed to parse stof type string '{}' into a valid Type", value.as_ref()))
+        // a name that isn't a type expression is an object type's name (it won't resolve to a prototype)
+        parse_type_complete(value.as_ref()).unwrap_or_else(|_| Type::Obj(value.as_ref().into()))
     }
 }
 impl ToString for Type {

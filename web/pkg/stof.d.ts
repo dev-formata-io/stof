@@ -69,6 +69,11 @@ export class Stof {
      */
     parse(stof: string, node: any, profile: string): boolean;
     /**
+     * Print nothing to the console (off by default): no parse warnings, test progress, or pln/err/dbg output.
+     * Results and errors still come back (Ex. `test` still returns its report).
+     */
+    quiet(quiet?: boolean | null): void;
+    /**
      * Remove a field, function, or object by path (Ex. "config.staging"), like drop() in Stof.
      * A field that holds an object drops the object too, unless shallow (then only the field is removed).
      * Returns whether anything was removed.
@@ -158,23 +163,24 @@ export interface InitOutput {
     readonly start: () => void;
     readonly stofEdit: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly stofOutline: (a: number, b: number) => [number, number, number, number];
-    readonly stof_allowHtmlTags: (a: number, b: number, c: number) => void;
-    readonly stof_allowHttp: (a: number) => void;
+    readonly stof_allowHtmlTags: (a: number, b: number, c: number) => [number, number];
+    readonly stof_allowHttp: (a: number) => [number, number];
     readonly stof_binaryExport: (a: number, b: number, c: number, d: any) => [number, number, number];
     readonly stof_binaryImport: (a: number, b: any, c: number, d: number, e: any, f: number, g: number) => [number, number, number];
     readonly stof_call_source_with_gate: (a: number, b: number, c: number, d: any, e: any, f: any, g: any) => any;
     readonly stof_call_with_gate: (a: number, b: number, c: number, d: any, e: any, f: any) => any;
     readonly stof_docid: (a: number) => [number, number];
-    readonly stof_get: (a: number, b: number, c: number, d: any) => any;
-    readonly stof_js_library_function: (a: number, b: number) => void;
-    readonly stof_keepSource: (a: number, b: number) => void;
+    readonly stof_get: (a: number, b: number, c: number, d: any) => [number, number, number];
+    readonly stof_js_library_function: (a: number, b: number) => [number, number];
+    readonly stof_keepSource: (a: number, b: number) => [number, number];
     readonly stof_new: () => number;
     readonly stof_objImport: (a: number, b: any, c: any) => [number, number, number];
     readonly stof_parse: (a: number, b: number, c: number, d: any, e: number, f: number) => [number, number, number];
-    readonly stof_remove: (a: number, b: number, c: number, d: number) => number;
+    readonly stof_quiet: (a: number, b: number) => [number, number];
+    readonly stof_remove: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly stof_run_with_gate: (a: number, b: any, c: any, d: any) => any;
-    readonly stof_set: (a: number, b: number, c: number, d: any, e: any) => number;
-    readonly stof_setMaxExecutionTime: (a: number, b: number, c: number) => void;
+    readonly stof_set: (a: number, b: number, c: number, d: any, e: any) => [number, number, number];
+    readonly stof_setMaxExecutionTime: (a: number, b: number, c: number) => [number, number];
     readonly stof_stringExport: (a: number, b: number, c: number, d: any) => [number, number, number, number];
     readonly stof_stringImport: (a: number, b: number, c: number, d: number, e: number, f: any, g: number, h: number) => [number, number, number];
     readonly stof_sync_call: (a: number, b: number, c: number, d: any) => [number, number, number];
