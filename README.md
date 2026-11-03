@@ -15,61 +15,98 @@
     <a href="https://crates.io/crates/stof"><img src="https://img.shields.io/crates/l/stof?color=maroon"></a>
 </h1>
 
-<h3 align="center">Run AI-generated logic safely, inside your app.</h3>
+<h3 align="center">Software that behaves differently for every user.</h3>
 
 <p align="center">
-    Stof is JSON with functions. One document holds data and the logic that works on it, and your app runs it in a sandbox, in-process, in Rust, JavaScript, or Python.
+    Start with your agent. Each customer's rules, tools, and state go in one document: the agent edits it, you review the diff, and your app runs it. Stof is JSON with functions, run in a sandbox inside your app, in Rust, JavaScript, or Python.
 </p>
 
-## What it looks like
+## One customer, one document
 
-This is a Stof document. The data looks like JSON, and the function next to it works on that data:
+This is how a support agent handles refunds for one customer, Acme. It's a Stof document: the data looks like JSON,
+and the function next to it is a tool the agent can call.
 
-```stof
-ticket: {
-    text: 'Where is my refund?'
-    priority: 1
+```rust
+// acme.stof
+auto_approve_under: 50
+monthly_cap: 500
+refunded_this_month: 0
+
+/// Refund an order, or escalate it to a person.
+fn refund(order: str, amount: float) -> str {
+    if (amount >= self.auto_approve_under) return "escalated";
+    if (self.refunded_this_month + amount > self.monthly_cap) return "escalated";
+    Payments::refund(order, amount);
+    self.refunded_this_month += amount;
+    "refunded"
 }
 
-#[triage]
-fn route() {
-    if (self.ticket.text.lower().contains('refund')) self.ticket.team = 'billing';
-    else if (self.ticket.priority > 2) self.ticket.team = 'urgent';
-    else self.ticket.team = 'general';
+#[test]
+fn large_refunds_need_a_person() {
+    assert_eq(self.refund("A-1", 120), "escalated");
 }
 ```
 
-Your app loads it and works with it as needed:
+Your app loads Acme's document and hands it the tools Acme's agent may use:
 
 ```typescript
 import { StofDoc } from '@formata/stof';
 
-const doc = await StofDoc.new(source);
-await doc.run('triage');    // runs every function tagged #[triage]
-doc.get('ticket.team');     // 'billing'
+const acme = await StofDoc.new();
+acme.lib('Payments', 'refund', (order: string, amount: number) => payments.refund(order, amount));
+acme.parse(source);                    // acme.stof
+
+await acme.call('refund', 'A-1', 40);  // 'refunded', and refunded_this_month is 40
+await acme.call('refund', 'A-2', 120); // 'escalated': over the auto-approve limit
 ```
 
-A Stof document is data you can store, send, and merge like JSON, and code you can run, safely:
+Then Acme's account manager says Acme's refunds up to $150 can go through without a ticket. The agent proposes a
+change to Acme's document, the test in the document runs, and you approve a one-line diff:
 
-- **It runs in a sandbox.** A document can read and change itself and call the functions you give it. Nothing else: no file system, network, or environment unless you turn them on.
-- **It runs in your process.** No server, container, or cold start. A small document parses and runs in under a millisecond.
-- **It runs the same everywhere.** Rust, Node.js, the browser, and Python give the same result.
+```diff
+-auto_approve_under: 50
++auto_approve_under: 150
+```
 
-## Everything is data
+The same $120 refund now goes through, for Acme only, with no deploy. That's the idea: the agent changed one line in
+this customer's document, and your app behaves differently for them.
 
-Stof has functions, but it isn't a language for writing apps. It's a document, and every part of it is data. The
-document above is a tree of objects, and the function sits on its object the same way the fields do:
+**The document can only use what your app hands it.** `Payments::refund` works because you registered it for Acme.
+A call to anything else (Ex. `Payments::export_customers()`) fails, and a document has no file system, network, or
+environment unless you turn them on.
+
+## Why a document
+
+Teams building agents end up hand-building each customer's rules out of prompts, JSON, and glue code. The usual
+options each break somewhere:
+
+| Instead of a document | What breaks |
+|---|---|
+| Let the model write code and run it in a sandbox | The diff is hard to review, the sandbox is more infrastructure, and the code doesn't travel with the customer |
+| JSON tool calls | Safe, but JSON can't hold logic ("this month", "under $50"), so a rules engine grows around it |
+| Put the rules in the prompt | A rule in a prompt is a suggestion the model may ignore |
+| Feature flags and settings | The settings are per customer, but the logic is shared and changes with a deploy |
+
+A Stof document is all of the things you need at once: a model can write it, a person can read and diff it, it has
+its own tests, and your app runs it deterministically, in-process, in a sandbox. The same document gives the same result in
+Rust, Node.js, the browser, and Python.
+
+## Why it works: everything is data
+
+Stof has functions, but it isn't a language for writing apps. It's a document, and every part of it is data. Acme's
+document is an object, and the function sits on it the same way the fields do:
 
 ```text
-root
-├── ticket                          object
-│   ├── text: 'Where is my refund?'     field
-│   └── priority: 1                     field
-└── route()                         function: data on the object, like a field
+root (acme.stof)
+├── auto_approve_under: 50          field
+├── monthly_cap: 500                field
+├── refunded_this_month: 0          field: state, updated as refunds go through
+├── refund()                        function: data on the object, like a field
+└── large_refunds_need_a_person()   test
 ```
 
 Fields, functions, types, and docs are all pieces of data attached to objects (an entity-component system, if you
-know game engines). That's what makes the rest possible:
+know game engines). That's why a document can hold a customer's behavior and not only their settings:
 
 - **Anything you can do with data, you can do with logic.** Merge two documents, pull one object out with its
   functions, diff two versions, store it in a database, or send it over the wire.
@@ -80,59 +117,33 @@ know game engines). That's what makes the rest possible:
 - **There's very little to learn.** If you can read JSON and a bit of JavaScript, you can read Stof, and so can a
   model.
 
-## Why it matters now: models write logic
-
-Models are good at writing small pieces of logic: a routing rule like the one above, a validation check, a data transform, a tool. Running that logic is the hard part, because the code came from a model, not from your team.
-
-| Option | The catch |
-|---|---|
-| Run generated Python or JS in a container or microVM | Heavy, slow to start, and more infrastructure to run and secure |
-| `eval` it in your app | The code can reach everything your app can |
-| Function calling / JSON tool calls | The model can only call functions you already wrote; it can't add new logic |
-| Rule DSLs (logic encoded as JSON) | Limited, and awkward to read and write, for people and models alike |
-| WebAssembly | Needs a compiler toolchain, binaries are large to send, and the logic lives apart from the data |
-
-With Stof, the model writes a document, and your app runs it like any other data it receives. The tag `#[triage]` is just a label the model and your app agree on, so your app doesn't depend on what the model named its functions or how many it wrote:
-
-```typescript
-const doc = await StofDoc.new(modelOutput);                       // rules a model wrote
-doc.parse({ ticket: { text: 'Where is my refund?', priority: 1 } });
-await doc.run('triage');
-```
-
-And the document can't reach anything you didn't give it:
-
-```typescript
-const doc = await StofDoc.new(`fn run() -> str { fs::read_string('/etc/passwd') }`);
-await doc.call('run');   // throws: this host hasn't given documents file system access
-```
-
-To let it do more, you hand it specific functions: `doc.lib('App', 'notify', notify)` makes `App::notify(...)` available, and nothing else. File system, environment, and network access stay off unless you turn them on (`doc.allowHttp(['api.example.com'])` here, `allow_system()` and `allow_http()` in Rust and Python).
-
 ## Logic that moves like data
 
-Documents combine like data. Logic and data from different places merge into one document, and everything tagged `#[triage]` runs together:
+Documents combine like data. Logic and data from different places merge into one document, and every function
+tagged `#[check]` runs together:
 
 ```typescript
-const doc = await StofDoc.new(teamPolicy);        // your team's rules (Stof)
-doc.parse(modelOutput);                           // + rules a model wrote (Stof)
-doc.parse(apiResponse, 'json');                   // + data from an API (JSON)
+const doc = await StofDoc.new(teamRules);         // rules every customer gets (Stof)
+doc.parse(acmeRules);                             // + rules Acme's agent added (Stof)
+doc.parse(order, 'json');                         // + data from your API (JSON)
 
-await doc.run('triage');                          // run all the rules together
+await doc.run('check');                           // run all the #[check] rules together
 doc.stringify('json');                            // and hand back plain JSON
 ```
 
 ```text
-team policy (Stof) ─┐
-model rules (Stof) ─┼─▶ one document ─▶ run('triage') ─▶ JSON out
-API data    (JSON) ─┘
+team rules (Stof) ─┐
+Acme rules (Stof) ─┼─▶ one document ─▶ run('check') ─▶ JSON out
+order data (JSON) ─┘
 ```
 
 They split like data, too. Any part of a document can be sent on its own, functions included, as compact binary: `doc.blobify('bstf', part)`. Store it, version it, diff it, send it over HTTP or a WebSocket, and run it wherever it lands. The same document gives the same result in Rust, Node.js, the browser, and Python.
 
 ## Where it fits
 
-Stof is a glue layer between the formats you already have and your code (very good for distributed systems):
+Stof isn't an agent framework. Your agent, your model, and your app stay yours; Stof is the document each customer's
+behavior lives in, and the runtime that runs it. It also works as a glue layer between the formats you already have
+and your code:
 
 ```text
   where things come from          the glue (often temporary)       your app
@@ -148,6 +159,8 @@ Load data from anywhere, add logic, run it, and keep the document or throw it aw
 
 **Reach for Stof when:**
 
+- Each customer (or user, or tenant) needs its own rules, tools, limits, or state, and an agent or a person needs to
+  change them safely.
 - A model, a user, or a customer gives you logic you need to run: rules, filters, transforms, scoring, tool behavior.
 - You're about to invent a config format, rules engine, or DSL for your product.
 - The same logic has to run in more than one place (browser, server, worker) and give the same answer.
@@ -160,11 +173,11 @@ Load data from anywhere, add logic, run it, and keep the document or throw it aw
 
 - **Safe by default.** A document can only read and change itself and call the functions you give it. Each call has a time limit, too.
 - **Fast and in-process.** Parsing and running a small document takes under a millisecond, and each call after that takes microseconds.
-- **Small on the wire.** Documents, functions included, serialize to compact binary: the rules above are under 1KB.
+- **Small on the wire.** A document travels as text or as binary (`bstf`), functions and state included: Acme's document is about 600 bytes of text, or 2KB as binary.
 - **It starts as JSON.** Any JSON document is valid Stof, and Stof imports and exports JSON, YAML, TOML, and more.
 - **Models already write it.** It reads like JSON and JavaScript, and errors give the exact line and a plain explanation, so a model can fix its own mistakes.
 - **More than a rules engine.** Types and schemas, units (`5min + 30s == 330s`, `2GB` to `MB` exactly), destructuring, async, and tests inside the document (`#[test]`, run with `stof test`).
-- **Proven in production.** Stof is the policy engine behind [Limitr](https://limitr.dev), where documents are pushed to running apps and evaluated in-process.
+- **Proven in production.** Stof is the engine behind [Limitr](https://limitr.dev), where each customer's pricing (plans, limits, credits, and the rules around them) is a Stof document, pushed to running apps and evaluated in-process.
 
 ## Quickstart
 
@@ -214,11 +227,14 @@ let total = Runtime::call(&mut graph, "total", vec![Val::from(21i64)])?; // 42
 
 ## FAQ
 
-**Is it really safe to run Stof a model wrote?**
+**Is it safe to run a document an agent wrote or changed?**
 A document runs in a sandbox: it can see itself and the functions your app provides, nothing else. File system, environment variables, file imports, and network access are all off by default, in every language; a host turns them on explicitly with `allow_system()` or `allow_http()` (or allows only some hosts with `allow_http_hosts`). Each call also has a time limit (2 minutes by default, set by the host). The `stof` command-line tool turns them on, since it runs your own files.
 
-**Why not just run the model's Python in a container?**
-You can, but it means infrastructure, startup time, and a lot of access to lock down. Stof runs inside your process, starts instantly, and has no access by default.
+**Why not let the model write Python and run it in a container?**
+You can, but it means infrastructure, startup time, and a lot of access to lock down, and the change a person reviews is a program, not a one-line diff. Stof runs inside your process, starts instantly, and has no access by default.
+
+**Where do the documents live?**
+Wherever you keep customer data: a database row per customer, object storage, or a repo if you want history and reviews. State the document updates (like `refunded_this_month`) is part of the document: save it with `doc.blobify('bstf')` and load it back with `StofDoc.new(bytes, 'bstf')`.
 
 **Can models actually write Stof?**
 Yes. It reads like JSON and JavaScript, which every model already knows. For better results, give your agent the [Stof skill](https://github.com/dev-formata-io/stof/blob/main/content/SKILL.md): a short guide to the language and its common mistakes. When something's wrong, errors give the line and a plain explanation the model can act on.

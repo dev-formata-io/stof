@@ -82,6 +82,12 @@
   objects with constructors, `call_source`, lists, maps, try and catch) 20,000 times each, and fails if the graph
   or the heap grows (live bytes, counted by the test's own allocator).
 
+### Changed
+
+- The README and the package descriptions lead with what Stof is for: software that behaves differently for each
+  user, starting with agents. Each customer's rules, tools, and state live in one document that an agent can edit, a
+  person can review, and the app runs. The first example is a per-customer refund tool.
+
 ## 0.10.8
 
 ### Added
