@@ -10,6 +10,9 @@
   - `nanoid(length)` with a length of 0, a negative one, or a huge one looped forever (the execution time limit
     can't interrupt a single call). The length must be from 1 to 4096, else the error says so.
   - `Str.at` on an empty string crashed. It returns `''`.
+  - Integer overflow, which a debug build (as in CI) stops on: `Time.add_months` with a huge count (in release it
+    looped for seconds; now an error), `Time.add_days` with `-Infinity` days (an error), and `List.remove_last` on an
+    empty list or with no match (null, as before). Integer arithmetic itself was already safe: it becomes a float.
   - `Str.at`, `first`, `last`, and `substring` on text that isn't ASCII returned part of a character, or crashed when
     an offset fell inside one. Offsets are still bytes, like `len` and `index_of`; an offset inside a character means
     that character (`'日本'.at(1)` is `'日'`, and `substring` starts at its first byte).

@@ -251,6 +251,18 @@ fn add_months_positive() {
 }
 
 #[test]
+/// Back across years, and an out-of-range count is an error (not an overflow or a very long loop).
+fn add_months_extremes() {
+    const back = Time.add_months(self.TEST_TS, -15); // 2026-03-15 - 15 months = 2024-12-15
+    assert_eq(Time.year(back), 2024);
+    assert_eq(Time.month(back), 12);
+    let failed = false;
+    try Time.add_months(self.TEST_TS, 1e308);
+    catch failed = true;
+    assert(failed);
+}
+
+#[test]
 fn add_months_crosses_year() {
     // 2026-03-15 + 10 months = 2027-01-15
     const result = Time.add_months(self.TEST_TS, 10);

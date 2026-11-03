@@ -235,7 +235,7 @@ pub fn start_of_period_for(ts: DateTime<Utc>, schedule: &str) -> Option<DateTime
 /// Number of days in a given year/month.
 fn days_in_month(year: i32, month: u32) -> u32 {
     let next = if month == 12 {
-        NaiveDate::from_ymd_opt(year + 1, 1, 1)
+        year.checked_add(1).and_then(|next_year| NaiveDate::from_ymd_opt(next_year, 1, 1))
     } else {
         NaiveDate::from_ymd_opt(year, month + 1, 1)
     };
@@ -512,10 +512,12 @@ impl Instruction for TimeIns {
                     return Err(Error::Custom("Time.add_months: missing n".into()));
                 };
                 if let Some(dt) = pop_ms_as_datetime(env) {
-                    let mut year = dt.year();
-                    let mut month = dt.month() as i32 + n;
-                    while month > 12 { month -= 12; year += 1; }
-                    while month < 1  { month += 12; year -= 1; }
+                    // months since year 0, in i64 so a huge n can't overflow (chrono rejects the year if it's out of range)
+                    let total = dt.year() as i64 * 12 + (dt.month() as i64 - 1) + n as i64;
+                    let Ok(year) = i32::try_from(total.div_euclid(12)) else {
+                        return Err(Error::Custom("Time.add_months: the result is out of range".into()));
+                    };
+                    let month = total.rem_euclid(12) as i32 + 1;
                     let dim = days_in_month(year, month as u32);
                     let day = dt.day().min(dim);
                     if let Some(result) = NaiveDate::from_ymd_opt(year, month as u32, day)
@@ -542,7 +544,7 @@ impl Instruction for TimeIns {
                     let result = if n >= 0 {
                         dt.checked_add_days(Days::new(n as u64))
                     } else {
-                        dt.checked_sub_days(Days::new((-n) as u64))
+                        dt.checked_sub_days(Days::new(n.unsigned_abs()))
                     };
                     if let Some(r) = result {
                         push_datetime_as_ms(env, r);

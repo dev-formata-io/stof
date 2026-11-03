@@ -155,6 +155,17 @@ fn remove_last() {
 }
 
 #[test]
+/// Nothing to remove: an empty list, or no match (the first item is checked too).
+fn remove_last_not_found() {
+    let empty = [];
+    assert_null(empty.remove_last(1));
+    let a = [1, 2];
+    assert_null(a.remove_last(5));
+    assert_eq(a.remove_last(1), 1);
+    assert_eq(a, [2]);
+}
+
+#[test]
 fn remove_all() {
     let a = [1, 2, 1, 3];
     assert(a.remove_all(1));

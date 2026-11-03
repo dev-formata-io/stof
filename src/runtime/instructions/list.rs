@@ -554,14 +554,15 @@ impl Instruction for ListIns {
                     if let Some(var) = env.stack.pop() {
                         match var.val.write().deref_mut() {
                             Val::List(list) => {
-                                let mut index: usize = list.len() - 1;
+                                // search from the end (an empty list, or no match, finds nothing)
+                                let mut index: usize = list.len();
                                 let mut found = false;
                                 for list_var in list.iter().rev() {
+                                    index -= 1;
                                     if search_var.val.read().equal(&list_var.read())?.truthy() {
                                         found = true;
                                         break;
                                     }
-                                    index -= 1;
                                 }
                                 if found {
                                     let val = list.remove(index);
