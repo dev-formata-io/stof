@@ -64,6 +64,9 @@ pub struct Graph {
 
     pub typemap: FxHashMap<String, FxHashSet<NodeRef>>,
 
+    /// Keep removed nodes and data in the deadpools (off by default).
+    /// Nothing empties them on its own: a graph that enables them must flush them (`flush`, `gc_table`),
+    /// or every object ever dropped stays in memory.
     #[serde(skip)]
     pub deadpools_enabled: bool,
     #[serde(skip)]
@@ -109,7 +112,7 @@ impl Default for Graph {
             nodes: Default::default(),
             data: Default::default(),
             typemap: Default::default(),
-            deadpools_enabled: true,
+            deadpools_enabled: false,
             node_deadpool: Default::default(),
             data_deadpool: Default::default(),
             formats: Default::default(),
@@ -246,10 +249,11 @@ impl Graph {
         }
     }
 
-    /// Enable/disable the deadpools of this Stof graph.
-    /// When a node or data component is removed, it will by default be inserted into
-    /// a deadpool map for optional handling later on. For some use cases, this
-    /// behavior is not desireable.
+    /// Enable/disable the deadpools of this Stof graph (disabled by default).
+    /// When enabled, a removed node or data component is kept in a deadpool map for optional
+    /// handling later on (Ex. `flush_join` to sync another graph). The deadpools are never
+    /// emptied automatically: call `flush`, `gc_table(.., true)`, or the clear functions,
+    /// or every removed object stays in memory for the life of the graph.
     pub fn set_deadpools_enabled(&mut self, enabled: bool) {
         self.deadpools_enabled = enabled;
     }
@@ -2117,6 +2121,7 @@ mod tests {
     #[test]
     fn remove_node() {
         let mut graph = Graph::default();
+        graph.set_deadpools_enabled(true);
         graph.ensure_named_nodes(SPath::from("root.base.a"), None, false, None);
         graph.ensure_named_nodes(SPath::from("root.base.b"), None, false, None);
         graph.ensure_named_nodes(SPath::from("root.top.a"), None, false, None);
@@ -2224,6 +2229,7 @@ mod tests {
     #[test]
     fn insert_attach_data() {
         let mut graph = Graph::default();
+        graph.set_deadpools_enabled(true);
         let root = graph.ensure_main_root();
         let child = graph.insert_child("child", &root, false);
 

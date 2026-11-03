@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Dropped objects no longer stay in memory.** A graph kept every removed object and field in its deadpools, and
+  nothing emptied them, so every object created and dropped (`using`, `drop`, `remove`, `call_source`) stayed in
+  memory for the life of the document: about 1.5 to 9 KB each. A Limitr `allow()` left about 14 KB behind per call.
+  Deadpools are now off by default, which is how the CLI has always run, and the same calls stay flat (0 bytes per
+  call after warm-up). Affects every embedding: JavaScript and WebAssembly (`StofDoc`), Python (`Doc`), and Rust
+  (`Graph::default()`).
+  - Rust code that reads `node_deadpool` or `data_deadpool` (Ex. for `flush_join`) turns them on with
+    `graph.set_deadpools_enabled(true)` and empties them with `flush`, `gc_table(.., true)`, or the clear functions.
+- `roundtrip_bstf_types` compared a timestamp with `<` and failed when the test ran within one millisecond; it
+  compares with `<=`.
+
+### Added
+
+- `tests/memory.rs`: calls 13 kinds of functions (objects with `using`, nested objects, arenas, `drop`, typed
+  objects with constructors, `call_source`, lists, maps, try and catch) 20,000 times each, and fails if the graph
+  or the heap grows (live bytes, counted by the test's own allocator).
+
 ## 0.10.8
 
 ### Added

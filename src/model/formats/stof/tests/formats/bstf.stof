@@ -64,7 +64,7 @@ Types: {
         const dest_msg = Obj.from_id(msg_id);
         assert_eq(dest_msg.parent(), dest);
         assert_eq(dest_msg.message, 'hello, bstf');
-        assert(dest_msg.ts < Time.now());
+        assert(dest_msg.ts <= Time.now()); // the same millisecond when the test runs fast
         assert_eq(typeof dest.roundtrip_bstf_types, 'fn');
 
         assert_eq(dest.children().len(), 2);
