@@ -107,6 +107,16 @@ Exit: {
         exit(another, yet_another); // Exit other processes
         exit(); // Exit this process
     }
+
+    #[test]
+    fn exiting_a_process_thats_gone() {
+        // a process that's already exited or finished: nothing to do
+        const once = async { loop {} };
+        exit(once, once);
+        const done = async { 42 };
+        await done;
+        exit(done);
+    }
 }
 
 

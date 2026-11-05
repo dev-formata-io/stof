@@ -118,22 +118,17 @@ impl Runtime {
     }
 
     #[inline]
-    /// Remove a process from running and return it.
-    fn remove_running(&mut self, id: &SId) -> Process {
-        let mut i: usize = 0;
-        for proc in &self.running {
-            if &proc.env.pid == id {
-                break;
-            }
-            i += 1;
-        }
-        self.running.swap_remove(i)
+    /// Remove a process from running and return it (None if it isn't running: Ex. exit(..) on a process that's
+    /// already done, or the same process twice).
+    fn remove_running(&mut self, id: &SId) -> Option<Process> {
+        let i = self.running.iter().position(|proc| &proc.env.pid == id)?;
+        Some(self.running.swap_remove(i))
     }
 
     #[inline(always)]
     /// Move from running to done.
     fn move_running_to_done(&mut self, graph: &Graph, id: &SId) {
-        let proc = self.remove_running(id);
+        let Some(proc) = self.remove_running(id) else { return };
         if let Some(cb) = &mut self.done_callback {
             if cb(graph, &proc) {
                 self.done.insert(id.clone(), proc);
@@ -148,14 +143,14 @@ impl Runtime {
     #[inline(always)]
     /// Move from running to waiting.
     fn move_running_to_waiting(&mut self, id: &SId) {
-        let proc = self.remove_running(id);
+        let Some(proc) = self.remove_running(id) else { return };
         self.waiting.insert(id.clone(), proc);
     }
 
     #[inline(always)]
     /// Move from running to errored.
     fn move_running_to_error(&mut self, graph: &Graph, id: &SId) {
-        let proc = self.remove_running(id);
+        let Some(proc) = self.remove_running(id) else { return };
         if let Some(cb) = &mut self.err_callback {
             if cb(graph, &proc) {
                 self.errored.insert(id.clone(), proc);
@@ -170,7 +165,7 @@ impl Runtime {
     #[inline(always)]
     /// Move from running to sleeping.
     fn move_running_to_sleeping(&mut self, id: &SId) {
-        let proc = self.remove_running(id);
+        let Some(proc) = self.remove_running(id) else { return };
         self.sleeping.insert(id.clone(), proc);
     }
 

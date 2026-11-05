@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.11
+
+### Fixed
+
+- **`exit(..)` on a process that's already gone no longer panics.** Exiting a process that had already finished or
+  exited (Ex. `exit(p, p)`, or `exit(p)` after `await p`) panicked in the runtime (`swap_remove` out of range); it's
+  now nothing to do. Whether it panicked depended on timing, which is why the robustness test only caught it in CI.
+
 ## 0.10.10
 
 ### Security

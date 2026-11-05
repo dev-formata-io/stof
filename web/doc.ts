@@ -387,7 +387,7 @@ export type StofEdit =
  * Stof document.
  */
 export class StofDoc {
-    static readonly VERSION = '0.10.10';
+    static readonly VERSION = '0.10.11';
     private static initialized?: Promise<unknown>;
     private static wasmMutex = new WasmMutex();
     stof: Stof;
