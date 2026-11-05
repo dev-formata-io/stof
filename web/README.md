@@ -171,7 +171,7 @@ Load data from anywhere, add logic, run it, and keep the document or throw it aw
 
 ## Why Stof
 
-- **Safe by default.** A document can only read and change itself and call the functions you give it. Each call has a time limit, too.
+- **Safe by default.** A document can only read and change itself and call the functions you give it. Each call has time and memory limits, and you can seal the parts you trust so the rest of the document can call them but not change them.
 - **Fast and in-process.** Parsing and running a small document takes under a millisecond, and each call after that takes microseconds.
 - **Small on the wire.** A document travels as text or as binary (`bstf`), functions and state included: Acme's document is about 600 bytes of text, or 2KB as binary.
 - **It starts as JSON.** Any JSON document is valid Stof, and Stof imports and exports JSON, YAML, TOML, and more.
@@ -228,7 +228,10 @@ let total = Runtime::call(&mut graph, "total", vec![Val::from(21i64)])?; // 42
 ## FAQ
 
 **Is it safe to run a document an agent wrote or changed?**
-A document runs in a sandbox: it can see itself and the functions your app provides, nothing else. File system, environment variables, file imports, and network access are all off by default, in every language; a host turns them on explicitly with `allow_system()` or `allow_http()` (or allows only some hosts with `allow_http_hosts`). Each call also has a time limit (2 minutes by default, set by the host). The `stof` command-line tool turns them on, since it runs your own files.
+A document runs in a sandbox: it can see itself and the functions your app provides, nothing else. File system, environment variables, file imports, and network access are all off by default, in every language; a host turns them on explicitly with `allow_system()` or `allow_http()` (or allows only some hosts with `allow_http_hosts`). Network access never reaches your machine or private network (localhost, internal services, the cloud metadata service) unless you list those hosts. Each call also has a time limit (2 minutes by default) and a memory limit (256 MB by default), both set by the host, so a runaway document fails its call instead of taking your app down. The `stof` command-line tool turns access on, since it runs your own files.
+
+**Can an agent's function change the rest of the document?**
+By default a document can change itself, including its own functions. Seal the parts you trust (`doc.seal('<Engine>')`) and they can still be called, but not replaced, removed, or added to, by the document or anyone else, until you unseal them. `doc.digest(path)` fingerprints a part's functions, and `doc.seal(path, { publicKey, signature })` seals it only if that fingerprint was signed by your key, so you know the logic you're running is the logic you shipped.
 
 **Why not let the model write Python and run it in a container?**
 You can, but it means infrastructure, startup time, and a lot of access to lock down, and the change a person reviews is a program, not a one-line diff. Stof runs inside your process, starts instantly, and has no access by default.

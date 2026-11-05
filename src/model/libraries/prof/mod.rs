@@ -28,7 +28,7 @@ pub fn insert_profile_lib(graph: &mut Graph, profile: &Profile) {
         library: STD_LIB.clone(),
         name: "prof".into(),
         is_async: false,
-        docs: r#"# Std.prof(name: str) -> bool
+        docs: r#"# Std::prof(name: str) -> bool
 Is/was this graph parsed last with the given profile name?
 ```rust
 // is the current profile named "test"?

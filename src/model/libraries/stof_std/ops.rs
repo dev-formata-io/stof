@@ -28,7 +28,7 @@ pub fn std_parse() -> LibFunc {
         library: STD_LIB.clone(),
         name: "parse".into(),
         is_async: false,
-        docs: r#"# Std.parse(source: str | blob, context: str | obj = self, format: str = "stof", profile: str = "prod") -> bool
+        docs: r#"# Std::parse(source: str | blob, context: str | obj = self, format: str = "stof", profile: str = "prod") -> bool
 Parse data into this document/graph at the given location (default context is the calling object), using the given format (default is Stof). Formats are extensible and replaceable in Stof, so use whichever formats you have loaded (json, stof, images, pdfs, docx, etc.).
 ```rust
 parse("fn hello() -> str { \"hello\" }");
@@ -59,7 +59,7 @@ pub fn std_stringify() -> LibFunc {
         library: STD_LIB.clone(),
         name: "stringify".into(),
         is_async: false,
-        docs: r#"# Std.stringify(format: str = "json", context: obj = null) -> str
+        docs: r#"# Std::stringify(format: str = "json", context: obj = null) -> str
 Use a loaded format to export a string from the given context (or entire graph/document). The default format is json, and the standard implementation only exports object fields. Export results will vary depending on the format, some support more than others (it is up to the format implementation to decide how it exports data). You can always create your own to use.
 ```rust
 const object = new { x: 3.14km, y: 42.5m };
@@ -95,7 +95,7 @@ pub fn std_blobify() -> LibFunc {
         library: STD_LIB.clone(),
         name: "blobify".into(),
         is_async: false,
-        docs: r#"# Std.blobify(format: str = "json", context: obj = null) -> blob
+        docs: r#"# Std::blobify(format: str = "json", context: obj = null) -> blob
 Use a loaded format to export a binary blob from the given context (or entire graph/document). The default format is json, and the standard implementation only exports object fields. Export results will vary depending on the format, some support more than others (it is up to the format implementation to decide how it exports data). You can always create your own to use.
 ```rust
 const object = new { x: 3.14km, y: 42m };
@@ -125,7 +125,7 @@ pub fn std_has_format() -> LibFunc {
         library: STD_LIB.clone(),
         name: "format".into(),
         is_async: false,
-        docs: r#"# Std.format(format: str) -> bool
+        docs: r#"# Std::format(format: str) -> bool
 Is the given format loaded/available to use?
 ```rust
 assert(format("json"));
@@ -153,7 +153,7 @@ pub fn std_formats() -> LibFunc {
         library: STD_LIB.clone(),
         name: "formats".into(),
         is_async: false,
-        docs: r#"# Std.formats() -> set
+        docs: r#"# Std::formats() -> set
 A set of all available formats, available to use with parse, stringify, and blobify.
 ```rust
 const loaded = formats();
@@ -179,7 +179,7 @@ pub fn std_format_content_type() -> LibFunc {
         library: STD_LIB.clone(),
         name: "format_content_type".into(),
         is_async: false,
-        docs: r#"# Std.format_content_type(format: str) -> str
+        docs: r#"# Std::format_content_type(format: str) -> str
 Returns the available format's content type (HTTP header value), or null if the format is not available. All formats are required to give a content type, even if it doesn't apply to that format.
 ```rust
 assert_eq(format_content_type("json"), "application/json");
@@ -206,13 +206,13 @@ pub fn std_has_lib() -> LibFunc {
         library: STD_LIB.clone(),
         name: "lib".into(),
         is_async: false,
-        docs: r#"# Std.lib(lib: str, func?: str) -> bool
+        docs: r#"# Std::lib(lib: str, func?: str) -> bool
 Is the given library (and optional function) loaded/available to use?
 ```rust
 assert(lib("Std")); // standard library is loaded
 assert_not(lib("Render")); // no "Render" library loaded
 
-assert(lib("Num", "abs")); // Num.abs(..) lib function is available
+assert(lib("Num", "abs")); // Num::abs(..) lib function is available
 ```
 "#.into(),
         params: crate::params![
@@ -237,7 +237,7 @@ pub fn std_libs() -> LibFunc {
         library: STD_LIB.clone(),
         name: "libs".into(),
         is_async: false,
-        docs: r#"# Std.libs() -> set
+        docs: r#"# Std::libs() -> set
 Set of all available libraries. This will most likely include standard libraries like Std, Fn, Set, List, etc.
 ```rust
 assert(libs().superset({"Std", "Fn", "Num", "Set"}));
@@ -262,7 +262,7 @@ pub fn std_nanoid() -> LibFunc {
         library: STD_LIB.clone(),
         name: "nanoid".into(),
         is_async: false,
-        docs: r#"# Std.nanoid(length: int = 21) -> str
+        docs: r#"# Std::nanoid(length: int = 21) -> str
 Generate a URL safe random string ID, using the nanoid algorithm with a specified length (default is 21 characters, from 1 to 4096). Probability of a collision is very low, and inversely proportional to ID length.
 ```rust
 assert_neq(nanoid(), nanoid(33));
@@ -289,8 +289,8 @@ pub fn std_inf() -> LibFunc {
         library: STD_LIB.clone(),
         name: "inf".into(),
         is_async: false,
-        docs: r#"# Std.inf() -> float
-Positive infinity (negate it for negative infinity). To check whether a number is infinite, use Num.inf(val) (Ex. val.inf()).
+        docs: r#"# Std::inf() -> float
+Positive infinity (negate it for negative infinity). To check whether a number is infinite, use Num::inf(val) (Ex. val.inf()).
 ```rust
 const limit = inf();
 assert(limit > 1e308);
@@ -317,8 +317,8 @@ pub fn std_nan() -> LibFunc {
         library: STD_LIB.clone(),
         name: "nan".into(),
         is_async: false,
-        docs: r#"# Std.nan() -> float
-Not a number (NaN). NaN never equals anything, including itself: check for it with Num.nan(val) (Ex. val.nan()).
+        docs: r#"# Std::nan() -> float
+Not a number (NaN). NaN never equals anything, including itself: check for it with Num::nan(val) (Ex. val.nan()).
 ```rust
 const value = nan();
 assert(value.nan());
@@ -344,7 +344,7 @@ pub fn std_graph_id() -> LibFunc {
         library: STD_LIB.clone(),
         name: "graph_id".into(),
         is_async: false,
-        docs: r#"# Std.graph_id() -> str
+        docs: r#"# Std::graph_id() -> str
 Return this graph's unique string ID.
 ```rust
 assert(graph_id().len() > 10);
@@ -369,7 +369,7 @@ pub fn std_max() -> LibFunc {
         library: STD_LIB.clone(),
         name: "max".into(),
         is_async: false,
-        docs: r#"# Std.max(..) -> unknown
+        docs: r#"# Std::max(..) -> unknown
 Return the maximum value of all given arguments. If an argument is a collection, the max value within the collection will be considered only.
 ```rust
 assert_eq(max(1km, 2m, 3mm), 1km);
@@ -394,7 +394,7 @@ pub fn std_min() -> LibFunc {
         library: STD_LIB.clone(),
         name: "min".into(),
         is_async: false,
-        docs: r#"# Std.min(..) -> unknown
+        docs: r#"# Std::min(..) -> unknown
 Return the minimum value of all given arguments. If an argument is a collection, the min value within the collection will be considered only.
 ```rust
 assert_eq(min(1km, 2m, 3mm), 3mm);
@@ -419,7 +419,7 @@ pub fn std_callstack() -> LibFunc {
         library: STD_LIB.clone(),
         name: "callstack".into(),
         is_async: false,
-        docs: r#"# Std.callstack() -> list
+        docs: r#"# Std::callstack() -> list
 Return the current callstack as a list of function pointers (last function is 'this').
 ```rust
 // inside a function call
@@ -447,7 +447,7 @@ pub fn std_trace() -> LibFunc {
         library: STD_LIB.clone(),
         name: "trace".into(),
         is_async: false,
-        docs: r#"# Std.trace(..) -> void
+        docs: r#"# Std::trace(..) -> void
 Trace this location within your code execution. Will print out your arguments plus process debug information and the current instruction stack. If the last argument given is an integer value, that number of executed instruction stack instructions will be shown (very helpful for deeper debugging).
 ```rust
 trace("Getting here"); // will print "Getting here", then output a trace of the current process info and last 10 executed instructions
@@ -473,7 +473,7 @@ pub fn std_peek() -> LibFunc {
         library: STD_LIB.clone(),
         name: "peek".into(),
         is_async: false,
-        docs: r#"# Std.peek(..) -> void
+        docs: r#"# Std::peek(..) -> void
 Trace this location within your code execution. Will print out your arguments plus process debug information and the next instructions on the instruction stack. If the last argument given is an integer value, that number of (future) instructions will be shown (very helpful for deeper debugging).
 ```rust
 peek("Getting here"); // will print "Getting here", then output a trace of the current process info and next 10 instructions to be executed
@@ -499,7 +499,7 @@ pub fn std_tracestack() -> LibFunc {
         library: STD_LIB.clone(),
         name: "dbg_tracestack".into(),
         is_async: false,
-        docs: r#"# Std.dbg_tracestack() -> void
+        docs: r#"# Std::dbg_tracestack() -> void
 Print a snapshot of the current stack.
 "#.into(),
         params: crate::params![],
@@ -522,7 +522,7 @@ pub fn std_env() -> LibFunc {
         library: STD_LIB.clone(),
         name: "env".into(),
         is_async: false,
-        docs: r#"# Std.env(var: str) -> str
+        docs: r#"# Std::env(var: str) -> str
 Get an environment variable by name. Requires the "system" feature flag.
 ```rust
 const var = env("HOST");
@@ -550,7 +550,7 @@ pub fn std_set_env() -> LibFunc {
         library: STD_LIB.clone(),
         name: "set_env".into(),
         is_async: false,
-        docs: r#"# Std.set_env(var: str, value: str) -> void
+        docs: r#"# Std::set_env(var: str, value: str) -> void
 Set an environment variable by name with a value. Requires the "system" feature flag.
 ```rust
 set_env("HOST", "localhost");
@@ -579,7 +579,7 @@ pub fn std_remove_env() -> LibFunc {
         library: STD_LIB.clone(),
         name: "remove_env".into(),
         is_async: false,
-        docs: r#"# Std.remove_env(var: str) -> void
+        docs: r#"# Std::remove_env(var: str) -> void
 Remove an environment variable by name. Requires the "system" feature flag.
 ```rust
 remove_env("HOST");
@@ -607,7 +607,7 @@ pub fn std_env_vars() -> LibFunc {
         library: STD_LIB.clone(),
         name: "env_vars".into(),
         is_async: false,
-        docs: r#"# Std.env_vars() -> map
+        docs: r#"# Std::env_vars() -> map
 Get a map of the current environment variables (str, str). Requires the "system" feature flag.
 ```rust
 const vars: map = env_vars();

@@ -21,7 +21,7 @@ use lazy_static::lazy_static;
 use nanoid::nanoid;
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
-use crate::{model::{Field, Func, Graph, PROTOTYPE_DATA_NAME, PROTOTYPE_TYPE_ATTR, Prototype, SId, obj::{ops::{obj_any, obj_at, obj_attributes, obj_children, obj_contains, obj_create_type, obj_diff, obj_dist, obj_dump_graph, obj_empty, obj_exists, obj_fields, obj_from_id, obj_from_map, obj_funcs, obj_get, obj_id, obj_insert, obj_instance_of_proto, obj_is_parent, obj_is_root, obj_len, obj_move, obj_move_field, obj_name, obj_parent, obj_path, obj_proto, obj_remove, obj_remove_proto, obj_root, obj_run, obj_schemafy, obj_set, obj_set_proto, obj_unset, obj_to_map, obj_upcast}, validate::validation}, stof_std::{COPY, StdIns}}, runtime::{Error, Num, Type, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack, DUPLICATE, EQUAL, POP_SELF, POP_STACK, PUSH_SELF, TRUTHY, ifs::IfIns}, proc::ProcEnv}};
+use crate::{model::{Field, Func, Graph, PROTOTYPE_DATA_NAME, PROTOTYPE_TYPE_ATTR, Prototype, SId, obj::{ops::{obj_any, obj_at, obj_attributes, obj_set_attribute, obj_remove_attribute, obj_children, obj_contains, obj_create_type, obj_diff, obj_dist, obj_dump_graph, obj_empty, obj_exists, obj_fields, obj_from_id, obj_from_map, obj_funcs, obj_get, obj_id, obj_insert, obj_instance_of_proto, obj_is_parent, obj_is_root, obj_len, obj_move, obj_move_field, obj_name, obj_parent, obj_path, obj_proto, obj_remove, obj_remove_proto, obj_root, obj_run, obj_schemafy, obj_set, obj_set_proto, obj_unset, obj_to_map, obj_upcast}, validate::validation}, stof_std::{COPY, StdIns}}, runtime::{Error, Num, Type, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{Base, ConsumeStack, DUPLICATE, EQUAL, POP_SELF, POP_STACK, PUSH_SELF, TRUTHY, ifs::IfIns}, proc::ProcEnv}};
 mod validate;
 mod ops;
 mod run;
@@ -64,6 +64,8 @@ pub fn insert_obj_lib(graph: &mut Graph) {
     graph.insert_libfunc(obj_empty());
     graph.insert_libfunc(obj_any());
     graph.insert_libfunc(obj_attributes());
+    graph.insert_libfunc(obj_set_attribute());
+    graph.insert_libfunc(obj_remove_attribute());
     graph.insert_libfunc(obj_move());
     graph.insert_libfunc(obj_dist());
 
@@ -111,6 +113,8 @@ lazy_static! {
     pub(self) static ref EMPTY: Arc<dyn Instruction> = Arc::new(ObjIns::Empty);
     pub(self) static ref ANY: Arc<dyn Instruction> = Arc::new(ObjIns::Any);
     pub(self) static ref ATTRIBUTES: Arc<dyn Instruction> = Arc::new(ObjIns::Attributes);
+    pub(self) static ref SET_ATTRIBUTE: Arc<dyn Instruction> = Arc::new(ObjIns::SetAttribute);
+    pub(self) static ref REMOVE_ATTRIBUTE: Arc<dyn Instruction> = Arc::new(ObjIns::RemoveAttribute);
     pub(self) static ref MOVE: Arc<dyn Instruction> = Arc::new(ObjIns::Move);
     pub(self) static ref DISTANCE: Arc<dyn Instruction> = Arc::new(ObjIns::Distance);
 
@@ -181,6 +185,11 @@ pub enum ObjIns {
     Set,
     /// Remove the field, function, or data with exactly this name (no path): (obj, name, shallow).
     Unset,
+    // new variants go last: BSTF stores the variant's index
+    /// Set an attribute on the object, or the field/func/obj at a path: (obj, name, value, path).
+    SetAttribute,
+    /// Remove an attribute from the object, or the field/func/obj at a path: (obj, name, path).
+    RemoveAttribute,
 }
 #[typetag::serde(name = "ObjIns")]
 impl Instruction for ObjIns {
@@ -316,6 +325,7 @@ impl Instruction for ObjIns {
                             match typename_var.val.read().deref() {
                                 Val::Str(typename) => {
                                     // If this object is deleted, the type will be too
+                                    if !graph.seals.nodes.is_empty() && !graph.may_change_node(&obj) { return Ok(None); }
                                     graph.insert_type(typename.as_str(), &obj);
                                     if let Some(node) = obj.node_mut(graph) {
                                         node.insert_attribute(PROTOTYPE_TYPE_ATTR.to_string(), Val::Str(typename.clone()));
@@ -717,9 +727,11 @@ impl Instruction for ObjIns {
                                                             } else {
                                                                 // rename only
                                                                 moved = graph.rename_data(&source_field_ref, new_field_name);
-                                                                if let Some(obj) = field.value.try_obj() {
-                                                                    if let Some(node) = obj.node_mut(graph) {
-                                                                        node.name = new_field_name.into();
+                                                                if let Some(obj) = field.value.try_obj().filter(|_| moved) {
+                                                                    if graph.seals.nodes.is_empty() || graph.may_move_node(&obj) {
+                                                                        if let Some(node) = obj.node_mut(graph) {
+                                                                            node.name = new_field_name.into();
+                                                                        }
                                                                     }
                                                                 }
                                                             }
@@ -892,6 +904,36 @@ impl Instruction for ObjIns {
                     }
                 }
                 Err(Error::ObjAttributes)
+            },
+            Self::SetAttribute | Self::RemoveAttribute => {
+                let path = env.stack.pop();
+                let value = if matches!(self, Self::SetAttribute) { env.stack.pop() } else { None };
+                let name = env.stack.pop();
+                let obj = env.stack.pop().and_then(|var| var.try_obj());
+                let (Some(obj), Some(name)) = (obj, name) else { return Err(Error::ObjAttributes) };
+                let name = match name.val.read().deref() {
+                    Val::Str(name) => name.to_string(),
+                    _ => return Err(Error::ObjAttributes),
+                };
+                // the same targets as Obj.attributes: the object, or the field, function, or object at the path
+                let target = match path.as_ref().map(|path| path.val.read().clone()) {
+                    Some(Val::Str(path)) => {
+                        if let Some(field) = Field::field_from_path(graph, path.as_str(), Some(obj.clone())) {
+                            Some(Err(field))
+                        } else if let Some(func) = Func::func_from_path(graph, path.as_str(), Some(obj.clone())) {
+                            Some(Err(func))
+                        } else {
+                            graph.find_node_named(path.as_str(), Some(obj.clone())).map(Ok)
+                        }
+                    },
+                    _ => Some(Ok(obj)),
+                };
+                let changed = match target {
+                    Some(target) => graph.set_attribute(target, &name, value.map(|value| value.val.read().clone()))?,
+                    None => false,
+                };
+                env.stack.push(Variable::val(Val::Bool(changed)));
+                Ok(None)
             },
             Self::Move => {
                 if let Some(dest_var) = env.stack.pop() {

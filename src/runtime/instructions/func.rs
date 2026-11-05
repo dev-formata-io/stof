@@ -25,6 +25,8 @@ use crate::{model::{DataRef, Func, Graph}, runtime::{instruction::{Instruction, 
 /// Only inserts the function once into the graph, then references it over and over.
 /// Replaces itself with a literal instruction for efficiency.
 pub struct FuncLit {
+    /// Random per parse: left out of seal digests (the rest of the arrow is in them).
+    #[serde(serialize_with = "crate::model::seal::serialize_arrow_id")]
     pub dref: DataRef,
     pub func: Func,
 }
@@ -40,9 +42,11 @@ impl Instruction for FuncLit {
         if self.dref.data_exists(&graph) {
             let unchanged = captured.is_none() && graph.get_stof_data::<Func>(&self.dref).is_some_and(|func| func.captured.is_none());
             if !unchanged {
-                if let Some(func) = graph.get_mut_stof_data::<Func>(&self.dref) {
-                    func.captured = captured;
-                }
+                graph.without_seals(|graph| { // an arrow that sealed code evaluates still captures
+                    if let Some(func) = graph.get_mut_stof_data::<Func>(&self.dref) {
+                        func.captured = captured;
+                    }
+                });
             }
             instructions.push(Arc::new(Base::Literal(Val::Fn(self.dref.clone()))));
         } else {
@@ -52,7 +56,8 @@ impl Instruction for FuncLit {
             }
             let mut func = self.func.clone();
             func.captured = captured;
-            if let Some(dref) = graph.insert_stof_data(&self_ptr, &self.dref, Box::new(func), Some(self.dref.clone())) {
+            // an arrow that sealed code evaluates lives on the sealed object, under its own new name
+            if let Some(dref) = graph.without_seals(|graph| graph.insert_stof_data(&self_ptr, &self.dref, Box::new(func), Some(self.dref.clone()))) {
                 instructions.push(Arc::new(Base::Literal(Val::Fn(dref))));
             }
         }

@@ -29,7 +29,7 @@ pub fn insert_pdf_library(graph: &mut Graph) {
         library: PDF_LIB.clone(),
         name: "extract_text".into(),
         is_async: false,
-        docs: r#"# Pdf.extract_text(pdf: Data\<Pdf>) -> str
+        docs: r#"# Pdf::extract_text(pdf: Data\<Pdf>) -> str
 Given a data pointer to a PDF document, extract all text from the PDF file and return it as a string.
 ```rust
 // import './test_stof_pdf.pdf'; // taken from stof PDF format tests
@@ -54,7 +54,7 @@ assert_eq(text, "Example Stof\nDocument\n");
         library: PDF_LIB.clone(),
         name: "extract_images".into(),
         is_async: false,
-        docs: r#"# Pdf.extract_images(pdf: Data\<Pdf>) -> list
+        docs: r#"# Pdf::extract_images(pdf: Data\<Pdf>) -> list
 Given a data pointer to a PDF document, extract all images from every page, returning them as a list of maps with image data.
 ```rust
 // import './test_stof_pdf.pdf'; // taken from stof PDF format tests

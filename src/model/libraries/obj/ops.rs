@@ -15,7 +15,7 @@
 //
 
 use std::sync::Arc;
-use crate::{model::{LibFunc, Param, obj::{ObjIns, ANY, AT, AT_REF, ATTRIBUTES, CHILDREN, CONTAINS, CREATE_TYPE, DIFF, DISTANCE, DUMP, EMPTY, EXISTS, FIELDS, FROM_ID, FROM_MAP, FUNCS, GET, GET_REF, ID, INSERT, INSTANCE_OF, IS_PARENT, IS_ROOT, LEN, MOVE, MOVE_FIELD, NAME, OBJ_LIB, PARENT, PATH, PROTO, REMOVE, REMOVE_PROTO, ROOT, RUN_WITH, SCHEMAFY, SET_PROTO, TO_MAP, TO_MAP_REF, UPCAST}}, runtime::{NumT, Type, Val, instruction::Instructions, instructions::Base}};
+use crate::{model::{LibFunc, Param, obj::{ObjIns, ANY, AT, AT_REF, ATTRIBUTES, SET_ATTRIBUTE, REMOVE_ATTRIBUTE, CHILDREN, CONTAINS, CREATE_TYPE, DIFF, DISTANCE, DUMP, EMPTY, EXISTS, FIELDS, FROM_ID, FROM_MAP, FUNCS, GET, GET_REF, ID, INSERT, INSTANCE_OF, IS_PARENT, IS_ROOT, LEN, MOVE, MOVE_FIELD, NAME, OBJ_LIB, PARENT, PATH, PROTO, REMOVE, REMOVE_PROTO, ROOT, RUN_WITH, SCHEMAFY, SET_PROTO, TO_MAP, TO_MAP_REF, UPCAST}}, runtime::{NumT, Type, Val, instruction::Instructions, instructions::Base}};
 
 
 #[inline(always)]
@@ -25,7 +25,7 @@ pub fn obj_name() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "name".into(),
         is_async: false,
-        docs: r#"# Obj.name(obj: obj) -> str
+        docs: r#"# Obj::name(obj: obj) -> str
 Return the name of this object.
 ```rust
 const obj = new {};
@@ -53,7 +53,7 @@ pub fn obj_id() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "id".into(),
         is_async: false,
-        docs: r#"# Obj.id(obj: obj) -> str
+        docs: r#"# Obj::id(obj: obj) -> str
 Return the ID of this object.
 ```rust
 const obj = new {};
@@ -81,7 +81,7 @@ pub fn obj_path() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "path".into(),
         is_async: false,
-        docs: r#"# Obj.path(obj: obj) -> str
+        docs: r#"# Obj::path(obj: obj) -> str
 Return the path of this object as a dot '.' separated string.
 ```rust
 assert_eq(self.path(), "root.TestObject"); // if self is "TestObject" and it's parent is "root"
@@ -108,7 +108,7 @@ pub fn obj_parent() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "parent".into(),
         is_async: false,
-        docs: r#"# Obj.parent(obj: obj) -> obj
+        docs: r#"# Obj::parent(obj: obj) -> obj
 Return the parent of this object, or null if this object is a root.
 ```rust
 const obj = new {};
@@ -136,7 +136,7 @@ pub fn obj_is_parent() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "is_parent".into(),
         is_async: false,
-        docs: r#"# Obj.is_parent(obj: obj, other: obj) -> bool
+        docs: r#"# Obj::is_parent(obj: obj, other: obj) -> bool
 Returns true if this object is a parent of another.
 ```rust
 const obj = new {};
@@ -165,7 +165,7 @@ pub fn obj_exists() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "exists".into(),
         is_async: false,
-        docs: r#"# Obj.exists(obj: obj) -> bool
+        docs: r#"# Obj::exists(obj: obj) -> bool
 Returns true if this object reference points to an existing object. This is false if the object has been dropped from the document.
 ```rust
 const obj = new {};
@@ -193,7 +193,7 @@ pub fn obj_children() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "children".into(),
         is_async: false,
-        docs: r#"# Obj.children(obj: obj) -> list
+        docs: r#"# Obj::children(obj: obj) -> list
 Returns a list containing this objects children.
 ```rust
 const obj = new {};
@@ -221,7 +221,7 @@ pub fn obj_root() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "root".into(),
         is_async: false,
-        docs: r#"# Obj.root(obj: obj) -> obj
+        docs: r#"# Obj::root(obj: obj) -> obj
 Returns the root object that contains this object (or self if this object is a root).
 ```rust
 const obj = new {};
@@ -249,7 +249,7 @@ pub fn obj_is_root() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "is_root".into(),
         is_async: false,
-        docs: r#"# Obj.is_root(obj: obj) -> bool
+        docs: r#"# Obj::is_root(obj: obj) -> bool
 Returns true if this object is a root.
 ```rust
 assert(self.is_root()); // if self is a root
@@ -276,7 +276,7 @@ pub fn obj_proto() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "prototype".into(),
         is_async: false,
-        docs: r#"# Obj.prototype(obj: obj) -> obj
+        docs: r#"# Obj::prototype(obj: obj) -> obj
 Returns the prototype object for this object or null if this object doesn't have one.
 ```rust
 assert_not(self.prototype()); // no prototype
@@ -303,7 +303,7 @@ pub fn obj_create_type() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "create_type".into(),
         is_async: false,
-        docs: r#"# Obj.create_type(obj: obj, typename: str) -> void
+        docs: r#"# Obj::create_type(obj: obj, typename: str) -> void
 Add a typename reference to the graph, pointing to this object. Programmatic version of #[type("typename")] attribute.
 ```rust
 const obj = new { float x: 0, float y: 0 };
@@ -338,7 +338,7 @@ pub fn obj_upcast() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "upcast".into(),
         is_async: false,
-        docs: r#"# Obj.upcast(obj: obj) -> bool
+        docs: r#"# Obj::upcast(obj: obj) -> bool
 Set the prototype of this object to the prototype of this objects existing prototype.
 ```rust
 const obj = new SubType {};
@@ -367,7 +367,7 @@ pub fn obj_set_proto() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "set_prototype".into(),
         is_async: false,
-        docs: r#"# Obj.set_prototype(obj: obj, proto: obj | str) -> void
+        docs: r#"# Obj::set_prototype(obj: obj, proto: obj | str) -> void
 Set the prototype of this object.
 ```rust
 const proto = new {};
@@ -398,7 +398,7 @@ pub fn obj_remove_proto() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "remove_prototype".into(),
         is_async: false,
-        docs: r#"# Obj.remove_prototype(obj: obj) -> void
+        docs: r#"# Obj::remove_prototype(obj: obj) -> void
 Remove an object's prototype.
 ```rust
 const obj = new MyType {};
@@ -427,7 +427,7 @@ pub fn obj_instance_of_proto() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "instance_of".into(),
         is_async: false,
-        docs: r#"# Obj.instance_of(obj: obj, proto: str | obj) -> bool
+        docs: r#"# Obj::instance_of(obj: obj, proto: str | obj) -> bool
 Returns true if this object is an instance of a prototype.
 ```rust
 const obj = new MyType {};
@@ -456,7 +456,7 @@ pub fn obj_len() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "len".into(),
         is_async: false,
-        docs: r#"# Obj.len(obj: obj) -> int
+        docs: r#"# Obj::len(obj: obj) -> int
 Number of fields on this object.
 ```rust
 const obj = new { x: 0, y: 0 };
@@ -484,7 +484,7 @@ pub fn obj_at() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "at".into(),
         is_async: false,
-        docs: r#"# Obj.at(obj: obj, index: int) -> (str, unknown)
+        docs: r#"# Obj::at(obj: obj, index: int) -> (str, unknown)
 Field (name, value) on this object at the given index, or null if the index is out of bounds.
 ```rust
 const obj = new { x: 0, y: 0 };
@@ -517,7 +517,7 @@ pub fn obj_get() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "get".into(),
         is_async: false,
-        docs: r#"# Obj.get(obj: obj, name: str) -> unknown
+        docs: r#"# Obj::get(obj: obj, name: str) -> unknown
 Get data on this object by name (field value, fn, or data pointer).
 ```rust
 const obj = new { x: 0, y: 0 };
@@ -550,7 +550,7 @@ pub fn obj_contains() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "contains".into(),
         is_async: false,
-        docs: r#"# Obj.contains(obj: obj, name: str) -> bool
+        docs: r#"# Obj::contains(obj: obj, name: str) -> bool
 Return true if this object contains data with the given name.
 ```rust
 const obj = new { x: 0, y: 0 };
@@ -579,7 +579,7 @@ pub fn obj_insert() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "insert".into(),
         is_async: false,
-        docs: r#"# Obj.insert(obj: obj, path: str, value: unknown) -> void
+        docs: r#"# Obj::insert(obj: obj, path: str, value: unknown) -> void
 Either creates or assigns to a field, just like a normal field assignment, using this object as a starting context.
 ```rust
 const obj = new { x: 0, y: 0 };
@@ -610,8 +610,8 @@ pub fn obj_remove() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "remove".into(),
         is_async: false,
-        docs: r#"# Obj.remove(obj: obj, path: str, shallow: bool = false) -> bool
-Performs a "drop" operation, just like the Std.drop(..) function, using this object as a starting context. Use this to remove fields, functions, data, etc.
+        docs: r#"# Obj::remove(obj: obj, path: str, shallow: bool = false) -> bool
+Performs a "drop" operation, just like the Std::drop(..) function, using this object as a starting context. Use this to remove fields, functions, data, etc.
 
 ## Shallow
 If shallow is true and the path references an object field, drop the field, but don't drop the object from the graph. Default behavior is to drop objects.
@@ -645,7 +645,7 @@ pub fn obj_set() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "set".into(),
         is_async: false,
-        docs: r#"# Obj.set(obj: obj, name: str, value: unknown) -> void
+        docs: r#"# Obj::set(obj: obj, name: str, value: unknown) -> void
 Set the field with exactly this name, or create it. Unlike insert, the name is never a path, so it can have dots (the counterpart of get). A function with the name is an error, and so is a const field.
 ```rust
 const obj = new {};
@@ -677,7 +677,7 @@ pub fn obj_unset() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "unset".into(),
         is_async: false,
-        docs: r#"# Obj.unset(obj: obj, name: str, shallow: bool = false) -> bool
+        docs: r#"# Obj::unset(obj: obj, name: str, shallow: bool = false) -> bool
 Remove the field, function, or data with exactly this name, returning true if there was one. Unlike remove, the name is never a path, so it can have dots. A field's object value is dropped too, unless shallow is true.
 ```rust
 const obj = new {};
@@ -709,7 +709,7 @@ pub fn obj_move_field() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "move_field".into(),
         is_async: false,
-        docs: r#"# Obj.move_field(obj: obj, source: str, dest: str) -> bool
+        docs: r#"# Obj::move_field(obj: obj, source: str, dest: str) -> bool
 Move or rename a field from a source path/name to a destination path/name (like "mv" in bash), returning true if successfully moved.
 ```rust
 const obj = new { x: 0, y: 0 };
@@ -741,7 +741,7 @@ pub fn obj_fields() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "fields".into(),
         is_async: false,
-        docs: r#"# Obj.fields(obj: obj) -> list
+        docs: r#"# Obj::fields(obj: obj) -> list
 Returns a list of fields (tuples with name and value each) on this object.
 ```rust
 const obj = new { x: 0, y: 0 };
@@ -769,7 +769,7 @@ pub fn obj_funcs() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "funcs".into(),
         is_async: false,
-        docs: r#"# Obj.funcs(obj: obj, attributes: str | list | set = null) -> list
+        docs: r#"# Obj::funcs(obj: obj, attributes: str | list | set = null) -> list
 Returns a list of functions on this object, optionally filtering by attributes (str, list of str, set of str, tuple of str).
 ```rust
 // #[myfunc] fn func() {}
@@ -798,7 +798,7 @@ pub fn obj_empty() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "empty".into(),
         is_async: false,
-        docs: r#"# Obj.empty(obj: obj) -> bool
+        docs: r#"# Obj::empty(obj: obj) -> bool
 Returns true if this object doesn't have any data attached to it.
 ```rust
 const obj = new { x: 0, y: 0 };
@@ -826,7 +826,7 @@ pub fn obj_any() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "any".into(),
         is_async: false,
-        docs: r#"# Obj.any(obj: obj) -> bool
+        docs: r#"# Obj::any(obj: obj) -> bool
 Returns true if this object has any data attached to it.
 ```rust
 const obj = new { x: 0, y: 0 };
@@ -848,13 +848,74 @@ assert(obj.any());
 }
 
 #[inline(always)]
+/// Set attribute.
+pub fn obj_set_attribute() -> LibFunc {
+    LibFunc {
+        library: OBJ_LIB.clone(),
+        name: "set_attribute".into(),
+        is_async: false,
+        docs: r#"# Obj::set_attribute(obj: obj, name: str, value: unknown = null, path: str = null) -> bool
+Set an attribute (adding it, or replacing its value) on this object, or on the field, function, or object at the given path (the same targets as `attributes`). A null value is an attribute with no value, like `#[flag]`. Returns false if there's nothing at the path. Attributes are behavior (what runs, what's readonly or private, how a value is exported), so on a sealed object they can't change: that's an error.
+```rust
+self.set_attribute('on_order', null, 'notify'); // fn notify() now has #[on_order]
+assert(self.attributes('notify').contains('on_order'));
+self.set_attribute('readonly', null, 'total');  // and the field total is readonly
+```
+"#.into(),
+        params: crate::params![
+            Param { name: "obj".into(), param_type: Type::Void, default: None },
+            Param { name: "name".into(), param_type: Type::Str, default: None },
+            Param { name: "value".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) },
+            Param { name: "path".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) },
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(SET_ATTRIBUTE.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+#[inline(always)]
+/// Remove attribute.
+pub fn obj_remove_attribute() -> LibFunc {
+    LibFunc {
+        library: OBJ_LIB.clone(),
+        name: "remove_attribute".into(),
+        is_async: false,
+        docs: r#"# Obj::remove_attribute(obj: obj, name: str, path: str = null) -> bool
+Remove an attribute from this object, or from the field, function, or object at the given path. Returns true if it had the attribute. On a sealed object, attributes can't change: that's an error.
+```rust
+self.remove_attribute('readonly', 'total'); // total can be set again
+```
+"#.into(),
+        params: crate::params![
+            Param { name: "obj".into(), param_type: Type::Void, default: None },
+            Param { name: "name".into(), param_type: Type::Str, default: None },
+            Param { name: "path".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) },
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(REMOVE_ATTRIBUTE.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+#[inline(always)]
 /// Attributes.
 pub fn obj_attributes() -> LibFunc {
     LibFunc {
         library: OBJ_LIB.clone(),
         name: "attributes".into(),
         is_async: false,
-        docs: r#"# Obj.attributes(obj: obj, path: str = null) -> map
+        docs: r#"# Obj::attributes(obj: obj, path: str = null) -> map
 Returns a map of attributes, either for this object if the path is null, or for the field/func/obj at the given path.
 ```rust
 assert_eq(self.attributes(), {"a": null}); // if self was defined as a field with the attribute #[a]
@@ -882,7 +943,7 @@ pub fn obj_move() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "move".into(),
         is_async: false,
-        docs: r#"# Obj.move(obj: obj, dest: obj) -> bool
+        docs: r#"# Obj::move(obj: obj, dest: obj) -> bool
 Move this object to a new parent destination. Parent destination cannot be a child of this object (node detachment).
 ```rust
 const obj = new { x: 0, y: 0 };
@@ -913,7 +974,7 @@ pub fn obj_dist() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "dist".into(),
         is_async: false,
-        docs: r#"# Obj.dist(obj: obj, other: obj) -> int
+        docs: r#"# Obj::dist(obj: obj, other: obj) -> int
 Get the distance between two objects (number of edges that separate them).
 ```rust
 const obj = new { x: 0, y: 0 };
@@ -942,7 +1003,7 @@ pub fn obj_run() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "run".into(),
         is_async: false,
-        docs: r#"# Obj.run(obj: obj, prototype?: str, steps?: list) -> void
+        docs: r#"# Obj::run(obj: obj, prototype?: str, steps?: list) -> void
 Run an object like a task: every field and function with a #[run] attribute is a step. A step that holds an object runs that object, a function is called, and a list (or set, tuple, map) runs each item in turn, like a pipeline.
 
 - **Order**: steps run in the order they're defined. A number moves a step, like a z-index across all steps: #[run(-1)] runs before the unnumbered steps, #[run(1)] after.
@@ -1003,7 +1064,7 @@ pub fn obj_diff() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "diff".into(),
         is_async: false,
-        docs: r#"# Obj.diff(schema: obj, target: obj, symmetric: bool = false) -> void
+        docs: r#"# Obj::diff(schema: obj, target: obj, symmetric: bool = false) -> void
 Diffs the schema with the target, modifying the target object only. Removes all fields from the target that match the schema, recursively. Objects match by their fields, including objects inside lists and maps (a list with any difference is kept whole). Optionally, if symmetric, unique schema fields will be deep copied to the target object as well (a version of: (a - b) U (b - a)).
 ```rust
 const sch = new { x: 3km, y: 5.5m };
@@ -1039,7 +1100,7 @@ pub fn obj_schemafy() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "schemafy".into(),
         is_async: false,
-        docs: r#"# Obj.schemafy(schema: obj, target: obj, remove_invalid: bool = false, remove_undefined: bool = false) -> bool
+        docs: r#"# Obj::schemafy(schema: obj, target: obj, remove_invalid: bool = false, remove_undefined: bool = false) -> bool
 Applies all #[schema] fields from a schema object onto a target object, manipulating the target's fields accordingly and returning true if the target is determined to be valid (matches the schema).
 
 ## Use Cases
@@ -1097,7 +1158,7 @@ pub fn obj_to_map() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "to_map".into(),
         is_async: false,
-        docs: r#"# Obj.to_map(obj: obj) -> map
+        docs: r#"# Obj::to_map(obj: obj) -> map
 Create a new map out of this object's fields.
 ```rust
 const obj = new { x: 3km, y: 5.5m };
@@ -1130,11 +1191,11 @@ pub fn obj_from_map() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "from_map".into(),
         is_async: false,
-        docs: r#"# Obj.from_map(map: map) -> obj
+        docs: r#"# Obj::from_map(map: map) -> obj
 Get the distance between two objects (number of edges that separate them).
 ```rust
 const map = { "x": 0, "y": 0 };
-const obj = Obj.from_map(map);
+const obj = Obj::from_map(map);
 assert_eq(obj.x, 0);
 ```
 "#.into(),
@@ -1159,11 +1220,11 @@ pub fn obj_from_id() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "from_id".into(),
         is_async: false,
-        docs: r#"# Obj.from_id(id: str) -> obj
+        docs: r#"# Obj::from_id(id: str) -> obj
 Create a new object reference from an ID. Objects in Stof are references just like data.
 ```rust
 const obj = new { x: 0, y: 0 };
-const ptr = Obj.from_id(obj.id());
+const ptr = Obj::from_id(obj.id());
 assert_eq(ptr, obj);
 ```
 "#.into(),
@@ -1188,8 +1249,8 @@ pub fn obj_dump_graph() -> LibFunc {
         library: OBJ_LIB.clone(),
         name: "dbg_graph".into(),
         is_async: false,
-        docs: r#"# Obj.dbg_graph() -> void
-Utility function for dumping the complete graph, helpful for some debugging cases. To dump a specific node, use Std.dbg(..) with the desired object(s).
+        docs: r#"# Obj::dbg_graph() -> void
+Utility function for dumping the complete graph, helpful for some debugging cases. To dump a specific node, use Std::dbg(..) with the desired object(s).
 "#.into(),
         params: crate::params![],
         return_type: None,

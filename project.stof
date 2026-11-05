@@ -5,7 +5,7 @@ import '@cargo' as Rust;
 import pkg '@github' as GitHub;
 
 /// Current version.
-const version: 0.10.9
+const version: 0.10.10
 
 /// Cargo.toml definition.
 Cargo cargo: {
@@ -138,6 +138,8 @@ Cargo cargo: {
             features: ['serde']
         }
         nanoid: 0.4.0
+        sha2: 0.10.9
+        ed25519-dalek: 2.2.0
         quick-xml: {
             version: 0.41.0
             optional: true
@@ -318,6 +320,53 @@ github: {
                         }
                     ]
                 }
+                javascript: {
+                    runs-on: 'ubuntu-latest'
+                    steps: [
+                        {
+                            uses: 'actions/checkout@v4'
+                        },
+                        {
+                            uses: 'actions/setup-node@v4'
+                            with: { node-version: '22' }
+                        },
+                        {
+                            // the wasm-bindgen CLI must match the wasm-bindgen crate (the version in cargo below)
+                            name: 'Build the engine'
+                            run: `rustup target add wasm32-unknown-unknown && cargo install wasm-bindgen-cli --locked --version ${Obj.get(root.cargo.dependencies, 'wasm-bindgen').version} && cargo build --release --target wasm32-unknown-unknown --no-default-features --features js && wasm-bindgen --target web --out-dir web/pkg --out-name stof target/wasm32-unknown-unknown/release/stof.wasm`
+                        },
+                        {
+                            name: 'Build the package'
+                            run: 'npm ci && npm run build'
+                            working-directory: 'web'
+                        },
+                        {
+                            name: 'Check the JavaScript build'
+                            run: 'node tests/js/check.mjs'
+                        }
+                    ]
+                }
+                python: {
+                    runs-on: 'ubuntu-latest'
+                    steps: [
+                        {
+                            uses: 'actions/checkout@v4'
+                        },
+                        {
+                            uses: 'actions/setup-python@v5'
+                            with: { python-version: '3.12' }
+                        },
+                        {
+                            // pyproject.toml names the module (pystof) and its features for maturin
+                            name: 'Build the wheel'
+                            run: 'pip install maturin && maturin build --release -o target/wheels && pip install target/wheels/*.whl'
+                        },
+                        {
+                            name: 'Check the Python build'
+                            run: 'python tests/python/smoke.py'
+                        }
+                    ]
+                }
             }
         } as GitHub.Workflow
     ]
@@ -378,6 +427,14 @@ pyproject: {
         requires: ['maturin>=1,<2']
         build-backend: 'maturin'
     }
+
+    // the Python module is pystof (#[pymodule] in src/py), built with the py feature, whatever Cargo.toml's defaults
+    tool: {
+        maturin: {
+            module-name: 'pystof'
+            features: ['py']
+        }
+    }
 }
 
 
@@ -418,6 +475,7 @@ fn main() {
     await [
         self.generate_cargo_toml(),
         self.generate_github(),
+        self.generate_pyproject_toml(),
     ];
     pln('done');
 }

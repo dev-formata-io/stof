@@ -44,6 +44,10 @@ pub struct ProcEnv {
     pub pid: SId,
     pub start_time: Option<web_time::Instant>,
     pub max_execution_time: Option<web_time::Duration>,
+    /// Heap growth allowed for this process (from the graph's `max_memory`), and how much its finished steps
+    /// have grown the heap so far (see `runtime::memory`).
+    pub max_memory: Option<usize>,
+    pub memory_used: isize,
     pub self_stack: Vec<NodeRef>,
     pub max_call_stack_depth: usize,
     pub call_stack: Vec<DataRef>,
@@ -69,6 +73,8 @@ impl Default for ProcEnv {
             pid: Default::default(),
             start_time: None,
             max_execution_time: Some(DEFAULT_MAX_EXECUTION_TIME),
+            max_memory: Some(crate::runtime::memory::DEFAULT_MAX_MEMORY),
+            memory_used: 0,
             self_stack: Default::default(),
             max_call_stack_depth: 10_000,
             call_stack: Default::default(),

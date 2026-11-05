@@ -29,7 +29,7 @@ pub fn insert_image_library(graph: &mut Graph) {
         library: IMAGE_LIB.clone(),
         name: "width".into(),
         is_async: false,
-        docs: r#"# Image.width(img: Data\<Image>) -> int
+        docs: r#"# Image::width(img: Data\<Image>) -> int
 Width in pixels of this image.
 "#.into(),
         params: crate::params![
@@ -50,7 +50,7 @@ Width in pixels of this image.
         library: IMAGE_LIB.clone(),
         name: "height".into(),
         is_async: false,
-        docs: r#"# Image.height(img: Data\<Image>) -> int
+        docs: r#"# Image::height(img: Data\<Image>) -> int
 Height in pixels of this image.
 "#.into(),
         params: crate::params![
@@ -71,7 +71,7 @@ Height in pixels of this image.
         library: IMAGE_LIB.clone(),
         name: "grayscale".into(),
         is_async: false,
-        docs: r#"# Image.grayscale(img: Data\<Image>) -> void
+        docs: r#"# Image::grayscale(img: Data\<Image>) -> void
 Turn this image into grayscale.
 "#.into(),
         params: crate::params![
@@ -92,7 +92,7 @@ Turn this image into grayscale.
         library: IMAGE_LIB.clone(),
         name: "invert".into(),
         is_async: false,
-        docs: r#"# Image.invert(img: Data\<Image>) -> void
+        docs: r#"# Image::invert(img: Data\<Image>) -> void
 Invert this image.
 "#.into(),
         params: crate::params![
@@ -113,7 +113,7 @@ Invert this image.
         library: IMAGE_LIB.clone(),
         name: "flip_vertical".into(),
         is_async: false,
-        docs: r#"# Image.flip_vertical(img: Data\<Image>) -> void
+        docs: r#"# Image::flip_vertical(img: Data\<Image>) -> void
 Flip this image vertically.
 "#.into(),
         params: crate::params![
@@ -134,7 +134,7 @@ Flip this image vertically.
         library: IMAGE_LIB.clone(),
         name: "flip_horizontal".into(),
         is_async: false,
-        docs: r#"# Image.flip_horizontal(img: Data\<Image>) -> void
+        docs: r#"# Image::flip_horizontal(img: Data\<Image>) -> void
 Flip this image horizontally.
 "#.into(),
         params: crate::params![
@@ -155,7 +155,7 @@ Flip this image horizontally.
         library: IMAGE_LIB.clone(),
         name: "rotate_90".into(),
         is_async: false,
-        docs: r#"# Image.rotate_90(img: Data\<Image>) -> void
+        docs: r#"# Image::rotate_90(img: Data\<Image>) -> void
 Rotate this image 90 degrees clockwise.
 "#.into(),
         params: crate::params![
@@ -176,7 +176,7 @@ Rotate this image 90 degrees clockwise.
         library: IMAGE_LIB.clone(),
         name: "rotate_180".into(),
         is_async: false,
-        docs: r#"# Image.rotate_180(img: Data\<Image>) -> void
+        docs: r#"# Image::rotate_180(img: Data\<Image>) -> void
 Rotate this image 180 degrees clockwise.
 "#.into(),
         params: crate::params![
@@ -197,7 +197,7 @@ Rotate this image 180 degrees clockwise.
         library: IMAGE_LIB.clone(),
         name: "rotate_270".into(),
         is_async: false,
-        docs: r#"# Image.rotate_270(img: Data\<Image>) -> void
+        docs: r#"# Image::rotate_270(img: Data\<Image>) -> void
 Rotate this image 270 degrees clockwise.
 "#.into(),
         params: crate::params![
@@ -218,7 +218,7 @@ Rotate this image 270 degrees clockwise.
         library: IMAGE_LIB.clone(),
         name: "resize".into(),
         is_async: false,
-        docs: r#"# Image.resize(img: Data\<Image>, width: int, height: int) -> bool
+        docs: r#"# Image::resize(img: Data\<Image>, width: int, height: int) -> bool
 Resize this image, preserving it's aspect ratio. Will return true if the image was successfully resized.
 "#.into(),
         params: crate::params![
@@ -241,7 +241,7 @@ Resize this image, preserving it's aspect ratio. Will return true if the image w
         library: IMAGE_LIB.clone(),
         name: "resize_exact".into(),
         is_async: false,
-        docs: r#"# Image.resize_exact(img: Data\<Image>, width: int, height: int) -> bool
+        docs: r#"# Image::resize_exact(img: Data\<Image>, width: int, height: int) -> bool
 Resize this image, without preserving it's aspect ratio. Will return true if the image was successfully resized.
 "#.into(),
         params: crate::params![
@@ -264,7 +264,7 @@ Resize this image, without preserving it's aspect ratio. Will return true if the
         library: IMAGE_LIB.clone(),
         name: "thumbnail".into(),
         is_async: false,
-        docs: r#"# Image.thumbnail(img: Data\<Image>, width: int, height: int) -> bool
+        docs: r#"# Image::thumbnail(img: Data\<Image>, width: int, height: int) -> bool
 Resize this image into a thumbnail, preserving it's aspect ratio. Will return true if the image was successfully resized.
 "#.into(),
         params: crate::params![
@@ -287,7 +287,7 @@ Resize this image into a thumbnail, preserving it's aspect ratio. Will return tr
         library: IMAGE_LIB.clone(),
         name: "thumbnail_exact".into(),
         is_async: false,
-        docs: r#"# Image.thumbnail_exact(img: Data\<Image>, width: int, height: int) -> bool
+        docs: r#"# Image::thumbnail_exact(img: Data\<Image>, width: int, height: int) -> bool
 Resize this image into a thumbnail, without preserving it's aspect ratio. Will return true if the image was successfully resized.
 "#.into(),
         params: crate::params![
@@ -310,7 +310,7 @@ Resize this image into a thumbnail, without preserving it's aspect ratio. Will r
         library: IMAGE_LIB.clone(),
         name: "blur".into(),
         is_async: false,
-        docs: r#"# Image.blur(img: Data\<Image>, blur: float) -> void
+        docs: r#"# Image::blur(img: Data\<Image>, blur: float) -> void
 Blur this image with the given blur value (sigma in a gaussian blur).
 "#.into(),
         params: crate::params![
@@ -332,7 +332,7 @@ Blur this image with the given blur value (sigma in a gaussian blur).
         library: IMAGE_LIB.clone(),
         name: "fast_blur".into(),
         is_async: false,
-        docs: r#"# Image.fast_blur(img: Data\<Image>, blur: float) -> void
+        docs: r#"# Image::fast_blur(img: Data\<Image>, blur: float) -> void
 Blur this image with the given blur value (sigma in a gaussian blur).
 "#.into(),
         params: crate::params![
@@ -354,7 +354,7 @@ Blur this image with the given blur value (sigma in a gaussian blur).
         library: IMAGE_LIB.clone(),
         name: "contrast".into(),
         is_async: false,
-        docs: r#"# Image.contrast(img: Data\<Image>, contrast: float) -> void
+        docs: r#"# Image::contrast(img: Data\<Image>, contrast: float) -> void
 Set the contrast of this image (positive to increase, negative to decrease).
 "#.into(),
         params: crate::params![
@@ -376,7 +376,7 @@ Set the contrast of this image (positive to increase, negative to decrease).
         library: IMAGE_LIB.clone(),
         name: "brighten".into(),
         is_async: false,
-        docs: r#"# Image.brighten(img: Data\<Image>, brighten: int) -> void
+        docs: r#"# Image::brighten(img: Data\<Image>, brighten: int) -> void
 Brighten this image with the given value (positive to increase each pixel and negative to decrease).
 "#.into(),
         params: crate::params![
@@ -398,7 +398,7 @@ Brighten this image with the given value (positive to increase each pixel and ne
         library: IMAGE_LIB.clone(),
         name: "blob".into(),
         is_async: false,
-        docs: r#"# Image.blob(img: Data\<Image>) -> blob
+        docs: r#"# Image::blob(img: Data\<Image>) -> blob
 Transform this image into a binary blob value (raw binary is a PNG).
 "#.into(),
         params: crate::params![
@@ -419,7 +419,7 @@ Transform this image into a binary blob value (raw binary is a PNG).
         library: IMAGE_LIB.clone(),
         name: "png".into(),
         is_async: false,
-        docs: r#"# Image.png(img: Data\<Image>) -> blob
+        docs: r#"# Image::png(img: Data\<Image>) -> blob
 Transform this image into a binary blob value that is in PNG format.
 "#.into(),
         params: crate::params![
@@ -440,7 +440,7 @@ Transform this image into a binary blob value that is in PNG format.
         library: IMAGE_LIB.clone(),
         name: "jpeg".into(),
         is_async: false,
-        docs: r#"# Image.jpeg(img: Data\<Image>) -> blob
+        docs: r#"# Image::jpeg(img: Data\<Image>) -> blob
 Transform this image into a binary blob value that is in JPEG format.
 "#.into(),
         params: crate::params![
@@ -461,7 +461,7 @@ Transform this image into a binary blob value that is in JPEG format.
         library: IMAGE_LIB.clone(),
         name: "gif".into(),
         is_async: false,
-        docs: r#"# Image.gif(img: Data\<Image>) -> blob
+        docs: r#"# Image::gif(img: Data\<Image>) -> blob
 Transform this image into a binary blob value that is in GIF format.
 "#.into(),
         params: crate::params![
@@ -482,7 +482,7 @@ Transform this image into a binary blob value that is in GIF format.
         library: IMAGE_LIB.clone(),
         name: "webp".into(),
         is_async: false,
-        docs: r#"# Image.webp(img: Data\<Image>) -> blob
+        docs: r#"# Image::webp(img: Data\<Image>) -> blob
 Transform this image into a binary blob value that is in WEBP format.
 "#.into(),
         params: crate::params![
@@ -503,7 +503,7 @@ Transform this image into a binary blob value that is in WEBP format.
         library: IMAGE_LIB.clone(),
         name: "tiff".into(),
         is_async: false,
-        docs: r#"# Image.tiff(img: Data\<Image>) -> blob
+        docs: r#"# Image::tiff(img: Data\<Image>) -> blob
 Transform this image into a binary blob value that is in TIFF format.
 "#.into(),
         params: crate::params![
@@ -524,7 +524,7 @@ Transform this image into a binary blob value that is in TIFF format.
         library: IMAGE_LIB.clone(),
         name: "bmp".into(),
         is_async: false,
-        docs: r#"# Image.bmp(img: Data\<Image>) -> blob
+        docs: r#"# Image::bmp(img: Data\<Image>) -> blob
 Transform this image into a binary blob value that is in BMP format.
 "#.into(),
         params: crate::params![
@@ -545,7 +545,7 @@ Transform this image into a binary blob value that is in BMP format.
         library: IMAGE_LIB.clone(),
         name: "ico".into(),
         is_async: false,
-        docs: r#"# Image.ico(img: Data\<Image>) -> blob
+        docs: r#"# Image::ico(img: Data\<Image>) -> blob
 Transform this image into a binary blob value that is in ICO format.
 "#.into(),
         params: crate::params![
@@ -566,7 +566,7 @@ Transform this image into a binary blob value that is in ICO format.
         library: IMAGE_LIB.clone(),
         name: "from_blob".into(),
         is_async: false,
-        docs: r#"# Image.from_blob(bytes: blob) -> Data\<Image>
+        docs: r#"# Image::from_blob(bytes: blob) -> Data\<Image>
 Create an image (on the calling/current object) given a binary blob, attempting to auto-detect the image's format.
 "#.into(),
         params: crate::params![

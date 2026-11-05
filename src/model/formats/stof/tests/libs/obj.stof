@@ -895,3 +895,46 @@ ByName: {
         assert_not(obj.contains('f'));
     }
 }
+
+
+attr_tests: {
+    total: 10
+    child: { x: 1 }
+    fn hello() -> int { 1 }
+
+    #[test]
+    fn object_attributes() {
+        assert(self.set_attribute('marked', 'yes'));
+        assert_eq(self.attributes().get('marked'), 'yes');
+        assert(self.remove_attribute('marked'));
+        assert_not(self.attributes().contains('marked'));
+    }
+
+    #[test]
+    fn field_function_and_child_attributes() {
+        assert(self.set_attribute('unit', 'usd', 'total'));
+        assert_eq(self.attributes('total'), {'unit': 'usd'});
+        assert(self.set_attribute('on_order', null, 'hello'));
+        assert(self.attributes('hello').contains('on_order'));
+        assert(self.set_attribute('note', 1, 'child'));
+        assert_eq(self.attributes('child').get('note'), 1);
+        assert_not(self.set_attribute('x', null, 'nothing_here'), 'no target');
+        assert(self.remove_attribute('unit', 'total'));
+        assert(self.remove_attribute('on_order', 'hello'));
+        assert(self.remove_attribute('note', 'child'));
+    }
+
+    #[test]
+    fn readonly_at_runtime() {
+        self.set_attribute('readonly', null, 'total');
+        let failed = false;
+        try self.total = 11;
+        catch failed = true;
+        assert(failed, 'readonly is enforced');
+        assert_eq(self.total, 10);
+        self.remove_attribute('readonly', 'total');
+        self.total = 12;
+        assert_eq(self.total, 12);
+        self.total = 10;
+    }
+}

@@ -15,7 +15,7 @@
 //
 
 use std::sync::Arc;
-use crate::{model::{LibFunc, Param, function::BIND, libraries::function::{ATTRIBUTES, DATA, FUNC_LIB, FuncIns, HAS_ATTR, ID, IS_ASYNC, NAME, OBJ, OBJS, PARAMS, RETURN_TYPE}}, runtime::{Type, instruction::Instructions}};
+use crate::{model::{LibFunc, Param, function::BIND, libraries::function::{ATTRIBUTES, SET_ATTRIBUTE, REMOVE_ATTRIBUTE, DATA, FUNC_LIB, FuncIns, HAS_ATTR, ID, IS_ASYNC, NAME, OBJ, OBJS, PARAMS, RETURN_TYPE}}, runtime::{Type, Val, instruction::Instructions, instructions::Base}};
 
 
 /// Id.
@@ -24,7 +24,7 @@ pub fn fn_id() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "id".into(),
         is_async: false,
-        docs: r#"# Fn.id(func: fn) -> str
+        docs: r#"# Fn::id(func: fn) -> str
 Get the data ID for this function (shorthand for "func.data().id()").
 ```rust
 const func: fn = self.hi;
@@ -50,7 +50,7 @@ pub fn fn_data() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "data".into(),
         is_async: false,
-        docs: r#"# Fn.data(func: fn) -> data
+        docs: r#"# Fn::data(func: fn) -> data
 Get the data pointer for this function.
 ```rust
 const func: fn = self.hi;
@@ -76,7 +76,7 @@ pub fn fn_bind() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "bind".into(),
         is_async: false,
-        docs: r#"# Fn.bind(func: fn, to: obj) -> bool
+        docs: r#"# Fn::bind(func: fn, to: obj) -> bool
 Bind a function to an object. This will remove the object from the nodes that currently reference it and place it on the "to" object.
 ```rust
 const func = ():str => self.msg ?? 'dne';
@@ -107,7 +107,7 @@ pub fn fn_name() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "name".into(),
         is_async: false,
-        docs: r#"# Fn.name(func: fn) -> str
+        docs: r#"# Fn::name(func: fn) -> str
 Get the name of this function.
 ```rust
 const func: fn = self.hi; // fn hi() {}
@@ -133,7 +133,7 @@ pub fn fn_params() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "params".into(),
         is_async: false,
-        docs: r#"# Fn.params(func: fn) -> list
+        docs: r#"# Fn::params(func: fn) -> list
 Get a list of expected parameters for this function (tuple containing the name and type).
 ```rust
 const func: fn = self.hi; // fn hi(a: int) {}
@@ -159,7 +159,7 @@ pub fn fn_return_type() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "return_type".into(),
         is_async: false,
-        docs: r#"# Fn.return_type(func: fn) -> str
+        docs: r#"# Fn::return_type(func: fn) -> str
 Get the return type for the given function.
 ```rust
 const func: fn = self.hi; // fn hi() -> int { 42 }
@@ -185,7 +185,7 @@ pub fn fn_has_attr() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "has_attribute".into(),
         is_async: false,
-        docs: r#"# Fn.has_attribute(func: fn, name: str) -> bool
+        docs: r#"# Fn::has_attribute(func: fn, name: str) -> bool
 Returns true if the given function has an attribute with the given name.
 ```rust
 const func: fn = self.hi; // #[hi] fn hi() {}
@@ -212,7 +212,7 @@ pub fn fn_attributes() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "attributes".into(),
         is_async: false,
-        docs: r#"# Fn.attributes(func: fn) -> map
+        docs: r#"# Fn::attributes(func: fn) -> map
 Get a map of attributes (name & value) that this function has, if any.
 ```rust
 const func: fn = self.hi; // #[hi] fn hi() {}
@@ -232,13 +232,69 @@ assert_eq(func.attributes(), {"hi": null});
     }
 }
 
+/// Set attribute.
+pub fn fn_set_attribute() -> LibFunc {
+    LibFunc {
+        library: FUNC_LIB.clone(),
+        name: "set_attribute".into(),
+        is_async: false,
+        docs: r#"# Fn::set_attribute(func: fn, name: str, value: unknown = null) -> bool
+Set an attribute on this function (adding it, or replacing its value). A null value is an attribute with no value, like `#[main]`. Attributes are behavior (what runs by attribute, how a value is exported), so a sealed function's attributes can't change: that's an error.
+```rust
+const func: fn = self.notify;
+func.set_attribute('on_order');
+assert(func.has_attribute('on_order'));
+```"#.into(),
+        params: crate::params![
+            Param { name: "fn".into(), param_type: Type::Fn, default: None },
+            Param { name: "name".into(), param_type: Type::Str, default: None },
+            Param { name: "value".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))) },
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(SET_ATTRIBUTE.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// Remove attribute.
+pub fn fn_remove_attribute() -> LibFunc {
+    LibFunc {
+        library: FUNC_LIB.clone(),
+        name: "remove_attribute".into(),
+        is_async: false,
+        docs: r#"# Fn::remove_attribute(func: fn, name: str) -> bool
+Remove an attribute from this function. Returns true if it had the attribute. A sealed function's attributes can't change: that's an error.
+```rust
+const func: fn = self.notify; // #[on_order] fn notify() {}
+assert(func.remove_attribute('on_order'));
+```"#.into(),
+        params: crate::params![
+            Param { name: "fn".into(), param_type: Type::Fn, default: None },
+            Param { name: "name".into(), param_type: Type::Str, default: None },
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(REMOVE_ATTRIBUTE.clone());
+            Ok(instructions)
+        })
+    }
+}
+
 /// Obj.
 pub fn fn_obj() -> LibFunc {
     LibFunc {
         library: FUNC_LIB.clone(),
         name: "obj".into(),
         is_async: false,
-        docs: r#"# Fn.obj(func: fn) -> obj
+        docs: r#"# Fn::obj(func: fn) -> obj
 Get the first object found that references this function.
 ```rust
 const func: fn = self.hi;
@@ -264,7 +320,7 @@ pub fn fn_objs() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "objs".into(),
         is_async: false,
-        docs: r#"# Fn.objs(func: fn) -> list
+        docs: r#"# Fn::objs(func: fn) -> list
 Get a list of all objects that this function is attached to.
 ```rust
 const func: fn = self.hi;
@@ -290,7 +346,7 @@ pub fn fn_is_async() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "is_async".into(),
         is_async: false,
-        docs: r#"# Fn.is_async(func: fn) -> bool
+        docs: r#"# Fn::is_async(func: fn) -> bool
 Is this function async? This is just shorthand for checking if an "async" attribute exists (what makes a func async).
 ```rust
 const func: fn = self.hi; // async fn hi() {}
@@ -316,7 +372,7 @@ pub fn fn_call() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "call".into(),
         is_async: false,
-        docs: r#"# Fn.call(func: fn, ..) -> unknown
+        docs: r#"# Fn::call(func: fn, ..) -> unknown
 Call this function, using any arguments given after the function itself (some library functions can take N arguments, this is one of them).
 ```rust
 const func: fn = (name: str):str => "Hi, " + name;
@@ -343,7 +399,7 @@ pub fn fn_exp_call() -> LibFunc {
         library: FUNC_LIB.clone(),
         name: "call_expanded".into(),
         is_async: false,
-        docs: r#"# Fn.call_expanded(func: fn, ..) -> unknown
+        docs: r#"# Fn::call_expanded(func: fn, ..) -> unknown
 Call this function, using any arguments given after the function itself. However, if an argument is a collection (ex. list), expand the list values out as arguments themselves.
 ```rust
 const func: fn = (name: str):str => "Hi, " + name;

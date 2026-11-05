@@ -57,7 +57,7 @@ fn set_append() -> LibFunc {
         library: SET_LIB.clone(),
         name: "append".into(),
         is_async: false,
-        docs: r#"# Set.append(set: set, other: set) -> void
+        docs: r#"# Set::append(set: set, other: set) -> void
 Append another set to this one.
 ```rust
 const set = {1, 2, 3};
@@ -86,7 +86,7 @@ fn set_clear() -> LibFunc {
         library: SET_LIB.clone(),
         name: "clear".into(),
         is_async: false,
-        docs: r#"# Set.clear(set: set) -> void
+        docs: r#"# Set::clear(set: set) -> void
 Clear all values from the set.
 ```rust
 const set = {1, 2, 3};
@@ -114,7 +114,7 @@ fn set_contains() -> LibFunc {
         library: SET_LIB.clone(),
         name: "contains".into(),
         is_async: false,
-        docs: r#"# Set.contains(set: set, val: unknown) -> bool
+        docs: r#"# Set::contains(set: set, val: unknown) -> bool
 Returns true if the set contains the value.
 ```rust
 const set = {1, 2, 3};
@@ -142,7 +142,7 @@ fn set_first() -> LibFunc {
         library: SET_LIB.clone(),
         name: "first".into(),
         is_async: false,
-        docs: r#"# Set.first(set: set) -> unknown
+        docs: r#"# Set::first(set: set) -> unknown
 Return the first (minimum) value in the set, or null if the set is empty.
 ```rust
 const set = {1, 2, 3};
@@ -173,7 +173,7 @@ fn set_last() -> LibFunc {
         library: SET_LIB.clone(),
         name: "last".into(),
         is_async: false,
-        docs: r#"# Set.last(set: set) -> unknown
+        docs: r#"# Set::last(set: set) -> unknown
 Return the last (maximum) value in the set, or null if the set is empty.
 ```rust
 const set = {1, 2, 3};
@@ -204,7 +204,7 @@ fn set_insert() -> LibFunc {
         library: SET_LIB.clone(),
         name: "insert".into(),
         is_async: false,
-        docs: r#"# Set.insert(set: set, val: unknown) -> bool
+        docs: r#"# Set::insert(set: set, val: unknown) -> bool
 Insert the value into the set, returning true if the value was not previously in the set (newly inserted).
 ```rust
 const set = {1, 2};
@@ -232,7 +232,7 @@ fn set_split() -> LibFunc {
         library: SET_LIB.clone(),
         name: "split".into(),
         is_async: false,
-        docs: r#"# Set.split(set: set, val: unknown) -> (set, set)
+        docs: r#"# Set::split(set: set, val: unknown) -> (set, set)
 Split the set into a smaller set (left) and larger set (right) at the given value (not included in resulting sets).
 ```rust
 const set = {1, 2, 3};
@@ -260,7 +260,7 @@ fn set_empty() -> LibFunc {
         library: SET_LIB.clone(),
         name: "empty".into(),
         is_async: false,
-        docs: r#"# Set.empty(set: set) -> bool
+        docs: r#"# Set::empty(set: set) -> bool
 Is this set empty?
 ```rust
 const set = {1, 2, 3};
@@ -287,7 +287,7 @@ fn set_any() -> LibFunc {
         library: SET_LIB.clone(),
         name: "any".into(),
         is_async: false,
-        docs: r#"# Set.any(set: set) -> bool
+        docs: r#"# Set::any(set: set) -> bool
 Does this set contain any values?
 ```rust
 const set = {1, 2, 3};
@@ -314,7 +314,7 @@ fn set_len() -> LibFunc {
         library: SET_LIB.clone(),
         name: "len".into(),
         is_async: false,
-        docs: r#"# Set.len(set: set) -> int
+        docs: r#"# Set::len(set: set) -> int
 Return the size of this set (cardinality).
 ```rust
 const set = {1, 2, 3};
@@ -341,7 +341,7 @@ fn set_at() -> LibFunc {
         library: SET_LIB.clone(),
         name: "at".into(),
         is_async: false,
-        docs: r#"# Set.at(set: set, index: int) -> unknown
+        docs: r#"# Set::at(set: set, index: int) -> unknown
 Return the Nth (index) element in this ordered set, or null if the index is out of bounds.
 ```rust
 const set = {1, 2, 3};
@@ -373,7 +373,7 @@ fn set_pop_first() -> LibFunc {
         library: SET_LIB.clone(),
         name: "pop_first".into(),
         is_async: false,
-        docs: r#"# Set.pop_first(set: set) -> unknown
+        docs: r#"# Set::pop_first(set: set) -> unknown
 Remove and return the first (minimum) value in the set.
 ```rust
 const set = {1, 2, 3};
@@ -401,7 +401,7 @@ fn set_pop_last() -> LibFunc {
         library: SET_LIB.clone(),
         name: "pop_last".into(),
         is_async: false,
-        docs: r#"# Set.pop_last(set: set) -> unknown
+        docs: r#"# Set::pop_last(set: set) -> unknown
 Remove and return the last (maxiumum) value in the set.
 ```rust
 const set = {1, 2, 3};
@@ -429,7 +429,7 @@ fn set_remove() -> LibFunc {
         library: SET_LIB.clone(),
         name: "remove".into(),
         is_async: false,
-        docs: r#"# Set.remove(set: set, val: unknown) -> unknown
+        docs: r#"# Set::remove(set: set, val: unknown) -> unknown
 Remove and return the value if found in the set, otherwise null.
 ```rust
 const set = {1, 2, 3};
@@ -458,7 +458,7 @@ fn set_union() -> LibFunc {
         library: SET_LIB.clone(),
         name: "union".into(),
         is_async: false,
-        docs: r#"# Set.union(set: set, other: set) -> set
+        docs: r#"# Set::union(set: set, other: set) -> set
 Union two sets, returning a new set.
 ```rust
 const set = {1, 2, 3};
@@ -487,7 +487,7 @@ fn set_diff() -> LibFunc {
         library: SET_LIB.clone(),
         name: "difference".into(),
         is_async: false,
-        docs: r#"# Set.difference(set: set, other: set) -> set
+        docs: r#"# Set::difference(set: set, other: set) -> set
 Perform a difference between two sets, returning a new set (everything in this set that is not in other).
 ```rust
 const set = {1, 2, 3};
@@ -515,7 +515,7 @@ fn set_intersection() -> LibFunc {
         library: SET_LIB.clone(),
         name: "intersection".into(),
         is_async: false,
-        docs: r#"# Set.intersection(set: set, other: set) -> set
+        docs: r#"# Set::intersection(set: set, other: set) -> set
 Perform an intersection between two sets, returning a new set (only elements found in both sets).
 ```rust
 const set = {1, 2, 3};
@@ -543,7 +543,7 @@ fn set_symmetric_diff() -> LibFunc {
         library: SET_LIB.clone(),
         name: "symmetric_difference".into(),
         is_async: false,
-        docs: r#"# Set.symmetric_difference(set: set, other: set) -> set
+        docs: r#"# Set::symmetric_difference(set: set, other: set) -> set
 Perform a symmetric difference between two sets, returning a new set (values in this set that do not exist in other unioned with the values in other that do not exist in this set).
 ```rust
 const set = {1, 2, 3};
@@ -571,7 +571,7 @@ fn set_disjoint() -> LibFunc {
         library: SET_LIB.clone(),
         name: "disjoint".into(),
         is_async: false,
-        docs: r#"# Set.disjoint(set: set, other: set) -> bool
+        docs: r#"# Set::disjoint(set: set, other: set) -> bool
 Returns true if there is no overlap between the two sets (empty intersection).
 ```rust
 const set = {1, 2, 3};
@@ -600,7 +600,7 @@ fn set_subset() -> LibFunc {
         library: SET_LIB.clone(),
         name: "subset".into(),
         is_async: false,
-        docs: r#"# Set.subset(set: set, other: set) -> bool
+        docs: r#"# Set::subset(set: set, other: set) -> bool
 Returns true if all values in this set exist within another set.
 ```rust
 const set = {2, 3};
@@ -629,7 +629,7 @@ fn set_superset() -> LibFunc {
         library: SET_LIB.clone(),
         name: "superset".into(),
         is_async: false,
-        docs: r#"# Set.superset(set: set, other: set) -> bool
+        docs: r#"# Set::superset(set: set, other: set) -> bool
 Returns true if all values in another set exist within this set.
 ```rust
 const set = {2, 3};
@@ -658,7 +658,7 @@ fn set_uniform() -> LibFunc {
         library: SET_LIB.clone(),
         name: "is_uniform".into(),
         is_async: false,
-        docs: r#"# Set.is_uniform(set: set) -> bool
+        docs: r#"# Set::is_uniform(set: set) -> bool
 Returns true if all values in this set are of the same specific type.
 ```rust
 const set = {2, 3};
@@ -685,7 +685,7 @@ fn set_to_uniform() -> LibFunc {
         library: SET_LIB.clone(),
         name: "to_uniform".into(),
         is_async: false,
-        docs: r#"# Set.to_uniform(set: set, type: str) -> void
+        docs: r#"# Set::to_uniform(set: set, type: str) -> void
 Try casting all set values to a single type. Type parameter is a string, just like you'd specify a type in Stof.
 ```rust
 const set = {2000m, 3km};

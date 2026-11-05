@@ -84,7 +84,8 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
     //println!("({name}){{{func:?}}}");
     let self_ptr = context.self_ptr();
     let Some(func_ref) = context.graph.insert_stof_data(&self_ptr, name, Box::new(func), None) else {
-        return Err(nom::Err::Failure(StofParseError::from(format!("could not create fn {name}: the object it belongs to no longer exists"))));
+        let why = context.graph.take_seal_violation().map(|why| format!("sealed: {why}")).unwrap_or_else(|| "the object it belongs to no longer exists".into());
+        return Err(nom::Err::Failure(StofParseError::from(format!("could not create fn {name}: {why}"))));
     };
 
     // Record the definition (editor tooling only)

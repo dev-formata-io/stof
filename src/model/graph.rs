@@ -20,7 +20,7 @@ use bytes::Bytes;
 use colored::Colorize;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{BstfFormat, BytesFormat, HtmlFormat, XmlFormat, Data, DataRef, Field, FieldHolders, Format, INVALID_NODE_NEW, JsonFormat, LibFunc, MdDocsFormat, MdFormat, Node, NodeRef, Profile, Prototype, SId, SPath, StofData, StofFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, blob::insert_blob_lib, libraries::{data::insert_data_lib, function::insert_fn_lib}, libs::insert_lib_documentation, list::insert_list_lib, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, prompt::insert_prompt_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, time::insert_time_lib, tup::insert_tup_lib, ver::insert_semver_lib}, parser::context::ParseContext, runtime::{Error, Runtime, Type, Val, ValRef, Variable, proc::DEFAULT_MAX_EXECUTION_TIME, table::SymbolTable}};
+use crate::{model::{INVALID_NODE_ATTRS, BstfFormat, BytesFormat, HtmlFormat, XmlFormat, Data, DataRef, Field, FieldHolders, Format, INVALID_NODE_NEW, JsonFormat, LibFunc, MdDocsFormat, MdFormat, Node, NodeRef, Profile, Prototype, SId, SPath, StofData, StofFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, blob::insert_blob_lib, libraries::{data::insert_data_lib, function::insert_fn_lib}, libs::insert_lib_documentation, list::insert_list_lib, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, prompt::insert_prompt_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, time::insert_time_lib, tup::insert_tup_lib, ver::insert_semver_lib}, parser::context::ParseContext, runtime::{Error, Runtime, Type, Val, ValRef, Variable, proc::DEFAULT_MAX_EXECUTION_TIME, table::SymbolTable}};
 
 #[cfg(feature = "system")]
 use crate::model::{filesys::fs_library};
@@ -87,9 +87,30 @@ pub struct Graph {
     #[serde(skip, default = "default_max_execution_time")]
     pub max_execution_time: Option<Duration>,
 
+    /// How much a call may grow the heap, in bytes, before it fails with a memory limit error (None for no limit).
+    /// Set by the host; defaults to 256 MiB. See `runtime::memory`.
+    #[serde(skip, default = "default_max_memory")]
+    pub max_memory: Option<usize>,
+
     /// Hosts the Http library can reach (None for any host). Set by the host with `allow_http_hosts`.
     #[serde(skip)]
     pub http_hosts: Option<Arc<FxHashSet<String>>>,
+
+    /// May the Http library reach this machine and private networks (localhost, 10.x, 169.254.x where cloud
+    /// metadata lives, ...) when any host is allowed? Off by default; a host list allows what it lists either way.
+    /// Set by the host with `allow_private_network`.
+    #[serde(skip)]
+    pub http_private: bool,
+
+    /// The parts of this graph the host sealed (see `model::seal`). Never stored in documents, so a document can't
+    /// arrive sealed (or unsealed): the host seals after loading.
+    #[serde(skip)]
+    pub seals: Arc<crate::model::Seals>,
+
+    /// Attributes the html format writes only when allowed (`style`, `action`, `formaction`). Set by the host with
+    /// `allow_html_attributes`.
+    #[serde(skip)]
+    pub html_attributes: Option<Arc<FxHashSet<String>>>,
 
     /// Elements the html format may write (None for the defaults). Set by the host with `allow_html_tags`.
     #[serde(skip)]
@@ -109,6 +130,9 @@ pub struct Graph {
 fn default_max_execution_time() -> Option<Duration> {
     Some(DEFAULT_MAX_EXECUTION_TIME)
 }
+fn default_max_memory() -> Option<usize> {
+    Some(crate::runtime::memory::DEFAULT_MAX_MEMORY)
+}
 impl Default for Graph {
     fn default() -> Self {
         let mut graph = Self {
@@ -124,8 +148,12 @@ impl Default for Graph {
             libdocs: Default::default(),
             libfuncs: Default::default(),
             max_execution_time: default_max_execution_time(),
+            max_memory: default_max_memory(),
             http_hosts: None,
+            http_private: false,
+            seals: Default::default(),
             html_tags: None,
+            html_attributes: None,
             keep_source: false,
             quiet: false,
         };
@@ -293,6 +321,7 @@ impl Graph {
     
     /// Insert a type by typename.
     pub fn insert_type(&mut self, name: &str, node: &NodeRef) {
+        if !self.may_insert_type(name, node) { return; }
         if let Some(types) = self.typemap.get_mut(name) {
             types.insert(node.clone());
         } else {
@@ -412,9 +441,18 @@ impl Graph {
     }
 
     #[cfg(any(feature = "js", feature = "http"))]
-    /// Give documents network access: the `Http` library. Off by default.
+    /// Give documents network access to any public host: the `Http` library. Off by default. This machine and
+    /// private networks (localhost, 10.x, 192.168.x, 169.254.x where cloud metadata services live, `*.internal`, ...)
+    /// stay off limits, checked after DNS and on every redirect, unless the host also calls `allow_private_network`
+    /// or lists them in `allow_http_hosts`.
     pub fn allow_http(&mut self) {
         insert_http_lib(self);
+    }
+
+    /// Let documents allowed any host (`allow_http`) reach this machine and private networks too. Off by default.
+    /// Prefer listing the hosts a document needs (`allow_http_hosts(["localhost:8080"])`).
+    pub fn allow_private_network(&mut self) {
+        self.http_private = true;
     }
 
     #[cfg(any(feature = "js", feature = "http"))]
@@ -551,6 +589,10 @@ impl Graph {
     /// Don't call this with nodes that already exist in the graph (have a valid ID already).
     pub fn insert_stof_node(&mut self, mut node: Node, parent: Option<NodeRef>) -> NodeRef {
         if let Some(parent) = &parent {
+            // under an object sealed with its fields: reported (the call fails), though the object is still made
+            if !self.seals.nodes.is_empty() { self.may_add_child(parent); }
+        }
+        if let Some(parent) = &parent {
             if parent.node_exists(&self) {
                 node.parent = Some(parent.clone());
                 node.invalidate_parent();
@@ -608,6 +650,7 @@ impl Graph {
     /// With gc, fields anywhere in the graph that hold the node (or one of its children) are removed too.
     /// Note: if you pass gc and also are managing a symbol table, you have to do gc on that table as well.
     pub fn remove_node(&mut self, nref: &NodeRef, gc: bool) -> bool {
+        if !self.seals.nodes.is_empty() && !self.may_move_node(nref) { return false; }
         let mut removed = Vec::new();
         if !self.remove_node_tree(nref, &mut removed) {
             return false;
@@ -799,6 +842,7 @@ impl Graph {
         if source == dest || !source.node_exists(&self) || !dest.node_exists(&self) || dest.child_of(&self, source) {
             return false;
         }
+        if !self.seals.nodes.is_empty() && (!self.may_move_node(source) || !self.may_add_child(dest)) { return false; }
         if source.node_parent(&self).as_ref() == Some(dest) {
             // Already there: the steps below would add it to dest, then remove it from its old parent (dest),
             // leaving a node whose parent no longer lists it (unreachable, and never dropped).
@@ -921,6 +965,10 @@ impl Graph {
     /// Data in the graph must be associated with a node.
     /// Will overwrite data with the same ID if already in the graph.
     pub fn insert_data(&mut self, node: &NodeRef, mut data: Data) -> Option<DataRef> {
+        if !self.seals.nodes.is_empty() {
+            let name = data.name.to_string();
+            if !self.may_insert(node, &name, &data) { return None; }
+        }
         let mut res = None;
         let mut replaced = None;
         if let Some(node) = node.node_mut(self) {
@@ -956,6 +1004,13 @@ impl Graph {
     /// Attach an existing data ref to a node in this graph.
     pub fn attach_data(&mut self, node: &NodeRef, data: &DataRef) -> bool {
         if !node.node_exists(&self) { return false; }
+        if !self.seals.nodes.is_empty() && self.seals.nodes.contains_key(node) {
+            let Some(existing) = data.data(self).cloned() else { return false };
+            let name = existing.name.to_string();
+            let mut probe = existing;
+            probe.id = DataRef::from("__attach__"); // only the name and kind matter here
+            if !self.may_insert(node, &name, &probe) { return false; }
+        }
 
         let name;
         if let Some(data) = data.data_mut(self) {
@@ -994,6 +1049,7 @@ impl Graph {
     /// Otherwise, it will be removed from the entire graph.
     /// If a node is given and it is the only one referencing the data, the data will be removed completely.
     pub fn remove_data(&mut self, data: &DataRef, node: Option<NodeRef>) -> bool {
+        if !self.seals.nodes.is_empty() && !self.may_remove(data, node.as_ref()) { return false; }
         let mut remove_all = true;
         let mut res = false;
 
@@ -1040,6 +1096,18 @@ impl Graph {
     /// Will change the name of the data, but also all of the names in each node (for fast search by name).
     pub fn rename_data(&mut self, data: &DataRef, name: impl Into<SId>) -> bool {
         let new_name: SId = name.into();
+        if !self.seals.nodes.is_empty() {
+            if !self.may_change(data) { return false; }
+            // renaming onto a sealed name would replace it
+            let nodes = data.data(self).map(|d| d.nodes.clone()).unwrap_or_default();
+            for nref in nodes {
+                if let Some(existing) = nref.node(self).and_then(|n| n.data.get(new_name.as_ref())).cloned() {
+                    if &existing != data && self.sealed_data(&nref, &existing) {
+                        return self.refuse(format!("'{new_name}' is sealed and can't be replaced"));
+                    }
+                }
+            }
+        }
         let mut old_name = SId::from(ROOT_NODE_NAME);
         let mut nodes = FxHashSet::default();
         if let Some(data) = data.data_mut(self) {
@@ -1078,6 +1146,52 @@ impl Graph {
         true
     }
 
+    /// Set an attribute (`Some(value)`) or remove it (`None`) on an object (`Ok(node)`) or a field or function
+    /// (`Err(data)`). Returns whether anything changed: false for a target that doesn't exist, or for removing an
+    /// attribute it doesn't have. Attributes are behavior (they decide what runs, what's readonly or private, how a
+    /// value is exported), so on a sealed object they never change, even when its fields may: `Error::Sealed`.
+    pub fn set_attribute(&mut self, target: Result<NodeRef, DataRef>, name: &str, value: Option<Val>) -> Result<bool, Error> {
+        match target {
+            Ok(node) => {
+                if !node.node_exists(self) { return Ok(false); }
+                if !self.seals.nodes.is_empty() && !self.may_change_node(&node) {
+                    return Err(Error::Sealed(self.take_seal_violation().unwrap_or_default()));
+                }
+                let Some(node) = node.node_mut(self) else { return Ok(false) };
+                let changed = match value {
+                    Some(value) => { node.attributes.insert(name.to_string(), value); true },
+                    None => node.attributes.remove(name).is_some(),
+                };
+                if changed { node.invalidate(INVALID_NODE_ATTRS); }
+                Ok(changed)
+            },
+            Err(dref) => {
+                if !dref.data_exists(self) { return Ok(false); }
+                if !self.seals.nodes.is_empty() {
+                    let sealed = dref.data(self).is_some_and(|data| data.nodes.iter().any(|node| self.seals.nodes.contains_key(node)));
+                    if sealed {
+                        let what = dref.data_name(self).map(|name| name.to_string()).unwrap_or_default();
+                        return Err(Error::Sealed(format!("'{what}' is sealed and its attributes can't change")));
+                    }
+                }
+                let Some(data) = dref.data_mut(self) else { return Ok(false) };
+                let apply = |attributes: &mut FxHashMap<String, Val>| match value {
+                    Some(value) => { attributes.insert(name.to_string(), value); true },
+                    None => attributes.remove(name).is_some(),
+                };
+                let changed = if let Some(field) = data.get_mut::<Field>() {
+                    apply(&mut field.attributes)
+                } else if let Some(func) = data.get_mut::<crate::model::Func>() {
+                    apply(&mut func.attributes)
+                } else {
+                    return Ok(false); // other data has no attributes
+                };
+                if changed { data.invalidate_value(); }
+                Ok(changed)
+            },
+        }
+    }
+
     /// Insert Stof data.
     /// Will create a Data wrapper (optionally provide ID/ref).
     /// Name needs to be unique for the node. For an anonymous option, create an ID and use it for both the name and ID.
@@ -1093,6 +1207,7 @@ impl Graph {
     #[inline]
     /// Set Stof data.
     pub fn set_stof_data(&mut self, data: &DataRef, stof_data: Box<dyn StofData>) -> bool {
+        if !self.seals.nodes.is_empty() && !self.may_change(data) { return false; }
         if let Some(existing) = data.data_mut(self) {
             existing.set(stof_data);
             if let Some(obj) = Self::held_obj(existing) { self.add_field_holder(&obj, Some(data)); }
@@ -1128,6 +1243,7 @@ impl Graph {
     #[inline]
     /// Get mutable Stof data.
     pub fn get_mut_stof_data<T: Any>(&mut self, data: &DataRef) -> Option<&mut T> {
+        if !self.seals.nodes.is_empty() && !self.may_change(data) { return None; }
         if let Some(data) = data.data_mut(self) {
             data.get_mut::<T>()
         } else {
@@ -1511,7 +1627,7 @@ impl Graph {
     /// Binary import into this graph, using a loaded format.
     pub fn binary_import(&mut self, format: &str, bytes: Bytes, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
         let id = format;
-        if let Some(format) = self.get_format(id) {
+        let res = if let Some(format) = self.get_format(id) {
             format.binary_import(self, id, bytes, node, profile)
         } else if let Some(format) = self.get_format_by_content_type(id) {
             format.binary_import(self, id, bytes, node, profile)
@@ -1519,13 +1635,22 @@ impl Graph {
             format.binary_import(self, id, bytes, node, profile)
         } else {
             Err(Error::GraphFormatNotFound)
+        };
+        self.sealed_result(res)
+    }
+
+    /// An import (or other host change) that a seal refused part of fails with why.
+    fn sealed_result(&mut self, res: Result<(), Error>) -> Result<(), Error> {
+        match self.take_seal_violation() {
+            Some(why) if res.is_ok() => Err(Error::Sealed(why)),
+            _ => res,
         }
     }
 
     /// Import a string into this graph, using a loaded format.
     pub fn string_import(&mut self, format: &str, src: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
         let id = format;
-        if let Some(format) = self.get_format(id) {
+        let res = if let Some(format) = self.get_format(id) {
             format.string_import(self, id, src, node, profile)
         } else if let Some(format) = self.get_format_by_content_type(id) {
             format.string_import(self, id, src, node, profile)
@@ -1533,7 +1658,8 @@ impl Graph {
             format.string_import(self, id, src, node, profile)
         } else {
             Err(Error::GraphFormatNotFound)
-        }
+        };
+        self.sealed_result(res)
     }
 
     /// File import into this graph, using a loaded format.

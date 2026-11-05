@@ -1,0 +1,25 @@
+[project]
+name = "stof"
+version = "0.10.10"
+description = "Software that behaves differently for every user: each customer's rules, tools, and state in one document that an agent can edit, a person can review, and your app runs, sandboxed, in Rust, JavaScript, and Python."
+license = "Apache-2.0"
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = ["Programming Language :: Rust", "Programming Language :: Python :: Implementation :: CPython", "Programming Language :: Python :: Implementation :: PyPy", "License :: OSI Approved :: Apache Software License", "Operating System :: OS Independent", "Topic :: Software Development :: Interpreters", "Topic :: Scientific/Engineering :: Artificial Intelligence"]
+keywords = ["sandbox", "json", "rules-engine", "ai-agents", "llm", "wasm", "scripting", "embedded", "dsl"]
+
+[[project.authors]]
+name = "CJ Cummings"
+email = "cj@stof.dev"
+
+[project.urls]
+Documentation = "https://stof.dev"
+Repository = "https://github.com/dev-formata-io/stof"
+
+[build-system]
+requires = ["maturin>=1,<2"]
+build-backend = "maturin"
+
+[tool.maturin]
+module-name = "pystof"
+features = ["py"]

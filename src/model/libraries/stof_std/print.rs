@@ -24,7 +24,7 @@ pub fn pln() -> LibFunc {
         library: STD_LIB.clone(),
         name: "pln".into(),
         is_async: false,
-        docs: r#"# Std.pln(..) -> void
+        docs: r#"# Std::pln(..) -> void
 Prints all arguments to the standard output stream.
 ```rust
 pln("hello, world");
@@ -48,7 +48,7 @@ pub fn string() -> LibFunc {
         library: STD_LIB.clone(),
         name: "str".into(),
         is_async: false,
-        docs: r#"# Std.str(..) -> str
+        docs: r#"# Std::str(..) -> str
 Prints all arguments to a string, just like it would be to an output stream.
 ```rust
 assert_eq(str("hello, world"), "hello, world");
@@ -72,7 +72,7 @@ pub fn xmltag() -> LibFunc {
         library: STD_LIB.clone(),
         name: "xml".into(),
         is_async: false,
-        docs: r#"# Std.xml(text: str, tag: str) -> str
+        docs: r#"# Std::xml(text: str, tag: str) -> str
 A helper function to create an XML-tagged string.
 ```rust
 assert_eq(xml("hello, world", "msg"), "<msg>hello, world</msg>");
@@ -99,7 +99,7 @@ pub fn prompt() -> LibFunc {
         library: STD_LIB.clone(),
         name: "prompt".into(),
         is_async: false,
-        docs: r#"# Std.prompt(text: str = '', tag?: str) -> prompt
+        docs: r#"# Std::prompt(text: str = '', tag?: str) -> prompt
 A helper function to create a prompt.
 ```rust
 let p = prompt(tag = 'instruction');
@@ -129,7 +129,7 @@ pub fn dbg() -> LibFunc {
         library: STD_LIB.clone(),
         name: "dbg".into(),
         is_async: false,
-        docs: r#"# Std.dbg(..) -> void
+        docs: r#"# Std::dbg(..) -> void
 Prints all arguments as debug output to the standard output stream.
 ```rust
 dbg("hello, world");
@@ -153,7 +153,7 @@ pub fn err() -> LibFunc {
         library: STD_LIB.clone(),
         name: "err".into(),
         is_async: false,
-        docs: r#"# Std.err(..) -> void
+        docs: r#"# Std::err(..) -> void
 Prints all arguments to the error output stream.
 ```rust
 err("hello, world");
@@ -178,7 +178,7 @@ pub fn std_log_error() -> LibFunc {
         library: STD_LIB.clone(),
         name: "log_error".into(),
         is_async: false,
-        docs: r#"# Std.log_error(..) -> void
+        docs: r#"# Std::log_error(..) -> void
 Logs all arguments as an error using the "log" crate.
 ```rust
 log_error("we have a problem");
@@ -203,7 +203,7 @@ pub fn std_log_warn() -> LibFunc {
         library: STD_LIB.clone(),
         name: "log_warn".into(),
         is_async: false,
-        docs: r#"# Std.log_warn(..) -> void
+        docs: r#"# Std::log_warn(..) -> void
 Logs all arguments as a warnging using the "log" crate.
 ```rust
 log_warn("we encountered something, but are handling it");
@@ -228,7 +228,7 @@ pub fn std_log_info() -> LibFunc {
         library: STD_LIB.clone(),
         name: "log_info".into(),
         is_async: false,
-        docs: r#"# Std.log_info(..) -> void
+        docs: r#"# Std::log_info(..) -> void
 Logs all arguments as info using the "log" crate.
 ```rust
 log_info("we just did something cool");
@@ -253,7 +253,7 @@ pub fn std_log_debug() -> LibFunc {
         library: STD_LIB.clone(),
         name: "log_debug".into(),
         is_async: false,
-        docs: r#"# Std.log_debug(..) -> void
+        docs: r#"# Std::log_debug(..) -> void
 Logs all arguments as debug info using the "log" crate.
 ```rust
 log_debug("this is what just happened, in case you need to debug me");
@@ -278,7 +278,7 @@ pub fn std_log_trace() -> LibFunc {
         library: STD_LIB.clone(),
         name: "log_trace".into(),
         is_async: false,
-        docs: r#"# Std.log_trace(..) -> void
+        docs: r#"# Std::log_trace(..) -> void
 Logs all arguments as a trace using the "log" crate.
 ```rust
 log_trace("we have a problem");

@@ -50,7 +50,7 @@ fn map_append() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "append".into(),
         is_async: false,
-        docs: r#"# Map.append(this: map, other: map) -> void
+        docs: r#"# Map::append(this: map, other: map) -> void
 Append the items of another map onto this map.
 ```rust
 const map = {"a": 1};
@@ -78,7 +78,7 @@ fn map_clear() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "clear".into(),
         is_async: false,
-        docs: r#"# Map.clear(this: map) -> void
+        docs: r#"# Map::clear(this: map) -> void
 Clear this map of all items.
 ```rust
 const map = {"a": 1};
@@ -105,7 +105,7 @@ fn map_contains() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "contains".into(),
         is_async: false,
-        docs: r#"# Map.contains(this: map, key: unknown) -> bool
+        docs: r#"# Map::contains(this: map, key: unknown) -> bool
 Returns true if this map contains a key that equals the given value.
 ```rust
 const map = {"a": 1};
@@ -132,7 +132,7 @@ fn map_first() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "first".into(),
         is_async: false,
-        docs: r#"# Map.first(this: map) -> (unknown, unknown)
+        docs: r#"# Map::first(this: map) -> (unknown, unknown)
 Return the first key-value pair in this ordered map, or null if the map is empty. Optionally return the value as a reference with the '&' operator.
 ```rust
 const map = {"a": 1};
@@ -162,7 +162,7 @@ fn map_last() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "last".into(),
         is_async: false,
-        docs: r#"# Map.last(this: map) -> (unknown, unknown)
+        docs: r#"# Map::last(this: map) -> (unknown, unknown)
 Return the last key-value pair in this ordered map, or null if the map is empty. Optionally return the value as a reference with the '&' operator.
 ```rust
 const map = {"a": 1, "b": 3};
@@ -192,7 +192,7 @@ fn map_get() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "get".into(),
         is_async: false,
-        docs: r#"# Map.get(this: map, key: unknown) -> unknown
+        docs: r#"# Map::get(this: map, key: unknown) -> unknown
 Return a value for the given key in this map, optionally by reference.
 ```rust
 const map = {"a": 1};
@@ -223,7 +223,7 @@ fn map_insert() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "insert".into(),
         is_async: false,
-        docs: r#"# Map.insert(this: map, key: unknown, value: unknown) -> unknown
+        docs: r#"# Map::insert(this: map, key: unknown, value: unknown) -> unknown
 Insert a key-value pair into this map, returning the old value if the key was already present, or null otherwise.
 ```rust
 const map = {"a": 1};
@@ -252,7 +252,7 @@ fn map_empty() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "empty".into(),
         is_async: false,
-        docs: r#"# Map.empty(this: map) -> bool
+        docs: r#"# Map::empty(this: map) -> bool
 Is this map empty?
 ```rust
 const map = map();
@@ -278,7 +278,7 @@ fn map_any() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "any".into(),
         is_async: false,
-        docs: r#"# Map.any(this: map) -> bool
+        docs: r#"# Map::any(this: map) -> bool
 Does this map contain any key-value pairs?
 ```rust
 const map = map();
@@ -304,7 +304,7 @@ fn map_keys() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "keys".into(),
         is_async: false,
-        docs: r#"# Map.keys(this: map) -> set
+        docs: r#"# Map::keys(this: map) -> set
 A set of this map's keys.
 ```rust
 const map = {"a": 1, "b": 2};
@@ -330,7 +330,7 @@ fn map_values() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "values".into(),
         is_async: false,
-        docs: r#"# Map.values(this: map) -> list
+        docs: r#"# Map::values(this: map) -> list
 A list of this map's values.
 ```rust
 const map = {"a": 1, "b": 2};
@@ -360,7 +360,7 @@ fn map_len() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "len".into(),
         is_async: false,
-        docs: r#"# Map.len(this: map) -> int
+        docs: r#"# Map::len(this: map) -> int
 The number of key-value pairs in this map.
 ```rust
 const map = {"a": 1, "b": 2};
@@ -386,7 +386,7 @@ fn map_at() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "at".into(),
         is_async: false,
-        docs: r#"# Map.at(this: map, index: int) -> (unknown, unknown)
+        docs: r#"# Map::at(this: map, index: int) -> (unknown, unknown)
 The key-value pair at the given index in this sorted map.
 ```rust
 const map = {"a": 1, "b": 2};
@@ -417,7 +417,7 @@ fn map_pop_first() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "pop_first".into(),
         is_async: false,
-        docs: r#"# Map.pop_first(this: map) -> (unknown, unknown)
+        docs: r#"# Map::pop_first(this: map) -> (unknown, unknown)
 Remove the smallest key-value pair from this map and return it.
 ```rust
 const map = {"a": 1, "b": 2};
@@ -443,7 +443,7 @@ fn map_pop_last() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "pop_last".into(),
         is_async: false,
-        docs: r#"# Map.pop_last(this: map) -> (unknown, unknown)
+        docs: r#"# Map::pop_last(this: map) -> (unknown, unknown)
 Remove the largest key-value pair from this map and return it.
 ```rust
 const map = {"a": 1, "b": 2};
@@ -468,7 +468,7 @@ fn map_remove() -> LibFunc {
         library: MAP_LIB.clone(),
         name: "remove".into(),
         is_async: false,
-        docs: r#"# Map.remove(this: map, key: unknown) -> unknown
+        docs: r#"# Map::remove(this: map, key: unknown) -> unknown
 Remove the value with the given key and return it, or null if the key isn't present.
 ```rust
 const map = {"a": 1, "b": 2};

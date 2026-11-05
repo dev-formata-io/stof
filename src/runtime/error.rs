@@ -466,6 +466,8 @@ pub enum Error {
 
     StackError,
     ExecutionTimeout,
+    MemoryLimit(usize),
+    Sealed(String),
     StackOverflow,
     SelfStackError,
     NewStackError,
@@ -665,6 +667,8 @@ impl Error {
             Self::AssignExistingRoot => "a root with this name already exists".into(),
 
             Self::ExecutionTimeout => "execution timed out (max execution time exceeded)".into(),
+            Self::Sealed(why) => format!("sealed: {why}"),
+            Self::MemoryLimit(max) => format!("memory limit exceeded: a call can use up to {} more memory (the host's max memory)", crate::runtime::memory::mb(*max)),
             Self::StackOverflow => "stack overflow (too many values on the stack)".into(),
             Self::CallStackOverflow => "call stack overflow (calls nested too deeply - infinite recursion?)".into(),
             Self::StackError |

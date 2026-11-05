@@ -25,7 +25,7 @@ pub fn stof_exit() -> LibFunc {
         library: STD_LIB.clone(),
         name: "exit".into(),
         is_async: false,
-        docs: r#"# Std.exit(..) -> void
+        docs: r#"# Std::exit(..) -> void
 Immediately terminates this (or another) Stof process. Pass a promise into this function to terminate it's processes execution.
 ```rust
 const promise = async {

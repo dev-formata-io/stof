@@ -1203,6 +1203,7 @@ impl Val {
             Self::Blob(blob) => {
                 match target {
                     Type::List => {
+                        crate::runtime::memory::check_elements(graph.max_memory, blob.len(), crate::runtime::memory::ELEMENT_COST)?;
                         *self = Self::List(blob.iter().map(|byte| ValRef::new(Self::Num(Num::Int((*byte) as i64)))).collect());
                         Ok(())
                     },
@@ -1348,6 +1349,7 @@ impl Val {
             Self::Str(val) => {
                 match target {
                     Type::List => {
+                        crate::runtime::memory::check_elements(graph.max_memory, val.len(), crate::runtime::memory::ELEMENT_COST)?;
                         let mut list = Vector::new();
                         for char in val.as_str().chars() {
                             list.push_back(ValRef::new(Self::Str(char.to_string().into())));
@@ -1356,6 +1358,7 @@ impl Val {
                         Ok(())
                     },
                     Type::Set => {
+                        crate::runtime::memory::check_elements(graph.max_memory, val.len(), crate::runtime::memory::ELEMENT_COST)?;
                         let mut set = OrdSet::new();
                         for char in val.as_str().chars() {
                             set.insert(ValRef::new(Self::Str(char.to_string().into())));
@@ -1408,8 +1411,10 @@ impl Val {
                         Ok(())
                     },
                     Type::List => {
+                        let text = prompt.to_string();
+                        crate::runtime::memory::check_elements(graph.max_memory, text.len(), crate::runtime::memory::ELEMENT_COST)?;
                         let mut list = Vector::new();
-                        for char in prompt.to_string().as_str().chars() {
+                        for char in text.as_str().chars() {
                             list.push_back(ValRef::new(Self::Str(char.to_string().into())));
                         }
                         *self = Self::List(list);
@@ -2350,8 +2355,10 @@ impl Val {
                         Ok(())
                     },
                     Self::Num(num) => {
-                        let mut other = String::default();
-                        for _ in 0..num.int() {
+                        let times = num.int().max(0) as usize;
+                        crate::runtime::memory::check_elements(graph.max_memory, times, val.len())?;
+                        let mut other = String::with_capacity(times * val.len());
+                        for _ in 0..times {
                             other.push_str(&val);
                         }
                         *val = other.into();

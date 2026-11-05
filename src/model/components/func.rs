@@ -58,6 +58,7 @@ macro_rules! params {
 pub struct Func {
     pub params: Params,
     pub return_type: Type,
+    #[serde(serialize_with = "crate::model::seal::serialize_attributes")]
     pub attributes: FxHashMap<String, Val>,
     pub instructions: Vector<Arc<dyn Instruction>>,
 

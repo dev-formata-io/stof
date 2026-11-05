@@ -36,7 +36,7 @@ fn tup_len() -> LibFunc {
         library: TUP_LIB.clone(),
         name: "len".into(),
         is_async: false,
-        docs: r#"# Tup.len(tup: (..)) -> int
+        docs: r#"# Tup::len(tup: (..)) -> int
 Return the length of this tuple.
 ```rust
 const tup = ("hi", 42, true);
@@ -64,7 +64,7 @@ fn tup_at() -> LibFunc {
         library: TUP_LIB.clone(),
         name: "at".into(),
         is_async: false,
-        docs: r#"# Tup.at(tup: (..), index: int) -> unknown
+        docs: r#"# Tup::at(tup: (..), index: int) -> unknown
 Return the value (optionally by reference) at the given index in the tuple.
 ```rust
 const tup = ("hi", 42, true);

@@ -16,6 +16,19 @@ export class Stof {
         wasm.__wbg_stof_free(ptr, 0);
     }
     /**
+     * Attributes the html format writes only when allowed: `style`, `action`, and `formaction` (off by default).
+     * Documents can't change it. Calling it again adds attributes.
+     * @param {string[]} attributes
+     */
+    allowHtmlAttributes(attributes) {
+        const ptr0 = passArrayJsValueToWasm0(attributes, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.stof_allowHtmlAttributes(this.__wbg_ptr, ptr0, len0);
+        if (ret[1]) {
+            throw takeFromExternrefTable0(ret[0]);
+        }
+    }
+    /**
      * Elements the html format may write (Ex. the components your page renders): only these, instead of the
      * standard HTML elements and custom elements. Documents can't change it. Calling it again adds elements.
      * @param {string[]} tags
@@ -74,37 +87,30 @@ export class Stof {
         return ret[0] !== 0;
     }
     /**
-     * Call a function from Stof source without adding it to the document.
-     * The source's first function runs with self as the node (an object path or ID, the root by default),
-     * and everything the source declares is removed after the call.
-     * @param {string} src
-     * @param {any} args
-     * @param {any} node
-     * @param {Function} acquire
-     * @param {Function} release
-     * @returns {Promise<any>}
-     */
-    call_source_with_gate(src, args, node, acquire, release) {
-        const ptr0 = passStringToWasm0(src, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.stof_call_source_with_gate(this.__wbg_ptr, ptr0, len0, args, node, acquire, release);
-        return ret;
-    }
-    /**
-     * Call a singular function in the document (by path).
-     * If no arguments, pass undefined as args.
-     * Otherwise, pass an array of arguments as args.
+     * The seal digest of an object (path, or a type as "<Name>"), with its fields' values when `fields`.
      * @param {string} path
-     * @param {any} args
-     * @param {Function} acquire
-     * @param {Function} release
-     * @returns {Promise<any>}
+     * @param {boolean | null} [fields]
+     * @returns {string}
      */
-    call_with_gate(path, args, acquire, release) {
-        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.stof_call_with_gate(this.__wbg_ptr, ptr0, len0, args, acquire, release);
-        return ret;
+    digest(path, fields) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.stof_digest(this.__wbg_ptr, ptr0, len0, isLikeNone(fields) ? 0xFFFFFF : fields ? 1 : 0);
+            var ptr2 = ret[0];
+            var len2 = ret[1];
+            if (ret[3]) {
+                ptr2 = 0; len2 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred3_0 = ptr2;
+            deferred3_1 = len2;
+            return getStringFromWasm0(ptr2, len2);
+        } finally {
+            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
     }
     /**
      * Get the ID of this document as a string.
@@ -121,6 +127,17 @@ export class Stof {
         } finally {
             wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
+    }
+    /**
+     * End a task with this error (Ex. the host's call gate failed): `result` or `report` returns it.
+     * @param {StofTask} task
+     * @param {string} message
+     */
+    fail(task, message) {
+        _assertClass(task, StofTask);
+        const ptr0 = passStringToWasm0(message, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.stof_fail(this.__wbg_ptr, task.__wbg_ptr, ptr0, len0);
     }
     /**
      * Get a value from this graph using the Stof runtime (all language features supported).
@@ -229,16 +246,78 @@ export class Stof {
         return ret[0] !== 0;
     }
     /**
-     * Run functions with the given attribute(s) in this document.
-     * Attributes defaults to #[main] functions if null or undefined.
-     * @param {any} attributes
-     * @param {Function} acquire
-     * @param {Function} release
-     * @returns {Promise<string>}
+     * A finished run's report (`start_run`).
+     * @param {StofTask} task
+     * @returns {string}
      */
-    run_with_gate(attributes, acquire, release) {
-        const ret = wasm.stof_run_with_gate(this.__wbg_ptr, attributes, acquire, release);
-        return ret;
+    report(task) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            _assertClass(task, StofTask);
+            const ret = wasm.stof_report(this.__wbg_ptr, task.__wbg_ptr);
+            var ptr1 = ret[0];
+            var len1 = ret[1];
+            if (ret[3]) {
+                ptr1 = 0; len1 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred2_0 = ptr1;
+            deferred2_1 = len1;
+            return getStringFromWasm0(ptr1, len1);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+    /**
+     * A finished call's result (`start_call`, `start_call_source`).
+     * @param {StofTask} task
+     * @returns {any}
+     */
+    result(task) {
+        _assertClass(task, StofTask);
+        const ret = wasm.stof_result(this.__wbg_ptr, task.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * Seal an object (path, or a type as "<Name>") and everything under it: its functions can be called but not
+     * changed (see `model::seal`). With `fields`, its fields are frozen too. With `expected`, only if its digest is
+     * that. With `public_key` and `signature`, only if the digest is signed by that key. Returns the digest.
+     * @param {string} path
+     * @param {boolean | null} [fields]
+     * @param {string | null} [expected]
+     * @param {string | null} [public_key]
+     * @param {string | null} [signature]
+     * @returns {string}
+     */
+    seal(path, fields, expected, public_key, signature) {
+        let deferred6_0;
+        let deferred6_1;
+        try {
+            const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            var ptr1 = isLikeNone(expected) ? 0 : passStringToWasm0(expected, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            var len1 = WASM_VECTOR_LEN;
+            var ptr2 = isLikeNone(public_key) ? 0 : passStringToWasm0(public_key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            var len2 = WASM_VECTOR_LEN;
+            var ptr3 = isLikeNone(signature) ? 0 : passStringToWasm0(signature, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            var len3 = WASM_VECTOR_LEN;
+            const ret = wasm.stof_seal(this.__wbg_ptr, ptr0, len0, isLikeNone(fields) ? 0xFFFFFF : fields ? 1 : 0, ptr1, len1, ptr2, len2, ptr3, len3);
+            var ptr5 = ret[0];
+            var len5 = ret[1];
+            if (ret[3]) {
+                ptr5 = 0; len5 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred6_0 = ptr5;
+            deferred6_1 = len5;
+            return getStringFromWasm0(ptr5, len5);
+        } finally {
+            wasm.__wbindgen_free(deferred6_0, deferred6_1, 1);
+        }
     }
     /**
      * How long a call can run, in milliseconds, before it fails with an execution timeout (null for no limit).
@@ -247,6 +326,17 @@ export class Stof {
      */
     setMaxExecutionTime(ms) {
         const ret = wasm.stof_setMaxExecutionTime(this.__wbg_ptr, !isLikeNone(ms), isLikeNone(ms) ? 0 : ms);
+        if (ret[1]) {
+            throw takeFromExternrefTable0(ret[0]);
+        }
+    }
+    /**
+     * How much memory a call can use, in bytes, before it fails with a memory limit error (null for no limit).
+     * Defaults to 268,435,456 (256 MB).
+     * @param {number | null} [bytes]
+     */
+    setMaxMemory(bytes) {
+        const ret = wasm.stof_setMaxMemory(this.__wbg_ptr, !isLikeNone(bytes), isLikeNone(bytes) ? 0 : bytes);
         if (ret[1]) {
             throw takeFromExternrefTable0(ret[0]);
         }
@@ -266,6 +356,64 @@ export class Stof {
             throw takeFromExternrefTable0(ret[1]);
         }
         return ret[0] !== 0;
+    }
+    /**
+     * Start a call to a function in the document (by path), as a task the host runs with `step` and then
+     * `result` (doc.ts `call`). Pass an array of arguments, or undefined for none.
+     * @param {string} path
+     * @param {any} args
+     * @returns {StofTask}
+     */
+    start_call(path, args) {
+        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.stof_start_call(this.__wbg_ptr, ptr0, len0, args);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return StofTask.__wrap(ret[0]);
+    }
+    /**
+     * Start a call to a function from Stof source without adding it to the document, as a task the host runs
+     * with `step` and then `result` (doc.ts `callSource`). The source's first function runs with self as the node
+     * (an object path or ID, the root by default), and everything the source declares is removed after the call.
+     * @param {string} src
+     * @param {any} args
+     * @param {any} node
+     * @returns {StofTask}
+     */
+    start_call_source(src, args, node) {
+        const ptr0 = passStringToWasm0(src, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.stof_start_call_source(this.__wbg_ptr, ptr0, len0, args, node);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return StofTask.__wrap(ret[0]);
+    }
+    /**
+     * Start running functions with the given attribute(s) in this document (#[main] by default), as a task the
+     * host runs with `step` and then `report` (doc.ts `run`).
+     * @param {any} attributes
+     * @returns {StofTask}
+     */
+    start_run(attributes) {
+        const ret = wasm.stof_start_run(this.__wbg_ptr, attributes);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return StofTask.__wrap(ret[0]);
+    }
+    /**
+     * Run one step of a task: 0 when it's finished, 1 for more, 2 for more after yielding to the event loop.
+     * A document that's busy (another step holds it) ends the task with that error (returns 0).
+     * @param {StofTask} task
+     * @returns {number}
+     */
+    step(task) {
+        _assertClass(task, StofTask);
+        const ret = wasm.stof_step(this.__wbg_ptr, task.__wbg_ptr);
+        return ret;
     }
     /**
      * String export, using a format of choice.
@@ -374,6 +522,18 @@ export class Stof {
             wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
         }
     }
+    /**
+     * Unseal an object that `seal` sealed (path, or a type as "<Name>").
+     * @param {string} path
+     */
+    unseal(path) {
+        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.stof_unseal(this.__wbg_ptr, ptr0, len0);
+        if (ret[1]) {
+            throw takeFromExternrefTable0(ret[0]);
+        }
+    }
 }
 if (Symbol.dispose) Stof.prototype[Symbol.dispose] = Stof.prototype.free;
 
@@ -440,6 +600,30 @@ export class StofFunc {
 }
 if (Symbol.dispose) StofFunc.prototype[Symbol.dispose] = StofFunc.prototype.free;
 
+/**
+ * A call in progress (see `Stof::step`): the host runs it one step at a time, so a trap in the engine ends the
+ * call with an error the host can catch.
+ */
+export class StofTask {
+    static __wrap(ptr) {
+        const obj = Object.create(StofTask.prototype);
+        obj.__wbg_ptr = ptr;
+        StofTaskFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        StofTaskFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_stoftask_free(ptr, 0);
+    }
+}
+if (Symbol.dispose) StofTask.prototype[Symbol.dispose] = StofTask.prototype.free;
+
 export function start() {
     wasm.start();
 }
@@ -497,6 +681,79 @@ export function stofOutline(text) {
     } finally {
         wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
     }
+}
+
+/**
+ * The Ed25519 public key (base64) for a secret key (base64 or hex, 32 bytes).
+ * @param {string} secret_key
+ * @returns {string}
+ */
+export function stofPublicKey(secret_key) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(secret_key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.stofPublicKey(ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
+ * Sign a seal digest with an Ed25519 secret key (base64 or hex, 32 bytes): the signature, base64.
+ * @param {string} digest
+ * @param {string} secret_key
+ * @returns {string}
+ */
+export function stofSign(digest, secret_key) {
+    let deferred4_0;
+    let deferred4_1;
+    try {
+        const ptr0 = passStringToWasm0(digest, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(secret_key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.stofSign(ptr0, len0, ptr1, len1);
+        var ptr3 = ret[0];
+        var len3 = ret[1];
+        if (ret[3]) {
+            ptr3 = 0; len3 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred4_0 = ptr3;
+        deferred4_1 = len3;
+        return getStringFromWasm0(ptr3, len3);
+    } finally {
+        wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
+    }
+}
+
+/**
+ * Is this an Ed25519 signature (base64 or hex) over this seal digest by this public key (base64 or hex)?
+ * @param {string} digest
+ * @param {string} public_key
+ * @param {string} signature
+ * @returns {boolean}
+ */
+export function stofVerify(digest, public_key, signature) {
+    const ptr0 = passStringToWasm0(digest, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(public_key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(signature, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ret = wasm.stofVerify(ptr0, len0, ptr1, len1, ptr2, len2);
+    return ret !== 0;
 }
 function __wbg_get_imports() {
     const import0 = {
@@ -641,10 +898,6 @@ function __wbg_get_imports() {
         __wbg_getRandomValues_c44a50d8cfdaebeb: function() { return handleError(function (arg0, arg1) {
             arg0.getRandomValues(arg1);
         }, arguments); },
-        __wbg_get_31af05bd4842a84f: function() { return handleError(function (arg0, arg1) {
-            const ret = Reflect.get(arg0, arg1);
-            return ret;
-        }, arguments); },
         __wbg_get_658f6698067d9515: function() { return handleError(function (arg0, arg1) {
             const ret = Reflect.get(arg0, arg1);
             return ret;
@@ -778,24 +1031,6 @@ function __wbg_get_imports() {
             const ret = new Set(arg0);
             return ret;
         },
-        __wbg_new_5502aad30c185fc8: function(arg0, arg1) {
-            try {
-                var state0 = {a: arg0, b: arg1};
-                var cb0 = (arg0, arg1) => {
-                    const a = state0.a;
-                    state0.a = 0;
-                    try {
-                        return wasm_bindgen_3b9afeaa82ee37f3___convert__closures_____invoke___js_sys_5d800256f981837c___Function_fn_wasm_bindgen_3b9afeaa82ee37f3___JsValue_____wasm_bindgen_3b9afeaa82ee37f3___sys__Undefined___js_sys_5d800256f981837c___Function_fn_wasm_bindgen_3b9afeaa82ee37f3___JsValue_____wasm_bindgen_3b9afeaa82ee37f3___sys__Undefined_______true_(a, state0.b, arg0, arg1);
-                    } finally {
-                        state0.a = a;
-                    }
-                };
-                const ret = new Promise(cb0);
-                return ret;
-            } finally {
-                state0.a = 0;
-            }
-        },
         __wbg_new_ee2291f50781bf1d: function() {
             const ret = new Array();
             return ret;
@@ -803,24 +1038,6 @@ function __wbg_get_imports() {
         __wbg_new_from_slice_9a868026ffa4208a: function(arg0, arg1) {
             const ret = new Uint8Array(getArrayU8FromWasm0(arg0, arg1));
             return ret;
-        },
-        __wbg_new_typed_b01cb72a8af741a3: function(arg0, arg1) {
-            try {
-                var state0 = {a: arg0, b: arg1};
-                var cb0 = (arg0, arg1) => {
-                    const a = state0.a;
-                    state0.a = 0;
-                    try {
-                        return wasm_bindgen_3b9afeaa82ee37f3___convert__closures_____invoke___js_sys_5d800256f981837c___Function_fn_wasm_bindgen_3b9afeaa82ee37f3___JsValue_____wasm_bindgen_3b9afeaa82ee37f3___sys__Undefined___js_sys_5d800256f981837c___Function_fn_wasm_bindgen_3b9afeaa82ee37f3___JsValue_____wasm_bindgen_3b9afeaa82ee37f3___sys__Undefined_______true_(a, state0.b, arg0, arg1);
-                    } finally {
-                        state0.a = a;
-                    }
-                };
-                const ret = new Promise(cb0);
-                return ret;
-            } finally {
-                state0.a = 0;
-            }
         },
         __wbg_new_with_length_3da0ad195f6f63ba: function(arg0) {
             const ret = new Uint8Array(arg0 >>> 0);
@@ -939,7 +1156,7 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbindgen_generic_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 8865, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 8948, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_3b9afeaa82ee37f3___convert__closures_____invoke___wasm_bindgen_3b9afeaa82ee37f3___JsValue__core_608f92abc48d28da___result__Result_____wasm_bindgen_3b9afeaa82ee37f3___JsError___true_);
             return ret;
         },
@@ -991,16 +1208,15 @@ function wasm_bindgen_3b9afeaa82ee37f3___convert__closures_____invoke___wasm_bin
     }
 }
 
-function wasm_bindgen_3b9afeaa82ee37f3___convert__closures_____invoke___js_sys_5d800256f981837c___Function_fn_wasm_bindgen_3b9afeaa82ee37f3___JsValue_____wasm_bindgen_3b9afeaa82ee37f3___sys__Undefined___js_sys_5d800256f981837c___Function_fn_wasm_bindgen_3b9afeaa82ee37f3___JsValue_____wasm_bindgen_3b9afeaa82ee37f3___sys__Undefined_______true_(arg0, arg1, arg2, arg3) {
-    wasm.wasm_bindgen_3b9afeaa82ee37f3___convert__closures_____invoke___js_sys_5d800256f981837c___Function_fn_wasm_bindgen_3b9afeaa82ee37f3___JsValue_____wasm_bindgen_3b9afeaa82ee37f3___sys__Undefined___js_sys_5d800256f981837c___Function_fn_wasm_bindgen_3b9afeaa82ee37f3___JsValue_____wasm_bindgen_3b9afeaa82ee37f3___sys__Undefined_______true_(arg0, arg1, arg2, arg3);
-}
-
 const StofFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_stof_free(ptr, 1));
 const StofFuncFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_stoffunc_free(ptr, 1));
+const StofTaskFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_stoftask_free(ptr, 1));
 
 function addToExternrefTable0(obj) {
     const idx = wasm.__externref_table_alloc();

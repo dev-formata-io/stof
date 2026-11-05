@@ -20,7 +20,7 @@ use imbl::{Vector, vector};
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use crate::{model::{Graph, string::ops::{str_at, str_contains, str_ends_with, str_find_matches, str_first, str_index_of, str_last, str_len, str_lower, str_matches, str_push, str_replace, str_split, str_starts_with, str_substr, str_trim, str_trim_end, str_trim_start, str_upper}}, runtime::{Error, Num, Val, ValRef, Variable, instruction::{Instruction, Instructions}, proc::ProcEnv}};
+use crate::{model::{Graph, string::ops::{str_at, str_contains, str_ends_with, str_find_matches, str_first, str_index_of, str_last, str_len, str_lower, str_matches, str_push, str_replace, str_split, str_starts_with, str_substr, str_trim, str_trim_end, str_trim_start, str_upper}}, runtime::{Error, Num, Val, ValRef, Variable, instruction::{Instruction, Instructions}, memory, proc::ProcEnv}};
 
 mod ops;
 
@@ -296,6 +296,14 @@ impl Instruction for StrIns {
                                         Val::Str(find) => {
                                             match var.val.read().deref() {
                                                 Val::Str(val) => {
+                                                    if replace_with.len() > find.len() {
+                                                        // the result can be many times the input: check its size first
+                                                        let most = (val.len() / find.len().max(1) + 1).saturating_mul(replace_with.len()).saturating_add(val.len());
+                                                        if env.max_memory.is_some_and(|max| most > max) {
+                                                            let count = if find.is_empty() { val.chars().count() + 1 } else { val.matches(find.as_str()).count() };
+                                                            memory::check_size(env.max_memory, count.saturating_mul(replace_with.len() - find.len()).saturating_add(val.len()))?;
+                                                        }
+                                                    }
                                                     let v = val.replace(find.as_str(), replace_with.as_str());
                                                     env.stack.push(Variable::val(Val::Str(ArcStr::from(v))));
                                                     return Ok(None);
@@ -320,6 +328,12 @@ impl Instruction for StrIns {
                             Val::Str(split) => {
                                 match var.val.read().deref() {
                                     Val::Str(str) => {
+                                        // each piece is a list element: check how many there can be first
+                                        let most = if split.is_empty() { str.len() + 2 } else { str.len() / split.len() + 1 };
+                                        if env.max_memory.is_some_and(|max| most.saturating_mul(memory::ELEMENT_COST) > max) {
+                                            let count = if split.is_empty() { str.chars().count() + 2 } else { str.matches(split.as_str()).count() + 1 };
+                                            memory::check_elements(env.max_memory, count, memory::ELEMENT_COST)?;
+                                        }
                                         let list = str.split(split.as_str())
                                             .map(|v| ValRef::new(Val::Str(ArcStr::from(v))))
                                             .collect::<Vector<ValRef<Val>>>();

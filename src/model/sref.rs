@@ -102,6 +102,7 @@ impl NodeRef {
 
     /// Set name of this node.
     pub fn rename_node(&self, graph: &mut Graph, name: impl Into<SId>) -> bool {
+        if !graph.seals.nodes.is_empty() && !graph.may_move_node(self) { return false; }
         if let Some(node) = self.node_mut(graph) {
             node.set_name(name.into())
         } else {

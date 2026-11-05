@@ -369,6 +369,9 @@ impl<'ctx> ParseContext<'ctx> {
             merged.insert(key, value);
         }
         *attributes = merged;
+        if !attributes.is_empty() && !self.graph.seals.nodes.is_empty() && !self.graph.may_change_node(&nref) {
+            return self.enter_self(name, nref, attributes); // reported when the parse ends
+        }
         if let Some(node) = nref.node_mut(&mut self.graph) {
             for (key, value) in attributes.iter() {
                 node.attributes.insert(key.clone(), value.clone());

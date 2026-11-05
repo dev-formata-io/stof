@@ -66,7 +66,7 @@ fn list_append() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "append".into(),
         is_async: false,
-        docs: r#"# List.append(array: list, other: list) -> void
+        docs: r#"# List::append(array: list, other: list) -> void
 Append another list to this list, leaving other unmodified.
 ```rust
 const array = [1, 2, 3];
@@ -94,7 +94,7 @@ fn list_push_back() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "push_back".into(),
         is_async: false,
-        docs: r#"# List.push_back(array: list, ..) -> void
+        docs: r#"# List::push_back(array: list, ..) -> void
 Push N values to the back of this list.
 ```rust
 const array = [1, 2, 3];
@@ -121,7 +121,7 @@ fn list_push_front() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "push_front".into(),
         is_async: false,
-        docs: r#"# List.push_front(array: list, ..) -> void
+        docs: r#"# List::push_front(array: list, ..) -> void
 Push N values to the front of this list.
 ```rust
 const array = [1, 2, 3];
@@ -148,7 +148,7 @@ fn list_pop_front() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "pop_front".into(),
         is_async: false,
-        docs: r#"# List.pop_front(array: list) -> unknown
+        docs: r#"# List::pop_front(array: list) -> unknown
 Remove a single value from the front of this list and return it. 
 ```rust
 const array = [1, 2, 3];
@@ -175,7 +175,7 @@ fn list_pop_back() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "pop_back".into(),
         is_async: false,
-        docs: r#"# List.pop_back(array: list) -> unknown
+        docs: r#"# List::pop_back(array: list) -> unknown
 Remove a single value from the back of this list and return it. 
 ```rust
 const array = [1, 2, 3];
@@ -202,7 +202,7 @@ fn list_clear() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "clear".into(),
         is_async: false,
-        docs: r#"# List.clear(array: list) -> void
+        docs: r#"# List::clear(array: list) -> void
 Clear all values from this list.
 ```rust
 const array = [1, 2, 3];
@@ -229,7 +229,7 @@ fn list_reverse() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "reverse".into(),
         is_async: false,
-        docs: r#"# List.reverse(array: list) -> void
+        docs: r#"# List::reverse(array: list) -> void
 Reverses this list in-place.
 ```rust
 const array = [1, 2, 3];
@@ -256,7 +256,7 @@ fn list_reversed() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "reversed".into(),
         is_async: false,
-        docs: r#"# List.reversed(array: list) -> list
+        docs: r#"# List::reversed(array: list) -> list
 Return a new list that is reversed, leaving this list unmodified.
 ```rust
 const array = [1, 2, 3];
@@ -284,7 +284,7 @@ fn list_len() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "len".into(),
         is_async: false,
-        docs: r#"# List.len(array: list) -> int
+        docs: r#"# List::len(array: list) -> int
 Return the length of this list.
 ```rust
 const array = [1, 2, 3];
@@ -310,11 +310,11 @@ fn list_at() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "at".into(),
         is_async: false,
-        docs: r#"# List.at(array: list, index: int) -> unknown
+        docs: r#"# List::at(array: list, index: int) -> unknown
 Get the value at the given index, optionally by reference. 
 ```rust
 const array = [1, 2, 3];
-let v = &array[1]; // &List.at(array, 1);
+let v = &array[1]; // &List::at(array, 1);
 v = 5;
 assert_eq(array, [1, 5, 3]);
 ```"#.into(),
@@ -343,7 +343,7 @@ fn list_empty() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "empty".into(),
         is_async: false,
-        docs: r#"# List.empty(array: list) -> bool
+        docs: r#"# List::empty(array: list) -> bool
 Is this list empty?
 ```rust
 const array = [1];
@@ -370,7 +370,7 @@ fn list_front() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "front".into(),
         is_async: false,
-        docs: r#"# List.front(array: list) -> unknown
+        docs: r#"# List::front(array: list) -> unknown
 Get the value at the front of this list, optionally by reference.
 ```rust
 const array = [1];
@@ -400,7 +400,7 @@ fn list_back() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "back".into(),
         is_async: false,
-        docs: r#"# List.back(array: list) -> unknown
+        docs: r#"# List::back(array: list) -> unknown
 Get the value at the back of this list, optionally by reference.
 ```rust
 const array = [1, 2];
@@ -430,7 +430,7 @@ fn list_join() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "join".into(),
         is_async: false,
-        docs: r#"# List.join(array: list, sep: str) -> str
+        docs: r#"# List::join(array: list, sep: str) -> str
 Join the values in this array together into a single string.
 ```rust
 const array = ["hello", "world"];
@@ -457,7 +457,7 @@ fn list_contains() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "contains".into(),
         is_async: false,
-        docs: r#"# List.contains(array: list, value: unknown) -> bool
+        docs: r#"# List::contains(array: list, value: unknown) -> bool
 Does this list contain the given value?
 ```rust
 const array = [1];
@@ -484,7 +484,7 @@ fn list_index_of() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "index_of".into(),
         is_async: false,
-        docs: r#"# List.index_of(array: list, v: unknown) -> int
+        docs: r#"# List::index_of(array: list, v: unknown) -> int
 If the list contains the given value, return the index of the first matched value. Returns -1 if the list does not contain the given value.
 ```rust
 const array = [1, 2, 3];
@@ -511,7 +511,7 @@ fn list_remove() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "remove".into(),
         is_async: false,
-        docs: r#"# List.remove(array: list, index: int) -> unknown
+        docs: r#"# List::remove(array: list, index: int) -> unknown
 Remove a value at the given index and return it. Returns null if index is out of bounds.
 ```rust
 const array = [1];
@@ -539,7 +539,7 @@ fn list_remove_first() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "remove_first".into(),
         is_async: false,
-        docs: r#"# List.remove_first(array: list, val: unknown) -> unknown
+        docs: r#"# List::remove_first(array: list, val: unknown) -> unknown
 Remove the first occurrance of a value in this array (equals) and return it.
 ```rust
 const array = [2, 1, 1, 2];
@@ -567,7 +567,7 @@ fn list_remove_last() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "remove_last".into(),
         is_async: false,
-        docs: r#"# List.remove_last(array: list, val: unknown) -> unknown
+        docs: r#"# List::remove_last(array: list, val: unknown) -> unknown
 Remove the last occurrance of a value in this array (equals) and return it.
 ```rust
 const array = [2, 1, 1, 2];
@@ -595,7 +595,7 @@ fn list_remove_all() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "remove_all".into(),
         is_async: false,
-        docs: r#"# List.remove_all(array: list, val: unknown) -> bool
+        docs: r#"# List::remove_all(array: list, val: unknown) -> bool
 Remove all occurrances of a value in this array (equals) and return true if any were removed.
 ```rust
 const array = [2, 1, 1, 2];
@@ -623,7 +623,7 @@ fn list_insert() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "insert".into(),
         is_async: false,
-        docs: r#"# List.insert(array: list, index: int, val: unknown) -> void
+        docs: r#"# List::insert(array: list, index: int, val: unknown) -> void
 Insert a value into this list at the given index.
 ```rust
 const array = [2, 1];
@@ -652,7 +652,7 @@ fn list_replace() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "replace".into(),
         is_async: false,
-        docs: r#"# List.replace(array: list, index: int, val: unknown) -> unknown
+        docs: r#"# List::replace(array: list, index: int, val: unknown) -> unknown
 Replace/set the value at the given index with a new value, returning the old.
 ```rust
 const array = [2, 1];
@@ -681,7 +681,7 @@ fn list_sort() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "sort".into(),
         is_async: false,
-        docs: r#"# List.sort(array: list) -> void
+        docs: r#"# List::sort(array: list) -> void
 Sort the values in this array according to their already defined ordering.
 ```rust
 const array = [2, 1, 4, 3];
@@ -708,7 +708,7 @@ fn list_sort_by() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "sort_by".into(),
         is_async: false,
-        docs: r#"# List.sort_by(array: list, func: fn) -> void
+        docs: r#"# List::sort_by(array: list, func: fn) -> void
 Sort the values in this array according to a function that takes two list arguments and returns an integer (< 0 for less, > 0 for greater, and 0 for equal). The sort is stable (equal values keep their order), and an error in the function fails the sort.
 ```rust
 const array = [2, 1, 4, 3];
@@ -740,7 +740,7 @@ fn list_is_uniform() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "is_uniform".into(),
         is_async: false,
-        docs: r#"# List.is_uniform(array: list) -> bool
+        docs: r#"# List::is_uniform(array: list) -> bool
 Returns true if every value in this list has the same specific type (does not account for object prototype inheritance).
 ```rust
 const array = ["hi", true];
@@ -766,7 +766,7 @@ fn list_to_uniform() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "to_uniform".into(),
         is_async: false,
-        docs: r#"# List.to_uniform(array: list, type: str) -> void
+        docs: r#"# List::to_uniform(array: list, type: str) -> void
 Try casting all values in this list to the given type (given as a string like you would in a Stof file). Will throw an error if a value cannot be cast.
 ```rust
 const array = [1, "hi", true];

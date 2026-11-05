@@ -25,7 +25,7 @@ pub fn str_len() -> LibFunc {
         library: STR_LIB.clone(),
         name: "len".into(),
         is_async: false,
-        docs: r#"# Str.len(val: str) -> int
+        docs: r#"# Str::len(val: str) -> int
 Returns the length (number of characters) in this string.
 ```rust
 assert_eq("hello".len(), 5);
@@ -51,7 +51,7 @@ pub fn str_at() -> LibFunc {
         library: STR_LIB.clone(),
         name: "at".into(),
         is_async: false,
-        docs: r#"# Str.at(val: str, index: int) -> str
+        docs: r#"# Str::at(val: str, index: int) -> str
 Returns the character at the given byte index within the string (indexes are bytes, like `len` and `index_of`; an index inside a multibyte character gives that character), or the last character if the index is out of bounds. An empty string gives an empty string.
 ```rust
 const val = "hello";
@@ -79,7 +79,7 @@ pub fn str_first() -> LibFunc {
         library: STR_LIB.clone(),
         name: "first".into(),
         is_async: false,
-        docs: r#"# Str.first(val: str) -> str
+        docs: r#"# Str::first(val: str) -> str
 Return the first char (as a string) in this string.
 ```rust
 const val = "hello";
@@ -106,7 +106,7 @@ pub fn str_last() -> LibFunc {
         library: STR_LIB.clone(),
         name: "last".into(),
         is_async: false,
-        docs: r#"# Str.last(val: str) -> str
+        docs: r#"# Str::last(val: str) -> str
 Return the last char (as a string) in this string.
 ```rust
 const val = "hello";
@@ -133,7 +133,7 @@ pub fn str_starts_with() -> LibFunc {
         library: STR_LIB.clone(),
         name: "starts_with".into(),
         is_async: false,
-        docs: r#"# Str.starts_with(val: str, seq: str) -> bool
+        docs: r#"# Str::starts_with(val: str, seq: str) -> bool
 Does this string start with the given string sequence?
 ```rust
 const val = "hello";
@@ -161,7 +161,7 @@ pub fn str_ends_with() -> LibFunc {
         library: STR_LIB.clone(),
         name: "ends_with".into(),
         is_async: false,
-        docs: r#"# Str.ends_with(val: str, seq: str) -> bool
+        docs: r#"# Str::ends_with(val: str, seq: str) -> bool
 Does this string end with the given string sequence?
 ```rust
 const val = "hello";
@@ -189,7 +189,7 @@ pub fn str_push() -> LibFunc {
         library: STR_LIB.clone(),
         name: "push".into(),
         is_async: false,
-        docs: r#"# Str.push(val: str, other: str) -> void
+        docs: r#"# Str::push(val: str, other: str) -> void
 Pushes another string to the back of this string, leaving the other string unmodified.
 ```rust
 const val = "hello";
@@ -218,7 +218,7 @@ pub fn str_contains() -> LibFunc {
         library: STR_LIB.clone(),
         name: "contains".into(),
         is_async: false,
-        docs: r#"# Str.contains(val: str, seq: str) -> bool
+        docs: r#"# Str::contains(val: str, seq: str) -> bool
 Return true if the sequence is found at least once anywhere in this string.
 ```rust
 const val = "hello, world";
@@ -246,7 +246,7 @@ pub fn str_index_of() -> LibFunc {
         library: STR_LIB.clone(),
         name: "index_of".into(),
         is_async: false,
-        docs: r#"# Str.index_of(val: str, seq: str) -> int
+        docs: r#"# Str::index_of(val: str, seq: str) -> int
 Find the first occurrance of the given sequence in this string, returning the index of the first char. If not found, returns -1.
 ```rust
 const val = "hello, world";
@@ -274,7 +274,7 @@ pub fn str_replace() -> LibFunc {
         library: STR_LIB.clone(),
         name: "replace".into(),
         is_async: false,
-        docs: r#"# Str.replace(val: str, find: str, replace: str = "") -> str
+        docs: r#"# Str::replace(val: str, find: str, replace: str = "") -> str
 Replace all occurrances of a find string with a replace string (default removes all occurrances). This will return a new string, without modifying the original.
 ```rust
 const val = "hello john";
@@ -303,7 +303,7 @@ pub fn str_split() -> LibFunc {
         library: STR_LIB.clone(),
         name: "split".into(),
         is_async: false,
-        docs: r#"# Str.split(val: str, sep: str = " ") -> list
+        docs: r#"# Str::split(val: str, sep: str = " ") -> list
 Splits a string into a list at the given separator.
 ```rust
 const val = "hello, world";
@@ -331,7 +331,7 @@ pub fn str_upper() -> LibFunc {
         library: STR_LIB.clone(),
         name: "upper".into(),
         is_async: false,
-        docs: r#"# Str.upper(val: str) -> str
+        docs: r#"# Str::upper(val: str) -> str
 Return a new string with all characters converted to uppercase.
 ```rust
 const val = "hello";
@@ -358,7 +358,7 @@ pub fn str_lower() -> LibFunc {
         library: STR_LIB.clone(),
         name: "lower".into(),
         is_async: false,
-        docs: r#"# Str.lower(val: str) -> str
+        docs: r#"# Str::lower(val: str) -> str
 Return a new string with all characters converted to lowercase.
 ```rust
 const val = "HELLO";
@@ -385,7 +385,7 @@ pub fn str_trim() -> LibFunc {
         library: STR_LIB.clone(),
         name: "trim".into(),
         is_async: false,
-        docs: r#"# Str.trim(val: str) -> str
+        docs: r#"# Str::trim(val: str) -> str
 Return a new string with the whitespace (newlines, tabs, and space characters) removed from the front and back.
 ```rust
 const val = "\n\thello\t\n";
@@ -412,7 +412,7 @@ pub fn str_trim_start() -> LibFunc {
         library: STR_LIB.clone(),
         name: "trim_start".into(),
         is_async: false,
-        docs: r#"# Str.trim_start(val: str) -> str
+        docs: r#"# Str::trim_start(val: str) -> str
 Return a new string with the whitespace (newlines, tabs, and space characters) removed from the front only.
 ```rust
 const val = "\n\thello\t\n";
@@ -439,7 +439,7 @@ pub fn str_trim_end() -> LibFunc {
         library: STR_LIB.clone(),
         name: "trim_end".into(),
         is_async: false,
-        docs: r#"# Str.trim_end(val: str) -> str
+        docs: r#"# Str::trim_end(val: str) -> str
 Return a new string with the whitespace (newlines, tabs, and space characters) removed from the back only.
 ```rust
 const val = "\n\thello\t\n";
@@ -466,7 +466,7 @@ pub fn str_substr() -> LibFunc {
         library: STR_LIB.clone(),
         name: "substring".into(),
         is_async: false,
-        docs: r#"# Str.substring(val: str, start: int = 0, end: int = -1) -> str
+        docs: r#"# Str::substring(val: str, start: int = 0, end: int = -1) -> str
 Return a new string that is the substring of the given value from a start index up to, but not including an end index. Indexes are bytes, like `len` and `index_of`; an index inside a multibyte character moves back to that character's start. Default start is the beginning of the string and the default end is the entire length of the string.
 ```rust
 const val = "hello, world";
@@ -497,7 +497,7 @@ pub fn str_matches() -> LibFunc {
         library: STR_LIB.clone(),
         name: "matches".into(),
         is_async: false,
-        docs: r#"# Str.matches(val: str, regex: str) -> bool
+        docs: r#"# Str::matches(val: str, regex: str) -> bool
 Return true if this string matches the provided regex string.
 ```rust
 const val = "I categorically deny having triskaidekaphobia.";
@@ -526,7 +526,7 @@ pub fn str_find_matches() -> LibFunc {
         library: STR_LIB.clone(),
         name: "find_matches".into(),
         is_async: false,
-        docs: r#"# Str.find_matches(val: str, regex: str) -> list
+        docs: r#"# Str::find_matches(val: str, regex: str) -> list
 Return a list of tuples "(content: str, start: int, end: int)" that represent all matches of the regex in the string vlaue.
 ```rust
 const val = "I categorically deny having triskaidekaphobia.";

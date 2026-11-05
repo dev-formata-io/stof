@@ -99,13 +99,19 @@ fn ternary_operator(input: &str) -> IResult<&str, (Arc<dyn Instruction>, Arc<dyn
 }
 
 
+/// Where a return in a block or switch expression goes (not an ID, so it's never a function's return tag).
+const BLOCK_RETURN_TAG: &str = "#block";
+
+
 /// Block expression.
 pub fn block_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
     let (input, mut statements) = block(input)?;
     if statements.is_empty() { return Ok((input, NOOP.clone())); }
 
-    // return statements within a block expression return at the block, not the function, so spoof it
-    let tmp = SId::default();
+    // return statements within a block expression return at the block, not the function, so spoof it. The tag is
+    // the same for every block: a return goes to the nearest one ahead (as when a function with a block recurses),
+    // and compiling the same source always gives the same instructions (seal digests rely on it).
+    let tmp = SId::from(BLOCK_RETURN_TAG);
     statements.push_front(PUSH_RETURN.clone());
     statements.push_front(Arc::new(Base::Literal(Val::Fn(tmp.clone()))));
 
@@ -121,8 +127,10 @@ pub fn switch_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParse
     let (input, mut statements) = switch_statement(input)?;
     if statements.is_empty() { return Ok((input, NOOP.clone())); }
 
-    // return statements within a block expression return at the block, not the function, so spoof it
-    let tmp = SId::default();
+    // return statements within a block expression return at the block, not the function, so spoof it. The tag is
+    // the same for every block: a return goes to the nearest one ahead (as when a function with a block recurses),
+    // and compiling the same source always gives the same instructions (seal digests rely on it).
+    let tmp = SId::from(BLOCK_RETURN_TAG);
     statements.push_front(PUSH_RETURN.clone());
     statements.push_front(Arc::new(Base::Literal(Val::Fn(tmp.clone()))));
 

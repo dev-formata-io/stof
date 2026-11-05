@@ -25,10 +25,10 @@ pub fn num_max() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "max".into(),
         is_async: false,
-        docs: r#"# Num.max(..) -> unknown
+        docs: r#"# Num::max(..) -> unknown
 Return the maximum value of all given arguments. If the argument is a collection, this will get the maximum value within that collection for comparison with the others. Will consider units if provided as well.
 ```rust
-assert_eq(Num.max(12, 23, 10, 42, 0), 42);
+assert_eq(Num::max(12, 23, 10, 42, 0), 42);
 ```
 "#.into(),
         params: crate::params![],
@@ -50,10 +50,10 @@ pub fn num_min() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "min".into(),
         is_async: false,
-        docs: r#"# Num.min(..) -> unknown
+        docs: r#"# Num::min(..) -> unknown
 Return the minimum value of all given arguments. If the argument is a collection, this will get the minimum value within that collection for comparison with the others. Will consider units if provided as well.
 ```rust
-assert_eq(Num.min(12, 23, 10, 42, 0), 0);
+assert_eq(Num::min(12, 23, 10, 42, 0), 0);
 ```
 "#.into(),
         params: crate::params![],

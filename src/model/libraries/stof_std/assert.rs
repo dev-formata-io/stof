@@ -25,7 +25,7 @@ pub fn throw() -> LibFunc {
         library: STD_LIB.clone(),
         name: "throw".into(),
         is_async: false,
-        docs: r#"# Std.throw(value: unknown = "Error") -> void
+        docs: r#"# Std::throw(value: unknown = "Error") -> void
 Throw an error with an optional value. Optionally catch this value within a try-catch block. Otherwise, this process will immediately hault executing with the given error.
 ```rust
 throw("error message");
@@ -52,7 +52,7 @@ pub fn assert() -> LibFunc {
         library: STD_LIB.clone(),
         name: "assert".into(),
         is_async: false,
-        docs: r#"# Std.assert(value: unknown = false, message: str = null) -> void
+        docs: r#"# Std::assert(value: unknown = false, message: str = null) -> void
 Throw an error if the given value is not truthy. An optional message comes first in the error.
 ```rust
 assert(true);
@@ -82,7 +82,7 @@ pub fn assert_not() -> LibFunc {
         library: STD_LIB.clone(),
         name: "assert_not".into(),
         is_async: false,
-        docs: r#"# Std.assert_not(value: unknown = true, message: str = null) -> void
+        docs: r#"# Std::assert_not(value: unknown = true, message: str = null) -> void
 Throw an error if the given value is truthy. An optional message comes first in the error.
 ```rust
 assert_not(false);
@@ -112,7 +112,7 @@ pub fn assert_eq() -> LibFunc {
         library: STD_LIB.clone(),
         name: "assert_eq".into(),
         is_async: false,
-        docs: r#"# Std.assert_eq(first: unknown, second: unknown, message: str = null) -> void
+        docs: r#"# Std::assert_eq(first: unknown, second: unknown, message: str = null) -> void
 Throw an error if the first value does not equal the second. An optional message comes first in the error.
 ```rust
 assert_eq('a', 'a');
@@ -143,7 +143,7 @@ pub fn assert_neq() -> LibFunc {
         library: STD_LIB.clone(),
         name: "assert_neq".into(),
         is_async: false,
-        docs: r#"# Std.assert_neq(first: unknown, second: unknown, message: str = null) -> void
+        docs: r#"# Std::assert_neq(first: unknown, second: unknown, message: str = null) -> void
 Throw an error if the first value equals the second. An optional message comes first in the error.
 ```rust
 assert_neq('a', 'b');
@@ -174,7 +174,7 @@ pub fn assert_null() -> LibFunc {
         library: STD_LIB.clone(),
         name: "assert_null".into(),
         is_async: false,
-        docs: r#"# Std.assert_null(value: unknown, message: str = null) -> void
+        docs: r#"# Std::assert_null(value: unknown, message: str = null) -> void
 Throw an error if the given value is not null (void, the result of a function without a return value, counts as null). An optional message comes first in the error.
 ```rust
 assert_null(null);
@@ -203,7 +203,7 @@ pub fn assert_not_null() -> LibFunc {
         library: STD_LIB.clone(),
         name: "assert_not_null".into(),
         is_async: false,
-        docs: r#"# Std.assert_not_null(value: unknown, message: str = null) -> void
+        docs: r#"# Std::assert_not_null(value: unknown, message: str = null) -> void
 Throw an error if the given value is null (or void). An optional message comes first in the error.
 ```rust
 assert_not_null(42);

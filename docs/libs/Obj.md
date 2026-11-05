@@ -6,12 +6,12 @@ Library that is linked to the 'obj' type.
 #[main]
 fn main() {
     const o = new {};
-    assert_eq(Obj.parent(o), self);
+    assert_eq(Obj::parent(o), self);
     assert_eq(o.parent(), self);
 }
 ```
 
-# Obj.any(obj: obj) -> bool
+# Obj::any(obj: obj) -> bool
 Returns true if this object has any data attached to it.
 ```rust
 const obj = new { x: 0, y: 0 };
@@ -19,7 +19,7 @@ assert(obj.any());
 ```
 
 
-# Obj.at(obj: obj, index: int) -> (str, unknown)
+# Obj::at(obj: obj, index: int) -> (str, unknown)
 Field (name, value) on this object at the given index, or null if the index is out of bounds.
 ```rust
 const obj = new { x: 0, y: 0 };
@@ -27,14 +27,14 @@ assert_eq(obj[1], ("y", 0));
 ```
 
 
-# Obj.attributes(obj: obj, path: str = null) -> map
+# Obj::attributes(obj: obj, path: str = null) -> map
 Returns a map of attributes, either for this object if the path is null, or for the field/func/obj at the given path.
 ```rust
 assert_eq(self.attributes(), {"a": null}); // if self was defined as a field with the attribute #[a]
 ```
 
 
-# Obj.children(obj: obj) -> list
+# Obj::children(obj: obj) -> list
 Returns a list containing this objects children.
 ```rust
 const obj = new {};
@@ -42,7 +42,7 @@ assert_eq(self.children(), [obj]);
 ```
 
 
-# Obj.contains(obj: obj, name: str) -> bool
+# Obj::contains(obj: obj, name: str) -> bool
 Return true if this object contains data with the given name.
 ```rust
 const obj = new { x: 0, y: 0 };
@@ -50,7 +50,7 @@ assert(obj.contains("y"));
 ```
 
 
-# Obj.create_type(obj: obj, typename: str) -> void
+# Obj::create_type(obj: obj, typename: str) -> void
 Add a typename reference to the graph, pointing to this object. Programmatic version of #[type("typename")] attribute.
 ```rust
 const obj = new { float x: 0, float y: 0 };
@@ -64,11 +64,11 @@ assert_eq(ins.prototype(), obj);
 ```
 
 
-# Obj.dbg_graph() -> void
-Utility function for dumping the complete graph, helpful for some debugging cases. To dump a specific node, use Std.dbg(..) with the desired object(s).
+# Obj::dbg_graph() -> void
+Utility function for dumping the complete graph, helpful for some debugging cases. To dump a specific node, use Std::dbg(..) with the desired object(s).
 
 
-# Obj.diff(schema: obj, target: obj, symmetric: bool = false) -> void
+# Obj::diff(schema: obj, target: obj, symmetric: bool = false) -> void
 Diffs the schema with the target, modifying the target object only. Removes all fields from the target that match the schema, recursively. Objects match by their fields, including objects inside lists and maps (a list with any difference is kept whole). Optionally, if symmetric, unique schema fields will be deep copied to the target object as well (a version of: (a - b) U (b - a)).
 ```rust
 const sch = new { x: 3km, y: 5.5m };
@@ -82,7 +82,7 @@ assert_eq(difference.y, 5.6m);
 ```
 
 
-# Obj.dist(obj: obj, other: obj) -> int
+# Obj::dist(obj: obj, other: obj) -> int
 Get the distance between two objects (number of edges that separate them).
 ```rust
 const obj = new { x: 0, y: 0 };
@@ -90,7 +90,7 @@ assert_eq(obj.dist(self), 1);
 ```
 
 
-# Obj.empty(obj: obj) -> bool
+# Obj::empty(obj: obj) -> bool
 Returns true if this object doesn't have any data attached to it.
 ```rust
 const obj = new { x: 0, y: 0 };
@@ -98,7 +98,7 @@ assert_not(obj.empty());
 ```
 
 
-# Obj.exists(obj: obj) -> bool
+# Obj::exists(obj: obj) -> bool
 Returns true if this object reference points to an existing object. This is false if the object has been dropped from the document.
 ```rust
 const obj = new {};
@@ -106,7 +106,7 @@ assert(obj.exists());
 ```
 
 
-# Obj.fields(obj: obj) -> list
+# Obj::fields(obj: obj) -> list
 Returns a list of fields (tuples with name and value each) on this object.
 ```rust
 const obj = new { x: 0, y: 0 };
@@ -114,25 +114,25 @@ assert_eq(obj.fields(), [("x", 0), ("y", 0)]);
 ```
 
 
-# Obj.from_id(id: str) -> obj
+# Obj::from_id(id: str) -> obj
 Create a new object reference from an ID. Objects in Stof are references just like data.
 ```rust
 const obj = new { x: 0, y: 0 };
-const ptr = Obj.from_id(obj.id());
+const ptr = Obj::from_id(obj.id());
 assert_eq(ptr, obj);
 ```
 
 
-# Obj.from_map(map: map) -> obj
+# Obj::from_map(map: map) -> obj
 Get the distance between two objects (number of edges that separate them).
 ```rust
 const map = { "x": 0, "y": 0 };
-const obj = Obj.from_map(map);
+const obj = Obj::from_map(map);
 assert_eq(obj.x, 0);
 ```
 
 
-# Obj.funcs(obj: obj, attributes: str | list | set = null) -> list
+# Obj::funcs(obj: obj, attributes: str | list | set = null) -> list
 Returns a list of functions on this object, optionally filtering by attributes (str, list of str, set of str, tuple of str).
 ```rust
 // #[myfunc] fn func() {}
@@ -140,7 +140,7 @@ assert_eq(self.funcs("myfunc"), [self.func]);
 ```
 
 
-# Obj.get(obj: obj, name: str) -> unknown
+# Obj::get(obj: obj, name: str) -> unknown
 Get data on this object by name (field value, fn, or data pointer).
 ```rust
 const obj = new { x: 0, y: 0 };
@@ -148,7 +148,7 @@ assert_eq(obj.get("x"), 0);
 ```
 
 
-# Obj.id(obj: obj) -> str
+# Obj::id(obj: obj) -> str
 Return the ID of this object.
 ```rust
 const obj = new {};
@@ -156,7 +156,7 @@ assert(obj.id().len() > 0);
 ```
 
 
-# Obj.insert(obj: obj, path: str, value: unknown) -> void
+# Obj::insert(obj: obj, path: str, value: unknown) -> void
 Either creates or assigns to a field, just like a normal field assignment, using this object as a starting context.
 ```rust
 const obj = new { x: 0, y: 0 };
@@ -165,7 +165,7 @@ assert_eq(obj.z, 9);
 ```
 
 
-# Obj.instance_of(obj: obj, proto: str | obj) -> bool
+# Obj::instance_of(obj: obj, proto: str | obj) -> bool
 Returns true if this object is an instance of a prototype.
 ```rust
 const obj = new MyType {};
@@ -173,7 +173,7 @@ assert(obj.instance_of("MyType"));
 ```
 
 
-# Obj.is_parent(obj: obj, other: obj) -> bool
+# Obj::is_parent(obj: obj, other: obj) -> bool
 Returns true if this object is a parent of another.
 ```rust
 const obj = new {};
@@ -181,14 +181,14 @@ assert(self.is_parent(obj));
 ```
 
 
-# Obj.is_root(obj: obj) -> bool
+# Obj::is_root(obj: obj) -> bool
 Returns true if this object is a root.
 ```rust
 assert(self.is_root()); // if self is a root
 ```
 
 
-# Obj.len(obj: obj) -> int
+# Obj::len(obj: obj) -> int
 Number of fields on this object.
 ```rust
 const obj = new { x: 0, y: 0 };
@@ -196,7 +196,7 @@ assert_eq(obj.len(), 2);
 ```
 
 
-# Obj.move(obj: obj, dest: obj) -> bool
+# Obj::move(obj: obj, dest: obj) -> bool
 Move this object to a new parent destination. Parent destination cannot be a child of this object (node detachment).
 ```rust
 const obj = new { x: 0, y: 0 };
@@ -206,7 +206,7 @@ assert_eq(obj.parent(), other);
 ```
 
 
-# Obj.move_field(obj: obj, source: str, dest: str) -> bool
+# Obj::move_field(obj: obj, source: str, dest: str) -> bool
 Move or rename a field from a source path/name to a destination path/name (like "mv" in bash), returning true if successfully moved.
 ```rust
 const obj = new { x: 0, y: 0 };
@@ -216,7 +216,7 @@ assert_not(obj.x);
 ```
 
 
-# Obj.name(obj: obj) -> str
+# Obj::name(obj: obj) -> str
 Return the name of this object.
 ```rust
 const obj = new {};
@@ -224,7 +224,7 @@ assert(obj.name().len() > 0);
 ```
 
 
-# Obj.parent(obj: obj) -> obj
+# Obj::parent(obj: obj) -> obj
 Return the parent of this object, or null if this object is a root.
 ```rust
 const obj = new {};
@@ -232,22 +232,22 @@ assert_eq(obj.parent(), self);
 ```
 
 
-# Obj.path(obj: obj) -> str
+# Obj::path(obj: obj) -> str
 Return the path of this object as a dot '.' separated string.
 ```rust
 assert_eq(self.path(), "root.TestObject"); // if self is "TestObject" and it's parent is "root"
 ```
 
 
-# Obj.prototype(obj: obj) -> obj
+# Obj::prototype(obj: obj) -> obj
 Returns the prototype object for this object or null if this object doesn't have one.
 ```rust
 assert_not(self.prototype()); // no prototype
 ```
 
 
-# Obj.remove(obj: obj, path: str, shallow: bool = false) -> bool
-Performs a "drop" operation, just like the Std.drop(..) function, using this object as a starting context. Use this to remove fields, functions, data, etc.
+# Obj::remove(obj: obj, path: str, shallow: bool = false) -> bool
+Performs a "drop" operation, just like the Std::drop(..) function, using this object as a starting context. Use this to remove fields, functions, data, etc.
 
 ## Shallow
 If shallow is true and the path references an object field, drop the field, but don't drop the object from the graph. Default behavior is to drop objects.
@@ -259,7 +259,14 @@ assert_not(obj.x);
 ```
 
 
-# Obj.remove_prototype(obj: obj) -> void
+# Obj::remove_attribute(obj: obj, name: str, path: str = null) -> bool
+Remove an attribute from this object, or from the field, function, or object at the given path. Returns true if it had the attribute. On a sealed object, attributes can't change: that's an error.
+```rust
+self.remove_attribute('readonly', 'total'); // total can be set again
+```
+
+
+# Obj::remove_prototype(obj: obj) -> void
 Remove an object's prototype.
 ```rust
 const obj = new MyType {};
@@ -268,7 +275,7 @@ assert_eq(typename obj, "obj");
 ```
 
 
-# Obj.root(obj: obj) -> obj
+# Obj::root(obj: obj) -> obj
 Returns the root object that contains this object (or self if this object is a root).
 ```rust
 const obj = new {};
@@ -276,7 +283,7 @@ assert_eq(obj.root(), self); // if self is a root
 ```
 
 
-# Obj.run(obj: obj, prototype?: str, steps?: list) -> void
+# Obj::run(obj: obj, prototype?: str, steps?: list) -> void
 Run an object like a task: every field and function with a #[run] attribute is a step. A step that holds an object runs that object, a function is called, and a list (or set, tuple, map) runs each item in turn, like a pipeline.
 
 - **Order**: steps run in the order they're defined. A number moves a step, like a z-index across all steps: #[run(-1)] runs before the unnumbered steps, #[run(1)] after.
@@ -315,7 +322,7 @@ fn example() {
 ```
 
 
-# Obj.schemafy(schema: obj, target: obj, remove_invalid: bool = false, remove_undefined: bool = false) -> bool
+# Obj::schemafy(schema: obj, target: obj, remove_invalid: bool = false, remove_undefined: bool = false) -> bool
 Applies all #[schema] fields from a schema object onto a target object, manipulating the target's fields accordingly and returning true if the target is determined to be valid (matches the schema).
 
 ## Use Cases
@@ -350,7 +357,7 @@ fn schemafy_obj() {
 ```
 
 
-# Obj.set(obj: obj, name: str, value: unknown) -> void
+# Obj::set(obj: obj, name: str, value: unknown) -> void
 Set the field with exactly this name, or create it. Unlike insert, the name is never a path, so it can have dots (the counterpart of get). A function with the name is an error, and so is a const field.
 ```rust
 const obj = new {};
@@ -360,7 +367,16 @@ assert_null(obj.a);
 ```
 
 
-# Obj.set_prototype(obj: obj, proto: obj | str) -> void
+# Obj::set_attribute(obj: obj, name: str, value: unknown = null, path: str = null) -> bool
+Set an attribute (adding it, or replacing its value) on this object, or on the field, function, or object at the given path (the same targets as `attributes`). A null value is an attribute with no value, like `#[flag]`. Returns false if there's nothing at the path. Attributes are behavior (what runs, what's readonly or private, how a value is exported), so on a sealed object they can't change: that's an error.
+```rust
+self.set_attribute('on_order', null, 'notify'); // fn notify() now has #[on_order]
+assert(self.attributes('notify').contains('on_order'));
+self.set_attribute('readonly', null, 'total');  // and the field total is readonly
+```
+
+
+# Obj::set_prototype(obj: obj, proto: obj | str) -> void
 Set the prototype of this object.
 ```rust
 const proto = new {};
@@ -370,7 +386,7 @@ assert_eq(obj.prototype(), proto);
 ```
 
 
-# Obj.to_map(obj: obj) -> map
+# Obj::to_map(obj: obj) -> map
 Create a new map out of this object's fields.
 ```rust
 const obj = new { x: 3km, y: 5.5m };
@@ -379,7 +395,7 @@ assert_eq(map.get("x"), 3km);
 ```
 
 
-# Obj.unset(obj: obj, name: str, shallow: bool = false) -> bool
+# Obj::unset(obj: obj, name: str, shallow: bool = false) -> bool
 Remove the field, function, or data with exactly this name, returning true if there was one. Unlike remove, the name is never a path, so it can have dots. A field's object value is dropped too, unless shallow is true.
 ```rust
 const obj = new {};
@@ -389,7 +405,7 @@ assert_not(obj.contains("a.b"));
 ```
 
 
-# Obj.upcast(obj: obj) -> bool
+# Obj::upcast(obj: obj) -> bool
 Set the prototype of this object to the prototype of this objects existing prototype.
 ```rust
 const obj = new SubType {};

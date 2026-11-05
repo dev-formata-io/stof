@@ -37,7 +37,7 @@ pub fn list_any() -> LibFunc {
         library: LIST_LIB.clone(),
         name: "any".into(),
         is_async: false,
-        docs: r#"# List.any(array: list, func?: fn) -> bool
+        docs: r#"# List::any(array: list, func?: fn) -> bool
 Does this list contain any values? With a function: does it return true (truthy) for any value?
 ```rust
 const array = [1, 2, 3];
@@ -61,7 +61,7 @@ assert_not(array.any((x: int): bool => x > 3));
 }
 
 pub fn list_map() -> LibFunc {
-    each_lib("map", Each::Map, r#"# List.map(array: list, func: fn) -> list
+    each_lib("map", Each::Map, r#"# List::map(array: list, func: fn) -> list
 A new list with the result of calling the function for each value, in order.
 ```rust
 const array = [1, 2, 3];
@@ -70,7 +70,7 @@ assert_eq(array.map((x: int): int => x * 2), [2, 4, 6]);
 }
 
 pub fn list_filter() -> LibFunc {
-    each_lib("filter", Each::Filter, r#"# List.filter(array: list, func: fn) -> list
+    each_lib("filter", Each::Filter, r#"# List::filter(array: list, func: fn) -> list
 A new list with the values the function returns true for (truthy), in order.
 ```rust
 const array = [1, 2, 3, 4];

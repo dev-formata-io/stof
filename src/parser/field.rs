@@ -114,7 +114,8 @@ pub fn parse_field<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
     let field = Field::new(value, Some(attributes));
     let self_ptr = context.self_ptr();
     let Some(field_ref) = context.graph.insert_stof_data(&self_ptr, &name, Box::new(field), None) else {
-        return Err(nom::Err::Failure(StofParseError::from(format!("could not create field '{name}': the object it belongs to no longer exists"))));
+        let why = context.graph.take_seal_violation().map(|why| format!("sealed: {why}")).unwrap_or_else(|| "the object it belongs to no longer exists".into());
+        return Err(nom::Err::Failure(StofParseError::from(format!("could not create field '{name}': {why}"))));
     };
     record_def(context, &name, signature, input, Some(field_ref.clone()), obj, &comments, span);
 

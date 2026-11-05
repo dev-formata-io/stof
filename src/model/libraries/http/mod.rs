@@ -55,7 +55,113 @@ use tokio::sync::Semaphore;
 #[cfg(feature = "http")]
 lazy_static! {
     // many APIs (Ex. GitHub) reject requests without a User-Agent; requests can still set their own
-    static ref HTTP_CLIENT: Arc<Client> = Arc::new(Client::builder().user_agent(USER_AGENT).build().unwrap_or_else(|_| Client::new()));
+    static ref HTTP_CLIENT: Arc<Client> = Arc::new(client!(Client, false));
+    /// For documents allowed any host but not the private network (the default with `allow_http()`): refuses
+    /// private addresses after DNS and on every redirect.
+    static ref HTTP_CLIENT_PUBLIC: Arc<Client> = Arc::new(client!(Client, true));
+}
+
+#[cfg(feature = "http")]
+/// An HTTP client (async or blocking), public-only or not.
+macro_rules! client {
+    ($client:ty, $public:expr) => {{
+        let mut builder = <$client>::builder().user_agent(USER_AGENT);
+        if $public {
+            builder = builder.dns_resolver(Arc::new(PublicDns)).redirect(public_redirects());
+        }
+        builder.build().unwrap_or_else(|_| <$client>::new())
+    }};
+}
+#[cfg(feature = "http")]
+use client;
+
+
+#[cfg(feature = "http")]
+/// Is this address on this machine, a private network, or link-local (where cloud metadata services live)?
+/// Includes the IPv4 addresses written as IPv6 (`::ffff:10.0.0.1`).
+pub fn private_ip(ip: std::net::IpAddr) -> bool {
+    use std::net::IpAddr;
+    match ip {
+        IpAddr::V4(ip) => {
+            let [a, b, ..] = ip.octets();
+            ip.is_loopback() || ip.is_private() || ip.is_link_local() || ip.is_unspecified() || ip.is_broadcast()
+                || a == 0                              // "this network"
+                || (a == 100 && (64..128).contains(&b)) // shared address space (carrier-grade NAT)
+                || (a == 192 && b == 0 && ip.octets()[2] == 0) // IETF protocol assignments
+                || a >= 240                            // reserved
+        },
+        IpAddr::V6(ip) => {
+            if let Some(v4) = ip.to_ipv4_mapped() { return private_ip(IpAddr::V4(v4)); }
+            let first = ip.segments()[0];
+            ip.is_loopback() || ip.is_unspecified()
+                || (first & 0xfe00) == 0xfc00 // unique local
+                || (first & 0xffc0) == 0xfe80 // link-local
+        },
+    }
+}
+
+#[cfg(feature = "http")]
+/// Is this host name one that only means something on this machine or a private network?
+/// (`localhost`, `*.localhost`, `*.local`, `*.internal` (incl. `metadata.google.internal`), and `metadata`)
+pub fn private_name(host: &str) -> bool {
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    host == "localhost" || host == "metadata"
+        || host.ends_with(".localhost") || host.ends_with(".local") || host.ends_with(".internal")
+        || host == "internal"
+}
+
+#[cfg(feature = "http")]
+/// May a document that's allowed any host, but not the private network, send a request to this URL?
+/// Checks the host as written (a name, or an IP address); `PublicDns` checks what a name resolves to.
+pub fn public_url(url: &reqwest::Url) -> Result<(), String> {
+    let Some(host) = url.host_str() else { return Err("the URL has no host".into()) };
+    // URLs are parsed the WHATWG way: IPv4 in any form (Ex. 2130706433, 0x7f.1) is already a dotted address here
+    let bare = host.trim_start_matches('[').trim_end_matches(']');
+    match bare.parse::<std::net::IpAddr>() {
+        Ok(ip) if private_ip(ip) => Err(format!("{ip} is a private network address")),
+        Ok(_) => Ok(()),
+        Err(_) if private_name(host) => Err(format!("{host} is a private network name")),
+        Err(_) => Ok(()),
+    }
+}
+
+#[cfg(feature = "http")]
+/// Resolves host names, keeping only public addresses (fails if there are none).
+struct PublicDns;
+#[cfg(feature = "http")]
+impl reqwest::dns::Resolve for PublicDns {
+    fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+        let host = name.as_str().to_string();
+        Box::pin(async move {
+            #[cfg(feature = "tokio")]
+            let addrs: Vec<std::net::SocketAddr> = tokio::net::lookup_host((host.as_str(), 0)).await?.collect();
+            #[cfg(not(feature = "tokio"))]
+            let addrs: Vec<std::net::SocketAddr> = std::net::ToSocketAddrs::to_socket_addrs(&(host.as_str(), 0))?.collect();
+
+            let public: Vec<std::net::SocketAddr> = addrs.into_iter().filter(|addr| !private_ip(addr.ip())).collect();
+            if public.is_empty() {
+                return Err(format!("{host} resolves to a private network address, which this document may not reach (the host can allow it)").into());
+            }
+            Ok(Box::new(public.into_iter()) as reqwest::dns::Addrs)
+        })
+    }
+}
+
+#[cfg(feature = "http")]
+/// Follow redirects (up to 10, like the default), but never to a private network host.
+fn public_redirects() -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(|attempt| {
+        if attempt.previous().len() >= 10 {
+            return attempt.error("too many redirects");
+        }
+        match public_url(attempt.url()) {
+            Ok(()) => attempt.follow(),
+            Err(error) => {
+                let message = format!("redirected to {}: {error}, which this document may not reach", attempt.url());
+                attempt.error(message)
+            },
+        }
+    })
 }
 
 
@@ -81,11 +187,11 @@ pub fn insert_http_lib(graph: &mut Graph) {
         library: HTTP_LIB.clone(),
         name: "fetch".into(),
         is_async: true,
-        docs: r#"# async Http.fetch(url: str, method: str = "get", body: str | blob = null, headers: map = null, timeout: seconds = null, query: map = null, bearer: str = null) -> Promise<map>
+        docs: r#"# async Http::fetch(url: str, method: str = "get", body: str | blob = null, headers: map = null, timeout: seconds = null, query: map = null, bearer: str = null) -> Promise<map>
 Make an HTTP request, using the thread pool in the background so that other Stof processes can continue running.
 ```rust
-const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
-assert(Http.text(resp).len() > 100); // response map: status, ok, headers, content_type, bytes
+const resp = await Http::fetch("https://restcountries.com/v3.1/region/europe");
+assert(Http::text(resp).len() > 100); // response map: status, ok, headers, content_type, bytes
 ```"#.into(),
         params: crate::params![
             Param { name: "url".into(), param_type: Type::Str, default: None },
@@ -113,12 +219,12 @@ assert(Http.text(resp).len() > 100); // response map: status, ok, headers, conte
         library: HTTP_LIB.clone(),
         name: "parse".into(),
         is_async: false,
-        docs: r#"# Http.parse(response: map, context: obj = self) -> obj
+        docs: r#"# Http::parse(response: map, context: obj = self) -> obj
 Parse an HTTP response into the context object (also the return value), using the response "Content-Type" header as a Stof format (binary import). Default content type if not found in response headers is "stof". Will throw an error if the format isn't accepted by this graph, or if the body doesn't exist.
 ```rust
-const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
+const resp = await Http::fetch("https://restcountries.com/v3.1/region/europe");
 const body = new {};
-try Http.parse(resp, body);
+try Http::parse(resp, body);
 catch { /* didn't work out.. */ }
 ```"#.into(),
         params: crate::params![
@@ -140,11 +246,11 @@ catch { /* didn't work out.. */ }
         library: HTTP_LIB.clone(),
         name: "text".into(),
         is_async: false,
-        docs: r#"# Http.text(response: map) -> str
-Extract a UTF-8 text body from this response map (Equivalent to Http.blob(response) as str).
+        docs: r#"# Http::text(response: map) -> str
+Extract a UTF-8 text body from this response map (Equivalent to Http::blob(response) as str).
 ```rust
-const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
-const body = Http.text(resp);
+const resp = await Http::fetch("https://restcountries.com/v3.1/region/europe");
+const body = Http::text(resp);
 ```"#.into(),
         params: crate::params![
             Param { name: "response".into(), param_type: Type::Map, default: None },
@@ -164,11 +270,11 @@ const body = Http.text(resp);
         library: HTTP_LIB.clone(),
         name: "size".into(),
         is_async: false,
-        docs: r#"# Http.size(response: map) -> bytes
+        docs: r#"# Http::size(response: map) -> bytes
 Extract the response body size in bytes.
 ```rust
-const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
-const mib_body_size = Http.size(resp) as MiB;
+const resp = await Http::fetch("https://restcountries.com/v3.1/region/europe");
+const mib_body_size = Http::size(resp) as MiB;
 ```"#.into(),
         params: crate::params![
             Param { name: "response".into(), param_type: Type::Map, default: None },
@@ -188,11 +294,11 @@ const mib_body_size = Http.size(resp) as MiB;
         library: HTTP_LIB.clone(),
         name: "blob".into(),
         is_async: false,
-        docs: r#"# Http.blob(response: map) -> blob
+        docs: r#"# Http::blob(response: map) -> blob
 Extract the body of this response as bytes.
 ```rust
-const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
-const body = Http.blob(resp);
+const resp = await Http::fetch("https://restcountries.com/v3.1/region/europe");
+const body = Http::blob(resp);
 ```"#.into(),
         params: crate::params![
             Param { name: "response".into(), param_type: Type::Map, default: None },
@@ -212,11 +318,11 @@ const body = Http.blob(resp);
         library: HTTP_LIB.clone(),
         name: "success".into(),
         is_async: false,
-        docs: r#"# Http.success(response: map) -> bool
+        docs: r#"# Http::success(response: map) -> bool
 Was the request successful? Meaning, is the response 'status' between [200, 299]?
 ```rust
-const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
-assert(Http.success(resp));
+const resp = await Http::fetch("https://restcountries.com/v3.1/region/europe");
+assert(Http::success(resp));
 ```"#.into(),
         params: crate::params![
             Param { name: "response".into(), param_type: Type::Map, default: None },
@@ -236,11 +342,11 @@ assert(Http.success(resp));
         library: HTTP_LIB.clone(),
         name: "client_error".into(),
         is_async: false,
-        docs: r#"# Http.client_error(response: map) -> bool
+        docs: r#"# Http::client_error(response: map) -> bool
 Was the request a client error? Meaning, is the response 'status' between [400, 499]?
 ```rust
-const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
-assert_not(Http.client_error(resp));
+const resp = await Http::fetch("https://restcountries.com/v3.1/region/europe");
+assert_not(Http::client_error(resp));
 ```"#.into(),
         params: crate::params![
             Param { name: "response".into(), param_type: Type::Map, default: None },
@@ -260,11 +366,11 @@ assert_not(Http.client_error(resp));
         library: HTTP_LIB.clone(),
         name: "server_error".into(),
         is_async: false,
-        docs: r#"# Http.server_error(response: map) -> bool
+        docs: r#"# Http::server_error(response: map) -> bool
 Was the request a server error? Meaning, is the response 'status' between [500, 599]?
 ```rust
-const resp = await Http.fetch("https://restcountries.com/v3.1/region/europe");
-assert_not(Http.server_error(resp));
+const resp = await Http::fetch("https://restcountries.com/v3.1/region/europe");
+assert_not(Http::server_error(resp));
 ```"#.into(),
         params: crate::params![
             Param { name: "response".into(), param_type: Type::Map, default: None },
@@ -298,6 +404,9 @@ pub(self) struct HTTPRequest {
 
     /// Hosts this request may reach (None for any), checked again after redirects.
     pub hosts: Option<Arc<FxHashSet<String>>>,
+
+    /// Any host but the private network (no host list, and the host didn't allow the private network).
+    pub public_only: bool,
 }
 #[cfg(feature = "http")]
 impl HTTPRequest {
@@ -310,7 +419,7 @@ impl HTTPRequest {
             if let Some(handle) = &env.tokio_runtime {
                 handle.spawn(async move {
                     let _permit = HTTP_BACKPRESSURE_SEMAPHORE.acquire().await;
-                    let client = &HTTP_CLIENT;
+                    let client: &Client = if self.public_only { &HTTP_CLIENT_PUBLIC } else { &HTTP_CLIENT };
                     let mut builder = client.request(self.method, self.url);
                     builder = builder.headers(self.headers);
                     
@@ -380,7 +489,7 @@ impl HTTPRequest {
                 });
             } else {
                 // no runtime to work with, so fall back on a blocking client... boo
-                let client = reqwest::blocking::Client::builder().user_agent(USER_AGENT).build().unwrap_or_else(|_| reqwest::blocking::Client::new());
+                let client = client!(reqwest::blocking::Client, self.public_only);
                 let mut builder = client.request(self.method, self.url);
                 builder = builder.headers(self.headers);
                 
@@ -452,7 +561,7 @@ impl HTTPRequest {
 
         #[cfg(not(feature = "tokio"))]
         {
-            let client = &HTTP_CLIENT;
+            let client: &Client = if self.public_only { &HTTP_CLIENT_PUBLIC } else { &HTTP_CLIENT };
             let mut builder = client.request(self.method, self.url);
             builder = builder.headers(self.headers);
             
@@ -709,10 +818,18 @@ impl Instruction for HttpIns {
                     }
                 }
 
+                let public_only = graph.http_hosts.is_none() && !graph.http_private;
                 if let Some(hosts) = &graph.http_hosts {
                     let allowed = reqwest::Url::parse(&url).is_ok_and(|parsed| host_allowed(&parsed, &Some(hosts.clone())));
                     if !allowed {
                         return Err(Error::HttpSendError(format!("{url} is not an allowed host for this document")));
+                    }
+                } else if public_only {
+                    // any host but the private network: refuse it here with a clear message (DNS is checked when sent)
+                    if let Ok(parsed) = reqwest::Url::parse(&url) {
+                        if let Err(error) = public_url(&parsed) {
+                            return Err(Error::HttpSendError(format!("{url}: {error}, which this document may not reach (the host can allow the private network)")));
+                        }
                     }
                 }
 
@@ -728,6 +845,7 @@ impl Instruction for HttpIns {
                     results: map.clone(),
                     waker: waker.clone(),
                     hosts: graph.http_hosts.clone(),
+                    public_only,
                 };
                 env.stack.push(Variable::refval(map));
                 request.send(env);
@@ -951,7 +1069,7 @@ mod tests {
         graph.parse_stof_src(r#"
             fn fetch_other() -> str {
                 try {
-                    await Http.fetch('https://other.example.com/data');
+                    await Http::fetch('https://other.example.com/data');
                     return 'sent';
                 } catch (error) {
                     return 'blocked';
@@ -959,5 +1077,92 @@ mod tests {
             }
         "#, None, Profile::default()).unwrap();
         assert_eq!(graph.call("fetch_other", None, vec![]).unwrap(), Val::from("blocked"));
+    }
+
+    #[test]
+    fn private_addresses_and_names() {
+        use crate::model::http::{private_ip, private_name, public_url};
+        for ip in ["127.0.0.1", "10.0.0.1", "172.16.5.4", "192.168.0.1", "169.254.169.254", "100.64.0.1", "0.0.0.0",
+                   "255.255.255.255", "::1", "::", "fd12::1", "fe80::1", "::ffff:127.0.0.1", "::ffff:169.254.169.254"] {
+            assert!(private_ip(ip.parse().unwrap()), "{ip}");
+        }
+        for ip in ["8.8.8.8", "172.32.0.1", "100.128.0.1", "2606:4700:4700::1111", "::ffff:8.8.8.8"] {
+            assert!(!private_ip(ip.parse().unwrap()), "{ip}");
+        }
+        for name in ["localhost", "LOCALHOST.", "app.localhost", "printer.local", "metadata.google.internal", "metadata"] {
+            assert!(private_name(name), "{name}");
+        }
+        assert!(!private_name("api.example.com"));
+        assert!(!private_name("internalapi.com"));
+
+        // URLs are parsed the WHATWG way, so other ways of writing an address are caught too
+        for url in ["http://127.0.0.1:8080/", "http://2130706433/", "http://0x7f.1/", "http://[::1]/", "http://localhost/",
+                    "http://169.254.169.254/computeMetadata/v1/", "http://metadata.google.internal/"] {
+            assert!(public_url(&reqwest::Url::parse(url).unwrap()).is_err(), "{url}");
+        }
+        assert!(public_url(&reqwest::Url::parse("https://api.example.com/v1").unwrap()).is_ok());
+    }
+
+    #[test]
+    fn dns_keeps_only_public_addresses() {
+        use reqwest::dns::Resolve;
+        let resolving = super::PublicDns.resolve("localhost".parse().unwrap());
+        let runtime = std::thread::spawn(move || {
+            #[cfg(feature = "tokio")]
+            { tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(resolving).is_err() }
+            #[cfg(not(feature = "tokio"))]
+            { let _ = resolving; true }
+        });
+        assert!(runtime.join().unwrap(), "localhost resolves to loopback, so nothing is left");
+    }
+
+    /// A server on this machine that answers every request with "hi".
+    fn local_server() -> u16 {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            for stream in listener.incoming().flatten() {
+                let mut stream = stream;
+                let mut buf = [0u8; 2048];
+                let _ = stream.read(&mut buf);
+                let _ = stream.write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\nhi");
+            }
+        });
+        port
+    }
+
+    fn fetch_local(graph: &mut Graph, port: u16) -> Val {
+        graph.parse_stof_src(&format!(r#"
+            fn fetch_local() -> str {{
+                try {{
+                    const res = await Http::fetch('http://127.0.0.1:{port}/');
+                    if (res.get('error')) return `error: ${{res.get('error')}}`;
+                    return Http::text(res);
+                }} catch (error, message) {{
+                    return `blocked: ${{message}}`;
+                }}
+            }}
+        "#), None, Profile::default()).unwrap();
+        graph.call("fetch_local", None, vec![]).unwrap()
+    }
+
+    #[test]
+    fn any_host_but_the_private_network() {
+        let port = local_server();
+
+        let mut graph = Graph::default();
+        graph.allow_http();
+        let res = fetch_local(&mut graph, port).to_string();
+        assert!(res.starts_with("blocked") && res.contains("private network"), "{res}");
+
+        let mut graph = Graph::default();
+        graph.allow_http();
+        graph.allow_private_network();
+        assert_eq!(fetch_local(&mut graph, port), Val::from("hi"));
+
+        let mut graph = Graph::default();
+        graph.allow_http_hosts(["127.0.0.1"]); // listing it allows it
+        assert_eq!(fetch_local(&mut graph, port), Val::from("hi"));
     }
 }

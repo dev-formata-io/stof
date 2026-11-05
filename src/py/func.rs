@@ -15,7 +15,7 @@
 //
 
 use std::{cell::RefCell, collections::BTreeMap, sync::Arc};
-use pyo3::{Py, PyAny, Python, exceptions::PyValueError};
+use pyo3::{Py, PyAny, Python, exceptions::PyValueError, types::PyTuple};
 use serde::{Deserialize, Serialize};
 use crate::{model::{Graph, LibFunc, stof_std::THROW}, py::value::{py_any_to_val, val_to_py}, runtime::{Val, Variable, instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv}};
 
@@ -71,85 +71,15 @@ impl Instruction for PyLibFuncIns {
                     Python::attach(|py| {
                         if let Some(lib) = map.get(library) {
                             if let Some(py_func) = lib.get(name) {
-                                match arg_count {
-                                    0 => {
-                                        py_func.call0(py)
-                                    },
-                                    1 => {
-                                        let arg = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        py_func.call1(py, (arg,))
-                                    },
-                                    2 => {
-                                        let one = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let zer = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        py_func.call1(py, (zer, one))
-                                    },
-                                    3 => {
-                                        let two = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let one = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let zer = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        py_func.call1(py, (zer, one, two))
-                                    },
-                                    4 => {
-                                        let thr = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let two = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let one = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let zer = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        py_func.call1(py, (zer, one, two, thr))
-                                    },
-                                    5 => {
-                                        let foy = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let thr = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let two = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let one = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let zer = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        py_func.call1(py, (zer, one, two, thr, foy))
-                                    },
-                                    6 => {
-                                        let six = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let foy = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let thr = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let two = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let one = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let zer = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        py_func.call1(py, (zer, one, two, thr, foy, six))
-                                    },
-                                    7 => {
-                                        let sev = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let six = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let foy = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let thr = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let two = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let one = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let zer = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        py_func.call1(py, (zer, one, two, thr, foy, six, sev))
-                                    },
-                                    8 => {
-                                        let eig = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let sev = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let six = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let foy = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let thr = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let two = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let one = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let zer = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        py_func.call1(py, (zer, one, two, thr, foy, six, sev, eig))
-                                    },
-                                    9 => {
-                                        let nin = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let eig = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let sev = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let six = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let foy = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let thr = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let two = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let one = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        let zer = val_to_py(py, env.stack.pop().unwrap().val.read().clone());
-                                        py_func.call1(py, (zer, one, two, thr, foy, six, sev, eig, nin))
-                                    },
-                                    _ => {
-                                        Err(PyValueError::new_err(format!("outnumbered allotted argument count for Python/Stof interop")))
-                                    }
+                                // the arguments are on the stack in order (the last one on top): any count
+                                if env.stack.len() < *arg_count {
+                                    return Err(PyValueError::new_err(format!("{library}.{name}: expected {arg_count} arguments on the stack")));
+                                }
+                                let args = env.stack.split_off(env.stack.len() - *arg_count);
+                                let args: Vec<_> = args.into_iter().map(|arg| val_to_py(py, arg.val.read().clone())).collect();
+                                match PyTuple::new(py, args) {
+                                    Ok(args) => py_func.call1(py, args),
+                                    Err(error) => Err(error),
                                 }
                             } else {
                                 Err(PyValueError::new_err(format!("Python/Stof Function not found: {library}.{name}")))

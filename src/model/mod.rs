@@ -43,6 +43,9 @@ pub mod libraries;
 
 /// Safe decoding of untrusted binary data.
 pub mod cautious;
+
+pub mod seal;
+pub use seal::Seals;
 pub use libraries::*;
 
 

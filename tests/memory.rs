@@ -20,6 +20,9 @@
 //! (tests in one binary run in parallel and would count each other's allocations).
 //! Each case runs a function many times and checks that both the graph and the heap stay flat.
 
+// Its own counting allocator: not with the JavaScript or Python builds, which install StofAlloc.
+#![cfg(not(any(feature = "js", feature = "py")))]
+
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicIsize, Ordering};
 use stof::model::Graph;

@@ -26,6 +26,11 @@ pub mod py;
 pub mod js;
 
 // Re-export public API dependencies
+// The JavaScript and Python builds count heap bytes for the memory budget (see `runtime::memory`).
+#[cfg(any(feature = "js", feature = "py"))]
+#[global_allocator]
+static ALLOC: runtime::memory::StofAlloc = runtime::memory::StofAlloc;
+
 pub use typetag;
 pub use bytes;
 pub use serde;

@@ -31,7 +31,10 @@
 //! HTML is written to be safe to put in a page, whatever the document holds:
 //! - text and attribute values are always escaped
 //! - elements that run or load code (script, style, iframe, object, embed, ...) are never written, with their content
-//! - `on*` attributes, `srcdoc`, and `javascript:`/`vbscript:`/`data:` URLs are dropped (data: images are kept)
+//! - `on*` attributes and `srcdoc` are dropped, and so are `style`, `action`, and `formaction` (CSS can restyle or
+//!   cover the page, and forms can post elsewhere) unless the host allows them (`Graph::allow_html_attributes`)
+//! - URLs in URL attributes (href, src, srcset, ...) are relative or http, https, mailto, or tel (and data: images);
+//!   any other scheme drops the attribute, and `javascript:`/`vbscript:` in any attribute drops it too
 //! - only allowed elements are written: the standard HTML elements and custom elements (with a `-` in the name) by
 //!   default, or exactly the host's list (`Graph::allow_html_tags`), which Stof code can't change
 //! - an html export of an object without a tag is a fragment: its content without an element around it
@@ -339,7 +342,7 @@ impl<'a> Writer<'a> {
             let text = match value {
                 Val::Void | Val::Null | Val::Promise(..) | Val::Fn(_) => continue,
                 Val::Bool(true) if self.markup == Markup::Html => {
-                    if html_attr_allowed(&name, "") {
+                    if html_attr_allowed(self.graph, &name, "") {
                         open.push(' ');
                         open.push_str(&name);
                     }
@@ -352,7 +355,7 @@ impl<'a> Writer<'a> {
                 Val::Num(_) | Val::Ver(..) => value.to_string(),
                 other => json_string(self.graph, other),
             };
-            if self.markup == Markup::Html && !html_attr_allowed(&name, &text) { continue; }
+            if self.markup == Markup::Html && !html_attr_allowed(self.graph, &name, &text) { continue; }
             open.push(' ');
             open.push_str(&name);
             open.push_str("=\"");
@@ -503,18 +506,58 @@ fn html_tag_allowed(graph: &Graph, tag: &str) -> bool {
     !HTML_NEVER.contains(&tag) && (HTML_STANDARD.contains(&tag) || tag.contains('-'))
 }
 
+/// Attributes html writes only when the host allows them (`Graph::allow_html_attributes`).
+const HTML_ATTR_OPT_IN: &[&str] = &["style", "action", "formaction"];
+
+/// Attributes that hold a URL (or, for srcset and ping, several).
+const HTML_URL_ATTRS: &[&str] = &[
+    "href", "src", "srcset", "action", "formaction", "poster", "cite", "data", "background", "ping", "manifest",
+    "longdesc", "usemap", "codebase", "icon", "lowsrc", "dynsrc", "profile", "archive", "classid", "xlink:href",
+];
+
+/// URL schemes html writes (relative URLs, with no scheme, are fine too).
+const HTML_URL_SCHEMES: &[&str] = &["http", "https", "mailto", "tel"];
+
 /// May html write this attribute with this value?
-fn html_attr_allowed(name: &str, value: &str) -> bool {
+fn html_attr_allowed(graph: &Graph, name: &str, value: &str) -> bool {
     let lower = name.to_ascii_lowercase();
     if lower.starts_with("on") || lower == "srcdoc" { return false; }
-    // URLs that run code: checked on every attribute (cheap, and covers href, src, action, xlink:href, srcset, ...)
-    let compact: String = value.chars().filter(|c| !c.is_whitespace() && !c.is_control()).collect::<String>().to_ascii_lowercase();
-    if compact.contains("javascript:") || compact.contains("vbscript:") { return false; }
-    if compact.starts_with("data:") {
-        let image = ["data:image/png", "data:image/jpeg", "data:image/jpg", "data:image/gif", "data:image/webp", "data:image/avif"];
-        return image.iter().any(|prefix| compact.starts_with(prefix));
+    if HTML_ATTR_OPT_IN.contains(&lower.as_str()) && !graph.html_attributes.as_ref().is_some_and(|allowed| allowed.contains(&lower)) {
+        return false;
     }
+    // what a browser reads: whitespace and control characters inside a URL are ignored
+    let compact: String = value.chars().filter(|c| !c.is_whitespace() && !c.is_control()).collect::<String>().to_ascii_lowercase();
+    // code in a URL: checked on every attribute (cheap, and catches URLs in attributes not listed below)
+    if compact.contains("javascript:") || compact.contains("vbscript:") { return false; }
+    if HTML_URL_ATTRS.contains(&lower.as_str()) {
+        if lower == "srcset" || lower == "ping" {
+            // several URLs: srcset is "url size, url size", ping is space separated
+            let urls: Vec<&str> = if lower == "srcset" { value.split(',').filter_map(|candidate| candidate.split_whitespace().next()).collect() } else { value.split_whitespace().collect() };
+            return urls.iter().all(|url| url_allowed(url));
+        }
+        return url_allowed(&compact);
+    }
+    if compact.starts_with("data:") { return data_image(&compact); }
     true
+}
+
+/// Is this URL relative, or one of the allowed schemes (or a data: image)?
+fn url_allowed(url: &str) -> bool {
+    let compact: String = url.chars().filter(|c| !c.is_whitespace() && !c.is_control()).collect::<String>().to_ascii_lowercase();
+    // a scheme is letters (then letters, digits, + - .) before the first ':', with no '/', '?', or '#' before it
+    let Some(colon) = compact.find(':') else { return true };
+    let scheme = &compact[..colon];
+    let is_scheme = scheme.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
+        && scheme.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'));
+    if !is_scheme { return true; } // Ex. "/a:b" or "?x=1:2": relative
+    if scheme == "data" { return data_image(&compact); }
+    HTML_URL_SCHEMES.contains(&scheme)
+}
+
+/// A data: URL of a raster image (not SVG, which can hold script).
+fn data_image(compact: &str) -> bool {
+    let image = ["data:image/png", "data:image/jpeg", "data:image/jpg", "data:image/gif", "data:image/webp", "data:image/avif"];
+    image.iter().any(|prefix| compact.starts_with(prefix))
 }
 
 /// Escape text (or an attribute value) for markup. XML also drops characters it can't hold.
@@ -536,6 +579,17 @@ fn escape_into(out: &mut String, text: &str, attribute: bool, markup: Markup) {
 }
 
 impl Graph {
+    /// Attributes html writes only when the host allows them: `style`, `action`, and `formaction` (off by default,
+    /// since CSS can restyle or cover the page and forms can post elsewhere). Documents can't change it. Calling it
+    /// again adds attributes. Names are compared without case.
+    pub fn allow_html_attributes(&mut self, attributes: impl IntoIterator<Item = impl AsRef<str>>) {
+        let mut allowed = self.html_attributes.as_deref().cloned().unwrap_or_default();
+        for attribute in attributes {
+            allowed.insert(attribute.as_ref().trim().to_ascii_lowercase());
+        }
+        self.html_attributes = Some(Arc::new(allowed));
+    }
+
     /// Elements html may write (Ex. the components a host renders): only these, replacing the default (the
     /// standard HTML elements and custom elements). Set by the host, so documents can't change it. Calling it again
     /// adds elements. Names are compared without case.
@@ -602,6 +656,54 @@ mod tests {
         let _ = graph.run(None, true);
         let view = graph.find_node_named("root.view", None).unwrap();
         assert_eq!(graph.stringify("html", Some(view)).unwrap(), "<div></div>");
+    }
+
+    #[test]
+    fn urls_and_opt_in_attributes() {
+        let src = r#"
+            view: {
+                #[tag('div')]
+                links: {
+                    #[tag('a')] ok: { #[attr] href: 'https://limitr.dev/docs?a=1:2'; #[text] text: 'ok' }
+                    #[tag('a')] rel: { #[attr] href: '/docs/a:b'; }
+                    #[tag('a')] mail: { #[attr] href: 'mailto:hi@example.com'; }
+                    #[tag('a')] js: { #[attr] href: 'JaVa	Script:alert(1)'; }
+                    #[tag('a')] other: { #[attr] href: 'file:///etc/passwd'; }
+                    #[tag('img')] png: { #[attr] src: 'data:image/png;base64,AAAA'; }
+                    #[tag('img')] svg: { #[attr] src: 'data:image/svg+xml,<svg onload=alert(1)>'; }
+                    #[tag('img')] set: { #[attr] srcset: 'a.png 1x, https://cdn.example.com/b.png 2x'; }
+                    #[tag('img')] badset: { #[attr] srcset: 'a.png 1x, javascript:alert(1) 2x'; }
+                    #[tag('div')] styled: { #[attr] style: 'position:fixed;inset:0'; #[attr] title: 'x'; }
+                    #[tag('form')] form: { #[attr] action: 'https://evil.example.com/steal'; }
+                }
+            }
+        "#;
+        let mut graph = Graph::default();
+        graph.parse_stof_src(src, None, Profile::default()).unwrap();
+        let view = graph.find_node_named("root.view", None).unwrap();
+        let html = graph.stringify("html", Some(view.clone())).unwrap();
+        assert!(html.contains(r#"<a href="https://limitr.dev/docs?a=1:2">ok</a>"#), "{html}");
+        assert!(html.contains(r#"<a href="/docs/a:b">"#), "{html}");
+        assert!(html.contains(r#"<a href="mailto:hi@example.com">"#), "{html}");
+        assert!(html.contains(r#"src="data:image/png;base64,AAAA""#), "{html}");
+        assert!(html.contains(r#"srcset="a.png 1x, https://cdn.example.com/b.png 2x""#), "{html}");
+        for dropped in ["alert", "file:", "svg+xml", "style=", "position:fixed", "action="] {
+            assert!(!html.contains(dropped), "{dropped} in {html}");
+        }
+        assert!(html.contains(r#"<div title="x"></div>"#), "{html}");
+
+
+        // the host can allow style and action
+        graph.allow_html_attributes(["Style", "action"]);
+        let html = graph.stringify("html", Some(view)).unwrap();
+        assert!(html.contains(r#"style="position:fixed;inset:0""#), "{html}");
+        assert!(html.contains(r#"<form action="https://evil.example.com/steal">"#), "{html}");
+
+        // a character reference can't sneak a scheme in: the & is escaped, so the browser reads it as written
+        let mut graph = Graph::default();
+        graph.parse_stof_src(r#"#[tag('a')] link: { #[attr] href: 'jav&#x61;script:alert(1)'; }"#, None, Profile::default()).unwrap();
+        let link = graph.find_node_named("root.link", None).unwrap();
+        assert_eq!(graph.stringify("html", Some(link)).unwrap(), r#"<a href="jav&amp;#x61;script:alert(1)"></a>"#);
     }
 
     #[test]

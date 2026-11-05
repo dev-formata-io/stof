@@ -152,9 +152,12 @@ const f = self.add;         // functions are values
 f(2, 3); f.call(2, 3);
 ```
 
-**Library calls:** `Num::abs(-3)` always calls the library; `(-3).abs()` calls it as a method through the
-value's type library; `Lib?::func()` returns null when the library or function doesn't exist (Ex. an optional
-host library). Standard library functions (`pln`, `assert_eq`, `parse`, `copy`, ...) are called bare.
+**Library calls:** name a library with `::`, always: `Num::abs(-3)`, `Http::fetch(url)`, `Obj::fields(o)`,
+`Time::now()`, `App::notify(msg)` (a host's library). Don't write `Num.abs(-3)`: a `.` is a path, so it looks
+for a field or object named `Num` first and only falls back to the library (and changes meaning if the document
+ever has one). `(-3).abs()` calls the library as a method through the value's type; `Lib?::func()` returns null
+when the library or function doesn't exist (Ex. an optional host library). Standard library functions (`pln`,
+`assert_eq`, `parse`, `copy`, `seal`, ...) are called bare.
 
 **Null-safe access:** `self.a?.b`, `self.obj?.func()`, `?self.maybe_missing()` return null instead of throwing.
 `a ?? b` gives `b` only when `a` is null (`false ?? 'x'` is `false`).
@@ -272,6 +275,12 @@ checked, whatever it's named; with more, they're matched by name: `target_val` (
 - On fields: `#[readonly]`, `#[private]` (only the object's own functions can read it; still exported),
   `#[no-export]` (left out of `stringify`), `#[schema(...)]`, `#[attr]`/`#[text]`/`#[tag]` (html and xml, see
   Imports and formats), plus anything custom (read with `self.attributes('field')`).
+- Attributes can change at runtime: `self.set_attribute('on-save', null, 'audit')` /
+  `self.remove_attribute('readonly', 'total')` (the object itself with no path, or the field, function, or object at
+  the path; a null value is a bare `#[name]`), and `func.set_attribute('main')` / `func.remove_attribute('main')`.
+  They take effect at once (`funcs(attributes = ..)`, `run`, readonly, export). On a sealed object attributes never
+  change (an error), even when its fields may. `#[type]` and `#[init]` act at parse time, so setting them later
+  doesn't make a type or run anything.
 - `#[type_ignore]` on a type's field keeps it on the type only (not copied into instances; read it as
   `<Type>.FIELD`). Use it with `const` for shared constants, so instances don't each carry a copy.
 
@@ -339,8 +348,8 @@ dashboard: {
 - A list is one element per item. Lists, maps, and objects in attributes are JSON. Null values aren't written.
   Functions without `#[attr]` or `#[text]` aren't written.
 - **HTML is safe to put in a page:** text and attributes are escaped; `script`, `style`, `iframe`, `object`, `embed`,
-  `link`, `meta`, `template` (and their content) are never written; `on*` attributes and `javascript:` URLs are
-  dropped. Only standard HTML elements and custom elements (with a `-`) are written, or exactly the host's list
+  `link`, `meta`, `template` (and their content) are never written; `on*` attributes are dropped, URLs must be
+  relative or http, https, mailto, tel (or a data: image), and `style`/`action`/`formaction` need the host's OK. Only standard HTML elements and custom elements (with a `-`) are written, or exactly the host's list
   (`allow_html_tags`, which documents can't change). A `true` attribute is written bare, `false` is left out. An
   html export of an object with no tag is a fragment (its content only).
 - **XML** starts with a declaration, writes booleans as `"true"`/`"false"`, and fails on names that aren't valid XML.
@@ -467,13 +476,35 @@ graph.remove("rate", false);
 and `fs::*` calls fail. The `stof` CLI allows everything.
 To allow only some hosts: `graph.allow_http_hosts(["api.example.com"])` (Rust), `doc.allow_http_hosts([...])` (Python),
 `doc.allowHttp(['api.example.com'])` (JS). Requests and redirects elsewhere fail; `"localhost:8080"` limits the port too.
+With no list, any public host: this machine and private networks (localhost, 10.x, 192.168.x, 169.254.x metadata,
+`*.internal`, ...) fail unless listed or allowed with `allow_private_network()` (Rust, Python) / `doc.allowPrivateNetwork()` (JS).
 A call fails with an execution timeout after 2 minutes by default: `graph.max_execution_time = Some(duration)` (Rust),
 `doc.set_max_execution_time(seconds)` (Python), `doc.setMaxExecutionTime(ms)` (JS); null/None for no limit.
+A call fails with a memory limit error when it grows memory by more than 256 MB: `graph.max_memory = Some(bytes)`
+(Rust), `doc.set_max_memory(bytes)` (Python), `doc.setMaxMemory(bytes)` (JS); null/None for no limit. Like a timeout,
+a `catch` can't keep the call going. Rust hosts count all growth only with
+`#[global_allocator] static A: stof::runtime::memory::StofAlloc = stof::runtime::memory::StofAlloc;` (the JS and
+Python builds have it); without it, only single steps that would make a value too big (`'a' * n`, `split`,
+`replace`, `join`, `parse`, ...) are refused.
 To print nothing (no parse warnings, test progress, or `pln`/`err`/`dbg` output; reports and errors still come back):
 `graph.quiet(true)` (Rust), `doc.quiet()` (Python and JS).
 The html format writes only standard and custom elements by default; to allow exactly a list (Ex. your components):
 `graph.allow_html_tags(["div", "ui-card"])` (Rust), `doc.allow_html_tags([...])` (Python), `doc.allowHtmlTags([...])`
-(JS). Host exports (`graph.stringify` in Rust, `doc.stringify` in JS, `doc.string_export` in Python) call computed
+(JS). URL attributes are written only when relative or http, https, mailto, tel (or a data: image); `style`, `action`,
+and `formaction` only when allowed: `allow_html_attributes(["style"])` (Rust, Python), `doc.allowHtmlAttributes([...])` (JS).
+In JS, if the engine ever traps (Ex. no memory limit and it runs out), the call rejects and that document is
+`doc.crashed`: every later call throws; create a new document.
+
+**Sealing** (host only): `doc.seal('<Engine>')` (JS, Python) / `graph.seal_path("<Engine>", false, None)` (Rust)
+locks an object (path, or a type as `<Name>`) and everything under it: its functions, prototypes, and fields
+holding functions or sealed objects can't be added, removed, renamed, replaced, or moved (by document code or the
+host) until `unseal`; a refused change fails with `sealed: ...`. Fields still change unless sealed with `fields`
+(`{ fields: true }`, `fields=True`). Sealed code (arrows, calls, state) runs as before. `doc.digest(path)` is a
+stable SHA-256 of its functions and structure (parsed or BSTF); `doc.seal(path, { digest })` or
+`{ publicKey, signature }` (Ed25519 over the digest; `StofDoc.sign(digest, secretKey)`, `Doc.sign`) seals only if
+it matches. Functions are found by name at call time, so seal everything a call chain relies on. A document can
+seal parts of itself too, one-way: `seal(<Engine>)` or `seal(self.rules, true)` (returns the digest; Ex. in an
+`#[init]`), and `digest(obj)`; only the host can unseal. Host exports (`graph.stringify` in Rust, `doc.stringify` in JS, `doc.string_export` in Python) call computed
 values too, with a runtime of their own: an async host function can't finish there, so call `stringify` from Stof
 (Ex. `await doc.callSource(...)`) when a computed value needs one.
 
@@ -497,12 +528,12 @@ Read `references/libs/<file>` for full signatures and examples.
 
 | Library | File | For |
 |---|---|---|
-| Std | `Std.md` | Called bare: `pln`, `assert*`, `throw`, `parse`, `stringify`, `blobify`, `copy`, `drop`, `swap`, `funcs`, `sleep`, `env`, `format`, `nanoid`, `min`/`max` |
-| Obj | `Obj.md` | Objects: `fields`, `insert`, `get`, `set`/`unset` (by name, not path), `contains`, `parent`, `children`, `schemafy`, `instance_of`, `run`, `to_map`, `move` |
+| Std | `Std.md` | Called bare: `pln`, `assert*`, `throw`, `parse`, `stringify`, `blobify`, `copy`, `drop`, `swap`, `funcs`, `sleep`, `env`, `format`, `nanoid`, `min`/`max`, `seal`/`digest` |
+| Obj | `Obj.md` | Objects: `fields`, `insert`, `get`, `set`/`unset` (by name, not path), `contains`, `parent`, `children`, `schemafy`, `instance_of`, `run`, `to_map`, `move`, `attributes`/`set_attribute`/`remove_attribute` |
 | Str | `Str.md` | Strings: `len`, `split`, `lower`, `upper`, `trim`, `replace`, `contains`, `starts_with`, `substring` |
 | Num | `Num.md` | Numbers and units: `abs`, `round`, `floor`, `sqrt`, `pow`, `min`, `max`, `to_units`, `has_units` |
 | List, Map, Set, Tup | `List.md` `Map.md` `Set.md` `Tup.md` | Collections (lists: `map`, `filter`, `any`, `sort_by`, ...) |
-| Fn | `Fn.md` | Functions as values: `call`, `params`, `attributes`, `obj`, `bind` |
+| Fn | `Fn.md` | Functions as values: `call`, `params`, `attributes`/`set_attribute`/`remove_attribute`, `obj`, `bind` |
 | Time | `Time.md` | `Time::now()`, RFC-3339/2822, date math |
 | Ver | `Ver.md` | Semantic versions |
 | Blob | `Blob.md` | Binary data |

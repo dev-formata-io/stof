@@ -24,7 +24,7 @@ pub fn num_abs() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "abs".into(),
         is_async: false,
-        docs: r#"# Num.abs(val: int | float) -> int | float
+        docs: r#"# Num::abs(val: int | float) -> int | float
 Return the absolute value of the given number.
 ```rust
 const v = -2;
@@ -50,7 +50,7 @@ pub fn num_sqrt() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "sqrt".into(),
         is_async: false,
-        docs: r#"# Num.sqrt(val: int | float) -> float
+        docs: r#"# Num::sqrt(val: int | float) -> float
 Return the square root of a number.
 ```rust
 const v = 4;
@@ -76,7 +76,7 @@ pub fn num_cbrt() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "cbrt".into(),
         is_async: false,
-        docs: r#"# Num.cbrt(val: int | float) -> float
+        docs: r#"# Num::cbrt(val: int | float) -> float
 Return the cube root of a number.
 ```rust
 const v = 8;
@@ -102,7 +102,7 @@ pub fn num_floor() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "floor".into(),
         is_async: false,
-        docs: r#"# Num.floor(val: int | float) -> int | float
+        docs: r#"# Num::floor(val: int | float) -> int | float
 Return the largest integer less than or equal to the given value.
 ```rust
 const v = 2.4;
@@ -128,7 +128,7 @@ pub fn num_ceil() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "ceil".into(),
         is_async: false,
-        docs: r#"# Num.ceil(val: int | float) -> int | float
+        docs: r#"# Num::ceil(val: int | float) -> int | float
 Return the smallest integer greater than or equal to the given value.
 ```rust
 const v = 2.4;
@@ -154,7 +154,7 @@ pub fn num_trunc() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "trunc".into(),
         is_async: false,
-        docs: r#"# Num.trunc(val: int | float) -> int | float
+        docs: r#"# Num::trunc(val: int | float) -> int | float
 Return the integer part of the given value.
 ```rust
 const v = 2.4;
@@ -180,7 +180,7 @@ pub fn num_fract() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "fract".into(),
         is_async: false,
-        docs: r#"# Num.fract(val: int | float) -> int | float
+        docs: r#"# Num::fract(val: int | float) -> int | float
 Return the fractional part of this number.
 ```rust
 const v = 2.4;
@@ -206,7 +206,7 @@ pub fn num_signum() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "signum".into(),
         is_async: false,
-        docs: r#"# Num.signum(val: int | float) -> int | float
+        docs: r#"# Num::signum(val: int | float) -> int | float
 Return a number representing the sign of this value (-1 or 1).
 ```rust
 assert_eq((42).signum(), 1);
@@ -232,7 +232,7 @@ pub fn num_exp() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "exp".into(),
         is_async: false,
-        docs: r#"# Num.exp(val: int | float) -> float
+        docs: r#"# Num::exp(val: int | float) -> float
 Exponential function (e^(val)).
 ```rust
 assert_eq((1).exp().round(3), 2.718);
@@ -257,7 +257,7 @@ pub fn num_exp2() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "exp2".into(),
         is_async: false,
-        docs: r#"# Num.exp2(val: int | float) -> float
+        docs: r#"# Num::exp2(val: int | float) -> float
 Exponential 2 function (2^(val)).
 ```rust
 assert_eq((2).exp2(), 4);
@@ -282,7 +282,7 @@ pub fn num_ln() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "ln".into(),
         is_async: false,
-        docs: r#"# Num.ln(val: int | float) -> float
+        docs: r#"# Num::ln(val: int | float) -> float
 Natural log.
 ```rust
 assert_eq((1).ln(), 0);
@@ -307,7 +307,7 @@ pub fn num_nan() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "nan".into(),
         is_async: false,
-        docs: r#"# Num.nan(val: int | float) -> bool
+        docs: r#"# Num::nan(val: int | float) -> bool
 Return true if this value is NaN.
 ```rust
 assert_not((14).nan());
@@ -332,7 +332,7 @@ pub fn num_inf() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "inf".into(),
         is_async: false,
-        docs: r#"# Num.inf(val: int | float) -> bool
+        docs: r#"# Num::inf(val: int | float) -> bool
 Return true if this value is infinity.
 ```rust
 assert_not((14).inf());
@@ -357,7 +357,7 @@ pub fn num_sin() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "sin".into(),
         is_async: false,
-        docs: r#"# Num.sin(val: int | float) -> float
+        docs: r#"# Num::sin(val: int | float) -> float
 Sine function.
 "#.into(),
         params: crate::params![
@@ -380,7 +380,7 @@ pub fn num_cos() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "cos".into(),
         is_async: false,
-        docs: r#"# Num.cos(val: int | float) -> float
+        docs: r#"# Num::cos(val: int | float) -> float
 Cosine function.
 "#.into(),
         params: crate::params![
@@ -403,7 +403,7 @@ pub fn num_tan() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "tan".into(),
         is_async: false,
-        docs: r#"# Num.tan(val: int | float) -> float
+        docs: r#"# Num::tan(val: int | float) -> float
 Tangent function.
 "#.into(),
         params: crate::params![
@@ -426,7 +426,7 @@ pub fn num_asin() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "asin".into(),
         is_async: false,
-        docs: r#"# Num.asin(val: int | float) -> rad
+        docs: r#"# Num::asin(val: int | float) -> rad
 Arc Sine function (returns a float with radian units).
 "#.into(),
         params: crate::params![
@@ -449,7 +449,7 @@ pub fn num_acos() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "acos".into(),
         is_async: false,
-        docs: r#"# Num.acos(val: int | float) -> rad
+        docs: r#"# Num::acos(val: int | float) -> rad
 Arc Cosine function (returns a float with radian units).
 "#.into(),
         params: crate::params![
@@ -472,7 +472,7 @@ pub fn num_atan() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "atan".into(),
         is_async: false,
-        docs: r#"# Num.atan(val: int | float) -> rad
+        docs: r#"# Num::atan(val: int | float) -> rad
 Arc Tangent function (returns a float with radian units).
 "#.into(),
         params: crate::params![
@@ -495,7 +495,7 @@ pub fn num_sinh() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "sinh".into(),
         is_async: false,
-        docs: r#"# Num.sinh(val: int | float) -> float
+        docs: r#"# Num::sinh(val: int | float) -> float
 Hyperbolic Sine function.
 "#.into(),
         params: crate::params![
@@ -518,7 +518,7 @@ pub fn num_cosh() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "cosh".into(),
         is_async: false,
-        docs: r#"# Num.cosh(val: int | float) -> float
+        docs: r#"# Num::cosh(val: int | float) -> float
 Hyperbolic Cosine function.
 "#.into(),
         params: crate::params![
@@ -541,7 +541,7 @@ pub fn num_tanh() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "tanh".into(),
         is_async: false,
-        docs: r#"# Num.tanh(val: int | float) -> float
+        docs: r#"# Num::tanh(val: int | float) -> float
 Hyperbolic Tangent function.
 "#.into(),
         params: crate::params![
@@ -564,7 +564,7 @@ pub fn num_asinh() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "asinh".into(),
         is_async: false,
-        docs: r#"# Num.asinh(val: int | float) -> float
+        docs: r#"# Num::asinh(val: int | float) -> float
 Inverse hyperbolic Sine function.
 "#.into(),
         params: crate::params![
@@ -587,7 +587,7 @@ pub fn num_acosh() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "acosh".into(),
         is_async: false,
-        docs: r#"# Num.acosh(val: int | float) -> float
+        docs: r#"# Num::acosh(val: int | float) -> float
 Inverse hyperbolic Cosine function.
 "#.into(),
         params: crate::params![
@@ -610,7 +610,7 @@ pub fn num_atanh() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "atanh".into(),
         is_async: false,
-        docs: r#"# Num.atanh(val: int | float) -> float
+        docs: r#"# Num::atanh(val: int | float) -> float
 Inverse hyperbolic Tangent function.
 "#.into(),
         params: crate::params![
@@ -633,7 +633,7 @@ pub fn num_hex() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "hex".into(),
         is_async: false,
-        docs: r#"# Num.hex(val: int) -> str
+        docs: r#"# Num::hex(val: int) -> str
 Returns this number represented as a hexidecimal string.
 ```rust
 assert_eq((10).hex(), "A");
@@ -659,7 +659,7 @@ pub fn num_bin() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "bin".into(),
         is_async: false,
-        docs: r#"# Num.bin(val: int) -> str
+        docs: r#"# Num::bin(val: int) -> str
 Returns this number represented as a binary string.
 ```rust
 assert_eq((10).bin(), "1010");
@@ -685,7 +685,7 @@ pub fn num_oct() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "oct".into(),
         is_async: false,
-        docs: r#"# Num.oct(val: int) -> str
+        docs: r#"# Num::oct(val: int) -> str
 Returns this number represented as an octal string.
 ```rust
 assert_eq((10).oct(), "12");
@@ -711,11 +711,11 @@ pub fn num_string() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "to_string".into(),
         is_async: false,
-        docs: r#"# Num.to_string(val: int | float) -> str
+        docs: r#"# Num::to_string(val: int | float) -> str
 Returns this number represented as a string (like print).
 ```rust
 assert_eq((10).to_string(), "10");
-assert_eq(str(10), "10"); // prefer Std.str(..)
+assert_eq(str(10), "10"); // prefer Std::str(..)
 ```
 "#.into(),
         params: crate::params![
@@ -738,7 +738,7 @@ pub fn num_has_units() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "has_units".into(),
         is_async: false,
-        docs: r#"# Num.has_units(val: int | float) -> bool
+        docs: r#"# Num::has_units(val: int | float) -> bool
 Returns true if the given number has units.
 ```rust
 const val = 10kg;
@@ -765,7 +765,7 @@ pub fn num_to_units() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "to_units".into(),
         is_async: false,
-        docs: r#"# Num.to_units(val: int | float, units: str | float) -> units
+        docs: r#"# Num::to_units(val: int | float, units: str | float) -> units
 Returns val cast to the given units (either a str or another number with units).
 ```rust
 const val = 10kg;
@@ -795,7 +795,7 @@ pub fn num_remove_units() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "remove_units".into(),
         is_async: false,
-        docs: r#"# Num.remove_units(val: int | float) -> int | float
+        docs: r#"# Num::remove_units(val: int | float) -> int | float
 Removes the units (if any) on this number.
 ```rust
 const val = 10kg;
@@ -822,7 +822,7 @@ pub fn num_is_angle() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "is_angle".into(),
         is_async: false,
-        docs: r#"# Num.is_angle(val: int | float) -> bool
+        docs: r#"# Num::is_angle(val: int | float) -> bool
 Returns true if the given number has angular units (degrees or radians).
 ```rust
 const val = 10deg;
@@ -849,7 +849,7 @@ pub fn num_is_temp() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "is_temp".into(),
         is_async: false,
-        docs: r#"# Num.is_temp(val: int | float) -> bool
+        docs: r#"# Num::is_temp(val: int | float) -> bool
 Returns true if the given number has temperature units.
 ```rust
 const val = 10F;
@@ -876,7 +876,7 @@ pub fn num_is_length() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "is_length".into(),
         is_async: false,
-        docs: r#"# Num.is_length(val: int | float) -> bool
+        docs: r#"# Num::is_length(val: int | float) -> bool
 Returns true if the given number has length units.
 ```rust
 const val = 10m;
@@ -903,7 +903,7 @@ pub fn num_is_time() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "is_time".into(),
         is_async: false,
-        docs: r#"# Num.is_time(val: int | float) -> bool
+        docs: r#"# Num::is_time(val: int | float) -> bool
 Returns true if the given number has units of time.
 ```rust
 const val = 10s;
@@ -930,7 +930,7 @@ pub fn num_is_mass() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "is_mass".into(),
         is_async: false,
-        docs: r#"# Num.is_mass(val: int | float) -> bool
+        docs: r#"# Num::is_mass(val: int | float) -> bool
 Returns true if the given number has units of mass.
 ```rust
 const val = 10kg;
@@ -957,7 +957,7 @@ pub fn num_is_memory() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "is_memory".into(),
         is_async: false,
-        docs: r#"# Num.is_memory(val: int | float) -> bool
+        docs: r#"# Num::is_memory(val: int | float) -> bool
 Returns true if the given number has units of computer memory (bits, bytes, MB, KB, etc.).
 ```rust
 const val = 10MB;
@@ -984,7 +984,7 @@ pub fn num_round() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "round".into(),
         is_async: false,
-        docs: r#"# Num.round(val: int | float, places: int = 0) -> int | float
+        docs: r#"# Num::round(val: int | float, places: int = 0) -> int | float
 Round the given number to the given number of places. If value is an integer, do nothing.
 ```rust
 const val = 10.348;
@@ -1013,7 +1013,7 @@ pub fn num_pow() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "pow".into(),
         is_async: false,
-        docs: r#"# Num.pow(val: int | float, to: int | float = 2) -> float
+        docs: r#"# Num::pow(val: int | float, to: int | float = 2) -> float
 Returns the given value raised to the given power.
 ```rust
 const val = 10;
@@ -1042,7 +1042,7 @@ pub fn num_log() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "log".into(),
         is_async: false,
-        docs: r#"# Num.log(val: int | float, base: int | float = 10) -> float
+        docs: r#"# Num::log(val: int | float, base: int | float = 10) -> float
 Log function with a given base value.
 ```rust
 assert_eq((2).log().round(3), 0.301);
@@ -1069,10 +1069,10 @@ pub fn num_atan2() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "atan2".into(),
         is_async: false,
-        docs: r#"# Num.atan2(y: int | float, x: int | float) -> rad
+        docs: r#"# Num::atan2(y: int | float, x: int | float) -> rad
 Computes the four quadrant arctangent of self (y) and other (x) in radians.
 ```rust
-assert_eq((Num.atan2(1, 2) as deg).round(), 27deg);
+assert_eq((Num::atan2(1, 2) as deg).round(), 27deg);
 ```
 "#.into(),
         params: crate::params![

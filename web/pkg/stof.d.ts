@@ -9,6 +9,11 @@ export class Stof {
     free(): void;
     [Symbol.dispose](): void;
     /**
+     * Attributes the html format writes only when allowed: `style`, `action`, and `formaction` (off by default).
+     * Documents can't change it. Calling it again adds attributes.
+     */
+    allowHtmlAttributes(attributes: string[]): void;
+    /**
      * Elements the html format may write (Ex. the components your page renders): only these, instead of the
      * standard HTML elements and custom elements. Documents can't change it. Calling it again adds elements.
      */
@@ -28,21 +33,17 @@ export class Stof {
      */
     binaryImport(bytes: any, format: string, node: any, profile: string): boolean;
     /**
-     * Call a function from Stof source without adding it to the document.
-     * The source's first function runs with self as the node (an object path or ID, the root by default),
-     * and everything the source declares is removed after the call.
+     * The seal digest of an object (path, or a type as "<Name>"), with its fields' values when `fields`.
      */
-    call_source_with_gate(src: string, args: any, node: any, acquire: Function, release: Function): Promise<any>;
-    /**
-     * Call a singular function in the document (by path).
-     * If no arguments, pass undefined as args.
-     * Otherwise, pass an array of arguments as args.
-     */
-    call_with_gate(path: string, args: any, acquire: Function, release: Function): Promise<any>;
+    digest(path: string, fields?: boolean | null): string;
     /**
      * Get the ID of this document as a string.
      */
     docid(): string;
+    /**
+     * End a task with this error (Ex. the host's call gate failed): `result` or `report` returns it.
+     */
+    fail(task: StofTask, message: string): void;
     /**
      * Get a value from this graph using the Stof runtime (all language features supported).
      */
@@ -80,19 +81,54 @@ export class Stof {
      */
     remove(path: string, shallow: boolean): boolean;
     /**
-     * Run functions with the given attribute(s) in this document.
-     * Attributes defaults to #[main] functions if null or undefined.
+     * A finished run's report (`start_run`).
      */
-    run_with_gate(attributes: any, acquire: Function, release: Function): Promise<string>;
+    report(task: StofTask): string;
+    /**
+     * A finished call's result (`start_call`, `start_call_source`).
+     */
+    result(task: StofTask): any;
+    /**
+     * Seal an object (path, or a type as "<Name>") and everything under it: its functions can be called but not
+     * changed (see `model::seal`). With `fields`, its fields are frozen too. With `expected`, only if its digest is
+     * that. With `public_key` and `signature`, only if the digest is signed by that key. Returns the digest.
+     */
+    seal(path: string, fields?: boolean | null, expected?: string | null, public_key?: string | null, signature?: string | null): string;
     /**
      * How long a call can run, in milliseconds, before it fails with an execution timeout (null for no limit).
      * Defaults to 120,000 (2 minutes).
      */
     setMaxExecutionTime(ms?: number | null): void;
     /**
+     * How much memory a call can use, in bytes, before it fails with a memory limit error (null for no limit).
+     * Defaults to 268,435,456 (256 MB).
+     */
+    setMaxMemory(bytes?: number | null): void;
+    /**
      * Set a value onto this graph using the Stof runtime.
      */
     set(path: string, value: any, start: any): boolean;
+    /**
+     * Start a call to a function in the document (by path), as a task the host runs with `step` and then
+     * `result` (doc.ts `call`). Pass an array of arguments, or undefined for none.
+     */
+    start_call(path: string, args: any): StofTask;
+    /**
+     * Start a call to a function from Stof source without adding it to the document, as a task the host runs
+     * with `step` and then `result` (doc.ts `callSource`). The source's first function runs with self as the node
+     * (an object path or ID, the root by default), and everything the source declares is removed after the call.
+     */
+    start_call_source(src: string, args: any, node: any): StofTask;
+    /**
+     * Start running functions with the given attribute(s) in this document (#[main] by default), as a task the
+     * host runs with `step` and then `report` (doc.ts `run`).
+     */
+    start_run(attributes: any): StofTask;
+    /**
+     * Run one step of a task: 0 when it's finished, 1 for more, 2 for more after yielding to the event loop.
+     * A document that's busy (another step holds it) ends the task with that error (returns 0).
+     */
+    step(task: StofTask): number;
     /**
      * String export, using a format of choice.
      */
@@ -119,6 +155,10 @@ export class Stof {
      * Async TS lib functions will not work with this, but it will be faster.
      */
     sync_run(attributes: any): string;
+    /**
+     * Unseal an object that `seal` sealed (path, or a type as "<Name>").
+     */
+    unseal(path: string): void;
 }
 
 /**
@@ -142,6 +182,16 @@ export class StofFunc {
     setParams(names: string[]): void;
 }
 
+/**
+ * A call in progress (see `Stof::step`): the host runs it one step at a time, so a trap in the engine ends the
+ * call with an error the host can catch.
+ */
+export class StofTask {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+}
+
 export function start(): void;
 
 /**
@@ -154,22 +204,42 @@ export function stofEdit(text: string, edits: string): string;
  */
 export function stofOutline(text: string): string;
 
+/**
+ * The Ed25519 public key (base64) for a secret key (base64 or hex, 32 bytes).
+ */
+export function stofPublicKey(secret_key: string): string;
+
+/**
+ * Sign a seal digest with an Ed25519 secret key (base64 or hex, 32 bytes): the signature, base64.
+ */
+export function stofSign(digest: string, secret_key: string): string;
+
+/**
+ * Is this an Ed25519 signature (base64 or hex) over this seal digest by this public key (base64 or hex)?
+ */
+export function stofVerify(digest: string, public_key: string, signature: string): boolean;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_stof_free: (a: number, b: number) => void;
     readonly __wbg_stoffunc_free: (a: number, b: number) => void;
+    readonly __wbg_stoftask_free: (a: number, b: number) => void;
     readonly start: () => void;
     readonly stofEdit: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly stofOutline: (a: number, b: number) => [number, number, number, number];
+    readonly stofPublicKey: (a: number, b: number) => [number, number, number, number];
+    readonly stofSign: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+    readonly stofVerify: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
+    readonly stof_allowHtmlAttributes: (a: number, b: number, c: number) => [number, number];
     readonly stof_allowHtmlTags: (a: number, b: number, c: number) => [number, number];
     readonly stof_allowHttp: (a: number) => [number, number];
     readonly stof_binaryExport: (a: number, b: number, c: number, d: any) => [number, number, number];
     readonly stof_binaryImport: (a: number, b: any, c: number, d: number, e: any, f: number, g: number) => [number, number, number];
-    readonly stof_call_source_with_gate: (a: number, b: number, c: number, d: any, e: any, f: any, g: any) => any;
-    readonly stof_call_with_gate: (a: number, b: number, c: number, d: any, e: any, f: any) => any;
+    readonly stof_digest: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly stof_docid: (a: number) => [number, number];
+    readonly stof_fail: (a: number, b: number, c: number, d: number) => void;
     readonly stof_get: (a: number, b: number, c: number, d: any) => [number, number, number];
     readonly stof_js_library_function: (a: number, b: number) => [number, number];
     readonly stof_keepSource: (a: number, b: number) => [number, number];
@@ -178,18 +248,25 @@ export interface InitOutput {
     readonly stof_parse: (a: number, b: number, c: number, d: any, e: number, f: number) => [number, number, number];
     readonly stof_quiet: (a: number, b: number) => [number, number];
     readonly stof_remove: (a: number, b: number, c: number, d: number) => [number, number, number];
-    readonly stof_run_with_gate: (a: number, b: any, c: any, d: any) => any;
+    readonly stof_report: (a: number, b: number) => [number, number, number, number];
+    readonly stof_result: (a: number, b: number) => [number, number, number];
+    readonly stof_seal: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number, number];
     readonly stof_set: (a: number, b: number, c: number, d: any, e: any) => [number, number, number];
     readonly stof_setMaxExecutionTime: (a: number, b: number, c: number) => [number, number];
+    readonly stof_setMaxMemory: (a: number, b: number, c: number) => [number, number];
+    readonly stof_start_call: (a: number, b: number, c: number, d: any) => [number, number, number];
+    readonly stof_start_call_source: (a: number, b: number, c: number, d: any, e: any) => [number, number, number];
+    readonly stof_start_run: (a: number, b: any) => [number, number, number];
+    readonly stof_step: (a: number, b: number) => number;
     readonly stof_stringExport: (a: number, b: number, c: number, d: any) => [number, number, number, number];
     readonly stof_stringImport: (a: number, b: number, c: number, d: number, e: number, f: any, g: number, h: number) => [number, number, number];
     readonly stof_sync_call: (a: number, b: number, c: number, d: any) => [number, number, number];
     readonly stof_sync_call_source: (a: number, b: number, c: number, d: any, e: any) => [number, number, number];
     readonly stof_sync_run: (a: number, b: any) => [number, number, number, number];
+    readonly stof_unseal: (a: number, b: number, c: number) => [number, number];
     readonly stoffunc_docid: (a: number) => [number, number];
     readonly stoffunc_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: any, h: number) => number;
     readonly stoffunc_setParams: (a: number, b: number, c: number) => void;
-    readonly wasm_bindgen_3b9afeaa82ee37f3___convert__closures_____invoke___js_sys_5d800256f981837c___Function_fn_wasm_bindgen_3b9afeaa82ee37f3___JsValue_____wasm_bindgen_3b9afeaa82ee37f3___sys__Undefined___js_sys_5d800256f981837c___Function_fn_wasm_bindgen_3b9afeaa82ee37f3___JsValue_____wasm_bindgen_3b9afeaa82ee37f3___sys__Undefined_______true_: (a: number, b: number, c: any, d: any) => void;
     readonly wasm_bindgen_3b9afeaa82ee37f3___convert__closures_____invoke___wasm_bindgen_3b9afeaa82ee37f3___JsValue__core_608f92abc48d28da___result__Result_____wasm_bindgen_3b9afeaa82ee37f3___JsError___true_: (a: number, b: number, c: any) => [number, number];
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;

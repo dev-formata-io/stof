@@ -24,7 +24,7 @@ pub fn prompt_str() -> LibFunc {
         library: PROMPT_LIB.clone(),
         name: "str".into(),
         is_async: false,
-        docs: r#"# Prompt.str(prompt: prompt) -> str
+        docs: r#"# Prompt::str(prompt: prompt) -> str
 Convert this prompt into a string, just like a cast to 'str' would do.
 ```rust
 const p = prompt('hello', 'greet');
@@ -49,7 +49,7 @@ pub fn prompt_text() -> LibFunc {
         library: PROMPT_LIB.clone(),
         name: "text".into(),
         is_async: false,
-        docs: r#"# Prompt.text(prompt: prompt) -> str
+        docs: r#"# Prompt::text(prompt: prompt) -> str
 Get the text portion of this prompt (ignoring any sub-prompts & tag).
 ```rust
 const p = prompt('hello', 'greet');
@@ -74,7 +74,7 @@ pub fn prompt_tag() -> LibFunc {
         library: PROMPT_LIB.clone(),
         name: "tag".into(),
         is_async: false,
-        docs: r#"# Prompt.tag(prompt: prompt) -> str
+        docs: r#"# Prompt::tag(prompt: prompt) -> str
 Get the string tag for this prompt, or null if not present.
 ```rust
 const p = prompt('hello', 'greet');
@@ -99,7 +99,7 @@ pub fn prompt_prompts() -> LibFunc {
         library: PROMPT_LIB.clone(),
         name: "prompts".into(),
         is_async: false,
-        docs: r#"# Prompt.prompts(prompt: prompt) -> list
+        docs: r#"# Prompt::prompts(prompt: prompt) -> list
 Return this prompts list of sub-prompts.
 ```rust
 const p = prompt('hello', 'greet', prompt('a thing', 'sub'));
@@ -125,7 +125,7 @@ pub fn prompt_set_text() -> LibFunc {
         library: PROMPT_LIB.clone(),
         name: "set_text".into(),
         is_async: false,
-        docs: r#"# Prompt.set_text(prompt: prompt, text: str) -> void
+        docs: r#"# Prompt::set_text(prompt: prompt, text: str) -> void
 Set the text portion of this prompt.
 ```rust
 const p = prompt('hello', 'greet');
@@ -152,7 +152,7 @@ pub fn prompt_set_tag() -> LibFunc {
         library: PROMPT_LIB.clone(),
         name: "set_tag".into(),
         is_async: false,
-        docs: r#"# Prompt.set_tag(prompt: prompt, tag: str) -> void
+        docs: r#"# Prompt::set_tag(prompt: prompt, tag: str) -> void
 Set the tag portion of this prompt. Set to null to clear the tag.
 ```rust
 const p = prompt('hello', 'greet');
@@ -179,7 +179,7 @@ pub fn prompt_len() -> LibFunc {
         library: PROMPT_LIB.clone(),
         name: "len".into(),
         is_async: false,
-        docs: r#"# Prompt.len(prompt: prompt) -> int
+        docs: r#"# Prompt::len(prompt: prompt) -> int
 The number of sub-prompts contained within this prompt.
 ```rust
 const p = prompt('hello', 'greet', prompt('hello, world'));
@@ -204,7 +204,7 @@ pub fn prompt_at() -> LibFunc {
         library: PROMPT_LIB.clone(),
         name: "at".into(),
         is_async: false,
-        docs: r#"# Prompt.at(prompt: prompt, index: int) -> prompt
+        docs: r#"# Prompt::at(prompt: prompt, index: int) -> prompt
 Get the sub-prompt at a given index (like a list). Will return null if the prompt does not have any sub-prompts.
 ```rust
 const p = prompt('hello', 'greet', prompt('hello there'));
@@ -231,7 +231,7 @@ pub fn prompt_any() -> LibFunc {
         library: PROMPT_LIB.clone(),
         name: "any".into(),
         is_async: false,
-        docs: r#"# Prompt.any(prompt: prompt) -> bool
+        docs: r#"# Prompt::any(prompt: prompt) -> bool
 Does this prompt have any sub-prompts?
 ```rust
 const p = prompt('hello', 'greet');
@@ -256,7 +256,7 @@ pub fn prompt_empty() -> LibFunc {
         library: PROMPT_LIB.clone(),
         name: "empty".into(),
         is_async: false,
-        docs: r#"# Prompt.empty(prompt: prompt) -> bool
+        docs: r#"# Prompt::empty(prompt: prompt) -> bool
 Returns true if the prompt does not have any sub-prompts.
 ```rust
 const p = prompt('hello', 'greet');
@@ -281,7 +281,7 @@ pub fn prompt_push() -> LibFunc {
         library: PROMPT_LIB.clone(),
         name: "push".into(),
         is_async: false,
-        docs: r#"# Prompt.push(prompt: prompt, other: prompt | str) -> void
+        docs: r#"# Prompt::push(prompt: prompt, other: prompt | str) -> void
 Push a sub-prompt to this prompt.
 ```rust
 const p = prompt('hello', 'greet');
@@ -309,7 +309,7 @@ pub fn prompt_pop() -> LibFunc {
         library: PROMPT_LIB.clone(),
         name: "pop".into(),
         is_async: false,
-        docs: r#"# Prompt.pop(prompt: prompt) -> prompt
+        docs: r#"# Prompt::pop(prompt: prompt) -> prompt
 Pop a sub-prompt from the end of the sub-prompt list.
 ```rust
 const p = prompt('hello', 'greet');
@@ -336,7 +336,7 @@ pub fn prompt_clear() -> LibFunc {
         library: PROMPT_LIB.clone(),
         name: "clear".into(),
         is_async: false,
-        docs: r#"# Prompt.clear(prompt: prompt) -> void
+        docs: r#"# Prompt::clear(prompt: prompt) -> void
 Clear all sub-prompts from this prompt.
 ```rust
 const p = prompt('hello', 'greet');
@@ -363,7 +363,7 @@ pub fn prompt_reverse() -> LibFunc {
         library: PROMPT_LIB.clone(),
         name: "reverse".into(),
         is_async: false,
-        docs: r#"# Prompt.reverse(prompt: prompt) -> void
+        docs: r#"# Prompt::reverse(prompt: prompt) -> void
 Reverse all sub-prompts in this prompt.
 ```rust
 const p = prompt(tag = 'greet');
@@ -391,7 +391,7 @@ pub fn prompt_remove() -> LibFunc {
         library: PROMPT_LIB.clone(),
         name: "remove".into(),
         is_async: false,
-        docs: r#"# Prompt.remove(prompt: prompt, index: int) -> prompt
+        docs: r#"# Prompt::remove(prompt: prompt, index: int) -> prompt
 Remove a sub-prompt at the given index.
 ```rust
 const p = prompt(tag = 'greet');
@@ -420,7 +420,7 @@ pub fn prompt_insert() -> LibFunc {
         library: PROMPT_LIB.clone(),
         name: "insert".into(),
         is_async: false,
-        docs: r#"# Prompt.insert(prompt: prompt, index: int, other: prompt) -> void
+        docs: r#"# Prompt::insert(prompt: prompt, index: int, other: prompt) -> void
 Insert a sub-prompt into the given index.
 ```rust
 const p = prompt(tag = 'greet');
@@ -449,7 +449,7 @@ pub fn prompt_replace() -> LibFunc {
         library: PROMPT_LIB.clone(),
         name: "replace".into(),
         is_async: false,
-        docs: r#"# Prompt.replace(prompt: prompt, index: int, other: prompt) -> void
+        docs: r#"# Prompt::replace(prompt: prompt, index: int, other: prompt) -> void
 Replace a sub-prompt at the given index.
 ```rust
 const p = prompt(tag = 'greet');

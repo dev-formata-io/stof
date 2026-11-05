@@ -52,7 +52,7 @@ Functions in the 'Std' library are foundational to Stof and therefore do not req
 ```rust
 #[main]
 fn main() {
-    Std.pln("printing a line");
+    Std::pln("printing a line");
     pln("printing another line"); // no 'Std' needed for this library
 }
 ```
@@ -69,7 +69,7 @@ Library for manipulating and using numbers, automatically linked to the number t
 ```rust
 #[main]
 fn main() {
-    assert_eq(Num.abs(-23), 23);
+    assert_eq(Num::abs(-23), 23);
 
     const val = -5;
     assert_eq(val.abs(), 5);
@@ -150,7 +150,7 @@ Library for working with and calling functions, linked to the 'fn' type.
 #[main]
 fn main() {
     const f = ():str => 'hello';
-    assert_eq(Fn.call(f), 'hello');
+    assert_eq(Fn::call(f), 'hello');
     assert_eq(f.call(), 'hello');
     assert_eq(f(), 'hello');
 }
@@ -169,7 +169,7 @@ Library that is linked to the 'obj' type.
 #[main]
 fn main() {
     const o = new {};
-    assert_eq(Obj.parent(o), self);
+    assert_eq(Obj::parent(o), self);
     assert_eq(o.parent(), self);
 }
 ```
@@ -212,7 +212,7 @@ Library linked to the 'list' type.
 fn main() {
     const array = [1, 2, 3];
     assert_eq(array.len(), 3);
-    assert_eq(List.len(array), 3);
+    assert_eq(List::len(array), 3);
 }
 ```
 "#.into());
@@ -230,7 +230,7 @@ Library linked to the 'set' type.
 fn main() {
     const a = {1, 2, 3};
     assert_eq(a.len(), 3);
-    assert_eq(Set.len(a), 3);
+    assert_eq(Set::len(a), 3);
 }
 ```
 "#.into());
@@ -248,7 +248,7 @@ Library linked to the 'map' type. Maps are ordered by keys.
 fn main() {
     const a = {1: 'hi'};
     assert_eq(a.len(), 1);
-    assert_eq(Map.len(a), 1);
+    assert_eq(Map::len(a), 1);
 }
 ```
 "#.into());
@@ -267,7 +267,7 @@ fn main() {
     const a = (1, 2);
     assert_eq(a[0], 1);
     assert_eq(a.at(1), 2);
-    assert_eq(Tup.at(a, 1), 2);
+    assert_eq(Tup::at(a, 1), 2);
 }
 ```
 "#.into());
@@ -285,15 +285,15 @@ Helper functions for common markdown operations, like turning Md strings into HT
 fn time_lib(graph: &mut Graph) {
     graph.insert_libdoc(literal!("Time"), 
 r#"# Time Library (Time)
-Functions for working with time. Requires the "system" feature flag to be enabled. Includes timestamps (Time.now()) as well as common time formats (like RFC-3339) that are used in APIs and across systems.
+Functions for working with time. Requires the "system" feature flag to be enabled. Includes timestamps (Time::now()) as well as common time formats (like RFC-3339) that are used in APIs and across systems.
 
 ## Example Usage
 ```rust
 #[main]
 fn main() {
-    const now = Time.now(); // default units are ms
+    const now = Time::now(); // default units are ms
     sleep(50ms);
-    pln(Time.diff(now) as seconds); // having units is really nice
+    pln(Time::diff(now) as seconds); // having units is really nice
 }
 ```
 "#.into());
@@ -311,7 +311,7 @@ Functions for working with the file system. Off by default: documents are sandbo
 fn http_lib(graph: &mut Graph) {
     graph.insert_libdoc(literal!("Http"), 
 r#"# HTTP Network Library (Http)
-Functions for working with HTTP calls over a system network connection (async fetch, etc.). Off by default: the host opts in with `allow_http()` (Rust, Python) or `doc.allowHttp()` (JS). Requires the "http" feature (native builds). The `stof` CLI enables it.
+Functions for working with HTTP calls over a system network connection (async fetch, etc.). Off by default: the host opts in with `allow_http()` (Rust, Python) or `doc.allowHttp()` (JS), or allows only some hosts with `allow_http_hosts([...])` / `doc.allowHttp([...])`. Allowing any host means any public host: this machine and private networks (localhost, 10.x, 192.168.x, 169.254.x where cloud metadata services live, `*.internal`, ...) stay off limits, checked on every redirect too, unless the host lists them or calls `allow_private_network()` (Rust, Python) / `doc.allowPrivateNetwork()` (JS). Requires the "http" feature (native builds). The `stof` CLI enables it.
 
 ## Thread Pool
 This library adds a thread pool in the background for processing HTTP requests, allowing Stof to keep running while requests are executed separately. Asyncronous fetch requests will create a new Stof process, which will wait for the thread pool to execute the request before returning a map with the response data. You can then await this response map when you need it, which significantly increases performance by enabling parallel HTTP requests.

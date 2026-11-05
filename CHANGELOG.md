@@ -1,5 +1,115 @@
 # Changelog
 
+## 0.10.10
+
+### Security
+
+- **Memory limit: a document can no longer run its host out of memory.** Running out of memory can't be recovered
+  from: in WebAssembly a one-line loop that doubles a string (`s = s + s`) trapped the engine and, on an async call
+  (`await doc.call(..)`, which a `try` around it couldn't catch), ended the Node.js process; natively it aborted the
+  process. The execution time limit didn't help: memory ran out in under 4 seconds. Now a call fails with a memory
+  limit error once it has grown memory by more than 256 MB, and the document keeps working.
+  - Set it per document: `graph.max_memory = Some(bytes)` (Rust), `doc.set_max_memory(bytes)` (Python),
+    `doc.setMaxMemory(bytes)` (JS). `None`/`null` for no limit.
+  - Growth is counted by a counting allocator (`runtime::memory::StofAlloc`, per thread, no atomics), checked before
+    every instruction, and summed over a call's steps (an async call that resumes on another thread is still counted
+    right). The JavaScript and Python builds install it; a Rust host can install it as its `#[global_allocator]`.
+    Measured cost: within noise (the check) and about 1 to 2% (the allocator, natively).
+  - Steps that can make a value many times bigger in one instruction check the size first, with or without the
+    allocator: `'a' * n`, `Str.replace`, `Str.split`, `List.join`, blob/string/prompt to list or set, and `parse`.
+  - Like the time limit, the error ends the call: a `catch` can't keep it going while the memory is still held.
+  - Memory a call keeps (Ex. fields it sets) counts against that call only; the next call starts from zero.
+- **JavaScript: a crash in the engine fails the call instead of ending the process.** An async call
+  (`doc.call`, `callSource`, `run`) was driven by Rust futures polled from promise callbacks, so a WebAssembly trap
+  there escaped where no `try` could catch it and Node.js exited. doc.ts now runs each call one step at a time (each
+  step a synchronous call into the engine), with the same call gate, the same yield to the event loop every 20 ms,
+  and the same host promises and call-backs (`await doc.call(..)` from a library function runs between steps, as
+  before). If the engine traps (Ex. out of memory with no memory limit), the call rejects and the document is marked
+  crashed: `doc.crashed` says why, and every later call on it throws "the Stof document crashed ... create a new
+  document" (instead of "busy" forever). Other documents keep working.
+  - Rust: `Runtime::async_*_with_gate` are replaced by `JsTask` (`start_call`, `start_call_source`, `start_run`,
+    `step`, `fail`, `result`, `report` on the wasm `Stof`).
+- **Network: any host means any public host.** `allow_http()` / `doc.allowHttp()` with no host list no longer reaches
+  this machine or private networks: loopback, private ranges (10/8, 172.16/12, 192.168/16, carrier-grade NAT),
+  link-local (169.254/16, where cloud metadata services live), IPv6 loopback/unique-local/link-local (and IPv4 written
+  as IPv6), and the names `localhost`, `*.localhost`, `*.local`, `*.internal`, and `metadata`. A document allowed
+  every host could otherwise read cloud credentials from the metadata service or call internal services from inside
+  the host's network.
+  - Native builds check the URL, every address a name resolves to, and every redirect before it's sent. JavaScript
+    checks the URL as written and, on servers, every redirect before it's sent (fetch follows them in browsers);
+    it can't see what a name resolves to, so list the hosts when that matters.
+  - To reach them anyway: list them (`allow_http_hosts(["localhost:8080"])`, which works as before), or
+    `graph.allow_private_network()` (Rust), `doc.allow_private_network()` (Python), `doc.allowPrivateNetwork()` (JS).
+    The `stof` CLI should call it to keep allowing everything.
+- **HTML: URL attributes are an allowlist, and `style`, `action`, and `formaction` are opt-in.** URL attributes
+  (`href`, `src`, `srcset`, `action`, `poster`, ...) are written only when relative or `http`, `https`, `mailto`, or
+  `tel` (and raster `data:` images), instead of dropping only `javascript:`, `vbscript:`, and other `data:`. `style`
+  (which can restyle or cover the page) and form `action`/`formaction` (which can post elsewhere) are dropped unless
+  the host allows them: `graph.allow_html_attributes(["style"])` (Rust), `doc.allow_html_attributes([...])` (Python),
+  `doc.allowHtmlAttributes([...])` (JS).
+
+### Added
+
+- **Sealing: lock part of a document so it can be called but not changed.** A host seals an object (a path, or a
+  type as `<Name>`) and everything under it: `graph.seal_path("<Engine>", false, None)` (Rust), `doc.seal('<Engine>')`
+  (Python, JS). From then on its functions, prototypes, and the fields that hold functions or sealed objects can't
+  be added, removed, renamed, replaced, or moved, sealed objects can't be removed, moved, renamed, or re-attributed,
+  and no other type can take a sealed type's name (it would be found first). That holds for the document's own code
+  (an agent's function, a customer's rule) and for host calls alike, until the host unseals (`unseal`; documents
+  can't). A refused change fails the instruction or host call that made it with a `sealed: ...` error, and nothing
+  changes. Before, any code in a document could replace another part's functions (Ex.
+  `parse("fn price() -> int { 0 }", <Engine>)`).
+  - A document can seal parts of itself too: `seal(<Engine>)` or `seal(self.rules, true)` (Ex. in an `#[init]`),
+    returning the digest, and `digest(obj)`. It's one-way: documents can't unseal, only the host can.
+  - Sealed code keeps working: its arrow functions, calls, and state (fields still change; seal with `fields` to
+    freeze them too: `doc.seal(path, { fields: true })`, `fields=True`). A host's `callSource` on a sealed object
+    still works.
+  - Enforced where the document changes, so calls cost nothing more: the Limitr engine's suite (281 tests) runs as
+    fast with its whole spec sealed.
+  - What it guarantees: the sealed part's code doesn't change. Functions are found by name when called, so a sealed
+    function calling into an unsealed part calls whatever is there: seal everything a call relies on.
+- **Attributes can change at runtime.** `obj.set_attribute(name, value = null, path = null)` and
+  `obj.remove_attribute(name, path = null)` (on the object, or the field, function, or object at the path, the same
+  targets as `attributes`), and `func.set_attribute(name, value = null)` / `func.remove_attribute(name)`. Changes take
+  effect at once: `funcs(attributes = ..)`, running by attribute, `#[readonly]`/`#[private]`, and exports all see them.
+  Before, attributes were set only by the source. Attributes are behavior, so on a sealed object they never change,
+  even when its fields may (`sealed: ...`). `#[type]` and `#[init]` act when a document is parsed, so setting them
+  later doesn't register a type or run anything. Documents compiled to BSTF by earlier versions still load (the new
+  instructions are added after the existing ones).
+- **Seal digests and signatures.** `doc.digest(path)` is a SHA-256 over the part's functions (names, parameters,
+  return types, attributes, instructions) and structure, plus its fields' values with `fields`. It's the same
+  whether the document was parsed or loaded from BSTF (about 15 ms for the whole Limitr spec, natively), so a host
+  can check what it's about to trust: `doc.seal(path, { digest })` seals only if the digest matches, and
+  `doc.seal(path, { publicKey, signature })` only if an Ed25519 signature over the digest verifies. Sign at build
+  time with `StofDoc.sign(digest, secretKey)` (JS), `Doc.sign(...)` (Python), or `stof::model::seal::sign` (Rust);
+  keys and signatures are base64 (or hex), and a secret key is 32 random bytes (Ex. `openssl rand -base64 32`).
+  - Compiling the same source now gives the same instructions: block and switch expressions share one return tag
+    (they had a random one each; a return still goes to the nearest), and while a digest is computed, arrow function
+    IDs are left out and attributes are sorted (BSTF is unchanged).
+  - New dependencies: `sha2` and `ed25519-dalek` (pure Rust; `curve25519-dalek` was already in the js and full builds).
+
+### Changed
+
+- **Library references use `Lib::func(..)`.** Every library function's docs (and so `docs/libs`, the skill's
+  references, and the stof.dev library pages) now write calls as `Num::abs(x)`, `Http::fetch(url)`, and so on, instead
+  of `Num.abs(x)`. Both work, but a `.` is a path that looks for an object named `Num` first; models learn from the
+  references, so they now write the form that always means the library. The skill says so too.
+
+### Fixed
+
+- **Python: no more panics in the binding** (49 `unwrap`s): library functions take any number of arguments (was at
+  most 9), a set holding values Python can't hash (Ex. lists) comes back as a list, and a map key Python can't hash
+  becomes its text, instead of a panic.
+
+### Tests
+
+- `tests/js/check.mjs` (build `web/dist`, then `node tests/js/check.mjs`): calls and call-backs, host promises,
+  concurrent calls, the memory limit, the network guard, html, and a crash. `tests/python/smoke.py` (install the
+  wheel, then run it). CI runs both: the JavaScript job builds the engine with the wasm-bindgen CLI that matches the
+  crate (its version comes from `project.stof`), and the Python job builds the wheel with maturin.
+- `stof run project.stof` now writes `pyproject.toml` too, with `[tool.maturin]` naming the module (`pystof`) and its
+  `py` feature, so `maturin build` and `pip install .` work without changing `Cargo.toml`.
+
 ## 0.10.9
 
 ### Fixed

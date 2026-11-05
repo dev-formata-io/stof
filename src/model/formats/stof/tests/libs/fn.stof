@@ -137,3 +137,34 @@ fn fn_library_on_function_paths() {
     assert_eq(self.described.return_type(), 'float');
     assert_eq(self.described.params().len(), 2);
 }
+
+
+attr_target: {
+    fn notify() -> int { 1 }
+}
+
+#[test]
+fn set_and_remove_attributes() {
+    const func = self.attr_target.notify;
+    assert(func.set_attribute('on_order'));
+    assert(func.has_attribute('on_order'));
+    assert_eq(func.attributes(), {'on_order': null});
+    func.set_attribute('priority', 2);
+    assert_eq(func.attributes().get('priority'), 2);
+    func.set_attribute('priority', 3); // replaces the value
+    assert_eq(func.attributes().get('priority'), 3);
+    assert(func.remove_attribute('on_order'));
+    assert_not(func.remove_attribute('on_order'), 'already removed');
+    assert_eq(func.attributes(), {'priority': 3});
+    func.remove_attribute('priority');
+}
+
+#[test]
+fn attributes_decide_what_runs() {
+    const func = self.attr_target.notify;
+    assert_eq(funcs('fn_attr_test_event').len(), 0);
+    func.set_attribute('fn_attr_test_event');
+    assert_eq(funcs('fn_attr_test_event').len(), 1);
+    func.remove_attribute('fn_attr_test_event');
+    assert_eq(funcs('fn_attr_test_event').len(), 0);
+}

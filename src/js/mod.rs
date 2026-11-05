@@ -23,7 +23,7 @@ use js_sys::Uint8Array;
 use nanoid::nanoid;
 use rustc_hash::FxHashSet;
 use wasm_bindgen::prelude::*;
-use crate::{js::{func::StofFunc, value::to_graph_value}, model::{Graph, NodeRef, Profile, import::parse_json_object_value}, runtime::{Runtime, Val, Variable, instruction::Instruction, instructions::Base, proc::ProcEnv}};
+use crate::{js::{func::StofFunc, value::to_graph_value}, model::{Graph, NodeRef, Profile, import::parse_json_object_value}, runtime::{JsTask, Runtime, Val, Variable, instruction::Instruction, instructions::Base, proc::ProcEnv}};
 
 
 // Workaround for Wasm-Pack Error
@@ -49,6 +49,24 @@ pub fn stof_outline(text: &str) -> Result<String, String> {
     Ok(crate::parser::edit::outline_json(text, &defs).to_string())
 }
 
+#[wasm_bindgen(js_name = stofSign)]
+/// Sign a seal digest with an Ed25519 secret key (base64 or hex, 32 bytes): the signature, base64.
+pub fn stof_sign(digest: &str, secret_key: &str) -> Result<String, String> {
+    crate::model::seal::sign(digest, secret_key).map_err(|error| error.to_string())
+}
+
+#[wasm_bindgen(js_name = stofVerify)]
+/// Is this an Ed25519 signature (base64 or hex) over this seal digest by this public key (base64 or hex)?
+pub fn stof_verify(digest: &str, public_key: &str, signature: &str) -> bool {
+    crate::model::seal::verify(digest, public_key, signature)
+}
+
+#[wasm_bindgen(js_name = stofPublicKey)]
+/// The Ed25519 public key (base64) for a secret key (base64 or hex, 32 bytes).
+pub fn stof_public_key(secret_key: &str) -> Result<String, String> {
+    crate::model::seal::public_key(secret_key).map_err(|error| error.to_string())
+}
+
 #[wasm_bindgen(js_name = stofEdit)]
 /// Edit a Stof text in place, with edits as JSON text (see `parser::edit::edits_from_json`).
 pub fn stof_edit(text: &str, edits: &str) -> Result<String, String> {
@@ -63,6 +81,13 @@ pub struct Stof {
     docid: String,
     graph: RefCell<Graph>,
 }
+#[wasm_bindgen]
+/// A call in progress (see `Stof::step`): the host runs it one step at a time, so a trap in the engine ends the
+/// call with an error the host can catch.
+pub struct StofTask {
+    task: JsTask,
+}
+
 impl From<Graph> for Stof {
     fn from(graph: Graph) -> Self {
         Self {
@@ -155,9 +180,9 @@ impl Stof {
      * Runtime.
      *****************************************************************************/
     
-    /// Run functions with the given attribute(s) in this document.
-    /// Attributes defaults to #[main] functions if null or undefined.
-    pub async fn run_with_gate(&self, attributes: JsValue, acquire: &js_sys::Function, release: &js_sys::Function) -> Result<String, String> {
+    /// Start running functions with the given attribute(s) in this document (#[main] by default), as a task the
+    /// host runs with `step` and then `report` (doc.ts `run`).
+    pub fn start_run(&self, attributes: JsValue) -> Result<StofTask, String> {
         let mut attrs = FxHashSet::default();
         {
             let graph = self.graph_ref()?;
@@ -186,7 +211,8 @@ impl Stof {
                 }
             }
         }
-        Runtime::async_run_attribute_functions_with_gate(&self.graph, None, &Some(attrs), true, acquire, release).await
+        let mut graph = self.graph_mut()?;
+        Ok(StofTask { task: JsTask::run(&mut *graph, &Some(attrs), true) })
     }
 
     /// Synchronous run functions with the given attribute(s) in this document.
@@ -222,29 +248,12 @@ impl Stof {
         Runtime::run_attribute_functions(&mut *graph, None, &Some(attrs), true)
     }
 
-    /// Call a singular function in the document (by path).
-    /// If no arguments, pass undefined as args.
-    /// Otherwise, pass an array of arguments as args.
-    pub async fn call_with_gate(&self, path: &str, args: JsValue, acquire: &js_sys::Function, release: &js_sys::Function) -> Result<JsValue, String> {
-        let mut arguments = vec![];
-        {
-            let graph = self.graph_ref()?;
-            match to_graph_value(args, &graph) {
-                Val::List(vals) => {
-                    for val in vals {
-                        arguments.push(val.read().clone());
-                    }
-                },
-                Val::Void => { /* Undefined value. */ },
-                val => {
-                    arguments.push(val);
-                }
-            }
-        }
-        match Runtime::async_call_with_gate(&self.graph, path, arguments, acquire, release).await {
-            Ok(res) => Ok(JsValue::from(res)),
-            Err(err) => Err(err.to_string())
-        }
+    /// Start a call to a function in the document (by path), as a task the host runs with `step` and then
+    /// `result` (doc.ts `call`). Pass an array of arguments, or undefined for none.
+    pub fn start_call(&self, path: &str, args: JsValue) -> Result<StofTask, String> {
+        let mut graph = self.graph_mut()?;
+        let arguments = call_arguments(args, &graph);
+        Ok(StofTask { task: JsTask::call(&mut *graph, path, arguments) })
     }
 
     /// Synchronous call a singular function in the document (by path).
@@ -272,18 +281,48 @@ impl Stof {
     }
 
 
-    /// Call a function from Stof source without adding it to the document.
-    /// The source's first function runs with self as the node (an object path or ID, the root by default),
-    /// and everything the source declares is removed after the call.
-    pub async fn call_source_with_gate(&self, src: &str, args: JsValue, node: JsValue, acquire: &js_sys::Function, release: &js_sys::Function) -> Result<JsValue, String> {
-        let (arguments, context) = {
-            let graph = self.graph_ref()?;
-            (call_arguments(args, &graph), context_node(node, &graph)?)
-        };
-        match Runtime::async_call_source_with_gate(&self.graph, src, context, arguments, acquire, release).await {
-            Ok(res) => Ok(JsValue::from(res)),
-            Err(err) => Err(err.to_string())
+    /// Start a call to a function from Stof source without adding it to the document, as a task the host runs
+    /// with `step` and then `result` (doc.ts `callSource`). The source's first function runs with self as the node
+    /// (an object path or ID, the root by default), and everything the source declares is removed after the call.
+    pub fn start_call_source(&self, src: &str, args: JsValue, node: JsValue) -> Result<StofTask, String> {
+        let mut graph = self.graph_mut()?;
+        let arguments = call_arguments(args, &graph);
+        let context = context_node(node, &graph)?;
+        JsTask::call_source(&mut *graph, src, context, arguments)
+            .map(|task| StofTask { task })
+            .map_err(|err| err.to_string())
+    }
+
+    /// Run one step of a task: 0 when it's finished, 1 for more, 2 for more after yielding to the event loop.
+    /// A document that's busy (another step holds it) ends the task with that error (returns 0).
+    pub fn step(&self, task: &mut StofTask) -> u8 {
+        match self.graph.try_borrow_mut() {
+            Ok(mut graph) => task.task.step(&mut *graph),
+            Err(_) => {
+                task.task.fail("the document is busy: another call holds it while the call gate is acquired".into());
+                0
+            },
         }
+    }
+
+    /// End a task with this error (Ex. the host's call gate failed): `result` or `report` returns it.
+    pub fn fail(&self, task: &mut StofTask, message: String) {
+        task.task.fail(message);
+    }
+
+    /// A finished call's result (`start_call`, `start_call_source`).
+    pub fn result(&self, task: &mut StofTask) -> Result<JsValue, String> {
+        let mut graph = self.graph_mut()?;
+        match task.task.result(&mut *graph) {
+            Ok(res) => Ok(JsValue::from(res)),
+            Err(err) => Err(err.to_string()),
+        }
+    }
+
+    /// A finished run's report (`start_run`).
+    pub fn report(&self, task: &mut StofTask) -> Result<String, String> {
+        let graph = self.graph_ref()?;
+        task.task.report(&graph)
     }
 
     /// Synchronous call a function from Stof source without adding it to the document.
@@ -332,6 +371,46 @@ impl Stof {
         Ok(())
     }
 
+    /// Seal an object (path, or a type as "<Name>") and everything under it: its functions can be called but not
+    /// changed (see `model::seal`). With `fields`, its fields are frozen too. With `expected`, only if its digest is
+    /// that. With `public_key` and `signature`, only if the digest is signed by that key. Returns the digest.
+    pub fn seal(&self, path: &str, fields: Option<bool>, expected: Option<String>, public_key: Option<String>, signature: Option<String>) -> Result<String, String> {
+        let mut graph = self.graph_mut()?;
+        let fields = fields.unwrap_or(false);
+        let res = match (public_key, signature) {
+            (Some(key), Some(signature)) => {
+                if let Some(expected) = &expected {
+                    let digest = graph.digest_path(path, fields).map_err(|e| e.to_string())?;
+                    if !digest.eq_ignore_ascii_case(expected.trim()) {
+                        return Err(format!("sealed: {path} isn't what was expected: its digest is {digest}, not {expected}"));
+                    }
+                }
+                graph.seal_signed(path, fields, &key, &signature)
+            },
+            (None, None) => graph.seal_path(path, fields, expected.as_deref()),
+            _ => return Err("a signature needs both a public key and a signature".into()),
+        };
+        res.map_err(|error| error.to_string())
+    }
+
+    /// Unseal an object that `seal` sealed (path, or a type as "<Name>").
+    pub fn unseal(&self, path: &str) -> Result<(), String> {
+        self.graph_mut()?.unseal_path(path).map_err(|error| error.to_string())
+    }
+
+    /// The seal digest of an object (path, or a type as "<Name>"), with its fields' values when `fields`.
+    pub fn digest(&self, path: &str, fields: Option<bool>) -> Result<String, String> {
+        self.graph_ref()?.digest_path(path, fields.unwrap_or(false)).map_err(|error| error.to_string())
+    }
+
+    #[wasm_bindgen(js_name = allowHtmlAttributes)]
+    /// Attributes the html format writes only when allowed: `style`, `action`, and `formaction` (off by default).
+    /// Documents can't change it. Calling it again adds attributes.
+    pub fn allow_html_attributes(&self, attributes: Vec<String>) -> Result<(), String> {
+        self.graph_mut()?.allow_html_attributes(attributes);
+        Ok(())
+    }
+
     #[wasm_bindgen(js_name = keepSource)]
     /// Keep each function's source text from now on (off by default), so the readable `stof` export writes
     /// functions as Stof. It costs the memory of the text.
@@ -352,6 +431,14 @@ impl Stof {
     /// Defaults to 120,000 (2 minutes).
     pub fn set_max_execution_time(&self, ms: Option<f64>) -> Result<(), String> {
         self.graph_mut()?.max_execution_time = ms.map(|ms| std::time::Duration::from_millis(ms.max(0.) as u64));
+        Ok(())
+    }
+
+    #[wasm_bindgen(js_name = setMaxMemory)]
+    /// How much memory a call can use, in bytes, before it fails with a memory limit error (null for no limit).
+    /// Defaults to 268,435,456 (256 MB).
+    pub fn set_max_memory(&self, bytes: Option<f64>) -> Result<(), String> {
+        self.graph_mut()?.max_memory = bytes.map(|bytes| bytes.max(0.) as usize);
         Ok(())
     }
 

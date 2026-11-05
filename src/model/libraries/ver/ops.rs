@@ -24,7 +24,7 @@ pub fn ver_major() -> LibFunc {
         library: VER_LIB.clone(),
         name: "major".into(),
         is_async: false,
-        docs: r#"# Ver.major(ver: ver) -> int
+        docs: r#"# Ver::major(ver: ver) -> int
 Return the major portion of this semantic version.
 ```rust
 const ver = 1.2.3-release+build;
@@ -51,7 +51,7 @@ pub fn ver_minor() -> LibFunc {
         library: VER_LIB.clone(),
         name: "minor".into(),
         is_async: false,
-        docs: r#"# Ver.minor(ver: ver) -> int
+        docs: r#"# Ver::minor(ver: ver) -> int
 Return the minor portion of this semantic version.
 ```rust
 const ver = 1.2.3-release+build;
@@ -78,7 +78,7 @@ pub fn ver_patch() -> LibFunc {
         library: VER_LIB.clone(),
         name: "patch".into(),
         is_async: false,
-        docs: r#"# Ver.patch(ver: ver) -> int
+        docs: r#"# Ver::patch(ver: ver) -> int
 Return the patch portion of this semantic version.
 ```rust
 const ver = 1.2.3-release+build;
@@ -105,7 +105,7 @@ pub fn ver_release() -> LibFunc {
         library: VER_LIB.clone(),
         name: "release".into(),
         is_async: false,
-        docs: r#"# Ver.release(ver: ver) -> str
+        docs: r#"# Ver::release(ver: ver) -> str
 Return the release portion of this semantic version.
 ```rust
 const ver = 1.2.3-release+build;
@@ -132,7 +132,7 @@ pub fn ver_build() -> LibFunc {
         library: VER_LIB.clone(),
         name: "build".into(),
         is_async: false,
-        docs: r#"# Ver.build(ver: ver) -> str
+        docs: r#"# Ver::build(ver: ver) -> str
 Return the build portion of this semantic version.
 ```rust
 const ver = 1.2.3-release+build;
@@ -159,7 +159,7 @@ pub fn ver_set_major() -> LibFunc {
         library: VER_LIB.clone(),
         name: "set_major".into(),
         is_async: false,
-        docs: r#"# Ver.set_major(ver: ver, val: int) -> void
+        docs: r#"# Ver::set_major(ver: ver, val: int) -> void
 Set the major portion of this semantic version.
 ```rust
 const ver = 1.2.3-release+build;
@@ -188,7 +188,7 @@ pub fn ver_set_minor() -> LibFunc {
         library: VER_LIB.clone(),
         name: "set_minor".into(),
         is_async: false,
-        docs: r#"# Ver.set_minor(ver: ver, val: int) -> void
+        docs: r#"# Ver::set_minor(ver: ver, val: int) -> void
 Set the minor portion of this semantic version.
 ```rust
 const ver = 1.2.3-release+build;
@@ -217,7 +217,7 @@ pub fn ver_set_patch() -> LibFunc {
         library: VER_LIB.clone(),
         name: "set_patch".into(),
         is_async: false,
-        docs: r#"# Ver.set_patch(ver: ver, val: int) -> void
+        docs: r#"# Ver::set_patch(ver: ver, val: int) -> void
 Set the patch portion of this semantic version.
 ```rust
 const ver = 1.2.3-release+build;
@@ -246,7 +246,7 @@ pub fn ver_set_release() -> LibFunc {
         library: VER_LIB.clone(),
         name: "set_release".into(),
         is_async: false,
-        docs: r#"# Ver.set_release(ver: ver, val: str) -> void
+        docs: r#"# Ver::set_release(ver: ver, val: str) -> void
 Set the release portion of this semantic version.
 ```rust
 const ver = 1.2.3-release+build;
@@ -275,7 +275,7 @@ pub fn ver_set_build() -> LibFunc {
         library: VER_LIB.clone(),
         name: "set_build".into(),
         is_async: false,
-        docs: r#"# Ver.set_build(ver: ver, val: str) -> void
+        docs: r#"# Ver::set_build(ver: ver, val: str) -> void
 Set the build portion of this semantic version.
 ```rust
 const ver = 1.2.3-release+build;
@@ -304,7 +304,7 @@ pub fn ver_clear_release() -> LibFunc {
         library: VER_LIB.clone(),
         name: "clear_release".into(),
         is_async: false,
-        docs: r#"# Ver.clear_release(ver: ver) -> void
+        docs: r#"# Ver::clear_release(ver: ver) -> void
 Clear the release portion of this semantic version.
 ```rust
 const ver = 1.2.3-release+build;
@@ -332,7 +332,7 @@ pub fn ver_clear_build() -> LibFunc {
         library: VER_LIB.clone(),
         name: "clear_build".into(),
         is_async: false,
-        docs: r#"# Ver.clear_build(ver: ver) -> void
+        docs: r#"# Ver::clear_build(ver: ver) -> void
 Clear the build portion of this semantic version.
 ```rust
 const ver = 1.2.3-release+build;

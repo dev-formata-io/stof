@@ -298,7 +298,12 @@ pub fn val_to_py(py: Python<'_>, val: Val) -> Bound<'_, PyAny> {
         Val::Map(map) => {
             let dict = PyDict::new(py);
             for (k, v) in map {
-                dict.set_item(val_to_py(py, k.read().clone()), val_to_py(py, v.read().clone())).expect("failed to set py dict item");
+                let key = val_to_py(py, k.read().clone());
+                let value = val_to_py(py, v.read().clone());
+                if let Err(_unhashable) = dict.set_item(&key, &value) {
+                    // a key Python can't hash (Ex. a list): use its text, so the value isn't lost
+                    let _ = dict.set_item(k.read().to_string(), value);
+                }
             }
             dict.into_any()
         },
@@ -307,21 +312,24 @@ pub fn val_to_py(py: Python<'_>, val: Val) -> Bound<'_, PyAny> {
             for v in set {
                 items.push(val_to_py(py, v.read().clone()));
             }
-            PySet::new(py, items).unwrap().into_any()
+            match PySet::new(py, &items) {
+                Ok(set) => set.into_any(),
+                Err(_unhashable) => PyList::new(py, items).map(|list| list.into_any()).unwrap_or_else(|_| PyList::empty(py).into_any()), // a set of lists: a list
+            }
         },
         Val::List(list) => {
             let mut items = vec![];
             for v in list {
                 items.push(val_to_py(py, v.read().clone()));
             }
-            PyList::new(py, items).unwrap().into_any()
+            PyList::new(py, items).map(|list| list.into_any()).unwrap_or_else(|_| PyList::empty(py).into_any())
         },
         Val::Tup(tup) => {
             let mut items = vec![];
             for v in tup {
                 items.push(val_to_py(py, v.read().clone()));
             }
-            PyTuple::new(py, items).unwrap().into_any()
+            PyTuple::new(py, items).map(|tup| tup.into_any()).unwrap_or_else(|_| PyTuple::empty(py).into_any())
         },
     }
 }

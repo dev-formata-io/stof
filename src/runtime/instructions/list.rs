@@ -18,7 +18,7 @@ use std::{ops::{Deref, DerefMut}, sync::Arc};
 use imbl::{Vector, vector};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{Func, Graph}, parser::types::parse_type_complete, runtime::{Error, Num, NumT, Type, Val, Variable, instruction::{Instruction, Instructions}, instructions::{Base, call::FuncCall}, proc::ProcEnv}};
+use crate::{model::{Func, Graph}, parser::types::parse_type_complete, runtime::{Error, Num, NumT, Type, Val, Variable, instruction::{Instruction, Instructions}, instructions::{Base, call::FuncCall}, memory, proc::ProcEnv}};
 
 
 lazy_static! {
@@ -441,6 +441,7 @@ impl Instruction for ListIns {
                                         }
                                         for item in list.iter().skip(1) {
                                             joined.push_str(&format!("{sep}{}", item.read().print(&graph)));
+                                            memory::check_size(env.max_memory, joined.len())?; // one value can be joined many times
                                         }
                                         env.stack.push(Variable::val(Val::Str(joined.into())));
                                         return Ok(None);

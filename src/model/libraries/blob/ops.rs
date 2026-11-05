@@ -24,7 +24,7 @@ pub fn blob_len() -> LibFunc {
         library: BLOB_LIB.clone(),
         name: "len".into(),
         is_async: false,
-        docs: r#"# Blob.len(bytes: blob) -> int
+        docs: r#"# Blob::len(bytes: blob) -> int
 Size of this binary blob (integer number of bytes).
 ```rust
 const bytes: blob = "hello";
@@ -50,7 +50,7 @@ pub fn blob_size() -> LibFunc {
         library: BLOB_LIB.clone(),
         name: "size".into(),
         is_async: false,
-        docs: r#"# Blob.size(bytes: blob) -> bytes
+        docs: r#"# Blob::size(bytes: blob) -> bytes
 Size of this binary blob (in units of bytes).
 ```rust
 const bytes: blob = "hello";
@@ -76,11 +76,11 @@ pub fn blob_at() -> LibFunc {
         library: BLOB_LIB.clone(),
         name: "at".into(),
         is_async: false,
-        docs: r#"# Blob.at(bytes: blob, index: int) -> int
+        docs: r#"# Blob::at(bytes: blob, index: int) -> int
 Byte at a specific index within this blob.
 ```rust
 const bytes: blob = "hello";
-assert_eq(bytes[1], 101); // or '.at(1)' or 'Blob.at(bytes, 1)'
+assert_eq(bytes[1], 101); // or '.at(1)' or 'Blob::at(bytes, 1)'
 ```"#.into(),
         params: crate::params![
             Param { name: "blob".into(), param_type: Type::Blob, default: None },
@@ -103,7 +103,7 @@ pub fn blob_utf8() -> LibFunc {
         library: BLOB_LIB.clone(),
         name: "utf8".into(),
         is_async: false,
-        docs: r#"# Blob.utf8(bytes: blob) -> str
+        docs: r#"# Blob::utf8(bytes: blob) -> str
 Transform this blob into a string using UTF-8 (default conversion for casts also).
 ```rust
 const bytes: blob = "hello";
@@ -130,7 +130,7 @@ pub fn blob_base64() -> LibFunc {
         library: BLOB_LIB.clone(),
         name: "base64".into(),
         is_async: false,
-        docs: r#"# Blob.base64(bytes: blob) -> str
+        docs: r#"# Blob::base64(bytes: blob) -> str
 Transform this blob into a string using Base64 encoding.
 ```rust
 const bytes: blob = "hello";
@@ -156,7 +156,7 @@ pub fn blob_url_base64() -> LibFunc {
         library: BLOB_LIB.clone(),
         name: "url_base64".into(),
         is_async: false,
-        docs: r#"# Blob.url_base64(bytes: blob) -> str
+        docs: r#"# Blob::url_base64(bytes: blob) -> str
 Transform this blob into a string using URL-safe Base64 encoding.
 ```rust
 const bytes: blob = "hello";
@@ -182,11 +182,11 @@ pub fn blob_from_utf8() -> LibFunc {
         library: BLOB_LIB.clone(),
         name: "from_utf8".into(),
         is_async: false,
-        docs: r#"# Blob.from_utf8(val: str) -> blob
+        docs: r#"# Blob::from_utf8(val: str) -> blob
 Transform a string into a blob, using standard UTF-8 encoding (default for normal casts too).
 ```rust
 const bytes: blob = "hello";
-assert_eq(bytes, Blob.from_utf8("hello"));
+assert_eq(bytes, Blob::from_utf8("hello"));
 ```"#.into(),
         params: crate::params![
             Param { name: "val".into(), param_type: Type::Str, default: None }
@@ -208,10 +208,10 @@ pub fn blob_from_base64() -> LibFunc {
         library: BLOB_LIB.clone(),
         name: "from_base64".into(),
         is_async: false,
-        docs: r#"# Blob.from_base64(val: str) -> blob
+        docs: r#"# Blob::from_base64(val: str) -> blob
 Transform a string into a blob, using Base64 encoding.
 ```rust
-const bytes: blob = Blob.from_base64("aGVsbG8=");
+const bytes: blob = Blob::from_base64("aGVsbG8=");
 assert_eq(bytes as str, "hello");
 ```"#.into(),
         params: crate::params![
@@ -234,10 +234,10 @@ pub fn blob_from_url_base64() -> LibFunc {
         library: BLOB_LIB.clone(),
         name: "from_url_base64".into(),
         is_async: false,
-        docs: r#"# Blob.from_url_base64(val: str) -> blob
+        docs: r#"# Blob::from_url_base64(val: str) -> blob
 Transform a string into a blob, using URL-safe Base64 encoding.
 ```rust
-const bytes: blob = Blob.from_url_base64("aGVsbG8=");
+const bytes: blob = Blob::from_url_base64("aGVsbG8=");
 assert_eq(bytes as str, "hello");
 ```"#.into(),
         params: crate::params![

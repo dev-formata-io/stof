@@ -25,7 +25,7 @@ pub fn num_len() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "len".into(),
         is_async: false,
-        docs: r#"# Num.len(val: int | float) -> int
+        docs: r#"# Num::len(val: int | float) -> int
 Length of this number (helpful for iteration).
 ```rust
 assert_eq((10).len(), 10);
@@ -51,7 +51,7 @@ pub fn num_at() -> LibFunc {
         library: NUM_LIB.clone(),
         name: "at".into(),
         is_async: false,
-        docs: r#"# Num.at(val: int | float, index: int) -> int
+        docs: r#"# Num::at(val: int | float, index: int) -> int
 Index into this number (helpful for iteration of single value ranges).
 ```rust
 assert_eq((10).at(5), 5);

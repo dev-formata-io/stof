@@ -23,7 +23,7 @@ use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "log")]
 use crate::model::stof_std::print::{std_log_debug, std_log_error, std_log_info, std_log_trace, std_log_warn};
-use crate::{model::{Field, Func, Graph, Profile, Prototype, SELF_STR_KEYWORD, SPath, SUPER_STR_KEYWORD, stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, assert_not_null, assert_null, throw}, containers::{std_copy, std_drop, std_funcs, std_list, std_map, std_set, std_shallow_drop, std_swap}, exit::stof_exit, ops::{std_blobify, std_callstack, std_format_content_type, std_formats, std_graph_id, std_has_format, std_has_lib, std_libs, std_max, std_min, std_inf, std_nan, std_nanoid, std_parse, std_peek, std_stringify, std_trace, std_tracestack}, print::{dbg, err, pln, prompt, string, xmltag}, sleep::stof_sleep}}, runtime::{Error, Prompt, Type, Units, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{Base, DUPLICATE, EXIT, call::FuncCall, list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}}, proc::ProcEnv}};
+use crate::{model::{Field, Func, Graph, Profile, Prototype, SELF_STR_KEYWORD, SPath, SUPER_STR_KEYWORD, stof_std::{assert::{assert, assert_eq, assert_neq, assert_not, assert_not_null, assert_null, throw}, containers::{std_copy, std_drop, std_funcs, std_list, std_map, std_set, std_shallow_drop, std_swap}, exit::stof_exit, ops::{std_blobify, std_callstack, std_format_content_type, std_formats, std_graph_id, std_has_format, std_has_lib, std_libs, std_max, std_min, std_inf, std_nan, std_nanoid, std_parse, std_peek, std_stringify, std_trace, std_tracestack}, print::{dbg, err, pln, prompt, string, xmltag}, sleep::stof_sleep}}, runtime::{Error, Prompt, Type, Units, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{Base, DUPLICATE, EXIT, call::FuncCall, list::{NEW_LIST, PUSH_LIST}, map::{NEW_MAP, PUSH_MAP}, set::{NEW_SET, PUSH_SET}}, memory, proc::ProcEnv}};
 
 #[cfg(feature = "system")]
 use crate::model::stof_std::ops::{std_env, std_set_env, std_remove_env, std_env_vars};
@@ -35,6 +35,7 @@ mod exit;
 mod containers;
 mod ops;
 mod computed;
+mod sealing;
 
 
 /// Add the std library to a graph.
@@ -79,6 +80,8 @@ pub fn stof_std_lib(graph: &mut Graph) {
     graph.insert_libfunc(std_libs());
 
     graph.insert_libfunc(std_nanoid());
+    graph.insert_libfunc(sealing::std_seal());
+    graph.insert_libfunc(sealing::std_digest());
     graph.insert_libfunc(std_graph_id());
     graph.insert_libfunc(std_inf());
     graph.insert_libfunc(std_nan());
@@ -822,11 +825,13 @@ impl Instruction for StdIns {
 
                                 match source_var.val.read().deref() {
                                     Val::Str(src) => {
+                                        memory::check_elements(env.max_memory, src.len(), memory::PARSE_COST)?;
                                         graph.string_import(&format, src.as_str(), Some(context), &profile)?;
                                         env.stack.push(Variable::val(Val::Bool(true)));
                                         return Ok(None);
                                     },
                                     Val::Blob(bytes) => {
+                                        memory::check_elements(env.max_memory, bytes.len(), memory::PARSE_COST)?;
                                         graph.binary_import(&format, bytes.clone(), Some(context), &profile)?;
                                         env.stack.push(Variable::val(Val::Bool(true)));
                                         return Ok(None);

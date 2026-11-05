@@ -651,3 +651,32 @@ fn infinity_and_nan_readable_round_trip() {
     drop(back);
 }
 
+
+sealing: {
+    locked: {
+        count: 0
+        fn v() -> int { 1 }
+    }
+
+    #[test]
+    fn seal_from_stof() {
+        const before = digest(self.locked);
+        assert_eq(before.len(), 64);
+        assert_eq(seal(self.locked), before, 'seal returns the digest');
+        assert_eq(self.locked.v(), 1);
+        self.locked.count = 1; // fields still change
+        assert_eq(self.locked.count, 1);
+
+        let refused = '';
+        try parse("fn v() -> int { 0 }", self.locked);
+        catch (e, message) refused = message;
+        assert(refused.contains('sealed'), refused);
+        assert_eq(self.locked.v(), 1, 'the function is unchanged');
+
+        refused = '';
+        try self.locked.set_attribute('main', null, 'v');
+        catch (e, message) refused = message;
+        assert(refused.contains('sealed'), refused);
+        assert_eq(digest(self.locked), before, 'nothing changed');
+    }
+}

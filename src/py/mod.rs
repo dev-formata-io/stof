@@ -203,6 +203,11 @@ impl Doc {
         self.graph.allow_http();
     }
 
+    /// Let documents allowed any host (allow_http) reach this machine and private networks too (off by default).
+    pub fn allow_private_network(&mut self) {
+        self.graph.allow_private_network();
+    }
+
     /// Give this document network access to these hosts only: requests (and redirects) to any other host fail.
     /// An entry is a host name (any port, Ex. "api.example.com") or a host and port ("localhost:8080").
     pub fn allow_http_hosts(&mut self, hosts: Vec<String>) {
@@ -213,6 +218,12 @@ impl Doc {
     /// standard HTML elements and custom elements. Documents can't change it. Calling it again adds elements.
     pub fn allow_html_tags(&mut self, tags: Vec<String>) {
         self.graph.allow_html_tags(tags);
+    }
+
+    /// Attributes the html format writes only when allowed: style, action, and formaction (off by default).
+    /// Documents can't change it. Calling it again adds attributes.
+    pub fn allow_html_attributes(&mut self, attributes: Vec<String>) {
+        self.graph.allow_html_attributes(attributes);
     }
 
     #[pyo3(signature = (keep = true))]
@@ -233,6 +244,12 @@ impl Doc {
     /// Defaults to 120 (2 minutes).
     pub fn set_max_execution_time(&mut self, seconds: Option<f64>) {
         self.graph.max_execution_time = seconds.map(|seconds| std::time::Duration::from_secs_f64(seconds.max(0.)));
+    }
+
+    /// How much memory a call can use, in bytes, before it fails with a memory limit error (None for no limit).
+    /// Defaults to 268,435,456 (256 MB).
+    pub fn set_max_memory(&mut self, bytes: Option<usize>) {
+        self.graph.max_memory = bytes;
     }
 
     #[pyo3(signature = (lib, name, func, is_async = false))]
@@ -336,6 +353,56 @@ impl Doc {
             Ok(_) => Ok(true),
             Err(err) => Err(PyValueError::new_err(err.to_string()))
         }
+    }
+
+    #[pyo3(signature = (path, fields = false, digest = None, public_key = None, signature = None))]
+    /// Seal an object (path, or a type as "<Name>") and everything under it: its functions can be called but not
+    /// changed. With fields, its fields are frozen too. With digest, only if its digest is that; with public_key and
+    /// signature, only if the digest is signed by that key (Ed25519, base64 or hex). Returns the digest.
+    pub fn seal(&mut self, path: &str, fields: bool, digest: Option<&str>, public_key: Option<&str>, signature: Option<&str>) -> PyResult<String> {
+        let res = match (public_key, signature) {
+            (Some(key), Some(signature)) => {
+                if let Some(expected) = digest {
+                    let actual = self.graph.digest_path(path, fields).map_err(|e| PyValueError::new_err(e.to_string()))?;
+                    if !actual.eq_ignore_ascii_case(expected.trim()) {
+                        return Err(PyValueError::new_err(format!("sealed: {path} isn't what was expected: its digest is {actual}, not {expected}")));
+                    }
+                }
+                self.graph.seal_signed(path, fields, key, signature)
+            },
+            (None, None) => self.graph.seal_path(path, fields, digest),
+            _ => return Err(PyValueError::new_err("a signature needs both a public key and a signature")),
+        };
+        res.map_err(|error| PyValueError::new_err(error.to_string()))
+    }
+
+    /// Unseal an object that seal sealed (path, or a type as "<Name>").
+    pub fn unseal(&mut self, path: &str) -> PyResult<()> {
+        self.graph.unseal_path(path).map_err(|error| PyValueError::new_err(error.to_string()))
+    }
+
+    #[pyo3(signature = (path, fields = false))]
+    /// The seal digest of an object (path, or a type as "<Name>"), with its fields' values when fields.
+    pub fn digest(&self, path: &str, fields: bool) -> PyResult<String> {
+        self.graph.digest_path(path, fields).map_err(|error| PyValueError::new_err(error.to_string()))
+    }
+
+    #[staticmethod]
+    /// Sign a seal digest with an Ed25519 secret key (base64 or hex, 32 bytes): the signature, base64.
+    pub fn sign(digest: &str, secret_key: &str) -> PyResult<String> {
+        crate::model::seal::sign(digest, secret_key).map_err(|error| PyValueError::new_err(error.to_string()))
+    }
+
+    #[staticmethod]
+    /// Is this an Ed25519 signature over this seal digest by this public key?
+    pub fn verify(digest: &str, public_key: &str, signature: &str) -> bool {
+        crate::model::seal::verify(digest, public_key, signature)
+    }
+
+    #[staticmethod]
+    /// The Ed25519 public key (base64) for a secret key (base64 or hex, 32 bytes).
+    pub fn public_key(secret_key: &str) -> PyResult<String> {
+        crate::model::seal::public_key(secret_key).map_err(|error| PyValueError::new_err(error.to_string()))
     }
 
     #[staticmethod]

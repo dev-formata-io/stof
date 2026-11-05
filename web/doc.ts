@@ -15,7 +15,7 @@
 //
 
 // @deno-types="./pkg/stof.d.ts"
-import init, { Stof, StofFunc, stofOutline, stofEdit } from './pkg/stof.js';
+import init, { Stof, StofFunc, StofTask, stofOutline, stofEdit, stofSign, stofVerify, stofPublicKey } from './pkg/stof.js';
 // @deno-types="./pkg/stof.d.ts"
 export * from './pkg/stof.js';
 
@@ -159,6 +159,55 @@ class WasmMutex {
 }
 
 
+/**
+ * The engine trapped (Ex. ran out of memory, or an internal error): WebAssembly stopped in the middle of a call,
+ * so that document's state can't be trusted. Other documents keep working; this one only throws this error.
+ */
+function crashedError(reason: string): Error {
+    return new Error(`the Stof document crashed (${reason}) and can't be used again: create a new document`);
+}
+
+/**
+ * The document's engine, with every call into WebAssembly checked: a trap marks the document crashed and throws
+ * an error saying so (instead of "busy" forever, since the trap left it mid-call), and so does every later call.
+ */
+function guardStof(stof: Stof, doc: { crashed: string | null }): Stof {
+    const guarded = new Map<PropertyKey, unknown>();
+    return new Proxy(stof, {
+        get(target, prop, receiver) {
+            const value = Reflect.get(target, prop, receiver);
+            if (typeof value !== 'function') return value;
+            let fn = guarded.get(prop) as Function | undefined;
+            if (!fn) {
+                fn = function (...args: unknown[]) {
+                    if (doc.crashed !== null) {
+                        if (prop === 'free') return; // disposing a crashed document is fine
+                        throw crashedError(doc.crashed);
+                    }
+                    try {
+                        return (value as Function).apply(target, args);
+                    } catch (error) {
+                        if (error instanceof WebAssembly.RuntimeError) {
+                            doc.crashed = error.message;
+                            throw crashedError(error.message);
+                        }
+                        throw error;
+                    }
+                };
+                guarded.set(prop, fn);
+            }
+            return fn;
+        },
+    });
+}
+
+/** Yield to the event loop's macrotask queue, so host promises and timers run. */
+function yieldToEventLoop(): Promise<void> {
+    if (typeof setTimeout !== 'function') return Promise.resolve();
+    return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+
 type StofHeaders = Map<string, unknown> | Record<string, unknown> | null | undefined;
 
 /**
@@ -173,6 +222,62 @@ function hostAllowed(url: URL, allowed: Set<string> | null): boolean {
 }
 
 /**
+ * Is this IPv4 address (four numbers) on this machine, a private network, or link-local (cloud metadata)?
+ */
+function privateIPv4(parts: number[]): boolean {
+    const [a, b, c] = parts;
+    return a === 0 || a === 10 || a === 127 || a >= 224                 // this network, private, loopback, multicast/reserved
+        || (a === 169 && b === 254) || (a === 172 && b >= 16 && b < 32) // link-local, private
+        || (a === 192 && b === 168) || (a === 100 && b >= 64 && b < 128) // private, carrier-grade NAT
+        || (a === 192 && b === 0 && c === 0);                           // IETF protocol assignments
+}
+
+/**
+ * Is this URL host (as the URL parser writes it: dotted IPv4, bracketed IPv6, or a name) on this machine or a
+ * private network? Names are checked as written (`localhost`, `*.local`, `*.internal`, `metadata`, ...): what a
+ * name resolves to can't be checked from JavaScript, so a host that must be sure lists the hosts it allows.
+ */
+function privateHost(host: string): boolean {
+    host = host.toLowerCase().replace(/\.$/, '');
+    const v4 = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(host);
+    if (v4) return privateIPv4(v4.slice(1).map(Number));
+    if (host.startsWith('[')) {
+        const groups = ipv6Groups(host.slice(1, -1));
+        if (!groups) return true; // unreadable: refuse
+        if (groups.slice(0, 5).every((g) => g === 0) && groups[5] === 0xffff) {
+            return privateIPv4([groups[6] >> 8, groups[6] & 0xff, groups[7] >> 8, groups[7] & 0xff]); // ::ffff:a.b.c.d
+        }
+        const first = groups[0];
+        return groups.every((g, i) => g === (i === 7 ? 1 : 0)) // ::1
+            || groups.every((g) => g === 0)                      // ::
+            || (first & 0xfe00) === 0xfc00                       // unique local
+            || (first & 0xffc0) === 0xfe80;                      // link-local
+    }
+    return host === 'localhost' || host === 'metadata' || host === 'internal'
+        || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal');
+}
+
+/** The eight 16-bit groups of an IPv6 address (the URL parser writes it in hex, without an IPv4 tail). */
+function ipv6Groups(address: string): number[] | null {
+    const [head, tail] = address.includes('::') ? address.split('::') : [address, null];
+    const parse = (part: string) => (part ? part.split(':').map((g) => parseInt(g, 16)) : []);
+    const left = parse(head);
+    const right = tail === null ? [] : parse(tail);
+    const groups = tail === null ? left : [...left, ...new Array(8 - left.length - right.length).fill(0), ...right];
+    return groups.length === 8 && groups.every((g) => Number.isInteger(g) && g >= 0 && g <= 0xffff) ? groups : null;
+}
+
+/** May a request go to this URL? Throws the reason when it may not. */
+function checkHost(url: URL, allowed: Set<string> | null, privateNetwork: boolean, redirect: boolean): void {
+    const what = redirect ? `redirected to ${url.href}, which` : url.origin;
+    if (allowed) {
+        if (!hostAllowed(url, allowed)) throw new Error(`${what} is not an allowed host for this document`);
+    } else if (!privateNetwork && privateHost(url.hostname)) {
+        throw new Error(`${what} is on this machine or a private network, which this document may not reach (the host can allow it with allowPrivateNetwork(), or list it in allowHttp([...]))`);
+    }
+}
+
+/**
  * Http.fetch for JavaScript hosts (added by StofDoc.allowHttp()).
  * Same signature and response map as the native runtime's Http.fetch, so documents behave the same everywhere:
  * Http.fetch(url, method = 'get', body = null, headers = null, timeout (seconds) = null, query = null, bearer = null)
@@ -180,6 +285,7 @@ function hostAllowed(url: URL, allowed: Set<string> | null): boolean {
  */
 async function stofFetch(
     allowed: Set<string> | null,
+    privateNetwork: () => boolean,
     url: string,
     method: string = 'get',
     body: string | Uint8Array | null = null,
@@ -196,20 +302,46 @@ async function stofFetch(
     // @ts-ignore - location only exists in browsers (resolves relative URLs there)
     const target = new URL(url, typeof location !== 'undefined' ? location.href : undefined);
     for (const [key, value] of entries(query)) target.searchParams.append(key, value);
-    if (!hostAllowed(target, allowed)) throw new Error(`${target.origin} is not an allowed host for this document`);
+    const privateOk = privateNetwork();
+    checkHost(target, allowed, privateOk, false);
 
     const requestHeaders = new Headers(entries(headers));
     if (bearer) requestHeaders.set('Authorization', `Bearer ${bearer}`);
 
-    const response = await fetch(target, {
+    // On servers (no window), follow redirects here so every hop is checked before it's sent. Browsers keep their
+    // own redirects (a manual redirect is opaque there) and the final URL is checked.
+    // @ts-ignore - window only exists in browsers
+    const manual = typeof window === 'undefined';
+    let init: RequestInit = {
         method: (method || 'get').toUpperCase(),
         headers: requestHeaders,
         body: (body ?? undefined) as BodyInit | undefined,
         signal: timeout ? AbortSignal.timeout(timeout * 1000) : undefined,
-    });
-    if (response.url && !hostAllowed(new URL(response.url), allowed)) {
-        throw new Error(`redirected to ${response.url}, which is not an allowed host`);
+        redirect: manual ? 'manual' : 'follow',
+    };
+    let current = target;
+    let response: Response;
+    for (let hops = 0; ; hops++) {
+        response = await fetch(current, init);
+        const location = response.headers.get('location');
+        if (!manual || response.status < 300 || response.status > 399 || !location) break;
+        if (hops >= 10) throw new Error('too many redirects');
+        const next = new URL(location, current);
+        checkHost(next, allowed, privateOk, true);
+        await response.body?.cancel();
+        const method = init.method ?? 'GET';
+        if (response.status === 303 || ((response.status === 301 || response.status === 302) && method === 'POST')) {
+            init = { ...init, method: 'GET', body: undefined }; // as fetch does
+        }
+        if (next.origin !== current.origin) { // as fetch does: credentials don't follow to another origin
+            const forwarded = new Headers(init.headers);
+            forwarded.delete('authorization');
+            forwarded.delete('cookie');
+            init = { ...init, headers: forwarded };
+        }
+        current = next;
     }
+    if (!manual && response.url) checkHost(new URL(response.url), allowed, privateOk, true);
 
     const responseHeaders = new Map<string, string>();
     response.headers.forEach((value, key) => responseHeaders.set(key, value));
@@ -255,10 +387,13 @@ export type StofEdit =
  * Stof document.
  */
 export class StofDoc {
-    static readonly VERSION = '0.10.9';
+    static readonly VERSION = '0.10.10';
     private static initialized?: Promise<unknown>;
     private static wasmMutex = new WasmMutex();
     stof: Stof;
+    /** Why the engine trapped in this document (it can't be used again), or null. */
+    crashed: string | null = null;
+    private privateNetwork = false;
 
 
     /**
@@ -305,7 +440,38 @@ export class StofDoc {
      * Make sure to call initalize before using.
      */
     constructor(stof: Stof = new Stof()) {
-        this.stof = stof;
+        this.stof = guardStof(stof, this);
+    }
+
+
+    /**
+     * Run a task to the end, one step at a time: each step holds the call gate (one document runs in the engine at
+     * a time), and every 20 ms a step yields to the event loop so host promises and timers run. A library function
+     * can call back into this document with the async methods (await doc.call(..)): those run between steps.
+     * Each step is a synchronous call into the engine, so a trap fails this call (guardStof) instead of escaping.
+     */
+    private async drive<T>(task: StofTask, finish: (task: StofTask) => T): Promise<T> {
+        try {
+            for (;;) {
+                try {
+                    await StofDoc.wasmMutex.acquire();
+                } catch (error) {
+                    this.stof.fail(task, `the host's call gate failed to acquire: ${error instanceof Error ? error.message : String(error)}`);
+                    break;
+                }
+                let status: number;
+                try {
+                    status = this.stof.step(task);
+                } finally {
+                    StofDoc.wasmMutex.release();
+                }
+                if (status === 0) break;
+                if (status === 2) await yieldToEventLoop();
+            }
+            return finish(task);
+        } finally {
+            try { task.free(); } catch { /* already gone with a crashed engine */ }
+        }
     }
 
 
@@ -375,12 +541,26 @@ export class StofDoc {
      * Off by default: a document can only read and change itself and call the functions you add with lib().
      * With hosts, requests (and redirects) to any other host fail. An entry is a host name (any port,
      * Ex. "api.example.com") or a host and port ("localhost:8080").
+     * Without hosts, any public host: this machine and private networks (localhost, 10.x, 192.168.x, 169.254.x where
+     * cloud metadata services live, `*.internal`, ...) stay off limits unless you call allowPrivateNetwork().
+     * Addresses and names are checked as written (and on every redirect, on servers); JavaScript can't see what a
+     * name resolves to, so list the hosts when that matters.
      */
     allowHttp(hosts?: string[]): void {
         this.stof.allowHttp(); // Http helpers (Http.text, Http.parse, Http.success, ...)
         const allowed = hosts ? new Set(hosts.map((host) => host.trim().toLowerCase())) : null;
-        const hostFetch = (...args: unknown[]) => (stofFetch as Function)(allowed, ...args);
+        const privateNetwork = () => this.privateNetwork;
+        const hostFetch = (...args: unknown[]) => (stofFetch as Function)(allowed, privateNetwork, ...args);
         this.lib('Http', 'fetch', hostFetch, true, ['url', 'method', 'body', 'headers', 'timeout', 'query', 'bearer']);
+    }
+
+
+    /**
+     * Let a document allowed any host (allowHttp() without a list) reach this machine and private networks too.
+     * Off by default. Prefer listing the hosts it needs (allowHttp(['localhost:8080'])).
+     */
+    allowPrivateNetwork(): void {
+        this.privateNetwork = true;
     }
 
 
@@ -394,11 +574,85 @@ export class StofDoc {
 
 
     /**
+     * How much memory a call can use, in bytes, before it fails with a memory limit error (null for no limit).
+     * Defaults to 268,435,456 (256 MB). A document that runs away (Ex. a string doubled in a loop) fails with an
+     * error instead of running the engine out of memory, which can't be recovered from.
+     */
+    setMaxMemory(bytes: number | null): void {
+        this.stof.setMaxMemory(bytes ?? undefined);
+    }
+
+
+    /**
      * Elements the html format may write (Ex. the components your page renders): only these, instead of the
      * standard HTML elements and custom elements. Documents can't change it. Calling it again adds elements.
      */
     allowHtmlTags(tags: string[]): void {
         this.stof.allowHtmlTags(tags);
+    }
+
+
+    /**
+     * Seal an object (a path, or a type as "<Name>") and everything under it: its functions can be called but not
+     * changed, by this document's code or by you (until unseal). Fields still change unless `fields` is true.
+     * With `digest`, only if the object's digest is that; with `publicKey` and `signature`, only if its digest is
+     * signed by that key (Ed25519, base64 or hex). Throws (sealing nothing) otherwise. Returns the digest.
+     * Ex. doc.seal('<Limitr>', { publicKey: LIMITR_KEY, signature: ENGINE_SIGNATURE })
+     */
+    seal(path: string, options: { fields?: boolean, digest?: string, publicKey?: string, signature?: string } = {}): string {
+        return this.stof.seal(path, options.fields ?? false, options.digest, options.publicKey, options.signature);
+    }
+
+
+    /**
+     * Unseal an object that seal() sealed.
+     */
+    unseal(path: string): void {
+        this.stof.unseal(path);
+    }
+
+
+    /**
+     * The seal digest of an object (a path, or a type as "<Name>"): a SHA-256 (hex) over its functions and
+     * structure, and its fields' values when `fields` is true. The same for the same document, parsed or loaded.
+     */
+    digest(path: string, fields: boolean = false): string {
+        return this.stof.digest(path, fields);
+    }
+
+
+    /**
+     * Sign a seal digest with an Ed25519 secret key (base64 or hex, 32 bytes, Ex. `openssl rand -base64 32`).
+     * Returns the signature (base64). Sign at build time; ship the public key and signature with the document.
+     */
+    static sign(digest: string, secretKey: string): string {
+        return stofSign(digest, secretKey);
+    }
+
+
+    /**
+     * Is this an Ed25519 signature over this seal digest by this public key?
+     */
+    static verify(digest: string, publicKey: string, signature: string): boolean {
+        return stofVerify(digest, publicKey, signature);
+    }
+
+
+    /**
+     * The Ed25519 public key (base64) for a secret key.
+     */
+    static publicKey(secretKey: string): string {
+        return stofPublicKey(secretKey);
+    }
+
+
+    /**
+     * Attributes the html format writes only when you allow them: `style`, `action`, and `formaction` (off by
+     * default, since CSS can restyle or cover your page and forms can post elsewhere). Documents can't change it.
+     * Calling it again adds attributes.
+     */
+    allowHtmlAttributes(attributes: string[]): void {
+        this.stof.allowHtmlAttributes(attributes);
     }
 
 
@@ -425,9 +679,9 @@ export class StofDoc {
      * Will run all #[main] functions by default.
      */
     async run(attr: string | string[] = 'main'): Promise<string> {
-        const acquire = () => StofDoc.wasmMutex.acquire();
-        const release = () => StofDoc.wasmMutex.release();
-        return await this.stof.run_with_gate(attr, acquire, release);
+        await Promise.resolve(); // start after the current step, like before (a library function can call back)
+        const task = this.stof.start_run(attr);
+        return await this.drive(task, (task) => this.stof.report(task));
     }
 
 
@@ -446,9 +700,9 @@ export class StofDoc {
      */
     async call(path: string, ...args: unknown[]): Promise<unknown> {
         if (!path.includes('.')) path = 'root.' + path; // assume root node if not specified
-        const acquire = () => StofDoc.wasmMutex.acquire();
-        const release = () => StofDoc.wasmMutex.release();
-        return await this.stof.call_with_gate(path, args, acquire, release);
+        await Promise.resolve(); // start after the current step, like before (a library function can call back)
+        const task = this.stof.start_call(path, args);
+        return await this.drive(task, (task) => this.stof.result(task));
     }
 
 
@@ -469,9 +723,9 @@ export class StofDoc {
      * Ex. await doc.callSource('fn total(qty: int) -> float { self.price * qty }', [3]);
      */
     async callSource(src: string, args: unknown[] = [], node: string | null = null): Promise<unknown> {
-        const acquire = () => StofDoc.wasmMutex.acquire();
-        const release = () => StofDoc.wasmMutex.release();
-        return await this.stof.call_source_with_gate(src, args, node, acquire, release);
+        await Promise.resolve(); // start after the current step, like before (a library function can call back)
+        const task = this.stof.start_call_source(src, args, node);
+        return await this.drive(task, (task) => this.stof.result(task));
     }
 
 

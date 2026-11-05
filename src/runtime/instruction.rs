@@ -19,7 +19,7 @@ use arcstr::ArcStr;
 use colored::Colorize;
 use imbl::Vector;
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{instructions::{list::{NEW_LIST, PUSH_LIST}, Base, ConsumeStack, AWAIT}, proc::{ProcEnv, ProcRes}, Error, Val, Variable}};
+use crate::{model::Graph, runtime::{instructions::{list::{NEW_LIST, PUSH_LIST}, Base, ConsumeStack, AWAIT}, proc::{ProcEnv, ProcRes}, memory, Error, Val, Variable}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -161,7 +161,16 @@ impl Instructions {
     #[inline]
     /// Execute one instruction, in order.
     /// This will pop the first instruction, leaving the next ready to be consumed later.
-    pub fn exec(&mut self, env: &mut ProcEnv, graph: &mut Graph, mut limit: i32) -> Result<ProcRes, Error> {
+    pub fn exec(&mut self, env: &mut ProcEnv, graph: &mut Graph, limit: i32) -> Result<ProcRes, Error> {
+        // each step is measured on the thread that runs it, and added to what the process has used so far
+        let mark = memory::mark();
+        let res = self.exec_step(env, graph, limit, mark);
+        env.memory_used += memory::since(mark);
+        res
+    }
+
+    #[inline]
+    fn exec_step(&mut self, env: &mut ProcEnv, graph: &mut Graph, mut limit: i32, memory_mark: usize) -> Result<ProcRes, Error> {
         if env.start_time.is_none() {
             env.start_time = Some(web_time::Instant::now());
         }
@@ -189,6 +198,13 @@ impl Instructions {
                             return Err(Error::ExecutionTimeout);
                         }
                     }
+                }
+            }
+
+            // enforce the memory budget (a thread-local read; no growth is seen without the counting allocator)
+            if let Some(max) = env.max_memory {
+                if env.memory_used + memory::since(memory_mark) > max as isize {
+                    return Err(Error::MemoryLimit(max));
                 }
             }
 
@@ -419,7 +435,11 @@ impl Instructions {
                     }
                 }
 
-                let res = ins.exec(env, graph);
+                let mut res = ins.exec(env, graph);
+                if res.is_ok() {
+                    // a change refused by a seal fails the instruction that made it (catchable; nothing changed)
+                    if let Some(why) = graph.take_seal_violation() { res = Err(Error::Sealed(why)); }
+                }
                 match res {
                     Ok(replacements) => {
                         if let Some(mut dynamic) = replacements {

@@ -19,7 +19,7 @@ use arcstr::{literal, ArcStr};
 use imbl::{vector, OrdMap, Vector};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{ASYNC_FUNC_ATTR, Func, Graph, function::ops::fn_bind, libraries::function::ops::{fn_attributes, fn_call, fn_data, fn_exp_call, fn_has_attr, fn_id, fn_is_async, fn_name, fn_obj, fn_objs, fn_params, fn_return_type}}, runtime::{Error, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{Base, call::FuncCall}, proc::ProcEnv}};
+use crate::{model::{ASYNC_FUNC_ATTR, Func, Graph, function::ops::fn_bind, libraries::function::ops::{fn_attributes, fn_set_attribute, fn_remove_attribute, fn_call, fn_data, fn_exp_call, fn_has_attr, fn_id, fn_is_async, fn_name, fn_obj, fn_objs, fn_params, fn_return_type}}, runtime::{Error, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{Base, call::FuncCall}, proc::ProcEnv}};
 mod ops;
 
 
@@ -37,6 +37,8 @@ pub fn insert_fn_lib(graph: &mut Graph) {
     graph.insert_libfunc(fn_return_type());
     graph.insert_libfunc(fn_has_attr());
     graph.insert_libfunc(fn_attributes());
+    graph.insert_libfunc(fn_set_attribute());
+    graph.insert_libfunc(fn_remove_attribute());
     graph.insert_libfunc(fn_obj());
     graph.insert_libfunc(fn_objs());
     graph.insert_libfunc(fn_is_async());
@@ -54,6 +56,8 @@ lazy_static! {
     pub(self) static ref RETURN_TYPE: Arc<dyn Instruction> = Arc::new(FuncIns::ReturnType);
     pub(self) static ref HAS_ATTR: Arc<dyn Instruction> = Arc::new(FuncIns::HasAttr);
     pub(self) static ref ATTRIBUTES: Arc<dyn Instruction> = Arc::new(FuncIns::Attributes);
+    pub(self) static ref SET_ATTRIBUTE: Arc<dyn Instruction> = Arc::new(FuncIns::SetAttribute);
+    pub(self) static ref REMOVE_ATTRIBUTE: Arc<dyn Instruction> = Arc::new(FuncIns::RemoveAttribute);
     pub(self) static ref OBJ: Arc<dyn Instruction> = Arc::new(FuncIns::Obj);
     pub(self) static ref OBJS: Arc<dyn Instruction> = Arc::new(FuncIns::Objs);
     pub(self) static ref IS_ASYNC: Arc<dyn Instruction> = Arc::new(FuncIns::IsAsync);
@@ -76,6 +80,9 @@ pub enum FuncIns {
     IsAsync,
     Call(usize),
     ExpandCall(usize),
+    // new variants go last: BSTF stores the variant's index
+    SetAttribute,
+    RemoveAttribute,
 }
 #[typetag::serde(name = "FuncIns")]
 impl Instruction for FuncIns {
@@ -195,6 +202,19 @@ impl Instruction for FuncIns {
                     }
                 }
                 Err(Error::FnAttributes)
+            },
+            Self::SetAttribute | Self::RemoveAttribute => {
+                let value = if matches!(self, Self::SetAttribute) { env.stack.pop() } else { None };
+                let name = env.stack.pop();
+                let func = env.stack.pop().and_then(|var| var.try_func());
+                let (Some(func), Some(name)) = (func, name) else { return Err(Error::FnAttributes) };
+                let name = match name.val.read().deref() {
+                    Val::Str(name) => name.to_string(),
+                    _ => return Err(Error::FnAttributes),
+                };
+                let changed = graph.set_attribute(Err(func), &name, value.map(|value| value.val.read().clone()))?;
+                env.stack.push(Variable::val(Val::Bool(changed)));
+                Ok(None)
             },
             Self::Obj => {
                 if let Some(var) = env.stack.pop() {

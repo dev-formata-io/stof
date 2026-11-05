@@ -24,11 +24,11 @@ pub fn time_now() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "now".into(),
         is_async: false,
-        docs: r#"# Time.now() -> ms
+        docs: r#"# Time::now() -> ms
 Return the current time in milliseconds since the Unix Epoch (unix timestamp).
 ```rust
-const ts = Time.now();
-assert(Time.now() >= ts);
+const ts = Time::now();
+assert(Time::now() >= ts);
 ```
 "#.into(),
         params: crate::params![],
@@ -49,11 +49,11 @@ pub fn time_now_ns() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "now_ns".into(),
         is_async: false,
-        docs: r#"# Time.now_ns() -> ns
+        docs: r#"# Time::now_ns() -> ns
 Return the current time in nanoseconds since the Unix Epoch (unix timestamp).
 ```rust
-const ts = Time.now_ns();
-assert(Time.now_ns() >= ts);
+const ts = Time::now_ns();
+assert(Time::now_ns() >= ts);
 ```
 "#.into(),
         params: crate::params![],
@@ -74,12 +74,12 @@ pub fn time_diff() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "diff".into(),
         is_async: false,
-        docs: r#"# Time.diff(prev: float) -> ms
-Convenience function for getting the difference in milliseconds between a previous timestamp (takes any units, default ms) and the current time. Shorthand for (Time.now() - prev).
+        docs: r#"# Time::diff(prev: float) -> ms
+Convenience function for getting the difference in milliseconds between a previous timestamp (takes any units, default ms) and the current time. Shorthand for (Time::now() - prev).
 ```rust
-const ts = Time.now();
+const ts = Time::now();
 sleep(50ms);
-const diff = Time.diff(ts);
+const diff = Time::diff(ts);
 assert(diff >= 50ms);
 ```
 "#.into(),
@@ -103,12 +103,12 @@ pub fn time_diff_ns() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "diff_ns".into(),
         is_async: false,
-        docs: r#"# Time.diff_ns(prev: float) -> ns
-Convenience function for getting the difference in nanoseconds between a previous timestamp (takes any units, default ns) and the current time. Shorthand for (Time.now_ns() - prev).
+        docs: r#"# Time::diff_ns(prev: float) -> ns
+Convenience function for getting the difference in nanoseconds between a previous timestamp (takes any units, default ns) and the current time. Shorthand for (Time::now_ns() - prev).
 ```rust
-const ts = Time.now_ns();
+const ts = Time::now_ns();
 sleep(50ms);
-const diff = Time.diff_ns(ts);
+const diff = Time::diff_ns(ts);
 assert(diff >= 50ms);
 ```
 "#.into(),
@@ -132,12 +132,12 @@ pub fn time_sleep() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "sleep".into(),
         is_async: false,
-        docs: r#"# Time.sleep(time: float = 1000ms) -> void
+        docs: r#"# Time::sleep(time: float = 1000ms) -> void
 Alias for Std.sleep, instructing this process to sleep for a given amount of time (default units are milliseconds).
 ```rust
-const ts = Time.now();
-Time.sleep(50ms); // units make life better here
-const diff = Time.diff(ts);
+const ts = Time::now();
+Time::sleep(50ms); // units make life better here
+const diff = Time::diff(ts);
 assert(diff >= 50ms);
 ```
 "#.into(),
@@ -161,10 +161,10 @@ pub fn time_now_rfc3339() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "now_rfc3339".into(),
         is_async: false,
-        docs: r#"# Time.now_rfc3339() -> str
+        docs: r#"# Time::now_rfc3339() -> str
 Returns a string representing the current time according to the RFC-3339 specefication.
 ```rust
-const now = Time.now_rfc3339();
+const now = Time::now_rfc3339();
 pln(now); // "2025-08-13T16:22:43.028375200+00:00" when these docs were written
 ```
 "#.into(),
@@ -186,10 +186,10 @@ pub fn time_now_rfc2822() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "now_rfc2822".into(),
         is_async: false,
-        docs: r#"# Time.now_rfc2822() -> str
+        docs: r#"# Time::now_rfc2822() -> str
 Returns a string representing the current time according to the RFC-2822 specefication.
 ```rust
-const now = Time.now_rfc2822();
+const now = Time::now_rfc2822();
 pln(now); // "Wed, 13 Aug 2025 16:24:12 +0000" when these docs were written
 ```
 "#.into(),
@@ -211,10 +211,10 @@ pub fn time_to_rfc3339() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "to_rfc3339".into(),
         is_async: false,
-        docs: r#"# Time.to_rfc3339(time: float) -> str
+        docs: r#"# Time::to_rfc3339(time: float) -> str
 Returns a string representing the given timestamp according to the RFC-3339 specefication.
 ```rust
-const now = Time.to_rfc3339(Time.now());
+const now = Time::to_rfc3339(Time::now());
 pln(now); // "2025-08-13T16:22:43.028375200+00:00" when these docs were written
 ```
 "#.into(),
@@ -238,10 +238,10 @@ pub fn time_to_rfc2822() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "to_rfc2822".into(),
         is_async: false,
-        docs: r#"# Time.to_rfc2822(time: float) -> str
+        docs: r#"# Time::to_rfc2822(time: float) -> str
 Returns a string representing the given timestamp according to the RFC-2822 specefication.
 ```rust
-const now = Time.to_rfc2822(Time.now());
+const now = Time::to_rfc2822(Time::now());
 pln(now); // "Wed, 13 Aug 2025 16:24:12 +0000" when these docs were written
 ```
 "#.into(),
@@ -265,11 +265,11 @@ pub fn time_from_rfc3339() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "from_rfc3339".into(),
         is_async: false,
-        docs: r#"# Time.from_rfc3339(time: str) -> ms
+        docs: r#"# Time::from_rfc3339(time: str) -> ms
 Returns a unix timestamp (milliseconds since Epoch) representing the given RFC-3339 string.
 ```rust
-const ts = Time.from_rfc3339("2025-08-13T16:22:43.028375200+00:00");
-assert(ts < Time.now());
+const ts = Time::from_rfc3339("2025-08-13T16:22:43.028375200+00:00");
+assert(ts < Time::now());
 ```
 "#.into(),
         params: crate::params![
@@ -292,11 +292,11 @@ pub fn time_from_rfc2822() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "from_rfc2822".into(),
         is_async: false,
-        docs: r#"# Time.from_rfc2822(time: str) -> ms
+        docs: r#"# Time::from_rfc2822(time: str) -> ms
 Returns a unix timestamp (milliseconds since Epoch) representing the given RFC-2822 string.
 ```rust
-const ts = Time.from_rfc2822("Wed, 13 Aug 2025 16:24:12 +0000");
-assert(ts < Time.now());
+const ts = Time::from_rfc2822("Wed, 13 Aug 2025 16:24:12 +0000");
+assert(ts < Time::now());
 ```
 "#.into(),
         params: crate::params![
@@ -318,11 +318,11 @@ pub fn time_start_of_day() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "start_of_day".into(),
         is_async: false,
-        docs: r#"# Time.start_of_day(ts: ms) -> ms
+        docs: r#"# Time::start_of_day(ts: ms) -> ms
 Returns the UTC midnight timestamp for the day containing the given timestamp.
 ```rust
-const today = Time.start_of_day(Time.now());
-assert(today <= Time.now());
+const today = Time::start_of_day(Time::now());
+assert(today <= Time::now());
 ```
 "#.into(),
         params: crate::params![
@@ -345,12 +345,12 @@ pub fn time_start_of_month() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "start_of_month".into(),
         is_async: false,
-        docs: r#"# Time.start_of_month(ts: ms) -> ms
+        docs: r#"# Time::start_of_month(ts: ms) -> ms
 Returns the UTC midnight timestamp for the first day of the month containing the given timestamp.
 ```rust
-const som = Time.start_of_month(Time.now());
-assert(som <= Time.now());
-assert(Time.day_of_month(som) == 1);
+const som = Time::start_of_month(Time::now());
+assert(som <= Time::now());
+assert(Time::day_of_month(som) == 1);
 ```
 "#.into(),
         params: crate::params![
@@ -373,10 +373,10 @@ pub fn time_day_of_month() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "day_of_month".into(),
         is_async: false,
-        docs: r#"# Time.day_of_month(ts: ms) -> int
+        docs: r#"# Time::day_of_month(ts: ms) -> int
 Returns the day of the month (1–31) for the given UTC timestamp.
 ```rust
-const dom = Time.day_of_month(Time.now());
+const dom = Time::day_of_month(Time::now());
 assert(dom >= 1 && dom <= 31);
 ```
 "#.into(),
@@ -400,11 +400,11 @@ pub fn time_day_of_week() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "day_of_week".into(),
         is_async: false,
-        docs: r#"# Time.day_of_week(ts: ms) -> int
+        docs: r#"# Time::day_of_week(ts: ms) -> int
 Returns the ISO day of the week for the given UTC timestamp.
 0 = Monday, 1 = Tuesday, ..., 6 = Sunday.
 ```rust
-const dow = Time.day_of_week(Time.now());
+const dow = Time::day_of_week(Time::now());
 assert(dow >= 0 && dow <= 6);
 ```
 "#.into(),
@@ -428,11 +428,11 @@ pub fn time_days_in_month() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "days_in_month".into(),
         is_async: false,
-        docs: r#"# Time.days_in_month(ts: ms) -> int
+        docs: r#"# Time::days_in_month(ts: ms) -> int
 Returns the number of days in the month containing the given UTC timestamp.
 Correctly handles leap years for February.
 ```rust
-const dim = Time.days_in_month(Time.now());
+const dim = Time::days_in_month(Time::now());
 assert(dim >= 28 && dim <= 31);
 ```
 "#.into(),
@@ -456,13 +456,13 @@ pub fn time_add_months() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "add_months".into(),
         is_async: false,
-        docs: r#"# Time.add_months(ts: ms, n: int) -> ms
+        docs: r#"# Time::add_months(ts: ms, n: int) -> ms
 Adds n calendar months to the given UTC timestamp.
 The day of month is clamped to the last day of the target month if necessary
 (e.g. Jan 31 + 1 month = Feb 28/29).
 ```rust
-const next = Time.add_months(Time.now(), 1);
-assert(next > Time.now());
+const next = Time::add_months(Time::now(), 1);
+assert(next > Time::now());
 ```
 "#.into(),
         params: crate::params![
@@ -486,13 +486,13 @@ pub fn time_add_days() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "add_days".into(),
         is_async: false,
-        docs: r#"# Time.add_days(ts: ms, n: int) -> ms
+        docs: r#"# Time::add_days(ts: ms, n: int) -> ms
 Adds n calendar days to the given UTC timestamp. n may be negative.
 ```rust
-const tomorrow = Time.add_days(Time.now(), 1);
-assert(tomorrow > Time.now());
-const yesterday = Time.add_days(Time.now(), -1);
-assert(yesterday < Time.now());
+const tomorrow = Time::add_days(Time::now(), 1);
+assert(tomorrow > Time::now());
+const yesterday = Time::add_days(Time::now(), -1);
+assert(yesterday < Time::now());
 ```
 "#.into(),
         params: crate::params![
@@ -516,7 +516,7 @@ pub fn time_start_of_period() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "start_of_period".into(),
         is_async: false,
-        docs: r#"# Time.start_of_period(ts: ms, schedule: str) -> ms
+        docs: r#"# Time::start_of_period(ts: ms, schedule: str) -> ms
 Returns the start of the current billing/reset period for the given UTC timestamp
 and schedule expression. Returns null if the schedule is invalid.
 
@@ -532,24 +532,24 @@ All times are UTC. The returned timestamp is always midnight UTC on the period s
 
 ```rust
 // Resets on the 1st of every month
-const period = Time.start_of_period(Time.now(), 'monthly:1');
-assert(period <= Time.now());
+const period = Time::start_of_period(Time::now(), 'monthly:1');
+assert(period <= Time::now());
 
 // Resets every Monday
-const week_start = Time.start_of_period(Time.now(), 'weekly:mon');
-assert(week_start <= Time.now());
+const week_start = Time::start_of_period(Time::now(), 'weekly:mon');
+assert(week_start <= Time::now());
 
 // Resets on the first Tuesday of every month
-const billing = Time.start_of_period(Time.now(), 'nth_weekday:1:tue');
-assert(billing <= Time.now());
+const billing = Time::start_of_period(Time::now(), 'nth_weekday:1:tue');
+assert(billing <= Time::now());
 
 // Resets every January 1st
-const annual = Time.start_of_period(Time.now(), 'yearly:1-1');
-assert(annual <= Time.now());
+const annual = Time::start_of_period(Time::now(), 'yearly:1-1');
+assert(annual <= Time::now());
 
 // Resets on the 1st of each quarter (Jan, Apr, Jul, Oct)
-const quarterly = Time.start_of_period(Time.now(), 'quarterly:1');
-assert(quarterly <= Time.now());
+const quarterly = Time::start_of_period(Time::now(), 'quarterly:1');
+assert(quarterly <= Time::now());
 ```
 "#.into(),
         params: crate::params![
@@ -573,10 +573,10 @@ pub fn time_year() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "year".into(),
         is_async: false,
-        docs: r#"# Time.year(ts: ms) -> int
+        docs: r#"# Time::year(ts: ms) -> int
 Returns the UTC year for the given timestamp.
 ```rust
-const y = Time.year(Time.now());
+const y = Time::year(Time::now());
 assert(y >= 2025);
 ```
 "#.into(),
@@ -600,10 +600,10 @@ pub fn time_month() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "month".into(),
         is_async: false,
-        docs: r#"# Time.month(ts: ms) -> int
+        docs: r#"# Time::month(ts: ms) -> int
 Returns the UTC month (1–12) for the given timestamp.
 ```rust
-const m = Time.month(Time.now());
+const m = Time::month(Time::now());
 assert(m >= 1 && m <= 12);
 ```
 "#.into(),
@@ -627,10 +627,10 @@ pub fn time_hour() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "hour".into(),
         is_async: false,
-        docs: r#"# Time.hour(ts: ms) -> int
+        docs: r#"# Time::hour(ts: ms) -> int
 Returns the UTC hour (0–23) for the given timestamp.
 ```rust
-const h = Time.hour(Time.now());
+const h = Time::hour(Time::now());
 assert(h >= 0 && h <= 23);
 ```
 "#.into(),
@@ -654,10 +654,10 @@ pub fn time_minute() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "minute".into(),
         is_async: false,
-        docs: r#"# Time.minute(ts: ms) -> int
+        docs: r#"# Time::minute(ts: ms) -> int
 Returns the UTC minute (0–59) for the given timestamp.
 ```rust
-const m = Time.minute(Time.now());
+const m = Time::minute(Time::now());
 assert(m >= 0 && m <= 59);
 ```
 "#.into(),
@@ -681,10 +681,10 @@ pub fn time_second() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "second".into(),
         is_async: false,
-        docs: r#"# Time.second(ts: ms) -> int
+        docs: r#"# Time::second(ts: ms) -> int
 Returns the UTC second (0–59) for the given timestamp.
 ```rust
-const s = Time.second(Time.now());
+const s = Time::second(Time::now());
 assert(s >= 0 && s <= 59);
 ```
 "#.into(),
@@ -708,15 +708,15 @@ pub fn time_start_of_week() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "start_of_week".into(),
         is_async: false,
-        docs: r#"# Time.start_of_week(ts: ms, start_day: int = 0) -> ms
+        docs: r#"# Time::start_of_week(ts: ms, start_day: int = 0) -> ms
 Returns the UTC midnight timestamp for the start of the week containing the given timestamp.
 start_day follows ISO convention: 0 = Monday (default), 6 = Sunday.
 ```rust
-const sow = Time.start_of_week(Time.now());       // week starting Monday
-assert(sow <= Time.now());
+const sow = Time::start_of_week(Time::now());       // week starting Monday
+assert(sow <= Time::now());
 
-const sun = Time.start_of_week(Time.now(), 6);    // week starting Sunday
-assert(sun <= Time.now());
+const sun = Time::start_of_week(Time::now(), 6);    // week starting Sunday
+assert(sun <= Time::now());
 ```
 "#.into(),
         params: crate::params![
@@ -741,13 +741,13 @@ pub fn time_start_of_year() -> LibFunc {
         library: TIME_LIB.clone(),
         name: "start_of_year".into(),
         is_async: false,
-        docs: r#"# Time.start_of_year(ts: ms) -> ms
+        docs: r#"# Time::start_of_year(ts: ms) -> ms
 Returns the UTC midnight timestamp for January 1st of the year containing the given timestamp.
 ```rust
-const soy = Time.start_of_year(Time.now());
-assert(soy <= Time.now());
-assert(Time.month(soy) == 1);
-assert(Time.day_of_month(soy) == 1);
+const soy = Time::start_of_year(Time::now());
+assert(soy <= Time::now());
+assert(Time::month(soy) == 1);
+assert(Time::day_of_month(soy) == 1);
 ```
 "#.into(),
         params: crate::params![

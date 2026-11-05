@@ -894,6 +894,7 @@ impl Instruction for Base {
                                 return Err(Error::AssignExistingRoot);
                             }
 
+                            if !graph.seals.nodes.is_empty() && !graph.may_move_node(&nref) { return Ok(None); }
                             if let Some(node) = nref.node_mut(graph) {
                                 node.name = name.into();
                             }
