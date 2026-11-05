@@ -88,6 +88,11 @@
     IDs are left out and attributes are sorted (BSTF is unchanged).
   - New dependencies: `sha2` and `ed25519-dalek` (pure Rust; `curve25519-dalek` was already in the js and full builds).
 
+- **The npm package ships the Stof skill** in `skill/stof` (`node_modules/@formata/stof/skill/stof`): SKILL.md and the
+  library references, copied from `content/SKILL.md` and `docs/libs` at publish (`npm run skill`, which also refreshes
+  `plugin/skills/stof`). Packages built on Stof (Ex. Limitr) can point agents at it instead of shipping their own copy.
+  `npm run readme` copies the README and LICENSE into `web` the same way.
+
 ### Changed
 
 - **Library references use `Lib::func(..)`.** Every library function's docs (and so `docs/libs`, the skill's

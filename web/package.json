@@ -15,12 +15,15 @@
     "sideEffects": false,
     "files": [
         "dist",
+        "skill",
         "README.md",
         "LICENSE"
     ],
     "scripts": {
         "build": "tsc && cpy pkg dist/ --parents",
-        "prepublishOnly": "npm run build",
+        "skill": "rimraf skill ../plugin/skills/stof && cpy SKILL.md ../web/skill/stof/SKILL.md --cwd=../content && cpy \"*.md\" ../../web/skill/stof/references/libs --cwd=../docs/libs && cpy . ../../../plugin/skills/stof --cwd=skill/stof",
+        "readme": "cpy README.md LICENSE web --cwd=..",
+        "prepublishOnly": "npm run skill && npm run readme && npm run build",
         "clean": "rimraf dist"
     },
     "license": "Apache-2.0",

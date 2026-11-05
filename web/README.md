@@ -223,7 +223,7 @@ graph.parse_stof_src("rate: 2\nfn total(units: int) -> float { units * self.rate
 let total = Runtime::call(&mut graph, "total", vec![Val::from(21i64)])?; // 42
 ```
 
-**Teaching a model Stof:** give it [content/SKILL.md](https://github.com/dev-formata-io/stof/blob/main/content/SKILL.md), a short guide to the language with the library references in [content/stof.zip](https://github.com/dev-formata-io/stof/blob/main/content/stof.zip).
+**Teaching a model Stof:** give it [content/SKILL.md](https://github.com/dev-formata-io/stof/blob/main/content/SKILL.md), a short guide to the language with the library references in [content/stof.zip](https://github.com/dev-formata-io/stof/blob/main/content/stof.zip). The npm package ships the same skill, references included, in `node_modules/@formata/stof/skill/stof`.
 
 ## FAQ
 
