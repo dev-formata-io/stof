@@ -177,6 +177,11 @@ fn insert() {
     let a = [1, 2, 3];
     a.insert(1, 'hi');
     assert_eq(a, [1, 'hi', 2, 3]);
+    a.insert(10, 'end');
+    assert_eq(a[4], 'end', 'past the end goes at the end');
+    let empty = [];
+    empty.insert(0, 'first');
+    assert_eq(empty, ['first'], 'an empty list');
 }
 
 #[test]
@@ -184,6 +189,9 @@ fn replace() {
     let a = [1, 2, 3];
     a.replace(1, 'hi');
     assert_eq(a, [1, 'hi', 3]);
+    let empty = [];
+    assert_null(empty.replace(0, 'x'), 'nothing to replace');
+    assert_eq(empty, []);
 }
 
 #[test]

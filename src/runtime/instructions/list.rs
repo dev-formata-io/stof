@@ -618,7 +618,7 @@ impl Instruction for ListIns {
                                             let int = index.int();
                                             if int < 0 {
                                                 list.push_front(insert_var.val);
-                                            } else if int as usize > list.len() - 1 {
+                                            } else if int as usize >= list.len() { // past the end (or an empty list)
                                                 list.push_back(insert_var.val);
                                             } else {
                                                 list.insert(int as usize, insert_var.val);
@@ -647,8 +647,8 @@ impl Instruction for ListIns {
                                             let index: usize;
                                             if int < 0 {
                                                 index = 0;
-                                            } else if int as usize > list.len() - 1 {
-                                                index = list.len() - 1;
+                                            } else if int as usize >= list.len() {
+                                                index = list.len().saturating_sub(1); // an empty list has nothing to replace
                                             } else {
                                                 index = int as usize;
                                             }

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **`List.insert` and `List.replace` on an empty list no longer panic in debug builds.** The index check subtracted
+  one from the length, which overflows for an empty list (release builds, including the npm and PyPI packages,
+  wrapped around and did the right thing). Found running Limitr's suite with a debug build of stof-cli.
+
 ## 0.11.0
 
 Trust, built into documents. Keys and signatures in Stof itself, one signing scheme everywhere, and seals that can
