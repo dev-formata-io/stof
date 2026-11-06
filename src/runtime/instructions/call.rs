@@ -18,6 +18,7 @@ use std::{ops::Deref, sync::Arc};
 use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use serde::{Deserialize, Serialize};
+use crate::model::seal::ConfineIns;
 use crate::{model::{Param, ARROW_FUNC_ATTR, ASYNC_FUNC_ATTR, DataRef, Field, Func, Graph, LibFunc, NodeRef, PROTOTYPE_TYPE_ATTR, Prototype, SELF_STR_KEYWORD, SId, SUPER_STR_KEYWORD, UNSELF_FUNC_ATTR}, runtime::{Error, Type, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{func::ArrowScope, Base, DUPLICATE, POP_CALL, POP_RETURN, POP_SELF, PUSH_CALL, PUSH_RETURN, PUSH_FUNCTION_SCOPE, PUSH_SELF, PUSH_SYMBOL_SCOPE, PUSH_VAL_RET, PUSH_VOID_RET, SUSPEND, VALIDATE_FN_RET, YIELD}, proc::ProcEnv}};
 
 
@@ -320,12 +321,19 @@ impl FuncCall {
             // Look for a field (or obj) on the object at the path minus the func name for a library call on that field
             let (pth, func_name) = adjusted_path.rsplit_once('.').unwrap_or(("", adjusted_path.as_str()));
             if start.is_some() {
-                if let Some(field) = Field::field_from_path(graph, pth, start.clone()) {
-                    if let Some(field) = graph.get_stof_data::<Field>(&field) {
-                        let libname = field.value.val.read().lib_name(&graph);
+                if let Some(field_ref) = Field::field_from_path(graph, pth, start.clone()) {
+                    if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
+                        // private fields read as null outside their own object (like `obj.field`)
+                        let value = if field.is_private() && !field_ref.data_nodes(graph).contains(&env.self_ptr()) {
+                            ValRef::new(Val::Null)
+                        } else {
+                            // a copy when the field is guarded (sealed, or outside what confined code may change)
+                            graph.field_val(&field_ref, &field.value, false)
+                        };
+                        let libname = value.read().lib_name(&graph);
                         return Ok(CallContext {
                             lib: Some(libname),
-                            stack_arg: Some(Arc::new(Base::Variable(Variable::refval(field.value.val.duplicate(false))))),
+                            stack_arg: Some(Arc::new(Base::Variable(Variable::refval(value)))),
                             prototype_self: None,
                             func: SId::from(func_name),
                         });
@@ -448,6 +456,10 @@ impl FuncCall {
         if !unbounded && (args.len() != params.len()) {
             return Err(args_error(&format!("{}.{}", func.library, func.name), &params, count_problem(args.len(), &params)));
         }
+        // Code in a confined sealed part: what it gives the library and what comes back must be within its reach
+        let confined = !graph.confined.is_empty();
+        let base = env.stack.len();
+
         // Evaluate every argument in the caller's scope first, then start the library function's scope
         for index in 0..args.len() {
             let arg = &args[index];
@@ -459,6 +471,9 @@ impl FuncCall {
                     instructions.push(Arc::new(Base::Cast(param.param_type.clone())));
                 }
             }
+        }
+        if confined {
+            instructions.push(Arc::new(ConfineIns::Args { count: args.len(), lib: func.library.clone(), func: func.name.as_str().into() }));
         }
         instructions.push(PUSH_SYMBOL_SCOPE.clone());
         if func.args_to_symbol_table {
@@ -476,6 +491,9 @@ impl FuncCall {
         if !is_async {
             if let Some(rtype) = &rtype {
                 instructions.push(Arc::new(Base::Cast(rtype.clone())));
+            }
+            if confined {
+                instructions.push(Arc::new(ConfineIns::Result { base, lib: func.library.clone(), func: func.name.as_str().into() }));
             }
         }
 

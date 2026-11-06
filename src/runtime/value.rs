@@ -890,6 +890,19 @@ impl Val {
         }
     }
 
+    /// A copy of this value that shares nothing with it: lists, maps, sets, and tuples (nested too) are rebuilt,
+    /// so changing the copy in place never changes this value. Objects, functions, and data stay references
+    /// (nothing is added to the graph, unlike `deep_copy`).
+    pub fn detached(&self) -> Self {
+        match self {
+            Self::List(vals) => Self::List(vals.iter().map(|val| ValRef::new(val.read().detached())).collect()),
+            Self::Tup(vals) => Self::Tup(vals.iter().map(|val| ValRef::new(val.read().detached())).collect()),
+            Self::Set(set) => Self::Set(set.iter().map(|val| ValRef::new(val.read().detached())).collect()),
+            Self::Map(map) => Self::Map(map.iter().map(|(k, v)| (ValRef::new(k.read().detached()), ValRef::new(v.read().detached()))).collect()),
+            other => other.clone(),
+        }
+    }
+
     /// Deep copy this value.
     pub fn deep_copy(&self, graph: &mut Graph, context: Option<NodeRef>) -> Self {
         match self {
@@ -1572,6 +1585,11 @@ impl Val {
                 }
                 if !proto_id.node_exists(graph) {
                     return Err(Error::ObjectCastProtoDne);
+                }
+                // code confined to part of the document (see model::seal::Confine) can only use types it may read
+                if !graph.confined_reaches(&proto_id) {
+                    let name = proto_id.node(graph).map(|node| node.name.to_string()).unwrap_or_default();
+                    return Err(Error::Sealed(format!("this sealed part can't use the type '{name}': it's outside what the part may reach")));
                 }
                 if !self.instance_of(&proto_id, graph)? {
                     // Remove all current prototypes from the object and add the new one

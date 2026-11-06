@@ -15,7 +15,7 @@
 //
 
 // @deno-types="./pkg/stof.d.ts"
-import init, { Stof, StofFunc, StofTask, stofOutline, stofEdit, stofSign, stofVerify, stofPublicKey } from './pkg/stof.js';
+import init, { Stof, StofFunc, StofTask, stofOutline, stofEdit, stofSign, stofVerify, stofPublicKey, stofGenerateKey } from './pkg/stof.js';
 // @deno-types="./pkg/stof.d.ts"
 export * from './pkg/stof.js';
 
@@ -268,8 +268,11 @@ function ipv6Groups(address: string): number[] | null {
 }
 
 /** May a request go to this URL? Throws the reason when it may not. */
-function checkHost(url: URL, allowed: Set<string> | null, privateNetwork: boolean, redirect: boolean): void {
+function checkHost(url: URL, allowed: Set<string> | null, privateNetwork: boolean, redirect: boolean, scopes: Set<string>[] = []): void {
     const what = redirect ? `redirected to ${url.href}, which` : url.origin;
+    for (const scope of scopes) {
+        if (!hostAllowed(url, scope)) throw new Error(`${what} is not a host this sealed part may reach`);
+    }
     if (allowed) {
         if (!hostAllowed(url, allowed)) throw new Error(`${what} is not an allowed host for this document`);
     } else if (!privateNetwork && privateHost(url.hostname)) {
@@ -282,9 +285,10 @@ function checkHost(url: URL, allowed: Set<string> | null, privateNetwork: boolea
  * Same signature and response map as the native runtime's Http.fetch, so documents behave the same everywhere:
  * Http.fetch(url, method = 'get', body = null, headers = null, timeout (seconds) = null, query = null, bearer = null)
  * -> map { status, ok, headers, content_type, bytes }
+ * From a confined sealed part, Stof adds the host lists it may reach (`scopes`): each must allow every hop.
  */
 async function stofFetch(
-    allowed: Set<string> | null,
+    allowed: () => Set<string> | null,
     privateNetwork: () => boolean,
     url: string,
     method: string = 'get',
@@ -293,7 +297,10 @@ async function stofFetch(
     timeout: number | null = null,
     query: StofHeaders = null,
     bearer: string | null = null,
+    scopes: string[][] | null = null,
 ): Promise<Map<string, unknown>> {
+    const hosts = allowed();
+    const confined = (scopes ?? []).map((list) => new Set(list.map((host) => host.toLowerCase())));
     const entries = (values: StofHeaders): [string, string][] => {
         if (!values) return [];
         const pairs = values instanceof Map ? Array.from(values.entries()) : Object.entries(values);
@@ -303,7 +310,7 @@ async function stofFetch(
     const target = new URL(url, typeof location !== 'undefined' ? location.href : undefined);
     for (const [key, value] of entries(query)) target.searchParams.append(key, value);
     const privateOk = privateNetwork();
-    checkHost(target, allowed, privateOk, false);
+    checkHost(target, hosts, privateOk, false, confined);
 
     const requestHeaders = new Headers(entries(headers));
     if (bearer) requestHeaders.set('Authorization', `Bearer ${bearer}`);
@@ -327,7 +334,7 @@ async function stofFetch(
         if (!manual || response.status < 300 || response.status > 399 || !location) break;
         if (hops >= 10) throw new Error('too many redirects');
         const next = new URL(location, current);
-        checkHost(next, allowed, privateOk, true);
+        checkHost(next, hosts, privateOk, true, confined);
         await response.body?.cancel();
         const method = init.method ?? 'GET';
         if (response.status === 303 || ((response.status === 301 || response.status === 302) && method === 'POST')) {
@@ -341,7 +348,7 @@ async function stofFetch(
         }
         current = next;
     }
-    if (!manual && response.url) checkHost(new URL(response.url), allowed, privateOk, true);
+    if (!manual && response.url) checkHost(new URL(response.url), hosts, privateOk, true, confined);
 
     const responseHeaders = new Map<string, string>();
     response.headers.forEach((value, key) => responseHeaders.set(key, value));
@@ -383,17 +390,32 @@ export type StofEdit =
     | { rename: string | string[]; to: string };
 
 
+/** How an object is sealed (StofDoc.sealed). */
+export interface SealInfo {
+    /** Path of the object seal() was called on (this one, or one around it). */
+    part: string;
+    /** Its fields are frozen. */
+    fields: boolean;
+    /** It can be removed whole. */
+    removable: boolean;
+    /** The confinements its code runs under (empty: not confined). */
+    confined: { reads: string[] | null, hosts: string[] | null }[];
+}
+
+
 /**
  * Stof document.
  */
 export class StofDoc {
-    static readonly VERSION = '0.10.11';
+    static readonly VERSION = '0.11.0';
     private static initialized?: Promise<unknown>;
     private static wasmMutex = new WasmMutex();
     stof: Stof;
     /** Why the engine trapped in this document (it can't be used again), or null. */
     crashed: string | null = null;
     private privateNetwork = false;
+    /** Hosts Http.fetch may reach (null: any public host). */
+    private httpHosts: Set<string> | null = null;
 
 
     /**
@@ -545,13 +567,33 @@ export class StofDoc {
      * cloud metadata services live, `*.internal`, ...) stay off limits unless you call allowPrivateNetwork().
      * Addresses and names are checked as written (and on every redirect, on servers); JavaScript can't see what a
      * name resolves to, so list the hosts when that matters.
+     * Calling it again with hosts adds them (without, it allows any public host).
      */
     allowHttp(hosts?: string[]): void {
         this.stof.allowHttp(); // Http helpers (Http.text, Http.parse, Http.success, ...)
-        const allowed = hosts ? new Set(hosts.map((host) => host.trim().toLowerCase())) : null;
+        if (hosts) {
+            const listed = this.httpHosts ?? new Set<string>();
+            for (const host of hosts) listed.add(host.trim().toLowerCase());
+            this.httpHosts = listed;
+        } else {
+            this.httpHosts = null;
+        }
+        const allowed = () => this.httpHosts;
         const privateNetwork = () => this.privateNetwork;
         const hostFetch = (...args: unknown[]) => (stofFetch as Function)(allowed, privateNetwork, ...args);
         this.lib('Http', 'fetch', hostFetch, true, ['url', 'method', 'body', 'headers', 'timeout', 'query', 'bearer']);
+    }
+
+
+    /**
+     * Stop allowing these hosts (listed with allowHttp([...])): requests to them fail from now on. Removing every
+     * listed host leaves none allowed (not any host). Returns false when any host is allowed (allowHttp() without a
+     * list), which has no list to remove from.
+     */
+    disallowHttp(hosts: string[]): boolean {
+        if (!this.httpHosts) return false;
+        for (const host of hosts) this.httpHosts.delete(host.trim().toLowerCase());
+        return true;
     }
 
 
@@ -595,12 +637,34 @@ export class StofDoc {
     /**
      * Seal an object (a path, or a type as "<Name>") and everything under it: its functions can be called but not
      * changed, by this document's code or by you (until unseal). Fields still change unless `fields` is true.
-     * With `digest`, only if the object's digest is that; with `publicKey` and `signature`, only if its digest is
-     * signed by that key (Ed25519, base64 or hex). Throws (sealing nothing) otherwise. Returns the digest.
-     * Ex. doc.seal('<Limitr>', { publicKey: LIMITR_KEY, signature: ENGINE_SIGNATURE })
+     * Returns the digest. Throws (sealing nothing) when a check fails:
+     * - `digest`: only if the object's digest is this one.
+     * - `publicKey` and `signature`: only if the digest is signed by that key, under the context 'stof/seal'
+     *   (made with StofDoc.sign(secretKey, 'stof/seal', digest), or Key::sign in Stof).
+     *
+     * And how it's sealed:
+     * - `removable`: it can still be removed whole (nothing in it can change; it can't be moved or renamed).
+     * - `reads` (paths, or types as "<Name>"): confine its code. While it runs, it finds only itself and the objects
+     *   at these paths (looked up each time it's entered), changes only itself, and can't hand anything else to a
+     *   library function. `[]`: only itself.
+     * - `hosts`: its Http.fetch reaches only these hosts (your allowHttp list still applies). `[]`: no network.
+     *
+     * Ex. doc.seal('<Engine>', { publicKey: ENGINE_KEY, signature: ENGINE_SIGNATURE })
+     * Ex. doc.seal('plugins.weather', { removable: true, reads: ['inputs'], hosts: ['api.weather.example'] })
      */
-    seal(path: string, options: { fields?: boolean, digest?: string, publicKey?: string, signature?: string } = {}): string {
-        return this.stof.seal(path, options.fields ?? false, options.digest, options.publicKey, options.signature);
+    seal(path: string, options: { fields?: boolean, digest?: string, publicKey?: string, signature?: string, removable?: boolean, reads?: string[], hosts?: string[] } = {}): string {
+        return this.stof.seal(path, options.fields ?? false, options.digest, options.publicKey, options.signature, options.removable ?? false, options.reads, options.hosts);
+    }
+
+
+    /**
+     * How an object (a path, or a type as "<Name>") is sealed, or null when it isn't: the `part` that was sealed
+     * (its path: this object, or one around it), `fields` (frozen), `removable`, and `confined` (one { reads, hosts }
+     * per confinement its code runs under; empty when it isn't confined).
+     */
+    sealed(path: string): SealInfo | null {
+        const info = this.stof.sealed(path);
+        return info ? JSON.parse(info) as SealInfo : null;
     }
 
 
@@ -614,7 +678,8 @@ export class StofDoc {
 
     /**
      * The seal digest of an object (a path, or a type as "<Name>"): a SHA-256 (hex) over its functions and
-     * structure, and its fields' values when `fields` is true. The same for the same document, parsed or loaded.
+     * structure, and its fields' values when `fields` is true. The same for the same part in any document, parsed
+     * or loaded, wherever it sits.
      */
     digest(path: string, fields: boolean = false): string {
         return this.stof.digest(path, fields);
@@ -622,27 +687,37 @@ export class StofDoc {
 
 
     /**
-     * Sign a seal digest with an Ed25519 secret key (base64 or hex, 32 bytes, Ex. `openssl rand -base64 32`).
-     * Returns the signature (base64). Sign at build time; ship the public key and signature with the document.
+     * A new secret key (base64, 32 bytes from the system's secure random source). Keep it secret; share
+     * StofDoc.publicKey(secretKey). The same as Key::generate() in Stof.
      */
-    static sign(digest: string, secretKey: string): string {
-        return stofSign(digest, secretKey);
+    static generateKey(): string {
+        return stofGenerateKey();
     }
 
 
     /**
-     * Is this an Ed25519 signature over this seal digest by this public key?
-     */
-    static verify(digest: string, publicKey: string, signature: string): boolean {
-        return stofVerify(digest, publicKey, signature);
-    }
-
-
-    /**
-     * The Ed25519 public key (base64) for a secret key.
+     * The public key (base64) for a secret key. Anyone with it can check your signatures, but can't make them.
      */
     static publicKey(secretKey: string): string {
         return stofPublicKey(secretKey);
+    }
+
+
+    /**
+     * Sign a message (a string's UTF-8 bytes, or bytes) under a context (Ex. 'orders/v1') with a secret key.
+     * Returns the signature (base64). It verifies only under the same context: StofDoc.verify here, or
+     * Key::verify in a document. To sign a part for seal(): StofDoc.sign(secretKey, 'stof/seal', doc.digest(path)).
+     */
+    static sign(secretKey: string, context: string, message: string | Uint8Array): string {
+        return stofSign(secretKey, context, message);
+    }
+
+
+    /**
+     * Is this a signature over exactly this message (string or bytes), under this context, by this public key?
+     */
+    static verify(publicKey: string, context: string, message: string | Uint8Array, signature: string): boolean {
+        return stofVerify(publicKey, context, message, signature);
     }
 
 

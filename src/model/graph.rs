@@ -107,6 +107,11 @@ pub struct Graph {
     #[serde(skip)]
     pub seals: Arc<crate::model::Seals>,
 
+    /// What the code running now may reach, when it's in a confined sealed part (see `model::seal::Confine`).
+    /// Set by the runtime while a confined process runs; empty otherwise (host calls are never confined).
+    #[serde(skip)]
+    pub confined: Vec<Arc<crate::model::seal::Reach>>,
+
     /// Attributes the html format writes only when allowed (`style`, `action`, `formaction`). Set by the host with
     /// `allow_html_attributes`.
     #[serde(skip)]
@@ -152,6 +157,7 @@ impl Default for Graph {
             http_hosts: None,
             http_private: false,
             seals: Default::default(),
+            confined: Vec::new(),
             html_tags: None,
             html_attributes: None,
             keep_source: false,
@@ -239,7 +245,10 @@ impl Graph {
             if !shallow {
                 let value = self.get_stof_data::<Field>(&field_ref).map(|field| field.value.val.clone());
                 if let Some(value) = value {
+                    let refused = self.seals.violation.is_some();
                     value.read().drop_data(self);
+                    // a seal refused dropping the value: keep the field too (nothing changes)
+                    if !refused && self.seals.violation.is_some() { return false; }
                 }
             }
             self.remove_data(&field_ref, None)
@@ -414,6 +423,7 @@ impl Graph {
             insert_prompt_lib(self);
             insert_md_lib(self);
             insert_time_lib(self);
+            crate::model::key::insert_key_lib(self);
             insert_profile_lib(self, &Profile::default());
         }
         
@@ -466,6 +476,19 @@ impl Graph {
             allowed.insert(host.as_ref().trim().to_lowercase());
         }
         self.http_hosts = Some(Arc::new(allowed));
+    }
+
+    /// Stop allowing these hosts (listed with `allow_http_hosts`): requests to them fail from now on. Removing
+    /// every listed host leaves none allowed (not any host). Returns false when any host is allowed (`allow_http`
+    /// without a list), which has no list to remove from.
+    pub fn disallow_http_hosts(&mut self, hosts: impl IntoIterator<Item = impl AsRef<str>>) -> bool {
+        let Some(current) = &self.http_hosts else { return false };
+        let mut allowed = current.as_ref().clone();
+        for host in hosts {
+            allowed.remove(&host.as_ref().trim().to_lowercase());
+        }
+        self.http_hosts = Some(Arc::new(allowed));
+        true
     }
 
     /// Insert library documentation.
@@ -531,6 +554,7 @@ impl Graph {
     
     /// Insert a root node directly.
     pub fn insert_root(&mut self, name: impl Into<SId>) -> NodeRef {
+        if !self.confined.is_empty() { self.may_add_root(); } // reported (the call fails), though the root is made
         let mut node = Node::new(name.into(), SId::default(), false);
         node.invalidate(INVALID_NODE_NEW);
 
@@ -591,6 +615,8 @@ impl Graph {
         if let Some(parent) = &parent {
             // under an object sealed with its fields: reported (the call fails), though the object is still made
             if !self.seals.nodes.is_empty() { self.may_add_child(parent); }
+        } else if !self.confined.is_empty() {
+            self.may_add_root();
         }
         if let Some(parent) = &parent {
             if parent.node_exists(&self) {
@@ -650,10 +676,14 @@ impl Graph {
     /// With gc, fields anywhere in the graph that hold the node (or one of its children) are removed too.
     /// Note: if you pass gc and also are managing a symbol table, you have to do gc on that table as well.
     pub fn remove_node(&mut self, nref: &NodeRef, gc: bool) -> bool {
-        if !self.seals.nodes.is_empty() && !self.may_move_node(nref) { return false; }
+        if !self.seals.nodes.is_empty() && !self.may_remove_node(nref) { return false; }
         let mut removed = Vec::new();
         if !self.remove_node_tree(nref, &mut removed) {
             return false;
+        }
+        if !self.seals.nodes.is_empty() {
+            let ids = removed.iter().map(|node| node.id.clone()).collect::<Vec<_>>();
+            self.forget_seals(&ids);
         }
         if gc {
             // Fields holding a removed node: listed on the nodes (most objects), else found by searching the graph.
@@ -1674,6 +1704,7 @@ impl Graph {
 
     /// String export.
     pub fn string_export(&self, format: &str, node: Option<NodeRef>) -> Result<String, Error> {
+        self.confined_export(&node)?;
         let id = format;
         if let Some(format) = self.get_format(id) {
             format.string_export(self, id, node)
@@ -1727,6 +1758,7 @@ impl Graph {
 
     /// Binary export.
     pub fn binary_export(&self, format: &str, node: Option<NodeRef>) -> Result<Bytes, Error> {
+        self.confined_export(&node)?;
         let id = format;
         if let Some(format) = self.get_format(id) {
             format.binary_export(self, id, node)
@@ -1771,6 +1803,7 @@ impl Graph {
 
     /// File export from this graph, using a loaded format.
     pub fn file_export(&self, format: &str, path: &str, node: Option<NodeRef>) -> Result<(), Error> {
+        self.confined_export(&node)?;
         let id = format;
         if let Some(format) = self.get_format(id) {
             format.file_export(self, id, path, node)
@@ -1828,6 +1861,8 @@ impl Graph {
                 let context;
                 if start.is_some() { context = start; }
                 else { context = Some(self.ensure_main_root()); }
+                // a seal may refuse this change: check first (a list or map value is set in place)
+                if !self.seals.nodes.is_empty() && !self.may_change(&field_ref) { return false; }
                 let res = fvar.set(&var, self, context);
                 if res.is_err() { return false; } // const field
 

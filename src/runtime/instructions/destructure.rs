@@ -52,11 +52,21 @@ impl Instruction for DestructureIns {
                 self.bind(&mut instructions, Some(var), &Pattern::Name(name.clone()), &None);
             },
             Pattern::Fields(fields) => {
+                // code confined to part of the document (see model::seal::Confine) can only read objects it may reach
+                if let Val::Obj(obj) = &value {
+                    if !graph.confined_reaches(obj) {
+                        let name = obj.node(graph).map(|node| node.name.to_string()).unwrap_or_default();
+                        return Err(Error::Sealed(format!("this sealed part can't read '{name}': it's outside what the part may reach")));
+                    }
+                }
                 for (key, target, default) in fields {
                     let part = match &value {
                         Val::Obj(obj) => Field::field(graph, obj, key)
-                            .and_then(|field| graph.get_stof_data::<Field>(&field))
-                            .map(|field| field.value.stack_var(false)),
+                            .and_then(|dref| graph.get_stof_data::<Field>(&dref).map(|field| {
+                                // private fields read as null outside their object (like `obj.field`)
+                                if field.is_private() && !dref.data_nodes(graph).contains(&env.self_ptr()) { return Variable::val(Val::Null); }
+                                graph.field_var(&dref, &field.value, false)
+                            })),
                         Val::Map(map) => map.get(&ValRef::new(Val::Str(key.clone()))).map(|value| Variable::refval(value.duplicate(false))),
                         other => return Err(cannot_destructure(other, graph, "fields", "an object or map")),
                     };

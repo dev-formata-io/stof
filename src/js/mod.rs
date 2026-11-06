@@ -23,7 +23,7 @@ use js_sys::Uint8Array;
 use nanoid::nanoid;
 use rustc_hash::FxHashSet;
 use wasm_bindgen::prelude::*;
-use crate::{js::{func::StofFunc, value::to_graph_value}, model::{Graph, NodeRef, Profile, import::parse_json_object_value}, runtime::{JsTask, Runtime, Val, Variable, instruction::Instruction, instructions::Base, proc::ProcEnv}};
+use crate::{js::{func::StofFunc, value::to_graph_value}, model::{Graph, NodeRef, Profile, import::parse_json_object_value, seal::SealOptions}, runtime::{JsTask, Runtime, Val, Variable, instruction::Instruction, instructions::Base, proc::ProcEnv}};
 
 
 // Workaround for Wasm-Pack Error
@@ -49,22 +49,39 @@ pub fn stof_outline(text: &str) -> Result<String, String> {
     Ok(crate::parser::edit::outline_json(text, &defs).to_string())
 }
 
-#[wasm_bindgen(js_name = stofSign)]
-/// Sign a seal digest with an Ed25519 secret key (base64 or hex, 32 bytes): the signature, base64.
-pub fn stof_sign(digest: &str, secret_key: &str) -> Result<String, String> {
-    crate::model::seal::sign(digest, secret_key).map_err(|error| error.to_string())
-}
-
-#[wasm_bindgen(js_name = stofVerify)]
-/// Is this an Ed25519 signature (base64 or hex) over this seal digest by this public key (base64 or hex)?
-pub fn stof_verify(digest: &str, public_key: &str, signature: &str) -> bool {
-    crate::model::seal::verify(digest, public_key, signature)
+#[wasm_bindgen(js_name = stofGenerateKey)]
+/// A new secret key (base64, 32 bytes from the system's secure random source).
+pub fn stof_generate_key() -> String {
+    crate::model::seal::generate_key()
 }
 
 #[wasm_bindgen(js_name = stofPublicKey)]
-/// The Ed25519 public key (base64) for a secret key (base64 or hex, 32 bytes).
+/// The public key (base64) for a secret key.
 pub fn stof_public_key(secret_key: &str) -> Result<String, String> {
     crate::model::seal::public_key(secret_key).map_err(|error| error.to_string())
+}
+
+#[wasm_bindgen(js_name = stofSign)]
+/// Sign a message (a string's UTF-8 bytes, or bytes) under a context with a secret key: the signature (base64).
+pub fn stof_sign(secret_key: &str, context: &str, message: JsValue) -> Result<String, String> {
+    let bytes = message_bytes(&message)?;
+    crate::model::seal::sign(secret_key, context, &bytes).map_err(|error| error.to_string())
+}
+
+#[wasm_bindgen(js_name = stofVerify)]
+/// Is this a signature over this message (a string or bytes), under this context, by this public key?
+pub fn stof_verify(public_key: &str, context: &str, message: JsValue, signature: &str) -> bool {
+    match message_bytes(&message) {
+        Ok(bytes) => crate::model::seal::verify(public_key, context, &bytes, signature),
+        Err(_) => false,
+    }
+}
+
+/// A message's bytes: a string's UTF-8, or a Uint8Array's bytes.
+fn message_bytes(message: &JsValue) -> Result<Vec<u8>, String> {
+    if let Some(text) = message.as_string() { return Ok(text.into_bytes()); }
+    if message.is_instance_of::<js_sys::Uint8Array>() { return Ok(js_sys::Uint8Array::from(message.clone()).to_vec()); }
+    Err("a message must be a string or a Uint8Array (the exact bytes that are signed)".into())
 }
 
 #[wasm_bindgen(js_name = stofEdit)]
@@ -374,23 +391,34 @@ impl Stof {
     /// Seal an object (path, or a type as "<Name>") and everything under it: its functions can be called but not
     /// changed (see `model::seal`). With `fields`, its fields are frozen too. With `expected`, only if its digest is
     /// that. With `public_key` and `signature`, only if the digest is signed by that key. Returns the digest.
-    pub fn seal(&self, path: &str, fields: Option<bool>, expected: Option<String>, public_key: Option<String>, signature: Option<String>) -> Result<String, String> {
+    /// With `removable`, it can still be removed whole. With `reads` (paths, looked up each time the part is entered),
+    /// its code reaches only itself and those objects; with `hosts`, its Http.fetch reaches only those hosts (see
+    /// `model::seal::Confine`).
+    pub fn seal(&self, path: &str, fields: Option<bool>, expected: Option<String>, public_key: Option<String>, signature: Option<String>, removable: Option<bool>, reads: Option<Vec<String>>, hosts: Option<Vec<String>>) -> Result<String, String> {
         let mut graph = self.graph_mut()?;
-        let fields = fields.unwrap_or(false);
+        let options = SealOptions { fields: fields.unwrap_or(false), removable: removable.unwrap_or(false), reads, hosts };
         let res = match (public_key, signature) {
             (Some(key), Some(signature)) => {
                 if let Some(expected) = &expected {
-                    let digest = graph.digest_path(path, fields).map_err(|e| e.to_string())?;
+                    let digest = graph.digest_path(path, options.fields).map_err(|e| e.to_string())?;
                     if !digest.eq_ignore_ascii_case(expected.trim()) {
                         return Err(format!("sealed: {path} isn't what was expected: its digest is {digest}, not {expected}"));
                     }
                 }
-                graph.seal_signed(path, fields, &key, &signature)
+                graph.seal_signed_with(path, &options, &key, &signature)
             },
-            (None, None) => graph.seal_path(path, fields, expected.as_deref()),
+            (None, None) => graph.seal_path_with(path, &options, expected.as_deref()),
             _ => return Err("a signature needs both a public key and a signature".into()),
         };
         res.map_err(|error| error.to_string())
+    }
+
+    /// How an object (a path, or a type as "<Name>") is sealed, as JSON: { part, fields, removable, confined:
+    /// [{ reads, hosts }] }, or null when it isn't sealed.
+    pub fn sealed(&self, path: &str) -> Result<Option<String>, String> {
+        let graph = self.graph_ref()?;
+        let info = graph.seal_info_path(path).map_err(|error| error.to_string())?;
+        Ok(info.map(|info| info.to_json(&graph).to_string()))
     }
 
     /// Unseal an object that `seal` sealed (path, or a type as "<Name>").

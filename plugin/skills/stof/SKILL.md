@@ -476,6 +476,8 @@ graph.remove("rate", false);
 and `fs::*` calls fail. The `stof` CLI allows everything.
 To allow only some hosts: `graph.allow_http_hosts(["api.example.com"])` (Rust), `doc.allow_http_hosts([...])` (Python),
 `doc.allowHttp(['api.example.com'])` (JS). Requests and redirects elsewhere fail; `"localhost:8080"` limits the port too.
+Calling it again adds hosts; `graph.disallow_http_hosts([...])` (Rust), `doc.disallow_http_hosts([...])` (Python),
+`doc.disallowHttp([...])` (JS) removes them (removing every listed host leaves none, not any host).
 With no list, any public host: this machine and private networks (localhost, 10.x, 192.168.x, 169.254.x metadata,
 `*.internal`, ...) fail unless listed or allowed with `allow_private_network()` (Rust, Python) / `doc.allowPrivateNetwork()` (JS).
 A call fails with an execution timeout after 2 minutes by default: `graph.max_execution_time = Some(duration)` (Rust),
@@ -495,16 +497,9 @@ and `formaction` only when allowed: `allow_html_attributes(["style"])` (Rust, Py
 In JS, if the engine ever traps (Ex. no memory limit and it runs out), the call rejects and that document is
 `doc.crashed`: every later call throws; create a new document.
 
-**Sealing** (host only): `doc.seal('<Engine>')` (JS, Python) / `graph.seal_path("<Engine>", false, None)` (Rust)
-locks an object (path, or a type as `<Name>`) and everything under it: its functions, prototypes, and fields
-holding functions or sealed objects can't be added, removed, renamed, replaced, or moved (by document code or the
-host) until `unseal`; a refused change fails with `sealed: ...`. Fields still change unless sealed with `fields`
-(`{ fields: true }`, `fields=True`). Sealed code (arrows, calls, state) runs as before. `doc.digest(path)` is a
-stable SHA-256 of its functions and structure (parsed or BSTF); `doc.seal(path, { digest })` or
-`{ publicKey, signature }` (Ed25519 over the digest; `StofDoc.sign(digest, secretKey)`, `Doc.sign`) seals only if
-it matches. Functions are found by name at call time, so seal everything a call chain relies on. A document can
-seal parts of itself too, one-way: `seal(<Engine>)` or `seal(self.rules, true)` (returns the digest; Ex. in an
-`#[init]`), and `digest(obj)`; only the host can unseal. Host exports (`graph.stringify` in Rust, `doc.stringify` in JS, `doc.string_export` in Python) call computed
+**Sealing, keys, and confinement:** see "Trust" below.
+
+Host exports (`graph.stringify` in Rust, `doc.stringify` in JS, `doc.string_export` in Python) call computed
 values too, with a runtime of their own: an async host function can't finish there, so call `stringify` from Stof
 (Ex. `await doc.callSource(...)`) when a computed value needs one.
 
@@ -522,13 +517,92 @@ Host errors from `call`/`run` include the Stof call stack. Parse with the test p
 `stof::model::Profile::test()` in Rust) to get statement-level line numbers in runtime errors; the default production profile
 keeps documents smaller.
 
+## Trust: seals, keys, and confinement
+
+Four tools, for four questions. Pick by what you need to know:
+
+| You want to know | Use | In Stof | On the host |
+|---|---|---|---|
+| This logic can't be changed | seal | `seal(self.rules)` | `doc.seal('rules')` |
+| It's the logic that was shipped | digest + signature | `digest(obj)`, `Key::sign(secret, 'stof/seal', digest(obj))` | `doc.seal(path, { digest })` or `{ publicKey, signature }` |
+| Code from elsewhere sees only what it's given | confined seal | `seal(tool, reads = [self.inputs], hosts = [..])` | `doc.seal(path, { reads: ['inputs'], hosts: [..] })` |
+| Data came from who it says, unchanged | signature | `Key::verify(public, context, message, sig)` | `StofDoc.verify(..)`, `Doc.verify(..)` |
+
+**Seal** an object (path, or a type as `<Name>`) and everything under it: its functions, prototypes, attributes,
+and fields holding functions or sealed objects can't be added, removed, renamed, replaced, or moved, by document
+code or the host, until the host calls `unseal`. A refused change fails with `sealed: ...` and changes nothing.
+Fields still change (that's where state lives) unless sealed with `fields` (`seal(obj, true)`,
+`{ fields: true }`). Sealed code runs as before. Functions are found by name when called, so seal everything a call
+chain relies on. Documents can seal parts of themselves (one-way); only the host unseals. Sealing again only adds
+(frozen stays frozen, confinements stack); nothing loosens. Seals live in the running document, not in exports: a
+document sent as BSTF arrives unsealed, and the receiver seals it (checking the digest or signature first).
+
+**Digest:** `digest(obj)` / `doc.digest(path)` is a SHA-256 (hex) over the part's functions and structure (plus
+field values with `fields`). The same part has the same digest in any document, parsed or loaded, wherever it sits
+(its own name and place aren't part of it; JSON-imported data digests like the same data written in Stof).
+
+**Keys and signatures** (`Key` library; Ed25519; keys and signatures are base64 strings):
+```stof
+const secret = Key::generate();                     // keep secret; usually the host passes it in
+const public = Key::public(secret);                 // share: checks signatures, can't make them
+const sig = Key::sign(secret, 'orders/v1', order);  // order is a str or blob: the exact bytes
+Key::verify(public, 'orders/v1', order, sig);       // true only for these bytes, this context, this key
+```
+- The context (Ex. 'orders/v1') names what a signature is for; it only verifies under the same context. A seal
+  signature is a signature over a digest under `'stof/seal'`.
+- Sign text, not objects: `Key::sign(secret, ctx, stringify('json', obj))`, and send that exact text. An object
+  argument is an error ("stringify an object first").
+- Hosts have the same functions, same order: `StofDoc.generateKey()`, `StofDoc.publicKey(s)`,
+  `StofDoc.sign(secret, context, message)`, `StofDoc.verify(public, context, message, signature)` (JS);
+  `Doc.generate_key/public_key/sign/verify` (Python); `stof::model::seal::{generate_key, public_key, sign, verify}`.
+  A signature made anywhere verifies everywhere.
+- A secret key is just a string: storing it in a field means it prints and exports like any string. Pass secrets in
+  as arguments, or keep them encrypted with Age (`Age::pass_blobify(passphrase, 'bstf', self.keys)`).
+- `Key` signs, `Age` encrypts; they're separate keys. Both together: `const box = Age::blobify(reader_public,
+  'json', msg); const sig = Key::sign(secret, 'messages/v1', box);` and the reader verifies, then
+  `Age::parse(reader, box, dest, 'json')`. `Age::parse`/`Age::public` take a `Data<Age>` or the secret key string.
+
+**Confined seals** (`reads`, `hosts`) are for code that didn't come from you. While its code runs (and everything
+it calls):
+- It finds only itself and the objects in `reads` (paths or `<Type>`s, looked up each time it's entered; objects in
+  Stof are kept as their paths). Anything else finds nothing (null): `root.secrets.x`, `super.x`. Types not listed
+  can't be used (no `new Type {}` or casts: those read the type's defaults).
+- It changes only itself. What it reads is read-only; no new roots; it can only seal itself. A list or map it reads
+  from outside is a copy (`push_back` on it changes the copy, never the field); the same goes for any code reading
+  a frozen (`fields: true`) field.
+- Calling a function elsewhere fails (even a function value it was handed). Listed code (Ex. `<Helpers>`) can be
+  called and runs confined too.
+- It can't give a library an object outside its reach or get one back (`Obj.parent(self)`, `funcs()`,
+  `stringify('json')` of everything or of an object holding one out of reach all fail).
+- `Http.fetch` reaches only `hosts` (redirects too), and the document's own allowlist still applies.
+- Objects from elsewhere stay opaque even when handed to it (argument or field): it can hold and return them, not
+  look inside. Pass values (strings, numbers, lists, maps), or list the objects in `reads`.
+- `[]` means nothing: `reads = []` (only itself), `hosts = []` (no network).
+- The rest of the document (and every host call) is unconfined, including after a confined call returns or fails.
+
+**Removable:** `seal(obj, removable = true)` / `{ removable: true }`: it can still be dropped whole (`drop(obj)`,
+`doc.remove(path)`), but not changed, moved, or renamed. Not when another seal covers it. For code that comes and
+goes (a plugin turned on, a tool for one task).
+
+**Inspect:** `sealed(obj)` (Stof map) / `doc.sealed(path)` (JS object, Python dict) / `graph.seal_info(node)`: null
+when not sealed, else `part` (path of the object sealed: this one or one around it), `fields`, `removable`,
+`confined` (list of `{ reads, hosts }`).
+
+A typical plugin, end to end:
+```typescript
+doc.parse(pluginSource, 'plugins.weather');                       // code you didn't write
+doc.seal('plugins.weather', { reads: ['inputs'], hosts: ['api.weather.example'], removable: true });
+await doc.call('plugins.weather.forecast');                       // sees itself + inputs; fetches one host
+doc.remove('plugins.weather');                                    // when it's turned off
+```
+
 ## Standard library reference
 
 Read `references/libs/<file>` for full signatures and examples.
 
 | Library | File | For |
 |---|---|---|
-| Std | `Std.md` | Called bare: `pln`, `assert*`, `throw`, `parse`, `stringify`, `blobify`, `copy`, `drop`, `swap`, `funcs`, `sleep`, `env`, `format`, `nanoid`, `min`/`max`, `seal`/`digest` |
+| Std | `Std.md` | Called bare: `pln`, `assert*`, `throw`, `parse`, `stringify`, `blobify`, `copy`, `drop`, `swap`, `funcs`, `sleep`, `env`, `format`, `nanoid`, `min`/`max`, `seal`/`digest`/`sealed` |
 | Obj | `Obj.md` | Objects: `fields`, `insert`, `get`, `set`/`unset` (by name, not path), `contains`, `parent`, `children`, `schemafy`, `instance_of`, `run`, `to_map`, `move`, `attributes`/`set_attribute`/`remove_attribute` |
 | Str | `Str.md` | Strings: `len`, `split`, `lower`, `upper`, `trim`, `replace`, `contains`, `starts_with`, `substring` |
 | Num | `Num.md` | Numbers and units: `abs`, `round`, `floor`, `sqrt`, `pow`, `min`, `max`, `to_units`, `has_units` |
@@ -542,4 +616,6 @@ Read `references/libs/<file>` for full signatures and examples.
 | Md | `Md.md` | Markdown to HTML |
 | Http | `Http.md` | HTTP fetch (`http` feature) |
 | fs | `fs.md` | File system (`system` feature; hosts can remove it) |
-| Image, Pdf, Age | `Image.md` `Pdf.md` `Age.md` | Images, PDFs, age encryption (features) |
+| Key | `Key.md` | Keys and signatures: `generate`, `public`, `sign`, `verify` (see Trust) |
+| Age | `Age.md` | Encryption to a recipient or passphrase (`age_encrypt` feature; in the JS build) |
+| Image, Pdf | `Image.md` `Pdf.md` | Images, PDFs (features) |

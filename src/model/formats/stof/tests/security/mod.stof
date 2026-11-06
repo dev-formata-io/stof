@@ -21,3 +21,6 @@
 
 #[if(lib('Age'))]
 import './age' as self.AgeSec;
+
+#[test]
+import './sealing' as self.Sealing;

@@ -45,7 +45,7 @@ pub mod libraries;
 pub mod cautious;
 
 pub mod seal;
-pub use seal::Seals;
+pub use seal::{Seals, SealOptions};
 pub use libraries::*;
 
 

@@ -104,7 +104,7 @@ Print a snapshot of the current stack.
 
 
 # Std::digest(obj: obj, fields: bool = false) -> str
-A SHA-256 (hex) over an object's functions and structure (its functions' names, parameters, return types, attributes, and instructions, and the objects, types, and fields that hold functions or objects under it), plus every field's value when `fields` is true. The same for the same document, whether it was parsed or loaded from BSTF, so it identifies exactly the logic it covers. Hosts check it when they seal (`doc.seal(path, { digest })`) or verify a signature over it.
+A SHA-256 (hex) over an object's functions and structure (its functions' names, parameters, return types, attributes, and instructions, and the objects, types, and fields that hold functions or objects under it), plus every field's value when `fields` is true. The same for the same document, whether it was parsed or loaded from BSTF, and wherever the object is (its own name isn't part of it), so an object sent to another document has the same digest there. It identifies exactly the logic (and with `fields`, the data) it covers. Hosts check it when they seal (`doc.seal(path, { digest })`) or verify a signature over it.
 ```rust
 const before = digest(self.rules);
 assert_eq(digest(self.rules), before);
@@ -346,8 +346,14 @@ remove_env("HOST");
 ```
 
 
-# Std::seal(obj: obj, fields: bool = false) -> str
+# Std::seal(obj: obj, fields: bool = false, removable: bool = false, reads: list = null, hosts: list = null) -> str
 Seal an object (Ex. `self.rules`, or a type: `<Engine>`) and everything under it: from now on its functions can be called but not added, removed, renamed, replaced, or moved, and its attributes can't change, by this document's code or by the host. Its fields still change unless `fields` is true. Returns its digest (see `digest`). It's one-way: a document can't unseal, only the host can. A change a seal refuses fails with a `sealed: ...` error and changes nothing.
+
+- `removable`: the object can still be dropped whole (nothing in it can change, and it can't be moved or renamed). For code that comes and goes, Ex. a provider's capabilities.
+- `reads` (a list of objects or paths): confine the part's code. While it runs (and everything it calls), it finds only the sealed object and these objects (a path to anything else finds nothing, calling a function elsewhere fails), changes only the sealed object, and can't hand an object elsewhere to a library function (Ex. `stringify`). `[]` means only itself. They're kept as paths and looked up each time the part is entered, so an object replaced at a path is the one it reads.
+- `hosts` (a list of host names): `Http.fetch` from the part's code reaches only these hosts (the document's own allowlist still applies). `[]` means no network.
+
+Sealing again only adds to a seal: it never unfreezes fields, makes an object removable that wasn't, or lifts a confinement. Confined code can only seal what it may change.
 ```rust
 #[type] Engine: { fn price(units: int) -> int { units * 50 } }
 
@@ -356,6 +362,25 @@ fn lock() { seal(<Engine>); }
 
 fn later() {
     parse("fn price(units: int) -> int { 0 }", <Engine>); // error: sealed
+}
+
+fn add_tool(source: str) {
+    const tool = new {} on self.tools;
+    parse(source, tool);
+    seal(tool, removable = true, reads = [self.inputs], hosts = ['api.weather.com']);
+}
+```
+
+
+# Std::sealed(obj: obj) -> map | null
+How an object is sealed, or null when it isn't: a map with `part` (the path of the object `seal` was called on, which may be this one or one around it), `fields` (its fields are frozen), `removable` (it can be dropped whole), and `confined` (a list of `{ reads, hosts }`, one per confinement its code runs under; empty when it isn't confined).
+```rust
+fn check() {
+    seal(self.tool, removable = true, reads = [self.inputs]);
+    const info = sealed(self.tool);
+    assert(info.get('removable'));
+    assert_eq(info.get('confined').len(), 1);
+    assert_null(sealed(self.inputs));
 }
 ```
 

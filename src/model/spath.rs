@@ -89,7 +89,14 @@ impl SPath {
     }
 
     /// Named path to a node.
+    /// Code confined to part of the document (see `model::seal::Confine`) finds only what it may reach.
     pub fn node(graph: &Graph, path: impl Into<Self>, start: Option<NodeRef>) -> Option<NodeRef> {
+        let found = Self::find_node(graph, path, start);
+        if graph.confined.is_empty() { return found; }
+        found.filter(|node| graph.confined_reaches(node))
+    }
+
+    fn find_node(graph: &Graph, path: impl Into<Self>, start: Option<NodeRef>) -> Option<NodeRef> {
         let mut named_path: Self = path.into();
         if named_path.path.is_empty() {
             return start;

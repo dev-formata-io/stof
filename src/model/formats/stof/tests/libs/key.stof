@@ -1,0 +1,99 @@
+//
+// Copyright 2025 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+/*!
+ * Key library: secret keys, public keys, and signatures under a context.
+ */
+
+/// Fixed values, so signatures made anywhere (another document, a host, another language) keep verifying here.
+fixed: {
+    public: '11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo='
+    message: '{"item":"lamp","qty":2}'
+    signature: 'Qr/vFkG4ZLv/M1JwvCdDjSb107rdqjXLjbE044YT2U712OHn2obDLuLns6JNo06QBqCe5ENesDH02ZL4uQqVDQ=='
+}
+
+/// What a refused call says ('' when it isn't refused).
+fn refused(f: fn) -> str {
+    let res = '';
+    try f();
+    catch (e, message) res = message;
+    res
+}
+
+#[test]
+fn generate_and_public() {
+    const secret = Key::generate();
+    assert_eq(typeof secret, 'str');
+    assert_eq(secret.len(), 44, '32 bytes as base64');
+    assert_neq(secret, Key::generate(), 'random');
+    const public = Key::public(secret);
+    assert_eq(public.len(), 44);
+    assert_neq(public, secret);
+    assert_eq(public, Key::public(secret), 'the same every time');
+}
+
+#[test]
+fn sign_and_verify() {
+    const secret = Key::generate();
+    const public = Key::public(secret);
+    const item = new { item: 'lamp', qty: 2 };
+    const order = stringify('json', item);
+    drop(item);
+    const signature = Key::sign(secret, 'orders/v1', order);
+    assert_eq(signature.len(), 88, '64 bytes as base64');
+
+    assert(Key::verify(public, 'orders/v1', order, signature));
+    assert(Key::verify(public, 'orders/v1', order as blob, signature), 'the same bytes as a blob');
+    assert_not(Key::verify(public, 'orders/v2', order, signature), 'another context');
+    assert_not(Key::verify(public, 'orders/v1', order + ' ', signature), 'another message (one byte)');
+    assert_not(Key::verify(Key::public(Key::generate()), 'orders/v1', order, signature), 'another key');
+    assert_not(Key::verify(secret, 'orders/v1', order, signature), 'the secret key is not the public key');
+    assert_not(Key::verify(public, 'orders/v1', order, 'not a signature'));
+    assert_not(Key::verify('not a key', 'orders/v1', order, signature));
+    assert_not(Key::verify(null, 'orders/v1', order, null), 'missing values are not valid');
+}
+
+#[test]
+fn fixed_signatures_still_verify() {
+    assert(Key::verify(self.fixed.public, 'orders/v1', self.fixed.message, self.fixed.signature));
+    assert_not(Key::verify(self.fixed.public, 'orders/v1', self.fixed.message.replace('2', '3'), self.fixed.signature));
+}
+
+#[test]
+fn clear_errors() {
+    assert(self.refused(() => Key::sign('not a key', 'orders/v1', 'x')).contains('secret key'));
+    assert(self.refused(() => Key::public('AAAA')).contains('32 bytes'));
+    assert(self.refused(() => Key::sign(Key::generate(), 'orders/v1', { item: 'lamp' })).contains('string or blob'), 'stringify an object first');
+    assert(self.refused(() => Key::verify('k', 'orders/v1', 42, 's')).contains('string or blob'));
+}
+
+/// A part signed with a key: a host checks the signature with doc.seal(path, { publicKey, signature }).
+rules: {
+    fn price(units: int) -> int { units * 5 }
+}
+
+#[test]
+fn seal_signatures() {
+    const secret = Key::generate();
+    const public = Key::public(secret);
+    const signature = Key::sign(secret, 'stof/seal', digest(self.rules));
+
+    // what a host checks before it seals
+    assert(Key::verify(public, 'stof/seal', digest(self.rules), signature));
+    assert_not(Key::verify(public, 'stof/seal', digest(self.fixed), signature), 'another part');
+    assert_not(Key::verify(public, 'rules/v1', digest(self.rules), signature), 'only under stof/seal');
+}

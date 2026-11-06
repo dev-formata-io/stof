@@ -21,6 +21,8 @@ use crate::{model::{Field, Graph, NodeRef, NOEXPORT_FIELD_ATTR}, runtime::{Num, 
 
 /// Export a serde_json Value from a node in the graph.
 pub(crate) fn json_value_from_node(graph: &Graph, node: &NodeRef) -> Value {
+    // code confined to part of the document (see model::seal::Confine) can't see into objects out of its reach
+    if !graph.confined_reaches(node) { return Value::Null; }
     let mut map = Map::new();
     if let Some(node) = node.node(graph) {
         for (name, dref) in &node.data {

@@ -1,0 +1,333 @@
+//
+// Copyright 2025 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+/*!
+ * Seals for code from somewhere else: confined parts (reads, hosts), removable parts, signed messages, and digests
+ * that travel. Tests run at the same time on this one document, so each seals parts of its own.
+ */
+
+inputs: { city: 'Boston' }
+secrets: { key: 'abc' }
+
+#[type]
+SealHelpers: {
+    fn shout(s: str) -> str { s + '!' }
+}
+
+#[type]
+SealGreeter: {
+    fn hello() -> str { 'hi' }
+}
+
+
+/// A tool from somewhere else, confined to `inputs` and `<SealHelpers>`.
+reader: {
+    hits: 0
+
+    fn city() -> str { self.hits += 1; super.inputs.city }
+    fn key() -> unknown { super.secrets.key }
+    fn by_root() -> unknown { root.Security.Sealing.secrets.key }
+    fn by_get() -> unknown { Obj.get(self, 'super.secrets.key') }
+    fn helped() -> str { <SealHelpers>.shout(super.inputs.city) }
+    fn arrow() -> int { const f = (x: int): int => x * 2; f(3) }
+    fn make() -> int { const t = new { x: 3 }; const x = t.x; drop(t); x }
+    async fn later() -> unknown { super.secrets.key }
+    fn wait() -> unknown { await self.later() }
+    fn export_self() -> str { stringify('json', self) }
+
+    fn poke() { super.inputs.city = 'Nowhere'; }
+    fn parse_into() { parse('{"city": "Nowhere"}', super.inputs, 'json'); }
+    fn up() -> unknown { Obj.parent(self) }
+    fn by_id(id: str) -> unknown { Obj.from_id(id) }
+    fn export_all() -> str { stringify('json') }
+    fn reseal() { seal(super.inputs); }
+    fn new_root() { sealing_new_root = new { a: 1 }; }
+    fn call_out() -> unknown { super.secret_fn() }
+    fn call_value(f: fn) -> unknown { f() }
+
+    fn look(o: obj) -> unknown { o.key }
+    fn text(o: obj) -> str { `${o}` }
+    fn back(o: obj) -> obj { o }
+}
+fn secret_fn() -> str { 'secret' }
+
+/// What a refused call says ('' when it isn't refused).
+fn refused(f: fn) -> str {
+    let res = '';
+    try f();
+    catch (e, message) res = message;
+    res
+}
+
+#[test]
+fn confined_reads() {
+    seal(self.reader, reads = [self.inputs, <SealHelpers>]);
+
+    // what it's given
+    assert_eq(self.reader.city(), 'Boston');
+    assert_eq(self.reader.hits, 1, 'it changes its own state');
+    assert_eq(self.reader.helped(), 'Boston!', 'it calls what it reads');
+    assert_eq(self.reader.arrow(), 6);
+    assert_eq(self.reader.make(), 3, 'objects of its own');
+    assert(self.reader.export_self().contains('hits'));
+
+    // nothing else
+    assert_null(self.reader.key(), 'a path elsewhere finds nothing');
+    assert_null(self.reader.by_root(), 'from the root too');
+    assert_null(self.reader.by_get(), 'through a library path too');
+    assert_null(self.reader.wait(), 'async calls run confined too');
+    for (const f in [
+        () => self.reader.poke(),
+        () => self.reader.parse_into(),
+        () => self.reader.up(),
+        () => self.reader.by_id(Obj.id(self.secrets)),
+        () => self.reader.export_all(),
+        () => self.reader.reseal(),
+        () => self.reader.new_root(),
+        () => self.reader.call_value(self.secret_fn),
+    ]) {
+        const message = self.refused(f);
+        assert(message.contains('sealed'), message);
+    }
+    assert_neq(self.refused(() => self.reader.call_out()), '', 'calling a function elsewhere');
+    assert_eq(self.inputs.city, 'Boston', 'nothing it reads changed');
+
+    // objects from elsewhere that it's handed stay opaque, though it can hand them back
+    assert_null(self.reader.look(self.secrets));
+    assert_not(self.reader.text(self.secrets).contains('abc'));
+    assert_eq(self.reader.back(self.secrets).key, 'abc');
+
+    // the rest of the document isn't confined
+    assert_eq(self.secrets.key, 'abc');
+    assert_eq(self.secret_fn(), 'secret');
+}
+
+
+/// Methods live on types: the type has to be within reach too.
+greeters: {
+    SealGreeter pet: {}
+    without: {
+        fn greet() -> unknown { super.pet.hello() }
+        fn make() -> unknown { const g = new SealGreeter {}; const s = g.hello(); drop(g); s }
+    }
+    with: {
+        fn greet() -> unknown { super.pet.hello() }
+        fn make() -> str { const g = new SealGreeter {}; const s = g.hello(); drop(g); s }
+    }
+}
+
+#[test]
+fn confined_types() {
+    seal(self.greeters.without, reads = [self.greeters.pet]);
+    seal(self.greeters.with, reads = [self.greeters.pet, <SealGreeter>]);
+    assert_neq(self.refused(() => self.greeters.without.greet()), '', 'the type is out of reach');
+    assert(self.refused(() => self.greeters.without.make()).contains("can't use the type"), 'or made from it');
+    assert_eq(self.greeters.with.greet(), 'hi');
+    assert_eq(self.greeters.with.make(), 'hi');
+    assert_eq(self.greeters.pet.hello(), 'hi', 'unconfined');
+}
+
+
+/// A confined part calling another confined part runs under both.
+nested: {
+    outer: {
+        fn through() -> unknown { super.inner.key() }
+    }
+    inner: {
+        fn key() -> unknown { super.super.secrets.key }
+    }
+}
+
+#[test]
+fn confinements_stack() {
+    seal(self.nested.inner, reads = [self.secrets]);
+    seal(self.nested.outer, reads = [self.nested.inner]);
+    assert_eq(self.nested.inner.key(), 'abc', 'its own confinement reads the secrets');
+    assert_null(self.nested.outer.through(), 'called from outer, it runs under both');
+}
+
+narrowed: {
+    fn city() -> unknown { super.inputs.city }
+    fn key() -> unknown { super.secrets.key }
+}
+
+#[test]
+fn confinement_only_narrows() {
+    seal(self.narrowed, reads = [self.inputs]);
+    assert_eq(self.narrowed.city(), 'Boston');
+    seal(self.narrowed, reads = []);
+    assert_null(self.narrowed.city(), 'narrowed to only itself');
+    seal(self.narrowed, reads = [self.inputs, self.secrets]);
+    assert_null(self.narrowed.key(), 'never widened');
+    assert_null(self.narrowed.city());
+}
+
+
+fetcher: {
+    fn get(url: str) -> unknown { await Http.fetch(url) }
+}
+
+#[test]
+fn confined_hosts() {
+    seal(self.fetcher, hosts = ['api.example.com']);
+    if (lib('Http')) {
+        const message = self.refused(() => self.fetcher.get('https://example.org/'));
+        assert(message.contains('not a host this sealed part may reach'), message);
+    }
+    let message = '';
+    try seal(self.fetcher, hosts = 'api.example.com');
+    catch (e, m) message = m;
+    assert(message.contains('list of host names'), message);
+}
+
+
+removable: {
+    count: 0
+    fn v() -> int { 1 }
+}
+kept: {
+    fn v() -> int { 1 }
+}
+
+#[test]
+fn removable_seals() {
+    seal(self.removable, removable = true);
+    assert(self.refused(() => parse('fn v() -> int { 0 }', self.removable)).contains('sealed'), 'still sealed');
+    assert(self.refused(() => Obj.move_field(self, 'removable', 'moved')).contains('sealed'), 'no renaming');
+    self.removable.count = 2; // fields still change
+    drop(self.removable);
+    assert_null(self.removable, 'dropped whole');
+
+    // without removable: dropping is refused, and nothing changes (the field stays)
+    seal(self.kept);
+    assert(self.refused(() => drop(self.kept)).contains('sealed'));
+    assert_eq(self.kept.v(), 1);
+}
+
+
+/// reads are paths: replace the object at a path, and the part reads the new one.
+followed: {
+    inputs: { city: 'Boston' }
+    tool: {
+        fn city() -> unknown { super.inputs.city }
+    }
+}
+
+#[test]
+fn reads_follow_paths() {
+    seal(self.followed.tool, reads = [self.followed.inputs]);
+    assert_eq(self.followed.tool.city(), 'Boston');
+    drop(self.followed.inputs);
+    self.followed.inputs = new { city: 'Denver' } on self.followed;
+    assert_eq(self.followed.tool.city(), 'Denver', 'the new object at the path');
+}
+
+
+inspected: {
+    tool: { fn v() -> int { 1 } }
+    other: {}
+}
+
+#[test]
+fn sealed_tells_how() {
+    assert_null(sealed(self.inspected.tool), 'not sealed yet');
+    seal(self.inspected.tool, removable = true, reads = [self.inspected.other], hosts = ['API.example.com']);
+    const info = sealed(self.inspected.tool);
+    assert(info.get('removable'));
+    assert_not(info.get('fields'));
+    assert(info.get('part').ends_with('inspected.tool'));
+    const confined = info.get('confined');
+    assert_eq(confined.len(), 1);
+    assert(confined[0].get('reads')[0].ends_with('inspected.other'));
+    assert_eq(confined[0].get('hosts'), ['api.example.com']);
+    assert_null(sealed(self.inspected.other), 'what it reads is not sealed');
+}
+
+
+terms: {
+    name: 'acme'
+    plans: { pro: { price: 0.002, limit: 1000 }, free: { limit: 10 } }
+    tags: ['weather', 'maps']
+}
+
+#[test]
+fn digests_travel() {
+    const original = digest(self.terms, true);
+    const copy = new {} on self;
+    parse(stringify('json', self.terms), copy, 'json');
+    assert_eq(digest(copy, true), original, 'the same data at another place, from JSON');
+    assert_eq(copy.plans.pro.limit, 1000);
+    assert_eq(digest(copy, true), original, 'reading it changes nothing');
+    copy.plans.pro.limit = 2000;
+    assert_neq(digest(copy, true), original, 'changing it does');
+    drop(copy);
+}
+
+
+/// Lists, maps, sets, and tuples read from a field the code may not change are copies: changing them in place
+/// (push_back, insert, swap, ...) never changes the field.
+in_place: {
+    given: { tags: ['a'] }
+    frozen: { tags: ['a'] }
+    secret: {
+        key: 'abc'
+        #[private]
+        hidden: 'shh'
+    }
+    tool: {
+        mine: ['m']
+        fn push() { super.given.tags.push_back('x'); }
+        fn insert() { super.given.counts.insert('y', 2); }
+        fn swapped() { swap(super.given.tags, self.mine); }
+        fn copied() -> list { const tags = super.given.tags; tags.push_back('y'); tags }
+        fn fields(o: obj) -> unknown { const { key } = o; key }
+    }
+    fn hidden(o: obj) -> unknown { const { hidden } = o; hidden }
+}
+
+#[test]
+fn in_place_changes() {
+    self.in_place.given.counts = {'x': 1}; // a map (a { x: 1 } field is an object)
+    seal(self.in_place.frozen, fields = true);
+    seal(self.in_place.tool, reads = [self.in_place.given]);
+
+    self.in_place.tool.push();
+    self.in_place.tool.insert();
+    self.in_place.tool.swapped();
+    assert_eq(self.in_place.tool.copied(), ['a', 'y'], 'its copy changes');
+    assert_eq(self.in_place.given.tags, ['a'], 'the field does not');
+    assert_eq(self.in_place.given.counts, {'x': 1});
+    assert_eq(self.in_place.tool.mine, ['a'], 'swapped with a copy: its own field changes');
+
+    self.in_place.frozen.tags.push_back('x');
+    assert_eq(self.in_place.frozen.tags, ['a'], 'frozen fields too, unconfined');
+    assert_neq(self.refused(() => { self.in_place.frozen.tags = ['b']; }), '');
+
+    self.in_place.given.tags.push_back('b');
+    assert_eq(self.in_place.given.tags, ['a', 'b'], 'unsealed, unconfined code changes them as usual');
+}
+
+#[test]
+fn destructuring_reach() {
+    seal(self.in_place.tool, reads = [self.in_place.given]);
+    assert(self.refused(() => self.in_place.tool.fields(self.in_place.secret)).contains('outside what the part may reach'));
+    assert_null(self.in_place.hidden(self.in_place.secret), 'private fields stay private');
+    assert_null(self.in_place.secret.hidden);
+    assert_neq(self.refused(() => self.in_place.secret.hidden.len()), '', 'methods on them too');
+    const { key } = self.in_place.secret;
+    assert_eq(key, 'abc');
+}
+

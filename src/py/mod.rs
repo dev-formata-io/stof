@@ -214,6 +214,12 @@ impl Doc {
         self.graph.allow_http_hosts(hosts);
     }
 
+    /// Stop allowing these hosts (listed with allow_http_hosts): requests to them fail from now on. Removing every
+    /// listed host leaves none allowed. Returns False when any host is allowed (allow_http without a list).
+    pub fn disallow_http_hosts(&mut self, hosts: Vec<String>) -> bool {
+        self.graph.disallow_http_hosts(hosts)
+    }
+
     /// Elements the html format may write (Ex. the components your page renders): only these, instead of the
     /// standard HTML elements and custom elements. Documents can't change it. Calling it again adds elements.
     pub fn allow_html_tags(&mut self, tags: Vec<String>) {
@@ -355,11 +361,15 @@ impl Doc {
         }
     }
 
-    #[pyo3(signature = (path, fields = false, digest = None, public_key = None, signature = None))]
+    #[pyo3(signature = (path, fields = false, digest = None, public_key = None, signature = None, removable = false, reads = None, hosts = None))]
     /// Seal an object (path, or a type as "<Name>") and everything under it: its functions can be called but not
     /// changed. With fields, its fields are frozen too. With digest, only if its digest is that; with public_key and
-    /// signature, only if the digest is signed by that key (Ed25519, base64 or hex). Returns the digest.
-    pub fn seal(&mut self, path: &str, fields: bool, digest: Option<&str>, public_key: Option<&str>, signature: Option<&str>) -> PyResult<String> {
+    /// signature, only if the digest is signed by that key (a signature under "stof/seal": Doc.sign(secret,
+    /// "stof/seal", digest)). With removable, it can still be removed whole. With reads (paths, looked up each time
+    /// the part is entered), its code reaches only itself and those objects; with hosts, its Http.fetch reaches only
+    /// those hosts. Returns the digest.
+    pub fn seal(&mut self, path: &str, fields: bool, digest: Option<&str>, public_key: Option<&str>, signature: Option<&str>, removable: bool, reads: Option<Vec<String>>, hosts: Option<Vec<String>>) -> PyResult<String> {
+        let options = crate::model::seal::SealOptions { fields, removable, reads, hosts };
         let res = match (public_key, signature) {
             (Some(key), Some(signature)) => {
                 if let Some(expected) = digest {
@@ -368,9 +378,9 @@ impl Doc {
                         return Err(PyValueError::new_err(format!("sealed: {path} isn't what was expected: its digest is {actual}, not {expected}")));
                     }
                 }
-                self.graph.seal_signed(path, fields, key, signature)
+                self.graph.seal_signed_with(path, &options, key, signature)
             },
-            (None, None) => self.graph.seal_path(path, fields, digest),
+            (None, None) => self.graph.seal_path_with(path, &options, digest),
             _ => return Err(PyValueError::new_err("a signature needs both a public key and a signature")),
         };
         res.map_err(|error| PyValueError::new_err(error.to_string()))
@@ -387,22 +397,41 @@ impl Doc {
         self.graph.digest_path(path, fields).map_err(|error| PyValueError::new_err(error.to_string()))
     }
 
-    #[staticmethod]
-    /// Sign a seal digest with an Ed25519 secret key (base64 or hex, 32 bytes): the signature, base64.
-    pub fn sign(digest: &str, secret_key: &str) -> PyResult<String> {
-        crate::model::seal::sign(digest, secret_key).map_err(|error| PyValueError::new_err(error.to_string()))
+    /// How an object (path, or a type as "<Name>") is sealed: a dict with part, fields, removable, and confined (a
+    /// list of {reads, hosts}), or None when it isn't sealed.
+    pub fn sealed<'py>(&self, py: Python<'py>, path: &str) -> PyResult<Bound<'py, PyAny>> {
+        let info = self.graph.seal_info_path(path).map_err(|error| PyValueError::new_err(error.to_string()))?;
+        match info {
+            Some(info) => py.import("json")?.call_method1("loads", (info.to_json(&self.graph).to_string(),)),
+            None => Ok(py.None().into_bound(py)),
+        }
     }
 
     #[staticmethod]
-    /// Is this an Ed25519 signature over this seal digest by this public key?
-    pub fn verify(digest: &str, public_key: &str, signature: &str) -> bool {
-        crate::model::seal::verify(digest, public_key, signature)
+    /// A new secret key (base64, 32 bytes from the system's secure random source). Share only its public key.
+    pub fn generate_key() -> String {
+        crate::model::seal::generate_key()
     }
 
     #[staticmethod]
-    /// The Ed25519 public key (base64) for a secret key (base64 or hex, 32 bytes).
+    /// The public key (base64) for a secret key.
     pub fn public_key(secret_key: &str) -> PyResult<String> {
         crate::model::seal::public_key(secret_key).map_err(|error| PyValueError::new_err(error.to_string()))
+    }
+
+    #[staticmethod]
+    /// Sign a message (str as UTF-8, or bytes) under a context (Ex. "orders/v1") with a secret key: the signature
+    /// (base64). It verifies only under the same context (documents: Key.verify(public, context, message, sig)).
+    pub fn sign(secret_key: &str, context: &str, message: &Bound<'_, PyAny>) -> PyResult<String> {
+        let bytes = py_message_bytes(message)?;
+        crate::model::seal::sign(secret_key, context, &bytes).map_err(|error| PyValueError::new_err(error.to_string()))
+    }
+
+    #[staticmethod]
+    /// Is this a signature over this message (str or bytes), under this context, by this public key?
+    pub fn verify(public_key: &str, context: &str, message: &Bound<'_, PyAny>, signature: &str) -> PyResult<bool> {
+        let bytes = py_message_bytes(message)?;
+        Ok(crate::model::seal::verify(public_key, context, &bytes, signature))
     }
 
     #[staticmethod]
@@ -512,4 +541,12 @@ impl Doc {
 mod pystof {
     #[pymodule_export]
     use super::Doc;
+}
+
+
+/// A message's bytes: a str's UTF-8, or bytes.
+fn py_message_bytes(message: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
+    if let Ok(text) = message.extract::<String>() { return Ok(text.into_bytes()); }
+    if let Ok(bytes) = message.extract::<Vec<u8>>() { return Ok(bytes); }
+    Err(PyValueError::new_err("a message must be a str or bytes (the exact bytes that are signed)"))
 }

@@ -123,7 +123,14 @@ impl Field {
         
         let field_name = spath.path.pop().unwrap();
         if let Some(node) = SPath::node(&graph, spath, start) {
-            return Self::field(graph, &node, field_name.as_ref());
+            if graph.confined.is_empty() { return Self::field(graph, &node, field_name.as_ref()); }
+            // a field found through a parent (Ex. super) lives on that object: confined code reaches only its own,
+            // and the field made for it out there (refused) isn't this lookup's failure
+            let refused = graph.seals.violation.is_some();
+            let found = Self::field(graph, &node, field_name.as_ref());
+            if found.as_ref().is_some_and(|dref| graph.confined_reaches_data(dref)) { return found; }
+            if !refused { graph.take_seal_violation(); }
+            return None;
         }
         None
     }

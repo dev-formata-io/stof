@@ -286,16 +286,22 @@ export class Stof {
      * Seal an object (path, or a type as "<Name>") and everything under it: its functions can be called but not
      * changed (see `model::seal`). With `fields`, its fields are frozen too. With `expected`, only if its digest is
      * that. With `public_key` and `signature`, only if the digest is signed by that key. Returns the digest.
+     * With `removable`, it can still be removed whole. With `reads` (paths, looked up each time the part is entered),
+     * its code reaches only itself and those objects; with `hosts`, its Http.fetch reaches only those hosts (see
+     * `model::seal::Confine`).
      * @param {string} path
      * @param {boolean | null} [fields]
      * @param {string | null} [expected]
      * @param {string | null} [public_key]
      * @param {string | null} [signature]
+     * @param {boolean | null} [removable]
+     * @param {string[] | null} [reads]
+     * @param {string[] | null} [hosts]
      * @returns {string}
      */
-    seal(path, fields, expected, public_key, signature) {
-        let deferred6_0;
-        let deferred6_1;
+    seal(path, fields, expected, public_key, signature, removable, reads, hosts) {
+        let deferred8_0;
+        let deferred8_1;
         try {
             const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
             const len0 = WASM_VECTOR_LEN;
@@ -305,19 +311,43 @@ export class Stof {
             var len2 = WASM_VECTOR_LEN;
             var ptr3 = isLikeNone(signature) ? 0 : passStringToWasm0(signature, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
             var len3 = WASM_VECTOR_LEN;
-            const ret = wasm.stof_seal(this.__wbg_ptr, ptr0, len0, isLikeNone(fields) ? 0xFFFFFF : fields ? 1 : 0, ptr1, len1, ptr2, len2, ptr3, len3);
-            var ptr5 = ret[0];
-            var len5 = ret[1];
+            var ptr4 = isLikeNone(reads) ? 0 : passArrayJsValueToWasm0(reads, wasm.__wbindgen_malloc);
+            var len4 = WASM_VECTOR_LEN;
+            var ptr5 = isLikeNone(hosts) ? 0 : passArrayJsValueToWasm0(hosts, wasm.__wbindgen_malloc);
+            var len5 = WASM_VECTOR_LEN;
+            const ret = wasm.stof_seal(this.__wbg_ptr, ptr0, len0, isLikeNone(fields) ? 0xFFFFFF : fields ? 1 : 0, ptr1, len1, ptr2, len2, ptr3, len3, isLikeNone(removable) ? 0xFFFFFF : removable ? 1 : 0, ptr4, len4, ptr5, len5);
+            var ptr7 = ret[0];
+            var len7 = ret[1];
             if (ret[3]) {
-                ptr5 = 0; len5 = 0;
+                ptr7 = 0; len7 = 0;
                 throw takeFromExternrefTable0(ret[2]);
             }
-            deferred6_0 = ptr5;
-            deferred6_1 = len5;
-            return getStringFromWasm0(ptr5, len5);
+            deferred8_0 = ptr7;
+            deferred8_1 = len7;
+            return getStringFromWasm0(ptr7, len7);
         } finally {
-            wasm.__wbindgen_free(deferred6_0, deferred6_1, 1);
+            wasm.__wbindgen_free(deferred8_0, deferred8_1, 1);
         }
+    }
+    /**
+     * How an object (a path, or a type as "<Name>") is sealed, as JSON: { part, fields, removable, confined:
+     * [{ reads, hosts }] }, or null when it isn't sealed.
+     * @param {string} path
+     * @returns {string | undefined}
+     */
+    sealed(path) {
+        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.stof_sealed(this.__wbg_ptr, ptr0, len0);
+        if (ret[3]) {
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        let v2;
+        if (ret[0] !== 0) {
+            v2 = getStringFromWasm0(ret[0], ret[1]);
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v2;
     }
     /**
      * How long a call can run, in milliseconds, before it fails with an execution timeout (null for no limit).
@@ -658,6 +688,23 @@ export function stofEdit(text, edits) {
 }
 
 /**
+ * A new secret key (base64, 32 bytes from the system's secure random source).
+ * @returns {string}
+ */
+export function stofGenerateKey() {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.stofGenerateKey();
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
  * The fields and functions in a Stof text, as JSON (see `parser::edit::outline_json`).
  * @param {string} text
  * @returns {string}
@@ -684,7 +731,7 @@ export function stofOutline(text) {
 }
 
 /**
- * The Ed25519 public key (base64) for a secret key (base64 or hex, 32 bytes).
+ * The public key (base64) for a secret key.
  * @param {string} secret_key
  * @returns {string}
  */
@@ -710,20 +757,21 @@ export function stofPublicKey(secret_key) {
 }
 
 /**
- * Sign a seal digest with an Ed25519 secret key (base64 or hex, 32 bytes): the signature, base64.
- * @param {string} digest
+ * Sign a message (a string's UTF-8 bytes, or bytes) under a context with a secret key: the signature (base64).
  * @param {string} secret_key
+ * @param {string} context
+ * @param {any} message
  * @returns {string}
  */
-export function stofSign(digest, secret_key) {
+export function stofSign(secret_key, context, message) {
     let deferred4_0;
     let deferred4_1;
     try {
-        const ptr0 = passStringToWasm0(digest, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr0 = passStringToWasm0(secret_key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passStringToWasm0(secret_key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr1 = passStringToWasm0(context, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len1 = WASM_VECTOR_LEN;
-        const ret = wasm.stofSign(ptr0, len0, ptr1, len1);
+        const ret = wasm.stofSign(ptr0, len0, ptr1, len1, message);
         var ptr3 = ret[0];
         var len3 = ret[1];
         if (ret[3]) {
@@ -739,20 +787,21 @@ export function stofSign(digest, secret_key) {
 }
 
 /**
- * Is this an Ed25519 signature (base64 or hex) over this seal digest by this public key (base64 or hex)?
- * @param {string} digest
+ * Is this a signature over this message (a string or bytes), under this context, by this public key?
  * @param {string} public_key
+ * @param {string} context
+ * @param {any} message
  * @param {string} signature
  * @returns {boolean}
  */
-export function stofVerify(digest, public_key, signature) {
-    const ptr0 = passStringToWasm0(digest, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+export function stofVerify(public_key, context, message, signature) {
+    const ptr0 = passStringToWasm0(public_key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
-    const ptr1 = passStringToWasm0(public_key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const ptr1 = passStringToWasm0(context, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len1 = WASM_VECTOR_LEN;
     const ptr2 = passStringToWasm0(signature, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len2 = WASM_VECTOR_LEN;
-    const ret = wasm.stofVerify(ptr0, len0, ptr1, len1, ptr2, len2);
+    const ret = wasm.stofVerify(ptr0, len0, ptr1, len1, message, ptr2, len2);
     return ret !== 0;
 }
 function __wbg_get_imports() {
@@ -1156,7 +1205,7 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbindgen_generic_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 8948, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 9197, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_3b9afeaa82ee37f3___convert__closures_____invoke___wasm_bindgen_3b9afeaa82ee37f3___JsValue__core_608f92abc48d28da___result__Result_____wasm_bindgen_3b9afeaa82ee37f3___JsError___true_);
             return ret;
         },

@@ -61,6 +61,10 @@ pub struct ProcEnv {
     pub try_stack: Vec<ArcStr>,
     pub yield_enabled: bool,
 
+    /// Confined sealed parts this process is running in: the call stack depth each was entered at, its rule, and
+    /// what it reaches (see `model::seal::Confine`). Empty unless sealed parts were confined.
+    pub confines: Vec<(usize, std::sync::Arc<crate::model::seal::Confine>, std::sync::Arc<crate::model::seal::Reach>)>,
+
     // Setting this will put the process into a waiting mode
     pub spawn: Option<Box<Process>>,
 
@@ -88,6 +92,7 @@ impl Default for ProcEnv {
             try_stack: Default::default(),
             spawn: None,
             yield_enabled: true,
+            confines: Vec::new(),
 
             #[cfg(feature = "tokio")]
             tokio_runtime: None,
@@ -198,14 +203,11 @@ impl Process {
     #[inline(always)]
     /// Progress this process.
     pub(super) fn progress(&mut self, graph: &mut Graph, limit: i32) -> Result<ProcRes, Error> {
-        match self.instructions.exec(&mut self.env, graph, limit) {
-            Ok(res) => {
-                Ok(res)
-            },
-            Err(error) => {
-                Err(error)
-            }
-        }
+        // the graph knows what this process may reach while it runs (see model::seal::Confine)
+        if !self.env.confines.is_empty() { graph.confined = self.env.confined(); }
+        let res = self.instructions.exec(&mut self.env, graph, limit);
+        if !graph.confined.is_empty() { graph.confined = Vec::new(); }
+        res
     }
 
     /// Trace.

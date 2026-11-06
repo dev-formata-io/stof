@@ -233,6 +233,11 @@ A document runs in a sandbox: it can see itself and the functions your app provi
 **Can an agent's function change the rest of the document?**
 By default a document can change itself, including its own functions. Seal the parts you trust (`doc.seal('<Engine>')`) and they can still be called, but not replaced, removed, or added to, by the document or anyone else, until you unseal them. `doc.digest(path)` fingerprints a part's functions, and `doc.seal(path, { publicKey, signature })` seals it only if that fingerprint was signed by your key, so you know the logic you're running is the logic you shipped.
 
+For code that comes from somewhere else (a plugin, a rule an agent wrote), seal it confined: `doc.seal('plugins.weather', { reads: ['inputs'], hosts: ['api.weather.example'] })`. While it runs, it sees only itself and what you list, changes only itself, and reaches only those hosts; the rest of the document stays out of its reach. Seal it `removable` and you can drop it whole when it's no longer wanted.
+
+**Can a document check where data came from?**
+Yes: the `Key` library signs and verifies (`Key::sign(secret, 'orders/v1', order)`, `Key::verify(public, 'orders/v1', order, signature)`), and your app has the same functions (`StofDoc.sign`, `StofDoc.verify`), so a signature made in one place checks in any other. Each signature names what it's for (its context), so it can't be reused for anything else.
+
 **Why not let the model write Python and run it in a container?**
 You can, but it means infrastructure, startup time, and a lot of access to lock down, and the change a person reviews is a program, not a one-line diff. Stof runs inside your process, starts instantly, and has no access by default.
 

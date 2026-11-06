@@ -183,12 +183,16 @@ fn expected_digests_and_signatures() {
 
     let secret = "nWGxne/9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A="; // a test key
     let public = seal::public_key(secret).unwrap();
-    let signature = seal::sign(&digest, secret).unwrap();
-    assert!(seal::verify(&digest, &public, &signature));
-    assert!(!seal::verify(&"1".repeat(64), &public, &signature), "another digest");
+    let signature = seal::sign(secret, seal::SEAL_CONTEXT, digest.as_bytes()).unwrap();
+    assert!(seal::verify(&public, "stof/seal", digest.as_bytes(), &signature));
+    assert!(!seal::verify(&public, "stof/seal", "1".repeat(64).as_bytes(), &signature), "another digest");
     let other = seal::public_key("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=").unwrap();
-    assert!(!seal::verify(&digest, &other, &signature), "another key");
-    assert!(!seal::verify(&digest, "not a key", &signature));
+    assert!(!seal::verify(&other, "stof/seal", digest.as_bytes(), &signature), "another key");
+    assert!(!seal::verify("not a key", "stof/seal", digest.as_bytes(), &signature));
+
+    // a signature over the digest under any other context isn't a seal signature
+    let elsewhere = seal::sign(secret, "orders/v1", digest.as_bytes()).unwrap();
+    assert!(engine().seal_signed("<Engine>", false, &public, &elsewhere).is_err());
 
     let mut fresh = engine();
     assert_eq!(fresh.seal_signed("<Engine>", false, &public, &signature).unwrap(), digest);

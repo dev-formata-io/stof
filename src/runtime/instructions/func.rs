@@ -39,6 +39,37 @@ impl Instruction for FuncLit {
         let captured = env.table.capture(self.func.capture_names.as_ref().map(|names| names.as_slice()));
         let captured = if captured.is_empty() { None } else { Some(Arc::new(captured)) };
 
+        // code confined to part of the document (see model::seal::Confine) makes arrows on its own part: one it
+        // evaluates somewhere it can't change (Ex. in a helper it reads) is a new arrow on the part instead
+        let confined_root = if graph.confined.is_empty() { None } else {
+            graph.confined.iter().rev().find(|reach| reach.reads.is_some()).map(|reach| reach.root.clone())
+        };
+        if let Some(root) = &confined_root {
+            let outside = if self.dref.data_exists(&graph) {
+                !self.dref.data(graph).is_some_and(|data| data.nodes.iter().all(|node| graph.confined_changes(node)))
+            } else {
+                let target = env.new_stack.last().cloned().unwrap_or_else(|| env.self_ptr());
+                !graph.confined_changes(&target)
+            };
+            if outside {
+                // one copy per arrow and part (evaluating it again updates what it captured, like any arrow)
+                let id = crate::model::SId::from(format!("{}@{}", self.dref.as_ref(), root.as_ref()).as_str());
+                if id.data_exists(&graph) {
+                    graph.without_seals(|graph| {
+                        if let Some(func) = graph.get_mut_stof_data::<Func>(&id) { func.captured = captured; }
+                    });
+                    instructions.push(Arc::new(Base::Literal(Val::Fn(id))));
+                } else {
+                    let mut func = self.func.clone();
+                    func.captured = captured;
+                    if let Some(dref) = graph.without_seals(|graph| graph.insert_stof_data(root, id.clone(), Box::new(func), Some(id.clone()))) {
+                        instructions.push(Arc::new(Base::Literal(Val::Fn(dref))));
+                    }
+                }
+                return Ok(Some(instructions));
+            }
+        }
+
         if self.dref.data_exists(&graph) {
             let unchanged = captured.is_none() && graph.get_stof_data::<Func>(&self.dref).is_some_and(|func| func.captured.is_none());
             if !unchanged {

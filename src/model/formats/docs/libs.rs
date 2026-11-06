@@ -36,6 +36,7 @@ pub fn insert_lib_documentation(graph: &mut Graph) {
     
     md_lib(graph);
     time_lib(graph);
+    key_lib(graph);
     fs_lib(graph);
     http_lib(graph);
     pdf_lib(graph);
@@ -294,6 +295,34 @@ fn main() {
     const now = Time::now(); // default units are ms
     sleep(50ms);
     pln(Time::diff(now) as seconds); // having units is really nice
+}
+```
+"#.into());
+}
+
+/// Key.
+fn key_lib(graph: &mut Graph) {
+    graph.insert_libdoc(literal!("Key"), 
+r#"# Key Library (Key)
+Signatures: prove who wrote something, and that it hasn't changed. Make a secret key (`Key::generate`), share its public key (`Key::public`), sign the exact bytes of a message (`Key::sign`), and check a signature (`Key::verify`). Ed25519, with keys and signatures as base64 strings, so they travel in JSON, environment variables, and headers. Hosts have the same functions (`StofDoc.sign`, `Doc.sign`, `stof::model::seal::sign`), so a signature made in one place checks in any other.
+
+Every signature is made under a context, a short name for what it's for (Ex. "orders/v1"), and only verifies under that same context. A seal signature is a signature over a part's digest (`digest(obj)`) under the context "stof/seal", which hosts check with `doc.seal(path, { publicKey, signature })`.
+
+Keys for signing are separate from Age keys (which encrypt): use both to send something only one reader can open and that they know came from you.
+
+## Example Usage
+```rust
+#[main]
+fn main() {
+    const secret = Key::generate();       // keep this one secret
+    const public = Key::public(secret);   // share this one
+
+    const order = '{"item":"lamp","qty":2}';
+    const signature = Key::sign(secret, 'orders/v1', order);
+
+    pln(Key::verify(public, 'orders/v1', order, signature));                    // true
+    pln(Key::verify(public, 'orders/v1', order.replace('2', '20'), signature)); // false: changed
+    pln(Key::verify(public, 'refunds/v1', order, signature));                   // false: another purpose
 }
 ```
 "#.into());

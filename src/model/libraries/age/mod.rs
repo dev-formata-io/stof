@@ -30,11 +30,16 @@ pub fn insert_age_encrypt_library(graph: &mut Graph) {
         library: AGE_LIB.clone(),
         name: "parse".into(),
         is_async: false,
-        docs: r#"# Age::parse(age: Data<Age>, bin: blob, context: obj = self, format: str = "stof") -> bool
-Parse an age-encrypted binary. Similar to Std.parse, but requires an Age identity (secret private key).
+        docs: r#"# Age::parse(age: Data<Age> | str, bin: blob, context: obj = self, format: str = "stof") -> bool
+Decrypt an age-encrypted blob and parse it into `context` (like `Std::parse`), with the identity it was encrypted to: a `Data<Age>` from `Age::generate`, or the secret key as a string (`AGE-SECRET-KEY-1...`, Ex. passed in by the host). False when the blob wasn't encrypted to this identity.
+```rust
+const me = Age::generate();
+const blob = Age::blobify(Age::public(me), 'json', self.message);
+assert(Age::parse(me, blob, self.received, 'json'));
+```
 "#.into(),
         params: crate::params![
-            Param { name: "age".into(), param_type: Type::Data(AGE_LIB.clone()), default: None, },
+            Param { name: "age".into(), param_type: Type::Void, default: None, },
             Param { name: "bin".into(), param_type: Type::Blob, default: None, },
             Param { name: "context".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))), },
             Param { name: "format".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))), },
@@ -81,7 +86,7 @@ Parse an age-encrypted binary with a passphrase. Similar to Std.parse, but requi
         name: "blobify".into(),
         is_async: false,
         docs: r#"# Age::blobify(recipients: str | list | Data<Age>, format: str = 'stof', context?: obj) -> blob
-Std.blobify, but with age public-key recipients. The resulting blob can only be parsed by a recipient's private key.
+Export `context` (like `Std::blobify`) encrypted to one or more recipients: their public keys (`age1...`, from `Age::public`), or identities (`Data<Age>`). Only a recipient's secret key can open it (`Age::parse`). To also prove who sent it, sign the blob (`Key::sign`).
 "#.into(),
         params: crate::params![
             Param { name: "recipients".into(), param_type: Type::Union(vector![Type::Str, Type::List, Type::Data(AGE_LIB.clone())]), default: None, },
@@ -104,7 +109,7 @@ Std.blobify, but with age public-key recipients. The resulting blob can only be 
         name: "pass_blobify".into(),
         is_async: false,
         docs: r#"# Age::pass_blobify(passphrase: str, format: str = 'stof', context?: obj) -> blob
-Std.blobify, but with an age passphrase recipient. The resulting blob can only be parsed with the provided passphrase.
+Export `context` (like `Std::blobify`) encrypted with a passphrase. Only the same passphrase opens it (`Age::pass_parse`). A way to keep secrets (Ex. a signing key) in a document at rest.
 "#.into(),
         params: crate::params![
             Param { name: "passphrase".into(), param_type: Type::Str, default: None, },
@@ -127,7 +132,7 @@ Std.blobify, but with an age passphrase recipient. The resulting blob can only b
         name: "generate".into(),
         is_async: false,
         docs: r#"# Age::generate(context: obj = self) -> Data<Age>
-Generate a new Age Identity (Data<Age>) on the given context object (default is self).
+A new Age identity (an encryption key pair), kept on `context` as `Data<Age>`: its secret never prints, but it is part of the object (a BSTF export of the object carries it). Share `Age::public(identity)`. Encryption keys are separate from signing keys (`Key`).
 "#.into(),
         params: crate::params![
             Param { name: "context".into(), param_type: Type::Void, default: Some(Arc::new(Base::Literal(Val::Null))), },
@@ -147,11 +152,11 @@ Generate a new Age Identity (Data<Age>) on the given context object (default is 
         library: AGE_LIB.clone(),
         name: "public".into(),
         is_async: false,
-        docs: r#"# Age::public(age: Data<Age>) -> str
-Get the public key for a given age identity.
+        docs: r#"# Age::public(age: Data<Age> | str) -> str
+The public key (`age1...`) for an identity (`Data<Age>`, or its secret key as a string). Anyone can encrypt to it (`Age::blobify`); only the identity can decrypt.
 "#.into(),
         params: crate::params![
-            Param { name: "age".into(), param_type: Type::Data(AGE_LIB.clone()), default: None, },
+            Param { name: "age".into(), param_type: Type::Void, default: None, },
         ],
         unbounded_args: false,
         return_type: None,
@@ -164,6 +169,16 @@ Get the public key for a given age identity.
     });
 }
 
+
+/// An Age identity from a value: a `Data<Age>`, or the secret key as a string (`AGE-SECRET-KEY-1...`).
+fn age_identity(graph: &Graph, var: &Variable) -> Result<Option<age::x25519::Identity>, Error> {
+    if let Val::Str(secret) = &*var.val.read() {
+        return age::x25519::Identity::from_str(secret.trim()).map(Some)
+            .map_err(|_| Error::Custom("an Age secret key is a string that starts with AGE-SECRET-KEY-1 (or a Data<Age> from Age::generate)".into()));
+    }
+    let Some(dref) = var.try_data_or_func() else { return Ok(None) };
+    Ok(graph.get_stof_data::<AgeIdentity>(&dref).map(|identity| identity.id.clone()))
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 /// Age identity data.
@@ -224,11 +239,8 @@ impl Instruction for AgeIns {
                         if let Some(context_var) = env.stack.pop() {
                             if let Some(encrypted_bin_var) = env.stack.pop() {
                                 if let Some(age_data_var) = env.stack.pop() {
-                                    if let Some(dref) = age_data_var.try_data_or_func() {
-                                        let mut id = None;
-                                        if let Some(age_identity) = graph.get_stof_data::<AgeIdentity>(&dref) {
-                                            id = Some(age_identity.id.clone());
-                                        }
+                                    {
+                                        let id = age_identity(graph, &age_data_var)?;
                                         if let Some(id) = id {
                                             let mut context = env.self_ptr();
                                             match context_var.val.read().deref() {
@@ -529,11 +541,9 @@ impl Instruction for AgeIns {
             },
             Self::PubKey => {
                 if let Some(age_identity_var) = env.stack.pop() {
-                    if let Some(dref) = age_identity_var.try_data_or_func() {
-                        if let Some(identity) = graph.get_stof_data::<AgeIdentity>(&dref) {
-                            env.stack.push(Variable::val(Val::Str(identity.id.to_public().to_string().into())));
-                            return Ok(None);
-                        }
+                    if let Some(identity) = age_identity(graph, &age_identity_var)? {
+                        env.stack.push(Variable::val(Val::Str(identity.to_public().to_string().into())));
+                        return Ok(None);
                     }
                 }
                 return Err(Error::Custom("AgePubKeyError".into()));

@@ -104,7 +104,10 @@ await check('memory limit: one big step ("a" * n) and setMaxMemory', async () =>
 });
 
 // network
-const server = http.createServer((req, res) => res.end('hi')).listen(0, '127.0.0.1');
+const server = http.createServer((req, res) => {
+    if (req.url === '/redirect') { res.writeHead(302, { location: `http://localhost:${server.address().port}/` }); res.end(); return; }
+    res.end('hi');
+}).listen(0, '127.0.0.1');
 await new Promise((resolve) => server.once('listening', resolve));
 const local = `http://127.0.0.1:${server.address().port}/`;
 const fetchSrc = (url) => `fn f() -> str { try { const res = await Http.fetch('${url}'); return Http.text(res); } catch (e, message) { return \`blocked: \${message}\`; } }`;
@@ -123,6 +126,29 @@ await check('network: allowPrivateNetwork, or a host list, reaches it', async ()
     assert(await b.call('f') === 'hi', 'host list');
     const c = await StofDoc.new(fetchSrc(local)); c.allowHttp(['api.example.com']);
     assert((await c.call('f')).includes('not an allowed host'), 'other host');
+});
+await check('network: disallowHttp removes a host; allowHttp adds hosts', async () => {
+    const doc = await StofDoc.new(fetchSrc(local)); doc.allowHttp(['api.example.com']); doc.allowHttp(['127.0.0.1']);
+    assert(await doc.call('f') === 'hi', 'added');
+    assert(doc.disallowHttp(['127.0.0.1']), 'removed');
+    assert((await doc.call('f')).includes('not an allowed host'), 'refused after');
+    const any = await StofDoc.new(fetchSrc(local)); any.allowHttp();
+    assert(!any.disallowHttp(['127.0.0.1']), 'no list to remove from');
+});
+await check('network: a confined sealed part reaches only its hosts, on every redirect', async () => {
+    const src = (url) => `tool: { ${fetchSrc(url)} }`;
+    const port = server.address().port;
+    const a = await StofDoc.new(src(local)); a.allowHttp(['127.0.0.1', 'localhost']);
+    a.seal('tool', { hosts: ['api.example.com'] });
+    assert((await a.call('tool.f')).includes('not a host this sealed part may reach'), 'another host');
+    const b = await StofDoc.new(src(local)); b.allowHttp(['127.0.0.1', 'localhost']);
+    b.seal('tool', { hosts: ['127.0.0.1'] });
+    assert(await b.call('tool.f') === 'hi', 'its host');
+    const c = await StofDoc.new(src(`${local}redirect`)); c.allowHttp(['127.0.0.1', 'localhost']);
+    c.seal('tool', { hosts: ['127.0.0.1'] });
+    assert((await c.call('tool.f')).includes('not a host this sealed part may reach'), `redirected away (port ${port})`);
+    const d = await StofDoc.new(src(`${local}redirect`)); d.allowHttp(['127.0.0.1', 'localhost']);
+    assert(await d.call('tool.f') === 'hi', 'unsealed: the redirect is followed');
 });
 server.close();
 
@@ -153,9 +179,11 @@ await check('seal: functions can be called but not changed; digest and signature
     assert(digest.length === 64 && digest === doc.digest('<Engine>'), 'digest');
     await rejects(doc.call('attack'), /sealed/);
     assert(await doc.call('price') === 100, 'still the sealed price');
-    const signature = StofDoc.sign(digest, SECRET);
+    const signature = StofDoc.sign(SECRET, 'stof/seal', digest);
     const publicKey = StofDoc.publicKey(SECRET);
-    assert(StofDoc.verify(digest, publicKey, signature), 'verify');
+    assert(StofDoc.verify(publicKey, 'stof/seal', digest, signature), 'verify');
+    let wrong = ''; try { (await StofDoc.new(ENGINE)).seal('<Engine>', { publicKey, signature: StofDoc.sign(SECRET, 'engine/v1', digest) }); } catch (e) { wrong = String(e?.message ?? e); }
+    assert(/signed/.test(wrong), `only under stof/seal: ${wrong}`);
     const other = await StofDoc.new(ENGINE);
     assert(other.seal('<Engine>', { publicKey, signature }) === digest, 'signed seal');
     const tampered = await StofDoc.new(ENGINE.replace('* 50', '* 5'));
@@ -164,6 +192,52 @@ await check('seal: functions can be called but not changed; digest and signature
     // the same digest from BSTF (an engine shipped as bytes)
     const loaded = await StofDoc.new(doc.stof.binaryExport('bstf', null), 'bstf');
     assert(loaded.digest('<Engine>') === digest, 'digest after BSTF');
+});
+
+await check('seal: confined parts reach only what they read (by path); removable parts can be dropped; sealed()', async () => {
+    const doc = await StofDoc.new(`
+        secrets: { key: 'abc' }
+        inputs: { city: 'Boston' }
+        tools: { weather: {
+            fn city() -> unknown { root.inputs.city }
+            fn key() -> unknown { root.secrets.key }
+            fn poke() { root.inputs.city = 'x'; }
+        } }
+        fn key() -> unknown { root.secrets.key }`);
+    doc.quiet();
+    assert(doc.sealed('tools.weather') === null, 'not sealed yet');
+    doc.seal('tools.weather', { removable: true, reads: ['inputs'], hosts: ['api.weather.example'] });
+    assert(await doc.call('tools.weather.city') === 'Boston', 'reads');
+    assert(await doc.call('tools.weather.key') === null, 'not elsewhere');
+    await rejects(doc.call('tools.weather.poke'), /sealed/);
+    assert(await doc.call('key') === 'abc', 'the rest is unconfined');
+    assert(doc.remove('inputs') && doc.parse("inputs: { city: 'Denver' }"), 'replaced'); // a new object at the path
+    assert(await doc.call('tools.weather.city') === 'Denver', 'reads follow the path');
+    const info = doc.sealed('tools.weather');
+    assert(info.removable && !info.fields && info.part === 'root.tools.weather', JSON.stringify(info));
+    assert(info.confined.length === 1 && info.confined[0].reads[0] === 'inputs' && info.confined[0].hosts[0] === 'api.weather.example', JSON.stringify(info));
+    assert(doc.remove('tools.weather'), 'removable');
+});
+await check('keys: sign on the host, verify in the document, and the other way around', async () => {
+    const secret = StofDoc.generateKey();
+    assert(secret !== StofDoc.generateKey() && secret.length === 44, 'random');
+    const publicKey = StofDoc.publicKey(secret);
+    const order = JSON.stringify({ item: 'lamp', qty: 2 });
+    const signature = StofDoc.sign(secret, 'orders/v1', order);
+    assert(StofDoc.verify(publicKey, 'orders/v1', order, signature), 'verifies');
+    assert(StofDoc.verify(publicKey, 'orders/v1', new TextEncoder().encode(order), signature), 'bytes');
+    assert(!StofDoc.verify(publicKey, 'orders/v2', order, signature), 'another context');
+    assert(!StofDoc.verify(publicKey, 'orders/v1', order + ' ', signature), 'another message');
+    // the fixed signature (made natively) verifies here too
+    assert(StofDoc.verify('11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=', 'orders/v1', '{"item":"lamp","qty":2}',
+        'Qr/vFkG4ZLv/M1JwvCdDjSb107rdqjXLjbE044YT2U712OHn2obDLuLns6JNo06QBqCe5ENesDH02ZL4uQqVDQ=='), 'the same scheme everywhere');
+    const doc = await StofDoc.new(`
+        fn check(m: str, k: str, s: str) -> bool { Key::verify(k, 'orders/v1', m, s) }
+        fn sign(secret: str, m: str) -> str { Key::sign(secret, 'orders/v1', m) }`);
+    assert(await doc.call('check', order, publicKey, signature) === true, 'in a document');
+    assert(await doc.call('check', '{}', publicKey, signature) === false, 'in a document, changed');
+    const made = await doc.call('sign', secret, order);
+    assert(StofDoc.verify(publicKey, 'orders/v1', order, made), "the document's signature on the host");
 });
 
 // last: a crash (no memory limit, so the engine runs out of memory and traps)

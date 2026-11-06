@@ -92,8 +92,16 @@ export class Stof {
      * Seal an object (path, or a type as "<Name>") and everything under it: its functions can be called but not
      * changed (see `model::seal`). With `fields`, its fields are frozen too. With `expected`, only if its digest is
      * that. With `public_key` and `signature`, only if the digest is signed by that key. Returns the digest.
+     * With `removable`, it can still be removed whole. With `reads` (paths, looked up each time the part is entered),
+     * its code reaches only itself and those objects; with `hosts`, its Http.fetch reaches only those hosts (see
+     * `model::seal::Confine`).
      */
-    seal(path: string, fields?: boolean | null, expected?: string | null, public_key?: string | null, signature?: string | null): string;
+    seal(path: string, fields?: boolean | null, expected?: string | null, public_key?: string | null, signature?: string | null, removable?: boolean | null, reads?: string[] | null, hosts?: string[] | null): string;
+    /**
+     * How an object (a path, or a type as "<Name>") is sealed, as JSON: { part, fields, removable, confined:
+     * [{ reads, hosts }] }, or null when it isn't sealed.
+     */
+    sealed(path: string): string | undefined;
     /**
      * How long a call can run, in milliseconds, before it fails with an execution timeout (null for no limit).
      * Defaults to 120,000 (2 minutes).
@@ -200,24 +208,29 @@ export function start(): void;
 export function stofEdit(text: string, edits: string): string;
 
 /**
+ * A new secret key (base64, 32 bytes from the system's secure random source).
+ */
+export function stofGenerateKey(): string;
+
+/**
  * The fields and functions in a Stof text, as JSON (see `parser::edit::outline_json`).
  */
 export function stofOutline(text: string): string;
 
 /**
- * The Ed25519 public key (base64) for a secret key (base64 or hex, 32 bytes).
+ * The public key (base64) for a secret key.
  */
 export function stofPublicKey(secret_key: string): string;
 
 /**
- * Sign a seal digest with an Ed25519 secret key (base64 or hex, 32 bytes): the signature, base64.
+ * Sign a message (a string's UTF-8 bytes, or bytes) under a context with a secret key: the signature (base64).
  */
-export function stofSign(digest: string, secret_key: string): string;
+export function stofSign(secret_key: string, context: string, message: any): string;
 
 /**
- * Is this an Ed25519 signature (base64 or hex) over this seal digest by this public key (base64 or hex)?
+ * Is this a signature over this message (a string or bytes), under this context, by this public key?
  */
-export function stofVerify(digest: string, public_key: string, signature: string): boolean;
+export function stofVerify(public_key: string, context: string, message: any, signature: string): boolean;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
@@ -228,10 +241,11 @@ export interface InitOutput {
     readonly __wbg_stoftask_free: (a: number, b: number) => void;
     readonly start: () => void;
     readonly stofEdit: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+    readonly stofGenerateKey: () => [number, number];
     readonly stofOutline: (a: number, b: number) => [number, number, number, number];
     readonly stofPublicKey: (a: number, b: number) => [number, number, number, number];
-    readonly stofSign: (a: number, b: number, c: number, d: number) => [number, number, number, number];
-    readonly stofVerify: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
+    readonly stofSign: (a: number, b: number, c: number, d: number, e: any) => [number, number, number, number];
+    readonly stofVerify: (a: number, b: number, c: number, d: number, e: any, f: number, g: number) => number;
     readonly stof_allowHtmlAttributes: (a: number, b: number, c: number) => [number, number];
     readonly stof_allowHtmlTags: (a: number, b: number, c: number) => [number, number];
     readonly stof_allowHttp: (a: number) => [number, number];
@@ -250,7 +264,8 @@ export interface InitOutput {
     readonly stof_remove: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly stof_report: (a: number, b: number) => [number, number, number, number];
     readonly stof_result: (a: number, b: number) => [number, number, number];
-    readonly stof_seal: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number, number];
+    readonly stof_seal: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number) => [number, number, number, number];
+    readonly stof_sealed: (a: number, b: number, c: number) => [number, number, number, number];
     readonly stof_set: (a: number, b: number, c: number, d: any, e: any) => [number, number, number];
     readonly stof_setMaxExecutionTime: (a: number, b: number, c: number) => [number, number];
     readonly stof_setMaxMemory: (a: number, b: number, c: number) => [number, number];

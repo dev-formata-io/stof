@@ -129,6 +129,9 @@ impl Instruction for JsLibFuncIns {
         match self {
             Self::Call(docid, arg_count, library, name) => {
                 let context = JsValue::from(Val::Obj(env.self_ptr()));
+                // Http.fetch from a confined sealed part: the host lists it may reach go to the fetch (checked on
+                // every redirect too), after its seven parameters
+                let fetch_scopes = if library == "Http" && name == "fetch" { Some(graph.confined_hosts()) } else { None };
                 let res = JS_FUNCTIONS.with_borrow(|map| {
                     if let Some(doc) = map.get(docid) {
                         if let Some(lib) = doc.get(library) {
@@ -142,6 +145,19 @@ impl Instruction for JsLibFuncIns {
                                         if let Some(var) = env.stack.pop() { args.push(var.val.read().clone().into()); }
                                     }
                                     args.reverse();
+                                    if let Some(scopes) = &fetch_scopes {
+                                        args.truncate(7);
+                                        while args.len() < 7 { args.push(JsValue::NULL); }
+                                        if !scopes.is_empty() {
+                                            let lists = js_sys::Array::new();
+                                            for hosts in scopes {
+                                                let list = js_sys::Array::new();
+                                                for host in hosts.iter() { list.push(&JsValue::from_str(host)); }
+                                                lists.push(&list);
+                                            }
+                                            args.push(lists.into());
+                                        }
+                                    }
                                     match args.len() {
                                         0 => js_func.call0(&context),
                                         1 => js_func.call1(&context, &args[0]),

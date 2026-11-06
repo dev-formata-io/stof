@@ -459,7 +459,7 @@ impl Instruction for ObjIns {
                                     let index = num.int() as usize;
                                     if let Some((name, field_ref)) = Field::fields_at(graph, &obj, index) {
                                         if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
-                                            env.stack.push(Variable::val(Val::Tup(vector![ValRef::new(Val::Str(name.into())), field.value.val.duplicate(false)])));
+                                            env.stack.push(Variable::val(Val::Tup(vector![ValRef::new(Val::Str(name.into())), graph.field_val(&field_ref, &field.value, false)])));
                                         } else {
                                             env.stack.push(Variable::val(Val::Null));
                                         }
@@ -484,7 +484,7 @@ impl Instruction for ObjIns {
                                     let index = num.int() as usize;
                                     if let Some((name, field_ref)) = Field::fields_at(graph, &obj, index) {
                                         if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
-                                            env.stack.push(Variable::val(Val::Tup(vector![ValRef::new(Val::Str(name.into())), field.value.val.duplicate(true)])));
+                                            env.stack.push(Variable::val(Val::Tup(vector![ValRef::new(Val::Str(name.into())), graph.field_val(&field_ref, &field.value, true)])));
                                         } else {
                                             env.stack.push(Variable::val(Val::Null));
                                         }
@@ -509,7 +509,7 @@ impl Instruction for ObjIns {
                                     if let Some(node) = obj.node(&graph) {
                                         if let Some(dref) = node.get_data(name.as_str()) {
                                             if let Some(field) = graph.get_stof_data::<Field>(dref) {
-                                                env.stack.push(field.value.stack_var(false));
+                                                env.stack.push(graph.field_var(dref, &field.value, false));
                                             } else if let Some(_func) = graph.get_stof_data::<Func>(dref) {
                                                 env.stack.push(Variable::val(Val::Fn(dref.clone())));
                                             } else {
@@ -537,7 +537,7 @@ impl Instruction for ObjIns {
                                     if let Some(node) = obj.node(&graph) {
                                         if let Some(dref) = node.get_data(name.as_str()) {
                                             if let Some(field) = graph.get_stof_data::<Field>(dref) {
-                                                env.stack.push(field.value.stack_var(true));
+                                                env.stack.push(graph.field_var(dref, &field.value, true));
                                             } else if let Some(_func) = graph.get_stof_data::<Func>(dref) {
                                                 env.stack.push(Variable::val(Val::Fn(dref.clone())));
                                             } else {
@@ -652,6 +652,8 @@ impl Instruction for ObjIns {
                         };
                         if !field.can_set() { return Err(Error::FieldReadOnlySet); }
                         let mut fvar = field.value.clone();
+                        // a seal may refuse this change: check first (a list or map value is set in place)
+                        if !graph.seals.nodes.is_empty() && !graph.may_change(&dref) { return Ok(None); }
                         fvar.set(&value_var, graph, Some(obj.clone()))?;
                         if let Some(field) = graph.get_mut_stof_data::<Field>(&dref) {
                             field.value = fvar;
@@ -682,7 +684,8 @@ impl Instruction for ObjIns {
                             value.read().drop_data(graph);
                         }
                     }
-                    removed = graph.remove_data(&dref, Some(obj.clone()));
+                    // a seal refused dropping the value: keep the field too (nothing changes)
+                    if graph.seals.violation.is_none() { removed = graph.remove_data(&dref, Some(obj.clone())); }
                 }
                 env.stack.push(Variable::val(Val::Bool(removed)));
                 Ok(None)
@@ -758,7 +761,7 @@ impl Instruction for ObjIns {
                         let mut fields = Vector::default();
                         for (name, field_ref) in Field::fields(graph, &obj) {
                             if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
-                                let value = field.value.val.duplicate(false);
+                                let value = graph.field_val(&field_ref, &field.value, false);
                                 fields.push_back(ValRef::new(Val::Tup(vector![ValRef::new(Val::Str(name.into())), value])));
                             }
                         }
@@ -1010,7 +1013,7 @@ impl Instruction for ObjIns {
                                                     let mut target_null = false;
                                                     if let Some(target_field_ref) = Field::field(graph, &target, &schema_field_name) {
                                                         if let Some(field) = graph.get_stof_data::<Field>(&target_field_ref) {
-                                                            target_val = Some(field.value.val.clone()); // reference to the value outright
+                                                            target_val = Some(if graph.guarded(&target_field_ref) { ValRef::new(field.value.val.read().detached()) } else { field.value.val.clone() }); // reference to the value outright (a copy when guarded)
                                                             target_null = field.value.val.read().null();
                                                         }
                                                     }
@@ -1186,7 +1189,7 @@ impl Instruction for ObjIns {
                         let mut map = OrdMap::default();
                         for (name, fref) in Field::fields(graph, &obj) {
                             if let Some(field) = graph.get_stof_data::<Field>(&fref) {
-                                map.insert(ValRef::new(Val::Str(name.into())), field.value.val.duplicate(false));
+                                map.insert(ValRef::new(Val::Str(name.into())), graph.field_val(&fref, &field.value, false));
                             }
                         }
                         env.stack.push(Variable::val(Val::Map(map)));
@@ -1201,7 +1204,7 @@ impl Instruction for ObjIns {
                         let mut map = OrdMap::default();
                         for (name, fref) in Field::fields(graph, &obj) {
                             if let Some(field) = graph.get_stof_data::<Field>(&fref) {
-                                map.insert(ValRef::new(Val::Str(name.into())), field.value.val.duplicate(true));
+                                map.insert(ValRef::new(Val::Str(name.into())), graph.field_val(&fref, &field.value, true));
                             }
                         }
                         env.stack.push(Variable::val(Val::Map(map)));

@@ -88,6 +88,16 @@ def network_checks(port):
     assert doc.call('f') == 'hi'
     doc = Doc(); doc.allow_http_hosts(['127.0.0.1']); doc.parse(src)
     assert doc.call('f') == 'hi'
+    assert doc.disallow_http_hosts(['127.0.0.1'])
+    doc.quiet()
+    assert 'not an allowed host' in doc.call('f')
+    # a confined sealed part reaches only its own hosts
+    doc = Doc(); doc.quiet(); doc.allow_http_hosts(['127.0.0.1']); doc.parse('tool: { %s }' % src)
+    doc.seal('tool', hosts=['api.example.com'])
+    assert 'not a host this sealed part may reach' in doc.call('tool.f')
+    doc = Doc(); doc.allow_http_hosts(['127.0.0.1']); doc.parse('tool: { %s }' % src)
+    doc.seal('tool', hosts=['127.0.0.1'])
+    assert doc.call('tool.f') == 'hi'
 
 def html():
     doc = Doc()
@@ -113,8 +123,8 @@ def sealing():
         assert 'sealed' in str(error), str(error)
     assert doc.call('price') == 100
     # signed: verifies, then seals; a changed document fails
-    signature = Doc.sign(digest, SECRET); public = Doc.public_key(SECRET)
-    assert Doc.verify(digest, public, signature)
+    signature = Doc.sign(SECRET, 'stof/seal', digest); public = Doc.public_key(SECRET)
+    assert Doc.verify(public, 'stof/seal', digest, signature)
     other = Doc(); other.parse(ENGINE)
     assert other.seal('<Engine>', public_key=public, signature=signature) == digest
     tampered = Doc(); tampered.parse(ENGINE.replace('* 50', '* 5'))
@@ -123,7 +133,34 @@ def sealing():
     except ValueError as error:
         assert 'signed' in str(error), str(error)
 
-for name, fn in [('calls', calls), ('sealing', sealing), ('library functions', library_functions), ('values', values), ('memory limit', memory_limit),
+def confined():
+    doc = Doc(); doc.quiet(); doc.parse('''
+        secrets: { key: 'abc' }
+        inputs: { city: 'Boston' }
+        tools: { weather: { fn city() -> unknown { root.inputs.city } fn key() -> unknown { root.secrets.key } } }
+    ''')
+    assert doc.sealed('tools.weather') is None
+    doc.seal('tools.weather', removable=True, reads=['inputs'])
+    assert doc.call('tools.weather.city') == 'Boston'
+    assert doc.call('tools.weather.key') is None
+    info = doc.sealed('tools.weather')
+    assert info['removable'] and info['part'] == 'root.tools.weather' and info['confined'][0]['reads'] == ['inputs'], info
+    assert doc.remove('tools.weather')
+
+def keys():
+    secret = Doc.generate_key(); public = Doc.public_key(secret)
+    assert secret != Doc.generate_key()
+    order = '{"item":"lamp","qty":2}'
+    signature = Doc.sign(secret, 'orders/v1', order)
+    assert Doc.verify(public, 'orders/v1', order, signature)
+    assert Doc.verify(public, 'orders/v1', order.encode(), signature)
+    assert not Doc.verify(public, 'orders/v2', order, signature)
+    assert Doc.verify('11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=', 'orders/v1', order,
+        'Qr/vFkG4ZLv/M1JwvCdDjSb107rdqjXLjbE044YT2U712OHn2obDLuLns6JNo06QBqCe5ENesDH02ZL4uQqVDQ==')
+    doc = Doc(); doc.parse("fn check(m: str, k: str, s: str) -> bool { Key::verify(k, 'orders/v1', m, s) }")
+    assert doc.call('check', [order, public, signature]) is True
+
+for name, fn in [('calls', calls), ('sealing', sealing), ('confined', confined), ('keys', keys), ('library functions', library_functions), ('values', values), ('memory limit', memory_limit),
                  ('sandbox', sandbox), ('network', network), ('html', html)]:
     check(name, fn)
 print(f'{failed} failed' if failed else 'all ok')

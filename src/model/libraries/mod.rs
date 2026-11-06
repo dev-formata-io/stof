@@ -32,6 +32,7 @@ pub mod http;
 pub mod age;
 
 pub mod stof_std;
+pub mod key;
 pub mod num;
 pub mod string;
 pub mod ver;

@@ -82,6 +82,7 @@ pub fn stof_std_lib(graph: &mut Graph) {
     graph.insert_libfunc(std_nanoid());
     graph.insert_libfunc(sealing::std_seal());
     graph.insert_libfunc(sealing::std_digest());
+    graph.insert_libfunc(sealing::std_sealed());
     graph.insert_libfunc(std_graph_id());
     graph.insert_libfunc(std_inf());
     graph.insert_libfunc(std_nan());
@@ -874,6 +875,7 @@ impl Instruction for StdIns {
                         }
 
                         // formats with computed values call them first, in this process
+                        graph.confined_export(&ctx)?;
                         if let Some(instructions) = computed::computed_export(env, graph, &format, ctx.clone(), true) {
                             return Ok(Some(instructions));
                         }
@@ -911,6 +913,7 @@ impl Instruction for StdIns {
                             },
                         }
 
+                        graph.confined_export(&ctx)?;
                         // formats with computed values call them first, in this process
                         if let Some(instructions) = computed::computed_export(env, graph, &format, ctx.clone(), false) {
                             return Ok(Some(instructions));

@@ -1,5 +1,136 @@
 # Changelog
 
+## 0.11.0
+
+Trust, built into documents. Keys and signatures in Stof itself, one signing scheme everywhere, and seals that can
+confine code from somewhere else to what it's given, or let it be removed when it's no longer wanted. A minor
+version because it changes the signing functions 0.10.10 added and the digests they sign (see Upgrading).
+
+### Added
+
+- **The `Key` library: keys and signatures in documents.** A signature proves who wrote something and that it
+  hasn't changed.
+  - `Key::generate()`: a new secret key (32 bytes from the system's secure random source, base64).
+  - `Key::public(secret)`: its public key, to share. It checks signatures; it can't make them.
+  - `Key::sign(secret, context, message)`: sign the exact bytes of a message (a string's UTF-8, or a blob).
+  - `Key::verify(public, context, message, signature)`: true only for exactly that message, context, and key. A
+    malformed key or signature is simply false.
+  - The context names what a signature is for (Ex. "orders/v1"). A signature only verifies under the context it was
+    made with, so one made for one purpose can't be passed off as another.
+  - Keys and signatures are plain base64 strings (hex is read too): they travel in JSON, environment variables, and
+    headers, and need nothing dropped.
+- **One signing scheme everywhere.** Hosts have the same functions, with the same names and argument order, and
+  signatures made anywhere verify everywhere:
+  - JS: `StofDoc.generateKey()`, `StofDoc.publicKey(secret)`, `StofDoc.sign(secret, context, message)`,
+    `StofDoc.verify(public, context, message, signature)` (a string or Uint8Array).
+  - Python: `Doc.generate_key()`, `Doc.public_key(..)`, `Doc.sign(..)`, `Doc.verify(..)` (str or bytes).
+  - Rust: `stof::model::seal::{generate_key, public_key, sign, verify}`.
+  - A seal signature is a signature over the part's digest under the context "stof/seal"
+    (`seal::SEAL_CONTEXT`): `Key::sign(secret, 'stof/seal', digest(part))` in Stof, or
+    `StofDoc.sign(secret, 'stof/seal', doc.digest(path))`. `doc.seal(path, { publicKey, signature })` checks it.
+- **Confined seals: code that reaches only what it's given.** For code you didn't write that runs in your
+  document (a plugin, a rule a model wrote). Seal it with `reads` and/or `hosts`, and while its code runs (and
+  everything it calls):
+  - **Reads:** it finds only the sealed part and the objects in `reads` (and what's under them). A path to
+    anything else finds nothing (`root.secrets.key` and `super.secrets` are null), and a type it isn't given isn't
+    found, made (`new Type {}`), or cast to (which would read its defaults). `reads` are paths (or `<Type>`s), looked up each time the part is entered, so an object replaced at a
+    path is the one it reads. Objects given from Stof are kept as their paths.
+  - **Calls:** calling a function elsewhere fails, even through a function value it was handed. Functions it may
+    read (Ex. a `<Helpers>` type) can be called, and run confined too.
+  - **Changes:** it changes only its own part (its fields, objects it makes). What it reads is read-only to it, and
+    it can't make roots or seal anything outside itself.
+  - **Libraries:** it can't hand an object outside its reach to a library function (`stringify`, `Obj`, your app's
+    functions) or get one back (Ex. `Obj.parent(self)`, `Obj.from_id(..)`, `funcs()`). Exporting everything
+    (`stringify('json')` with no object), or an object that holds one out of reach, fails in every format.
+  - **Hosts:** `Http.fetch` reaches only the listed hosts, checked again after redirects (natively on the final
+    URL, like the document's own allowlist; in JavaScript on every hop). The document's allowlist still applies: a
+    host must be on both. `[]` means no network.
+  - Objects out of its reach stay opaque, even ones it's handed (an argument, or a field you put in it): it can
+    hold one and hand it back, but not look inside, change, print, or export it. Give it values (strings, numbers,
+    lists, maps), or list the objects in `reads`.
+  - A failed lookup finds nothing (null, like a missing field), so code can't probe for what it can't see; a
+    refused change or call fails with a `sealed: ...` error, so nothing is refused silently.
+  - Confinements stack: sealing again with `reads` adds one (the part runs under both), so a document can narrow
+    what a host gave a part but never widen it. Confined code that calls another confined part runs under both.
+  - The rest of the document isn't confined, including code that calls into a confined part and keeps going once
+    it returns (or fails). Host calls (get, set, call) never are.
+  - Rust: `SealOptions { reads, hosts, .. }` with `graph.seal_path_with(path, &options, digest)`,
+    `seal_signed_with(..)`, `seal_with(node, ..)`. JS: `doc.seal(path, { reads: ['inputs'], hosts: [..] })`.
+    Python: `doc.seal(path, reads=[..], hosts=[..])`. Stof: `seal(obj, reads = [self.inputs], hosts = [..])`.
+  - Cost: nothing for documents without confined parts (a few empty checks). Confined code pays a parent walk on
+    lookups and library calls, and `reads` are looked up once per entry into the part.
+- **Removable seals.** `removable` seals an object that can still be dropped whole, by Stof (`drop(obj)`) or the
+  host (`doc.remove(path)`); nothing in it can change, and it can't be moved or renamed. Not when another seal
+  covers it (one around it, or one inside it that isn't removable). Sealing again without `removable` makes it stay.
+  The seal goes with the object.
+- **Seeing how something is sealed.** `sealed(obj)` in Stof (a map), `doc.sealed(path)` in JS (an object),
+  `doc.sealed(path)` in Python (a dict), `graph.seal_info(node)` in Rust: null when it isn't sealed, otherwise
+  `part` (the path of the object sealed: this one or one around it), `fields`, `removable`, and `confined` (one
+  `{ reads, hosts }` per confinement its code runs under).
+- **Removing allowed hosts.** `graph.disallow_http_hosts([..])` (Rust), `doc.disallow_http_hosts([..])` (Python),
+  `doc.disallowHttp([..])` (JS). Removing every listed host leaves none allowed, not any host; with no list (any
+  host) there's nothing to remove and it returns false.
+- **Age takes secret keys as strings.** `Age::parse` and `Age::public` accept the secret key as a string
+  (`AGE-SECRET-KEY-1...`, Ex. passed in by the host) as well as a `Data<Age>`. Age's docs now cover how it works
+  with `Key`: Age encrypts (only the reader can open it), Key signs (the reader knows who sent it).
+- `Error::Key` ("key: ...") for keys that aren't keys.
+
+### Changed
+
+- **Signing functions (breaking).** The 0.10.10 seal-only `sign(digest, secret)` / `verify(digest, public,
+  signature)` (JS `StofDoc`, Python `Doc`, Rust `seal`) are now the general `sign(secret, context, message)` /
+  `verify(public, context, message, signature)`. Seal signatures are made under "stof/seal".
+- **Digests travel: the same part has the same digest in any document (breaking for stored digests).** A digest no
+  longer includes the part's own name (where it's put decides that), names objects by the fields that hold them
+  (objects made with `new` have random names), and leaves out the attributes Stof keeps for itself on field
+  objects (so data imported as JSON digests the same as the same data written in Stof, before and after it's read).
+- **JS: `allowHttp([..])` adds hosts** (it replaced the list), as it does in Rust and Python.
+- `Std::seal` takes `removable`, `reads` (objects or paths), and `hosts` (named, after `fields`). Calls written
+  before still work.
+
+### Fixed
+
+- **Dropping a field whose object a seal keeps no longer removes the field.** `drop(self.x)`, `Obj.remove(..)`, and
+  `doc.remove(path)` removed the field even when a seal refused to drop the object behind it (the call failed, but
+  the object was left without its field). Now nothing changes.
+- **Sealed and confined fields can no longer be changed in place.** A list, map, set, or tuple read from a field
+  is shared with the field, so `self.frozen.tags.push_back('x')` changed a field sealed with `fields: true` (since
+  0.10.10), and a confined part could do the same to an object it only reads (`push_back`, `insert`, `swap`,
+  `&field`). Values read from a field the running code may not change are now copies: changing the copy never
+  changes the field. Assigning to such a field (`=`, `+=`, `Obj.set`, the host's `set`) is refused before anything
+  is written (a list could be written in place before the seal check refused it). Fields nothing seals read and
+  change exactly as before, with no copying.
+- **Destructuring respects confinement and private fields.** `const { key } = o` read fields of an object a
+  confined part may not reach, and read `#[private]` fields from outside their object. Both now behave like
+  `o.key`: refused out of reach, and null for a private field. A library call on a private field from outside
+  (Ex. `o.hidden.len()`) now sees null too.
+
+### Upgrading from 0.10.10 or 0.10.11
+
+| Before | Now |
+|---|---|
+| `StofDoc.sign(digest, secret)` | `StofDoc.sign(secret, 'stof/seal', digest)` |
+| `StofDoc.verify(digest, public, signature)` | `StofDoc.verify(public, 'stof/seal', digest, signature)` |
+| `Doc.sign(digest, secret)` / `Doc.verify(..)` | `Doc.sign(secret, 'stof/seal', digest)` / `Doc.verify(public, 'stof/seal', digest, signature)` |
+| `seal::sign(digest, secret)` / `seal::verify(..)` | `seal::sign(secret, seal::SEAL_CONTEXT, digest.as_bytes())` / `seal::verify(..)` |
+| A digest or seal signature you stored | Compute the digest again with 0.11 and sign it again |
+| JS `allowHttp([...])` twice to replace the list | `disallowHttp([...])` the hosts to drop |
+
+### Tests
+
+- `tests/confine.rs` (21 with full features): confinement (reads, reads that follow paths, calls, changes,
+  libraries, `super`, async, function values, opaque objects, stacking and narrowing, hosts and the document's
+  allowlist, redirects natively against a local server, every export format, unwinding after errors, seals not exported), removable seals,
+  `seal_info`, signatures (contexts, exact bytes, hex keys, errors, host and document interchangeable), seal
+  signatures made in Stof and checked by the host, host lists, digests across documents, and in-place changes
+  (copies of guarded fields, refused assignments, destructuring).
+- Stof suite: `libs/key.stof` (keys, signatures, a fixed signature that must keep verifying, errors, seal
+  signatures), `libs/age.stof` (secret key strings, sign and encrypt), and `security/sealing.stof` (confined
+  reads, types and methods, parts calling parts, narrowing, reads that follow paths, `sealed()`, hosts, removable
+  seals and the drop fix, digests through JSON, in-place changes, destructuring and private fields).
+- The JS checks (`tests/js/check.mjs`) and Python smoke test cover the same APIs in those builds, including the
+  fixed signature (the same scheme in every build) and a redirect away from a confined part's host.
+
 ## 0.10.11
 
 ### Fixed

@@ -407,6 +407,9 @@ pub(self) struct HTTPRequest {
 
     /// Any host but the private network (no host list, and the host didn't allow the private network).
     pub public_only: bool,
+
+    /// The host lists of the confined sealed parts that made this request (each must allow it, after redirects too).
+    pub scopes: Vec<Arc<FxHashSet<String>>>,
 }
 #[cfg(feature = "http")]
 impl HTTPRequest {
@@ -438,7 +441,7 @@ impl HTTPRequest {
 
                     if let Ok(request) = builder.build() {
                         match client.execute(request).await {
-                            Ok(response) if !host_allowed(response.url(), &self.hosts) => {
+                            Ok(response) if !host_allowed(response.url(), &self.hosts) || !scopes_allow(&self.scopes, response.url()) => {
                                 // redirected away from the allowed hosts: the response isn't returned
                                 error_result(&self.results, format!("redirected to {}, which is not an allowed host", response.url()));
                             },
@@ -508,7 +511,7 @@ impl HTTPRequest {
 
                 if let Ok(request) = builder.build() {
                     match client.execute(request) {
-                        Ok(response) if !host_allowed(response.url(), &self.hosts) => {
+                        Ok(response) if !host_allowed(response.url(), &self.hosts) || !scopes_allow(&self.scopes, response.url()) => {
                             // redirected away from the allowed hosts: the response isn't returned
                             error_result(&self.results, format!("redirected to {}, which is not an allowed host", response.url()));
                         },
@@ -580,7 +583,7 @@ impl HTTPRequest {
 
             if let Ok(request) = builder.build() {
                 match client.execute(request) {
-                    Ok(response) if !host_allowed(response.url(), &self.hosts) => {
+                    Ok(response) if !host_allowed(response.url(), &self.hosts) || !scopes_allow(&self.scopes, response.url()) => {
                         // redirected away from the allowed hosts: the response isn't returned
                         error_result(&self.results, format!("redirected to {}, which is not an allowed host", response.url()));
                     },
@@ -645,6 +648,12 @@ fn host_allowed(url: &reqwest::Url, hosts: &Option<Arc<FxHashSet<String>>>) -> b
         Some(port) => hosts.contains(&format!("{host}:{port}")),
         None => false,
     }
+}
+
+#[cfg(feature = "http")]
+/// Do the confined sealed parts that made a request allow this URL's host (each of their lists)?
+fn scopes_allow(scopes: &[Arc<FxHashSet<String>>], url: &reqwest::Url) -> bool {
+    scopes.iter().all(|hosts| host_allowed(url, &Some(hosts.clone())))
 }
 
 #[cfg(feature = "http")]
@@ -818,6 +827,9 @@ impl Instruction for HttpIns {
                     }
                 }
 
+                if !graph.confined_host(&url) {
+                    return Err(Error::HttpSendError(format!("{url} is not a host this sealed part may reach")));
+                }
                 let public_only = graph.http_hosts.is_none() && !graph.http_private;
                 if let Some(hosts) = &graph.http_hosts {
                     let allowed = reqwest::Url::parse(&url).is_ok_and(|parsed| host_allowed(&parsed, &Some(hosts.clone())));
@@ -846,6 +858,7 @@ impl Instruction for HttpIns {
                     waker: waker.clone(),
                     hosts: graph.http_hosts.clone(),
                     public_only,
+                    scopes: graph.confined_hosts(),
                 };
                 env.stack.push(Variable::refval(map));
                 request.send(env);

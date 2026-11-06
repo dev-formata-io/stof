@@ -32,17 +32,32 @@
 //! so a sealed function that calls into an unsealed part of the document calls whatever is there; seal everything
 //! a call chain relies on. Library functions can't be changed by documents, so calls to them are covered.
 //!
+//! A seal can also be:
+//! - `removable`: the sealed object can still be removed whole (dropped), though nothing in it can change and it
+//!   can't be moved or renamed. For code that comes and goes (Ex. a provider's capabilities, removed when access
+//!   ends).
+//! - confined (`reads`, `hosts`): code in the sealed part (and everything it calls) reaches only the sealed part
+//!   itself and the objects listed in `reads`, changes only the sealed part, and the Http library reaches only the
+//!   listed `hosts`. See `Confine`. For code from somewhere else that shouldn't see the rest of the document.
+//!
 //! `Graph::digest(node)` is a SHA-256 over the sealed part's functions (names, parameters, return types,
 //! attributes, and instructions) and structure (the objects, types, and the fields that hold functions or objects),
 //! plus every field's value with `fields`. It's the same whether the document was parsed from source or loaded from
-//! BSTF. A host checks it against the digest it expects, or verifies an Ed25519 `signature` over it (`verify`), Ex.
-//! for an engine shipped as a document. It's computed only when asked for (a few milliseconds for a large part).
+//! BSTF, and wherever the part sits (its own name and place aren't part of it), so a part sent to another document
+//! has the same digest there. A host checks it against the digest it expects, or verifies an Ed25519 `signature`
+//! over it (`verify`), Ex. for an engine shipped as a document. It's computed only when asked for (a few milliseconds
+//! for a large part).
+//!
+//! Signatures (`sign`, `verify`, `generate_key`, `public_key`) are Ed25519 over a message's exact bytes, under a
+//! context that names what they're for (Ex. "orders/v1"), so one made for one purpose is never valid for another. A
+//! seal signature is one over the part's digest under "stof/seal" (`SEAL_CONTEXT`).
 
 use std::{cell::Cell, collections::BTreeMap, sync::Arc};
+use arcstr::ArcStr;
 use rustc_hash::{FxHashMap, FxHashSet};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use crate::{model::{ARROW_FUNC_ATTR, DataRef, Field, Func, Graph, NodeRef, Prototype}, runtime::{Error, Val}};
+use crate::{model::{ARROW_FUNC_ATTR, DataRef, Field, Func, Graph, NodeRef, Prototype}, runtime::{Error, Val, ValRef, Variable, instruction::{Instruction, Instructions}, proc::ProcEnv}};
 
 
 thread_local! {
@@ -88,6 +103,10 @@ pub struct Seals {
     pub nodes: FxHashMap<NodeRef, bool>,
     /// The objects `seal` was called on.
     pub roots: FxHashSet<NodeRef>,
+    /// Sealed objects (of `roots`) that may still be removed whole.
+    pub removable: FxHashSet<NodeRef>,
+    /// What the code in a sealed part may reach, by the object `seal` was called on (see `Confine`).
+    pub confines: FxHashMap<NodeRef, Vec<Arc<Confine>>>,
     /// Type names of sealed types (no other type may take them).
     pub types: FxHashSet<String>,
     /// Why the last change was refused, until the instruction or host call that made it reports it.
@@ -95,37 +114,272 @@ pub struct Seals {
 }
 
 
+#[derive(Debug, Clone)]
+/// How an object is sealed (`Graph::seal_info`).
+pub struct SealInfo {
+    /// The object `seal` was called on (this one, or one around it).
+    pub part: NodeRef,
+    /// Its fields are frozen.
+    pub fields: bool,
+    /// It can be removed whole (it's the part, sealed `removable`, and no other seal holds it).
+    pub removable: bool,
+    /// The confinements its code runs under (empty: not confined).
+    pub confines: Vec<Arc<Confine>>,
+}
+impl SealInfo {
+    /// As JSON: `{ part, fields, removable, confined: [{ reads, hosts }] }` (for hosts).
+    pub fn to_json(&self, graph: &Graph) -> serde_json::Value {
+        let confined: Vec<serde_json::Value> = self.confines.iter().map(|confine| {
+            let mut hosts: Option<Vec<String>> = confine.hosts.as_ref().map(|hosts| hosts.iter().cloned().collect());
+            if let Some(hosts) = &mut hosts { hosts.sort(); }
+            serde_json::json!({ "reads": confine.reads, "hosts": hosts })
+        }).collect();
+        serde_json::json!({
+            "part": self.part.node_path(graph, true).map(|path| path.join(".")).unwrap_or_default(),
+            "fields": self.fields,
+            "removable": self.removable,
+            "confined": confined,
+        })
+    }
+
+    /// As a Stof map: `part` (path), `fields`, `removable`, `confined` (a list of `{ reads, hosts }` maps).
+    pub fn to_val(&self, graph: &Graph) -> Val {
+        use imbl::{OrdMap, Vector};
+        use crate::runtime::ValRef;
+        let list = |items: &Option<Vec<String>>| match items {
+            Some(items) => Val::List(items.iter().map(|item| ValRef::new(Val::Str(item.as_str().into()))).collect::<Vector<_>>()),
+            None => Val::Null,
+        };
+        let mut confined = Vector::new();
+        for confine in &self.confines {
+            let mut hosts: Option<Vec<String>> = confine.hosts.as_ref().map(|hosts| hosts.iter().cloned().collect());
+            if let Some(hosts) = &mut hosts { hosts.sort(); }
+            let mut map = OrdMap::new();
+            map.insert(ValRef::new(Val::Str("reads".into())), ValRef::new(list(&confine.reads)));
+            map.insert(ValRef::new(Val::Str("hosts".into())), ValRef::new(list(&hosts)));
+            confined.push_back(ValRef::new(Val::Map(map)));
+        }
+        let part = self.part.node_path(graph, true).map(|path| path.join(".")).unwrap_or_default();
+        let mut map = OrdMap::new();
+        map.insert(ValRef::new(Val::Str("part".into())), ValRef::new(Val::Str(part.into())));
+        map.insert(ValRef::new(Val::Str("fields".into())), ValRef::new(Val::Bool(self.fields)));
+        map.insert(ValRef::new(Val::Str("removable".into())), ValRef::new(Val::Bool(self.removable)));
+        map.insert(ValRef::new(Val::Str("confined".into())), ValRef::new(Val::List(confined)));
+        Val::Map(map)
+    }
+}
+
+
+#[derive(Debug, Clone, Default)]
+/// How to seal (see the module docs). `Default` is a plain seal: functions frozen, fields free.
+pub struct SealOptions {
+    /// Freeze every field too.
+    pub fields: bool,
+    /// The sealed object may still be removed whole.
+    pub removable: bool,
+    /// Confine the part's code to itself and the objects at these paths (or types as `<Name>`), looked up each time
+    /// the part is entered, so an object replaced at a path is still the one it reads (Some, even empty: it reads
+    /// only itself).
+    pub reads: Option<Vec<String>>,
+    /// Confine the part's network access to these hosts (Some, even empty: no network).
+    pub hosts: Option<Vec<String>>,
+}
+
+
+#[derive(Debug, Clone)]
+/// What the code in a sealed part may reach, while it runs (and everything it calls while it runs).
+///
+/// With `reads`, the code finds only the sealed part and the listed objects (and everything under them): a path to
+/// anything else finds nothing, calling a function elsewhere fails, and so does handing an object elsewhere to a
+/// library function (Ex. `stringify`), or a library function handing one back (Ex. `Obj.parent`). It changes only
+/// the sealed part (the listed objects are read-only to it) and makes no new roots. With `hosts`, `Http.fetch`
+/// reaches only those hosts (and the document's own allowlist still applies).
+///
+/// Objects out of its reach stay opaque to it, even ones it's handed (an argument, or a field the host put in it):
+/// it can hold one and hand it back, but not look inside, change it, or export it. Give it values (strings, numbers,
+/// lists, maps), or list the objects in `reads`. Confined code calling code that's confined too runs under both.
+pub struct Confine {
+    /// The object `seal` was called on.
+    pub root: NodeRef,
+    /// Paths (or `<Type>`s) of what the code may read besides its own part (None: reads and changes aren't limited).
+    pub reads: Option<Vec<String>>,
+    /// Hosts `Http.fetch` may reach (None: not limited beyond the document's allowlist).
+    pub hosts: Option<Arc<FxHashSet<String>>>,
+}
+impl Confine {
+    /// What it reaches now: its `reads` paths looked up (a path with nothing there reaches nothing).
+    pub fn resolve(&self, graph: &Graph) -> Reach {
+        Reach {
+            root: self.root.clone(),
+            reads: self.reads.as_ref().map(|paths| paths.iter().filter_map(|path| graph.seal_target(path).ok()).collect()),
+            hosts: self.hosts.clone(),
+        }
+    }
+}
+
+
+#[derive(Debug, Clone)]
+/// A `Confine` while its code runs: the objects its `reads` paths point to now.
+pub struct Reach {
+    /// The object `seal` was called on.
+    pub root: NodeRef,
+    /// What the code may read besides its own part (None: reads and changes aren't limited).
+    pub reads: Option<Vec<NodeRef>>,
+    /// Hosts `Http.fetch` may reach.
+    pub hosts: Option<Arc<FxHashSet<String>>>,
+}
+impl Reach {
+    /// May the code read this object?
+    pub fn reaches(&self, graph: &Graph, node: &NodeRef) -> bool {
+        let Some(reads) = &self.reads else { return true };
+        self.changes(graph, node) || reads.iter().any(|read| node == read || node.child_of(graph, read))
+    }
+
+    /// May the code change this object (its own part)?
+    pub fn changes(&self, graph: &Graph, node: &NodeRef) -> bool {
+        self.reads.is_none() || node == &self.root || node.child_of(graph, &self.root)
+    }
+
+    /// May the code send a request to this URL's host?
+    pub fn host_allowed(&self, url: &str) -> bool {
+        let Some(hosts) = &self.hosts else { return true };
+        host_listed(url, hosts)
+    }
+}
+
+/// The objects a value holds (in lists, maps, ... too).
+fn held_objects(val: &Val, out: &mut Vec<NodeRef>, depth: usize) {
+    if depth > 64 { return; }
+    match val {
+        Val::Obj(nref) => out.push(nref.clone()),
+        Val::List(items) | Val::Tup(items) => for item in items { held_objects(&item.read(), out, depth + 1); },
+        Val::Set(items) => for item in items { held_objects(&item.read(), out, depth + 1); },
+        Val::Map(map) => for (k, v) in map { held_objects(&k.read(), out, depth + 1); held_objects(&v.read(), out, depth + 1); },
+        _ => {},
+    }
+}
+
+/// Is this URL's host (or host and port) in this list?
+pub fn host_listed(url: &str, hosts: &FxHashSet<String>) -> bool {
+    let Some((host, port)) = url_host(url) else { return false };
+    if hosts.contains(&host) { return true; }
+    match port {
+        Some(port) => hosts.contains(&format!("{host}:{port}")),
+        None => false,
+    }
+}
+
+/// A URL's host (lowercase) and port (or the scheme's default), without a URL parser (every build has this).
+fn url_host(url: &str) -> Option<(String, Option<u16>)> {
+    let (scheme, rest) = url.trim().split_once("://")?;
+    let authority = rest.split(|c| c == '/' || c == '?' || c == '#').next()?;
+    let authority = authority.rsplit_once('@').map(|(_, host)| host).unwrap_or(authority);
+    let (host, port) = if let Some(rest) = authority.strip_prefix('[') {
+        let (host, after) = rest.split_once(']')?;
+        (format!("[{host}]"), after.strip_prefix(':'))
+    } else {
+        match authority.rsplit_once(':') {
+            Some((host, port)) => (host.to_string(), Some(port)),
+            None => (authority.to_string(), None),
+        }
+    };
+    if host.is_empty() { return None; }
+    let port = match port {
+        Some(port) => Some(port.parse::<u16>().ok()?),
+        None => match scheme.to_ascii_lowercase().as_str() { "http" | "ws" => Some(80), "https" | "wss" => Some(443), _ => None },
+    };
+    Some((host.to_lowercase(), port))
+}
+
+
 impl Graph {
     /// Seal an object and everything under it (see the module docs), with its fields frozen too when `fields`.
     /// Objects added under it later are not sealed. Returns the part's digest.
     pub fn seal(&mut self, node: &NodeRef, fields: bool) -> Result<String, Error> {
+        self.seal_with(node, &SealOptions { fields, ..Default::default() })
+    }
+
+    /// Seal an object and everything under it with these options (see `SealOptions`). Sealing again only adds to a
+    /// seal: frozen fields stay frozen, an object sealed without `removable` stays that way, and confinements add up.
+    /// Returns the part's digest.
+    pub fn seal_with(&mut self, node: &NodeRef, options: &SealOptions) -> Result<String, Error> {
         if !node.node_exists(self) { return Err(Error::Sealed("there's no object to seal".into())); }
-        let digest = self.digest(node, fields)?;
+        let digest = self.digest(node, options.fields)?;
         let nodes = self.all_child_nodes(node, true);
         let mut types = FxHashSet::default();
         for (name, typed) in &self.typemap {
             if typed.iter().any(|ty| nodes.contains(ty)) { types.insert(name.clone()); }
         }
+        let confine = if options.reads.is_some() || options.hosts.is_some() {
+            Some(Arc::new(Confine {
+                root: node.clone(),
+                reads: options.reads.clone(),
+                hosts: options.hosts.as_ref().map(|hosts| Arc::new(hosts.iter().map(|host| host.trim().to_lowercase()).collect())),
+            }))
+        } else {
+            None
+        };
         let seals = Arc::make_mut(&mut self.seals);
         for nref in nodes {
-            let frozen = seals.nodes.get(&nref).copied().unwrap_or(false) || fields;
+            let frozen = seals.nodes.get(&nref).copied().unwrap_or(false) || options.fields;
             seals.nodes.insert(nref, frozen);
         }
-        seals.roots.insert(node.clone());
+        let sealed_before = !seals.roots.insert(node.clone());
+        if options.removable {
+            if !sealed_before { seals.removable.insert(node.clone()); }
+        } else {
+            seals.removable.remove(node);
+        }
+        if let Some(confine) = confine {
+            seals.confines.entry(node.clone()).or_default().push(confine);
+        }
         seals.types.extend(types);
         Ok(digest)
     }
 
     /// Seal an object (by path, or a type as `<Name>`), checking first that its digest is `expected` when given.
     pub fn seal_path(&mut self, path: &str, fields: bool, expected: Option<&str>) -> Result<String, Error> {
+        self.seal_path_with(path, &SealOptions { fields, ..Default::default() }, expected)
+    }
+
+    /// Seal an object (by path, or a type as `<Name>`) with these options, checking first that its digest is
+    /// `expected` when given.
+    pub fn seal_path_with(&mut self, path: &str, options: &SealOptions, expected: Option<&str>) -> Result<String, Error> {
         let node = self.seal_target(path)?;
         if let Some(expected) = expected {
-            let digest = self.digest(&node, fields)?;
+            let digest = self.digest(&node, options.fields)?;
             if !digest.eq_ignore_ascii_case(expected.trim()) {
                 return Err(Error::Sealed(format!("{path} isn't what was expected: its digest is {digest}, not {expected}")));
             }
         }
-        self.seal(&node, fields)
+        self.seal_with(&node, options)
+    }
+
+    /// The objects for host paths: a path, or a type as `<Name>`.
+    pub fn seal_targets(&self, paths: &[String]) -> Result<Vec<NodeRef>, Error> {
+        paths.iter().map(|path| self.seal_target(path)).collect()
+    }
+
+    /// How an object is sealed (None when it isn't): see `SealInfo`.
+    pub fn seal_info(&self, node: &NodeRef) -> Option<SealInfo> {
+        let fields = *self.seals.nodes.get(node)?;
+        let mut part = None;
+        let mut confines: Vec<Arc<Confine>> = Vec::new();
+        let mut current = Some(node.clone());
+        while let Some(nref) = current {
+            if part.is_none() && self.seals.roots.contains(&nref) { part = Some(nref.clone()); }
+            if let Some(found) = self.seals.confines.get(&nref) { confines.extend(found.iter().cloned()); }
+            current = nref.node_parent(self);
+        }
+        let part = part?;
+        let removable = &part == node && self.removable_whole(node);
+        Some(SealInfo { part, fields, removable, confines })
+    }
+
+    /// How an object is sealed, by path (or a type as `<Name>`): None when it isn't.
+    pub fn seal_info_path(&self, path: &str) -> Result<Option<SealInfo>, Error> {
+        let node = self.seal_target(path)?;
+        Ok(self.seal_info(&node))
     }
 
     /// The digest of an object by path (or a type as `<Name>`), with its fields' values when `fields`.
@@ -153,6 +407,8 @@ impl Graph {
             .collect();
         let seals = Arc::make_mut(&mut self.seals);
         seals.roots = roots;
+        seals.removable.remove(node);
+        seals.confines.remove(node);
         for nref in &release { seals.nodes.remove(nref); }
         let types = self.typemap.iter()
             .filter(|(_, typed)| typed.iter().any(|ty| self.seals.nodes.contains_key(ty)))
@@ -181,11 +437,30 @@ impl Graph {
     pub(crate) fn without_seals<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
         if self.seals.nodes.is_empty() { return f(self); }
         let seals = std::mem::take(&mut self.seals);
+        let confined = std::mem::take(&mut self.confined);
         let res = f(self);
         let violation = self.take_seal_violation();
         self.seals = seals;
+        self.confined = confined;
         if violation.is_some() { Arc::make_mut(&mut self.seals).violation = violation; }
         res
+    }
+
+    /// Forget the seals on objects that were removed from the graph (after `remove_node`).
+    pub(crate) fn forget_seals(&mut self, removed: &[NodeRef]) {
+        if self.seals.nodes.is_empty() || !removed.iter().any(|nref| self.seals.nodes.contains_key(nref)) { return; }
+        let seals = Arc::make_mut(&mut self.seals);
+        for nref in removed {
+            seals.nodes.remove(nref);
+            seals.roots.remove(nref);
+            seals.removable.remove(nref);
+            seals.confines.remove(nref);
+        }
+        let types = self.typemap.iter()
+            .filter(|(_, typed)| typed.iter().any(|ty| self.seals.nodes.contains_key(ty)))
+            .map(|(name, _)| name.clone())
+            .collect();
+        Arc::make_mut(&mut self.seals).types = types;
     }
 
     #[inline]
@@ -241,9 +516,161 @@ impl Graph {
         false
     }
 
+    /// Would a change to this field be refused: it's sealed, or outside what the running code may change?
+    /// Values read from such a field are copies (see `Graph::field_var`), so changing a list, map, set, or tuple
+    /// in place (Ex. `push_back`) can't change the field behind the seal checks. Never refuses.
+    pub(crate) fn guarded(&self, dref: &DataRef) -> bool {
+        if self.seals.nodes.is_empty() { return false; }
+        if !self.confined.is_empty() && !dref.data(self).is_some_and(|data| data.nodes.iter().all(|node| self.confined_changes(node))) {
+            return true;
+        }
+        self.sealed_anywhere(dref)
+    }
+
+    /// The variable to load for a field's value: the value itself (by reference when asked), or a copy of it when
+    /// the field is guarded (sealed, or outside what the running code may change).
+    pub fn field_var(&self, dref: &DataRef, value: &Variable, by_ref: bool) -> Variable {
+        if !self.guarded(dref) { return value.stack_var(by_ref); }
+        let mut copy = value.clone();
+        copy.val = ValRef::new(value.val.read().detached());
+        copy.shared = false;
+        copy
+    }
+
+    /// The value to load for a field (see `field_var`).
+    pub fn field_val(&self, dref: &DataRef, value: &Variable, by_ref: bool) -> ValRef<Val> {
+        if !self.guarded(dref) { return value.val.duplicate(by_ref); }
+        ValRef::new(value.val.read().detached())
+    }
+
+    /*****************************************************************************
+     * Confinement: what the running code may reach (see `Confine`).
+     *****************************************************************************/
+
+    #[inline]
+    /// May the running code read this object (always, unless confined)?
+    pub fn confined_reaches(&self, node: &NodeRef) -> bool {
+        self.confined.is_empty() || self.confined.iter().all(|confine| confine.reaches(self, node))
+    }
+
+    /// May the running code read this data (a field or function: on an object it may read)?
+    pub fn confined_reaches_data(&self, dref: &DataRef) -> bool {
+        if self.confined.is_empty() { return true; }
+        dref.data(self).is_some_and(|data| data.nodes.iter().any(|node| self.confined_reaches(node)))
+    }
+
+    #[inline]
+    /// May the running code change this object (always, unless confined)?
+    pub fn confined_changes(&self, node: &NodeRef) -> bool {
+        self.confined.is_empty() || self.confined.iter().all(|confine| confine.changes(self, node))
+    }
+
+    /// May the running code read this value: every object and function in it (lists, maps, ... too)?
+    pub fn confined_reaches_val(&self, val: &Val) -> bool {
+        if self.confined.is_empty() { return true; }
+        self.reaches_val(val, 0)
+    }
+
+    fn reaches_val(&self, val: &Val, depth: usize) -> bool {
+        if depth > 64 { return true; } // values nested that deep hold no new references worth the walk
+        match val {
+            Val::Obj(nref) => self.confined_reaches(nref),
+            Val::Fn(dref) | Val::Data(dref) => self.confined_reaches_data(dref),
+            Val::List(items) | Val::Tup(items) => items.iter().all(|item| self.reaches_val(&item.read(), depth + 1)),
+            Val::Set(items) => items.iter().all(|item| self.reaches_val(&item.read(), depth + 1)),
+            Val::Map(map) => map.iter().all(|(k, v)| self.reaches_val(&k.read(), depth + 1) && self.reaches_val(&v.read(), depth + 1)),
+            _ => true,
+        }
+    }
+
+    /// May the running code send a request to this URL (the confined parts' hosts)?
+    pub fn confined_host(&self, url: &str) -> bool {
+        self.confined.iter().all(|confine| confine.host_allowed(url))
+    }
+
+    /// The host lists of the confined parts running now (each must allow a request).
+    pub fn confined_hosts(&self) -> Vec<Arc<FxHashSet<String>>> {
+        self.confined.iter().filter_map(|confine| confine.hosts.clone()).collect()
+    }
+
+    /// The confinements of the sealed parts a function belongs to (it's on an object in or under them).
+    pub fn func_confines(&self, func: &DataRef) -> Vec<Arc<Confine>> {
+        let mut found: Vec<Arc<Confine>> = Vec::new();
+        if self.seals.confines.is_empty() { return found; }
+        let Some(data) = func.data(self) else { return found };
+        for node in &data.nodes {
+            let mut current = Some(node.clone());
+            while let Some(nref) = current {
+                if let Some(confines) = self.seals.confines.get(&nref) {
+                    for confine in confines {
+                        if !found.iter().any(|existing| Arc::ptr_eq(existing, confine)) { found.push(confine.clone()); }
+                    }
+                }
+                current = nref.node_parent(self);
+            }
+        }
+        found
+    }
+
+    /// May the running code export this object: it, and every object it holds (as children or in fields), within
+    /// reach? Exporting everything (no object) isn't, when confined to what it reads.
+    pub fn confined_export(&self, node: &Option<NodeRef>) -> Result<(), Error> {
+        if self.confined.is_empty() || self.confined.iter().all(|confine| confine.reads.is_none()) { return Ok(()); }
+        let Some(node) = node else {
+            return Err(Error::Sealed("this sealed part can only export what it may read: give it an object".into()));
+        };
+        let mut seen = FxHashSet::default();
+        let mut pending = vec![node.clone()];
+        while let Some(nref) = pending.pop() {
+            if !seen.insert(nref.clone()) { continue; }
+            if !self.confined_reaches(&nref) {
+                return Err(Error::Sealed("this sealed part can't export an object outside what it may read (or one holding it)".into()));
+            }
+            let Some(current) = nref.node(self) else { continue };
+            pending.extend(current.children.iter().cloned());
+            for dref in current.data.values() {
+                if let Some(field) = self.get_stof_data::<Field>(dref) {
+                    let value = field.value.val.read();
+                    // functions and data held as values (not the object's own) must be within reach too
+                    if !self.confined_reaches_val(&value) {
+                        return Err(Error::Sealed("this sealed part can't export an object holding something outside what it may read".into()));
+                    }
+                    held_objects(&value, &mut pending, 0);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Refuse a change outside the confined part (true when it's allowed).
+    fn confined_change(&mut self, node: &NodeRef) -> bool {
+        if self.confined_changes(node) { return true; }
+        let name = node.node(self).map(|n| n.name.to_string()).unwrap_or_default();
+        self.refuse(format!("'{name}' is outside what this sealed part may change"))
+    }
+
+    /// Refuse a change to data outside the confined part (true when it's allowed).
+    fn confined_change_data(&mut self, dref: &DataRef, node: Option<&NodeRef>) -> bool {
+        if self.confined.is_empty() { return true; }
+        let allowed = match node {
+            Some(node) => self.confined_changes(node),
+            None => dref.data(self).is_some_and(|data| data.nodes.iter().all(|node| self.confined_changes(node))),
+        };
+        if allowed { return true; }
+        let name = dref.data_name(self).map(|name| name.to_string()).unwrap_or_default();
+        self.refuse(format!("'{name}' is outside what this sealed part may change"))
+    }
+
+    /// May a new root be made (not by confined code)? Refuses when not.
+    pub(crate) fn may_add_root(&mut self) -> bool {
+        if self.confined.iter().all(|confine| confine.reads.is_none()) { return true; }
+        self.refuse("this sealed part can't make new roots".into())
+    }
+
     /// May this data be put on this node (as `name`)? Refuses (see `refuse`) when not.
     pub(crate) fn may_insert(&mut self, node: &NodeRef, name: &str, data: &crate::model::Data) -> bool {
         if self.seals.nodes.is_empty() { return true; }
+        if !self.confined.is_empty() && !self.confined_change(node) { return false; }
         // the same ID replaces data that's already in the graph, wherever it is
         if self.data.contains_key(&data.id) && self.sealed_anywhere(&data.id) {
             return self.refuse(format!("'{name}' is sealed and can't be replaced"));
@@ -266,6 +693,7 @@ impl Graph {
     /// May this data be removed (from this node, or from every node)? Refuses when not.
     pub(crate) fn may_remove(&mut self, dref: &DataRef, node: Option<&NodeRef>) -> bool {
         if self.seals.nodes.is_empty() { return true; }
+        if !self.confined_change_data(dref, node) { return false; }
         let sealed = match node {
             Some(node) => self.sealed_data(node, dref),
             None => self.sealed_anywhere(dref),
@@ -279,14 +707,34 @@ impl Graph {
 
     /// May this data change (renamed, set, or written to)? Refuses when not.
     pub(crate) fn may_change(&mut self, dref: &DataRef) -> bool {
-        if self.seals.nodes.is_empty() || !self.sealed_anywhere(dref) { return true; }
+        if self.seals.nodes.is_empty() { return true; }
+        if !self.confined_change_data(dref, None) { return false; }
+        if !self.sealed_anywhere(dref) { return true; }
         let name = dref.data_name(self).map(|name| name.to_string()).unwrap_or_default();
         self.refuse(format!("'{name}' is sealed and can't be changed"))
+    }
+
+    /// May this object be removed? Not when it's sealed or holds something sealed, unless it was sealed
+    /// `removable` (and nothing else seals it or anything under it). Refuses when not.
+    pub(crate) fn may_remove_node(&mut self, node: &NodeRef) -> bool {
+        if self.seals.nodes.is_empty() { return true; }
+        if !self.confined.is_empty() && !self.confined_change(node) { return false; }
+        if self.removable_whole(node) { return true; }
+        self.may_move_node(node)
+    }
+
+    /// Was this object sealed `removable`, with no other seal covering it (one around it, or one inside it that
+    /// isn't removable)?
+    fn removable_whole(&self, node: &NodeRef) -> bool {
+        self.seals.removable.contains(node)
+            && !self.seals.roots.iter().any(|root| root != node && node.child_of(self, root))
+            && !self.seals.roots.iter().any(|root| root != node && root.child_of(self, node) && !self.seals.removable.contains(root))
     }
 
     /// May this object be removed, moved, or renamed (it isn't sealed and holds nothing sealed)? Refuses when not.
     pub(crate) fn may_move_node(&mut self, node: &NodeRef) -> bool {
         if self.seals.nodes.is_empty() { return true; }
+        if !self.confined.is_empty() && !self.confined_change(node) { return false; }
         let sealed = self.seals.nodes.contains_key(node)
             || self.seals.roots.iter().any(|root| root.child_of(self, node));
         if sealed {
@@ -298,6 +746,7 @@ impl Graph {
 
     /// May this object's attributes change? Refuses when it's sealed.
     pub(crate) fn may_change_node(&mut self, node: &NodeRef) -> bool {
+        if !self.confined.is_empty() && !self.confined_change(node) { return false; }
         if !self.is_sealed(node) { return true; }
         let name = node.node(self).map(|n| n.name.to_string()).unwrap_or_default();
         self.refuse(format!("'{name}' is sealed and its attributes can't change"))
@@ -305,6 +754,7 @@ impl Graph {
 
     /// May a child object be added to this one (not when its fields are frozen)? Refuses when not.
     pub(crate) fn may_add_child(&mut self, parent: &NodeRef) -> bool {
+        if !self.confined.is_empty() && !self.confined_change(parent) { return false; }
         if self.seals.nodes.get(parent).copied() != Some(true) { return true; }
         let name = parent.node(self).map(|n| n.name.to_string()).unwrap_or_default();
         self.refuse(format!("'{name}' is sealed with its fields and can't have objects added"))
@@ -327,19 +777,31 @@ impl Graph {
         if !node.node_exists(self) { return Err(Error::Sealed("there's no object to digest".into())); }
         let previous = DIGESTING.with(|digesting| digesting.replace(true));
         let mut hasher = Sha256::new();
-        hasher.update(b"stof-seal-v1");
-        let res = self.digest_node(node, node, fields, &mut hasher, &mut FxHashSet::default());
+        hasher.update(b"stof-seal-v2");
+        let res = self.digest_node(node, node, "~", fields, &mut hasher, &mut FxHashSet::default());
         DIGESTING.with(|digesting| digesting.set(previous));
         res?;
         Ok(hex(&hasher.finalize()))
     }
 
-    fn digest_node(&self, root: &NodeRef, nref: &NodeRef, fields: bool, hasher: &mut Sha256, seen: &mut FxHashSet<NodeRef>) -> Result<(), Error> {
+    /// An object for the digest, by `name`: the field that holds it (objects made with `new` have random names),
+    /// and "~" for the part itself (its own name isn't part of it: where it's put decides that).
+    fn digest_node(&self, root: &NodeRef, nref: &NodeRef, name: &str, fields: bool, hasher: &mut Sha256, seen: &mut FxHashSet<NodeRef>) -> Result<(), Error> {
         if !seen.insert(nref.clone()) { return Ok(()); }
         let Some(node) = nref.node(self) else { return Ok(()) };
-        put(hasher, b"node", node.name.as_ref().as_bytes());
-        put(hasher, b"attrs", &self.attrs_bytes(root, &node.attributes)?);
+        put(hasher, b"node", name.as_bytes());
+        put(hasher, b"attrs", &self.attrs_bytes(root, &without_internal(&node.attributes))?);
 
+        // Objects this one holds as fields: the same whether a field was written for it (Ex. parsed from Stof) or
+        // it's a field object without one yet (Ex. from JSON, given a field when first looked up)
+        let mut objects: BTreeMap<String, FxHashMap<String, Val>> = BTreeMap::new();
+        for child in &node.children {
+            if let Some(child_node) = child.node(self) {
+                if child_node.is_field() { objects.insert(child_node.name.to_string(), without_internal(&child_node.attributes)); }
+            }
+        }
+
+        let mut held: FxHashMap<NodeRef, String> = FxHashMap::default(); // a child object's name: its field's
         let mut data: Vec<(&String, &DataRef)> = node.data.iter().collect();
         data.sort_by(|a, b| a.0.cmp(b.0));
         for (name, dref) in data {
@@ -365,10 +827,15 @@ impl Graph {
                         put(hasher, b"field-fn", name.as_bytes());
                         let at = func.data(self).and_then(|f| f.nodes.iter().next().cloned());
                         let target = match (at, func.data_name(self)) {
-                            (Some(at), Some(fname)) => format!("{}.{}", self.path_from(root, &at), fname),
+                            (Some(at), Some(fname)) => format!("{}fn{}:{fname}", self.path_from(root, &at), fname.len()),
                             _ => String::new(),
                         };
                         put(hasher, b"target", target.as_bytes());
+                    },
+                    Val::Obj(obj) if obj.node_parent(self).as_ref() == Some(nref) => {
+                        objects.insert(name.clone(), without_internal(&field.attributes));
+                        held.entry(obj.clone()).or_insert_with(|| name.clone());
+                        continue;
                     },
                     Val::Obj(obj) => {
                         put(hasher, b"field-obj", name.as_bytes());
@@ -383,13 +850,17 @@ impl Graph {
                 if fields { put(hasher, b"field-attrs", &self.attrs_bytes(root, &field.attributes)?); }
             }
         }
+        for (name, attributes) in objects {
+            put(hasher, b"field-child", name.as_bytes());
+            if fields { put(hasher, b"field-attrs", &self.attrs_bytes(root, &attributes)?); }
+        }
 
         let mut children: Vec<(String, NodeRef)> = node.children.iter()
-            .map(|child| (child.node(self).map(|c| c.name.to_string()).unwrap_or_default(), child.clone()))
+            .map(|child| (held.get(child).cloned().unwrap_or_else(|| child.node(self).map(|c| c.name.to_string()).unwrap_or_default()), child.clone()))
             .collect();
         children.sort_by(|a, b| a.0.cmp(&b.0));
-        for (_, child) in children {
-            self.digest_node(root, &child, fields, hasher, seen)?;
+        for (name, child) in children {
+            self.digest_node(root, &child, &name, fields, hasher, seen)?;
         }
         put(hasher, b"end", b"");
         Ok(())
@@ -419,7 +890,7 @@ impl Graph {
                     let at = func.data(self).and_then(|d| d.nodes.iter().next().cloned());
                     let name = func.data_name(self).map(|n| n.to_string()).unwrap_or_default();
                     let path = at.map(|at| self.path_from(root, &at)).unwrap_or_default();
-                    tagged(if matches!(value, Val::Fn(_)) { "fn" } else { "data" }, format!("{path}.{name}").into_bytes())
+                    tagged(if matches!(value, Val::Fn(_)) { "fn" } else { "data" }, format!("{path}fn{}:{name}", name.len()).into_bytes())
                 },
             },
             Val::List(items) | Val::Tup(items) => {
@@ -449,16 +920,29 @@ impl Graph {
 
     /// A path for the digest: relative to the sealed root when inside it (so where the root sits doesn't matter),
     /// else from the graph root.
+    /// A node's path for the digest, unambiguous: "in" and the names under the part for nodes inside it, "out" and
+    /// the full path otherwise, each name length-prefixed (names can hold any character, dots included).
     fn path_from(&self, root: &NodeRef, node: &NodeRef) -> String {
         let Some(path) = node.node_path(self, true) else { return String::new() };
         let names: Vec<String> = path.path.iter().map(|name| name.to_string()).collect();
+        let encode = |names: &[String]| names.iter().map(|name| format!("{}:{name}", name.len())).collect::<String>();
         if node == root || node.child_of(self, root) {
             if let Some(root_path) = root.node_path(self, true) {
-                return format!("~{}", names[root_path.path.len().min(names.len())..].join("."));
+                return format!("in{}", encode(&names[root_path.path.len().min(names.len())..]));
             }
         }
-        names.join(".")
+        format!("out{}", encode(&names))
     }
+}
+
+/// Attributes without the ones Stof keeps for itself (a field object's marker, and the no-export mark on the field
+/// made for one when it's first looked up), which say how an object was made, not what it is.
+fn without_internal(attributes: &FxHashMap<String, Val>) -> FxHashMap<String, Val> {
+    if !attributes.contains_key("field") && !attributes.contains_key("no-export") { return attributes.clone(); }
+    attributes.iter()
+        .filter(|(name, _)| name.as_str() != "field" && name.as_str() != "no-export")
+        .map(|(name, value)| (name.clone(), value.clone()))
+        .collect()
 }
 
 /// Add a labeled, length-prefixed piece to the digest (so pieces can't run together).
@@ -485,12 +969,25 @@ fn unhex(text: &str) -> Option<Vec<u8>> {
 
 
 /*****************************************************************************
- * Signatures (Ed25519 over a digest).
+ * Keys and signatures (Ed25519).
+ *
+ * One scheme for everything: a signature is over a message's exact bytes, under a context that names what it's
+ * for (Ex. "orders/v1"), so it's only valid for that purpose. A seal signature is a signature over the part's
+ * digest under the context "stof/seal" (`SEAL_CONTEXT`). Keys and signatures are base64 strings (hex is read too).
+ * The same functions are the `Key` library in Stof and `StofDoc` / `Doc` functions on hosts.
  *****************************************************************************/
 
-/// What's signed: the digest, labeled, so a signature over a digest can't be used for anything else.
-fn signed_message(digest: &str) -> Vec<u8> {
-    format!("stof-seal-v1:{}", digest.trim().to_ascii_lowercase()).into_bytes()
+/// The context seal signatures are made under: `sign(secret, SEAL_CONTEXT, digest)`.
+pub const SEAL_CONTEXT: &str = "stof/seal";
+
+/// What's signed: labeled, then the context (length-prefixed), then the exact message bytes.
+fn signed_bytes(context: &str, message: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(32 + context.len() + message.len());
+    out.extend_from_slice(b"stof-signature-v1");
+    out.extend_from_slice(&(context.len() as u64).to_le_bytes());
+    out.extend_from_slice(context.as_bytes());
+    out.extend_from_slice(message);
+    out
 }
 
 /// Key and signature bytes from base64 (standard or URL-safe) or hex.
@@ -507,30 +1004,36 @@ fn base64(bytes: &[u8]) -> String {
     base64::engine::general_purpose::STANDARD.encode(bytes)
 }
 
-/// The public key (base64) for a secret key (base64 or hex, 32 bytes).
+/// A new secret key (base64, 32 bytes from the system's secure random source). Share only its `public_key`.
+pub fn generate_key() -> String {
+    base64(&nanoid::rngs::default(32))
+}
+
+/// The public key (base64) for a secret key.
 pub fn public_key(secret_key: &str) -> Result<String, Error> {
     let key = signing_key(secret_key)?;
     Ok(base64(key.verifying_key().as_bytes()))
 }
 
-/// Sign a digest with a secret key (base64 or hex, 32 bytes): the signature, base64.
-pub fn sign(digest: &str, secret_key: &str) -> Result<String, Error> {
+/// Sign a message (its exact bytes) under a context with a secret key: the signature (base64).
+pub fn sign(secret_key: &str, context: &str, message: &[u8]) -> Result<String, Error> {
     use ed25519_dalek::Signer;
     let key = signing_key(secret_key)?;
-    Ok(base64(&key.sign(&signed_message(digest)).to_bytes()))
+    Ok(base64(&key.sign(&signed_bytes(context, message)).to_bytes()))
 }
 
-/// Is this a valid signature (base64 or hex) over this digest by this public key (base64 or hex)?
-pub fn verify(digest: &str, public_key: &str, signature: &str) -> bool {
+/// Is this a valid signature over this message, under this context, by this public key? False for anything that
+/// isn't (a malformed key or signature included).
+pub fn verify(public_key: &str, context: &str, message: &[u8], signature: &str) -> bool {
     let (Some(key), Some(sig)) = (key_bytes(public_key), key_bytes(signature)) else { return false };
     let (Ok(key), Ok(sig)) = (<[u8; 32]>::try_from(key.as_slice()), <[u8; 64]>::try_from(sig.as_slice())) else { return false };
     let Ok(key) = ed25519_dalek::VerifyingKey::from_bytes(&key) else { return false };
-    key.verify_strict(&signed_message(digest), &ed25519_dalek::Signature::from_bytes(&sig)).is_ok()
+    key.verify_strict(&signed_bytes(context, message), &ed25519_dalek::Signature::from_bytes(&sig)).is_ok()
 }
 
 fn signing_key(secret_key: &str) -> Result<ed25519_dalek::SigningKey, Error> {
-    let bytes = key_bytes(secret_key).ok_or_else(|| Error::Sealed("the secret key isn't base64 or hex".into()))?;
-    let seed = <[u8; 32]>::try_from(bytes.as_slice()).map_err(|_| Error::Sealed("the secret key must be 32 bytes".into()))?;
+    let bytes = key_bytes(secret_key).ok_or_else(|| Error::Key("a secret key is base64 (or hex): 32 bytes, Ex. from Key.generate()".into()))?;
+    let seed = <[u8; 32]>::try_from(bytes.as_slice()).map_err(|_| Error::Key(format!("a secret key is 32 bytes (this one is {})", bytes.len())))?;
     Ok(ed25519_dalek::SigningKey::from_bytes(&seed))
 }
 
@@ -538,11 +1041,103 @@ impl Graph {
     /// Seal an object (path or `<Type>`) only if its digest is signed by this public key: checks the signature
     /// over its current digest, then seals it. Returns the digest.
     pub fn seal_signed(&mut self, path: &str, fields: bool, public_key: &str, signature: &str) -> Result<String, Error> {
+        self.seal_signed_with(path, &SealOptions { fields, ..Default::default() }, public_key, signature)
+    }
+
+    /// Seal an object (path or `<Type>`) with these options, only if its digest is signed by this public key.
+    pub fn seal_signed_with(&mut self, path: &str, options: &SealOptions, public_key: &str, signature: &str) -> Result<String, Error> {
         let node = self.seal_target(path)?;
-        let digest = self.digest(&node, fields)?;
-        if !verify(&digest, public_key, signature) {
-            return Err(Error::Sealed(format!("{path} isn't signed by this key: its digest {digest} doesn't match the signature")));
+        let digest = self.digest(&node, options.fields)?;
+        if !verify(public_key, SEAL_CONTEXT, digest.as_bytes(), signature) {
+            return Err(Error::Sealed(format!("{path} isn't signed by this key: no signature over its digest {digest} under '{SEAL_CONTEXT}'")));
         }
-        self.seal(&node, fields)
+        self.seal_with(&node, options)
+    }
+}
+
+
+/*****************************************************************************
+ * Confinement in the runtime.
+ *****************************************************************************/
+
+impl ProcEnv {
+    /// Entering a function: it must be within reach of the code that's confined now, and code in a confined part
+    /// runs confined from here (until the call returns). Called right after the function is on the call stack.
+    pub(crate) fn enter_confined(&mut self, func: &DataRef, graph: &mut Graph) -> Result<(), Error> {
+        if !self.confines.is_empty() && !graph.confined_reaches_data(func) {
+            let name = func.data_name(graph).map(|name| name.to_string()).unwrap_or_default();
+            return Err(Error::Sealed(format!("this sealed part can't call '{name}': it's outside what the part may reach")));
+        }
+        let depth = self.call_stack.len();
+        let mut added = false;
+        for confine in graph.func_confines(func) {
+            // entering the part (not already running in it): its reads are looked up now
+            if !self.confines.iter().any(|(_, existing, _)| Arc::ptr_eq(existing, &confine)) {
+                let reach = Arc::new(confine.resolve(graph));
+                self.confines.push((depth, confine, reach));
+                added = true;
+            }
+        }
+        if added { graph.confined = self.confined(); }
+        Ok(())
+    }
+
+    /// Leaving functions: confinements entered deeper than the call stack is now are done.
+    pub(crate) fn leave_confined(&mut self, graph: &mut Graph) {
+        let before = self.confines.len();
+        while self.confines.last().is_some_and(|(depth, _, _)| *depth > self.call_stack.len()) {
+            self.confines.pop();
+        }
+        if self.confines.len() != before { graph.confined = self.confined(); }
+    }
+
+    /// The confinements this process runs under now.
+    pub(crate) fn confined(&self) -> Vec<Arc<Reach>> {
+        self.confines.iter().map(|(_, _, reach)| reach.clone()).collect()
+    }
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Checks for a library call made by confined code (added to the call only while confined; never stored).
+pub enum ConfineIns {
+    /// The call's arguments (the top `count` values) must be within reach, and `Http.fetch` must go to a host the
+    /// confined parts allow.
+    Args { count: usize, lib: ArcStr, func: ArcStr },
+    /// What the call returned (above `base` on the stack) must be within reach.
+    Result { base: usize, lib: ArcStr, func: ArcStr },
+}
+#[typetag::serde(name = "ConfineIns")]
+impl Instruction for ConfineIns {
+    fn exec(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions>, Error> {
+        if graph.confined.is_empty() { return Ok(None); }
+        match self {
+            Self::Args { count, lib, func } => {
+                let start = env.stack.len().saturating_sub(*count);
+                for var in &env.stack[start..] {
+                    if !graph.confined_reaches_val(&var.val.read()) {
+                        return Err(Error::Sealed(format!("this sealed part can't give {lib}.{func} an object outside what it may reach")));
+                    }
+                }
+                if lib.as_str() == "Http" && func.as_str() == "fetch" {
+                    if let Some(var) = env.stack.get(start) {
+                        let url = var.val.read().to_string();
+                        if !graph.confined_host(&url) {
+                            return Err(Error::HttpSendError(format!("{url} is not a host this sealed part may reach")));
+                        }
+                    }
+                }
+            },
+            Self::Result { base, lib, func } => {
+                if env.stack.len() > *base {
+                    if let Some(var) = env.stack.last() {
+                        if !graph.confined_reaches_val(&var.val.read()) {
+                            return Err(Error::Sealed(format!("{lib}.{func} gave this sealed part an object outside what it may reach")));
+                        }
+                    }
+                }
+            },
+        }
+        Ok(None)
     }
 }

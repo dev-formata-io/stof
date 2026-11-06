@@ -409,17 +409,30 @@ impl Instruction for Base {
             Self::PushCall => {
                 if let Some(var) = env.stack.pop() {
                     if let Some(func) = var.try_func() {
-                        env.call_stack.push(func);
+                        if env.confines.is_empty() && graph.seals.confines.is_empty() {
+                            env.call_stack.push(func);
+                        } else {
+                            // calls in and out of confined sealed parts (see model::seal::Confine)
+                            env.call_stack.push(func.clone());
+                            if let Err(error) = env.enter_confined(&func, graph) {
+                                env.call_stack.pop();
+                                return Err(error);
+                            }
+                        }
                         return Ok(None);
                     }
                 }
                 return Err(Error::CallStackError);
             },
-            Self::PopCall => { env.call_stack.pop(); },
+            Self::PopCall => {
+                env.call_stack.pop();
+                if !env.confines.is_empty() { env.leave_confined(graph); }
+            },
             Self::PopCallUntilDepth(depth) => {
                 while env.call_stack.len() > *depth {
                     env.call_stack.pop();
                 }
+                if !env.confines.is_empty() { env.leave_confined(graph); }
             },
             
             Self::PushNew => {
@@ -585,7 +598,8 @@ impl Instruction for Base {
                         if let Some(val) = to_remove {
                             val.read().drop_data(graph);
                         }
-                        graph.remove_data(&field, None);
+                        // a seal refused dropping the value: keep the field too (nothing changes)
+                        if graph.seals.violation.is_none() { graph.remove_data(&field, None); }
                     } else if let Some(node) = SPath::node(&graph, &name, Some(self_ptr.clone())) {
                         graph.remove_node(&node, false);
                     } else if let Some(func) = Func::func_from_path(graph, &name, Some(self_ptr.clone())) {
@@ -600,7 +614,8 @@ impl Instruction for Base {
                     if let Some(val) = to_remove {
                         val.read().drop_data(graph);
                     }
-                    graph.remove_data(&field, None);
+                    // a seal refused dropping the value: keep the field too (nothing changes)
+                    if graph.seals.violation.is_none() { graph.remove_data(&field, None); }
                 } else if let Some(node) = SPath::node(&graph, &name, None) {
                         graph.remove_node(&node, false);
                 } else if let Some(func) = Func::func_from_path(graph, &name, None) {
@@ -621,7 +636,7 @@ impl Instruction for Base {
                                             return Ok(None);
                                         }
                                     }
-                                    env.stack.push(field.value.stack_var(*by_ref));
+                                    env.stack.push(graph.field_var(&field_ref, &field.value, *by_ref));
                                     return Ok(None);
                                 }
                             } else if let Some(node) = SPath::node(&graph, &name, Some(obj.clone())) {
@@ -663,7 +678,7 @@ impl Instruction for Base {
                     obj_type.obj_to_proto(graph, Some(env.self_ptr()));
                     match obj_type {
                         Type::Obj(proto_id) => {
-                            if proto_id.node_exists(&graph) {
+                            if proto_id.node_exists(&graph) && graph.confined_reaches(&proto_id) {
                                 context = Variable::val(Val::Obj(proto_id));
                             } else {
                                 env.stack.push(Variable::val(Val::Null));
@@ -695,7 +710,7 @@ impl Instruction for Base {
                                     return Ok(None);
                                 }
                             }
-                            env.stack.push(field.value.stack_var(*by_ref));
+                            env.stack.push(graph.field_var(&field_ref, &field.value, *by_ref));
                             return Ok(None);
                         }
                     } else if let Some(node) = SPath::node(&graph, &name, None) {
@@ -728,7 +743,7 @@ impl Instruction for Base {
                                     return Ok(None);
                                 }
                             }
-                            env.stack.push(field.value.stack_var(*by_ref));
+                            env.stack.push(graph.field_var(&field_ref, &field.value, *by_ref));
                             return Ok(None);
                         }
                     } else if let Some(node) = SPath::node(&graph, &name, Some(obj.clone())) {
@@ -821,6 +836,8 @@ impl Instruction for Base {
                                 fvar = Some(field.value.clone());
                             }
                             if let Some(mut fvar) = fvar {
+                                // a seal may refuse this change: check first (a list or map value is set in place)
+                                if !graph.seals.nodes.is_empty() && !graph.may_change(&field_ref) { return Ok(None); }
                                 fvar.set(&var, graph, Some(env.self_ptr()))?;
 
                                 if let Some(field) = graph.get_mut_stof_data::<Field>(&field_ref) {
@@ -895,6 +912,7 @@ impl Instruction for Base {
                             }
 
                             if !graph.seals.nodes.is_empty() && !graph.may_move_node(&nref) { return Ok(None); }
+                            if !graph.confined.is_empty() && !graph.may_add_root() { return Ok(None); }
                             if let Some(node) = nref.node_mut(graph) {
                                 node.name = name.into();
                             }
@@ -1286,6 +1304,8 @@ pub(crate) fn assign_path(graph: &mut Graph, mut path: SPath, context: Option<cr
             fvar = Some(field.value.clone());
         }
         if let Some(mut fvar) = fvar {
+            // a seal may refuse this change: check first (a list or map value is set in place)
+            if !graph.seals.nodes.is_empty() && !graph.may_change(&field_ref) { return Ok(()); }
             fvar.set(&var, graph, context.clone())?;
 
             if let Some(field) = graph.get_mut_stof_data::<Field>(&field_ref) {

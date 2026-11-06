@@ -41,6 +41,49 @@ fn public_key() {
     }
 }
 
+/// An identity can be its secret key as a string (Ex. passed in by the host), wherever Data<Age> is taken.
+SecretStrings: {
+    secret: 'AGE-SECRET-KEY-15ESMGSEHCU08LYXF5U5QRMHP00X5JE7JV9SJ3ESC87FQ3YJA44AQ8NGZTX'
+    public: 'age12rdu42c5usgecjjgw3rhccqec7l5v4238edj044nrqyr7s3c3v2qw8stcs'
+    message: { text: 'hello' }
+
+    #[test]
+    fn secret_key_strings() {
+        if (!lib('Age')) return;
+        assert_eq(Age.public(self.secret), self.public);
+        const bin = Age.blobify(self.public, 'json', self.message);
+        const dest = new {};
+        assert(Age.parse(self.secret, bin, dest, 'json'));
+        assert_eq(dest.text, 'hello');
+        drop(dest);
+
+        let message = '';
+        try Age.public('not a secret key');
+        catch (e, m) message = m;
+        assert(message.contains('AGE-SECRET-KEY-1'), message);
+    }
+
+    /// Encrypt to the reader (only they can open it), and sign it (they know who sent it).
+    #[test]
+    fn sign_and_encrypt() {
+        if (!lib('Age')) return;
+        const reader = Age.generate();
+        const sender = Key::generate();
+        const sender_public = Key::public(sender);
+
+        const sealed = Age.blobify(Age.public(reader), 'json', self.message);
+        const signature = Key::sign(sender, 'messages/v1', sealed);
+
+        // the reader: check who sent it, then open it
+        assert(Key::verify(sender_public, 'messages/v1', sealed, signature));
+        const dest = new {};
+        assert(Age.parse(reader, sealed, dest, 'json'));
+        assert_eq(dest.text, 'hello');
+        drop(dest);
+        drop(reader);
+    }
+}
+
 BlobifyParse: {
     Payload: {
         field: 42
