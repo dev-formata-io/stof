@@ -719,8 +719,16 @@ impl Graph {
     pub(crate) fn may_remove_node(&mut self, node: &NodeRef) -> bool {
         if self.seals.nodes.is_empty() { return true; }
         if !self.confined.is_empty() && !self.confined_change(node) { return false; }
-        if self.removable_whole(node) { return true; }
+        if self.removable_whole(node) || self.holds_only_removable(node) { return true; }
         self.may_move_node(node)
+    }
+
+    /// Is this object unsealed, with every seal inside it removable (Ex. a plugin's container)? Removing it removes
+    /// them, as dropping each would.
+    fn holds_only_removable(&self, node: &NodeRef) -> bool {
+        !self.seals.nodes.contains_key(node)
+            && !self.seals.roots.iter().any(|root| node.child_of(self, root))
+            && self.seals.roots.iter().filter(|root| root.child_of(self, node)).all(|root| self.seals.removable.contains(root))
     }
 
     /// Was this object sealed `removable`, with no other seal covering it (one around it, or one inside it that
@@ -790,7 +798,7 @@ impl Graph {
         if !seen.insert(nref.clone()) { return Ok(()); }
         let Some(node) = nref.node(self) else { return Ok(()) };
         put(hasher, b"node", name.as_bytes());
-        put(hasher, b"attrs", &self.attrs_bytes(root, &without_internal(&node.attributes))?);
+        put(hasher, b"attrs", &self.attrs_bytes(root, &without_internal(&node.attributes), seen)?);
 
         // Objects this one holds as fields: the same whether a field was written for it (Ex. parsed from Stof) or
         // it's a field object without one yet (Ex. from JSON, given a field when first looked up)
@@ -843,16 +851,16 @@ impl Graph {
                     },
                     other if fields => {
                         put(hasher, b"field", name.as_bytes());
-                        put(hasher, b"value", &self.value_bytes(root, other)?);
+                        put(hasher, b"value", &self.value_bytes(root, other, seen)?);
                     },
                     _ => {},
                 }
-                if fields { put(hasher, b"field-attrs", &self.attrs_bytes(root, &field.attributes)?); }
+                if fields { put(hasher, b"field-attrs", &self.attrs_bytes(root, &field.attributes, seen)?); }
             }
         }
         for (name, attributes) in objects {
             put(hasher, b"field-child", name.as_bytes());
-            if fields { put(hasher, b"field-attrs", &self.attrs_bytes(root, &attributes)?); }
+            if fields { put(hasher, b"field-attrs", &self.attrs_bytes(root, &attributes, seen)?); }
         }
 
         let mut children: Vec<(String, NodeRef)> = node.children.iter()
@@ -867,22 +875,30 @@ impl Graph {
     }
 
     /// Attributes for the digest: sorted, with values as `value_bytes` writes them.
-    fn attrs_bytes(&self, root: &NodeRef, attributes: &FxHashMap<String, Val>) -> Result<Vec<u8>, Error> {
+    fn attrs_bytes(&self, root: &NodeRef, attributes: &FxHashMap<String, Val>, seen: &mut FxHashSet<NodeRef>) -> Result<Vec<u8>, Error> {
         let mut sorted: Vec<(&String, &Val)> = attributes.iter().collect();
         sorted.sort_by(|a, b| a.0.cmp(b.0));
         let mut out = Vec::new();
         for (name, value) in sorted {
             out.extend(bytes(name)?);
-            out.extend(self.value_bytes(root, value)?);
+            out.extend(self.value_bytes(root, value, seen)?);
         }
         Ok(out)
     }
 
     /// A value for the digest. Objects and functions are written by path (an arrow function by its body), never by
     /// ID (random per parse), and sets and maps in that order, so the same document always gives the same bytes.
-    fn value_bytes(&self, root: &NodeRef, value: &Val) -> Result<Vec<u8>, Error> {
+    /// An object inside the part that a value holds (Ex. objects in a list, from JSON) is written by its contents:
+    /// its name is random, so its path would be too. It's then seen, so it isn't digested again as a child.
+    fn value_bytes(&self, root: &NodeRef, value: &Val, seen: &mut FxHashSet<NodeRef>) -> Result<Vec<u8>, Error> {
         let tagged = |tag: &str, body: Vec<u8>| -> Result<Vec<u8>, Error> { let mut out = bytes(tag)?; out.extend(bytes(&body)?); Ok(out) };
         match value {
+            Val::Obj(obj) if obj != root && obj.child_of(self, root) => {
+                if seen.contains(obj) { return tagged("obj-seen", Vec::new()); } // a cycle, or already written
+                let mut sub = Sha256::new();
+                self.digest_node(root, obj, "~", true, &mut sub, seen)?;
+                tagged("obj-in", sub.finalize().to_vec())
+            },
             Val::Obj(obj) => tagged("obj", self.path_from(root, obj).into_bytes()),
             Val::Fn(func) | Val::Data(func) => match self.get_stof_data::<Func>(func) {
                 Some(f) if f.attributes.contains_key(ARROW_FUNC_ATTR.as_str()) => tagged("arrow", bytes(f)?),
@@ -895,20 +911,20 @@ impl Graph {
             },
             Val::List(items) | Val::Tup(items) => {
                 let mut body = Vec::new();
-                for item in items { body.extend(self.value_bytes(root, &item.read())?); }
+                for item in items { body.extend(self.value_bytes(root, &item.read(), seen)?); }
                 tagged(if matches!(value, Val::List(_)) { "list" } else { "tup" }, body)
             },
             Val::Set(items) => {
                 let mut each = Vec::new();
-                for item in items { each.push(self.value_bytes(root, &item.read())?); }
+                for item in items { each.push(self.value_bytes(root, &item.read(), seen)?); }
                 each.sort();
                 tagged("set", each.concat())
             },
             Val::Map(map) => {
                 let mut each = Vec::new();
                 for (k, v) in map {
-                    let mut pair = self.value_bytes(root, &k.read())?;
-                    pair.extend(self.value_bytes(root, &v.read())?);
+                    let mut pair = self.value_bytes(root, &k.read(), seen)?;
+                    pair.extend(self.value_bytes(root, &v.read(), seen)?);
                     each.push(pair);
                 }
                 each.sort();

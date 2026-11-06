@@ -129,8 +129,10 @@ root Settings { theme: 'dark' }
 
 **Units:** length `km hm dcm m dm cm mm um nm mi yd ft in`; time `day hr min s ms us ns`; temperature `K C F`;
 mass `Gt Mt t kg g mg ug ng pg Ton lb oz`; data `bit byte KB MB GB TB PB … KiB MiB GiB TiB …`; angles
-`rad deg`. Literals carry units (`5km`), math converts (`1km + 500m == 1.5km`), `as` converts (`1km as m`),
-and `v.to_units('GB')` converts by name.
+`rad deg`. Literals carry units (`5km`), math converts (`1km + 500m == 1.5km`, in the larger unit), `as` converts
+(`1km as m`), and `v.to_units('GB')` converts by name. A plain number has no units, so comparing one with a unit
+value compares bare numbers: `Time::now() + 1hr` is in hours, so give a time from JSON its units first
+(`const at: ms = record.expires;`) before comparing.
 
 **Literals:** `'single'`, `"double"`, `` `template ${expr}` ``, `r#"raw"#`, `[list]`, `{'map': 1}`, `{1, 2}`
 (set), `(1, 'two')` (tuple), `1_000`, `0xFF`, `1e3`, `Infinity`, `-Infinity`, `NaN`, `1.2.3` (version).

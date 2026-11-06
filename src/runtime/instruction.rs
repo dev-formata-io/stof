@@ -436,9 +436,11 @@ impl Instructions {
                 }
 
                 let mut res = ins.exec(env, graph);
-                if res.is_ok() {
-                    // a change refused by a seal fails the instruction that made it (catchable; nothing changed)
-                    if let Some(why) = graph.take_seal_violation() { res = Err(Error::Sealed(why)); }
+                // a change refused by a seal fails the instruction that made it (catchable; nothing changed); one
+                // that failed for another reason has its own error, and the refusal is cleared either way, so it
+                // never surfaces in another instruction (or another process)
+                if let Some(why) = graph.take_seal_violation() {
+                    if res.is_ok() { res = Err(Error::Sealed(why)); }
                 }
                 match res {
                     Ok(replacements) => {
@@ -469,6 +471,7 @@ impl Instructions {
                                     _ => {}
                                 }
                             }
+                            graph.take_seal_violation(); // a seal that kept one of them isn't this error
                             return Err(error);
                         }
                     },

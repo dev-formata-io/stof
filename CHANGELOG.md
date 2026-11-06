@@ -1,12 +1,37 @@
 # Changelog
 
-## Unreleased
+## 0.11.1
+
+Fixes found building the first real use of 0.11's seals (a signed, sealed module in Limitr), and a note on units.
 
 ### Fixed
 
+- **`copy(obj)` makes one copy of each object inside, at every depth.** Below the top level, a field holding a
+  child object was copied a second time: the copy had two copies of the child, and the field pointed at one while
+  a path (`copied.a.b`) found the other, so a change through one didn't show through the other.
+- **Digests of objects in lists.** An object inside a list (or map, set, or tuple) was digested by its path, and
+  objects parsed into a list (Ex. from JSON) have random names, so the same data never had the same digest, and a
+  seal that checked one could never match. They're now digested by what they hold. Digests of anything without
+  objects in lists are unchanged.
+- **An object that holds only removable seals can be dropped** (Ex. a plugin's container), and the removable parts
+  go with it. It was refused, as if they were sealed for good.
+- **A refused change never surfaces in another call.** A refusal made while a process failed (Ex. a `using` value
+  that a seal kept, dropped as the error unwound) stayed pending, and the next instruction to run, in any process,
+  failed with it. It now stays with the call that made it.
 - **`List.insert` and `List.replace` on an empty list no longer panic in debug builds.** The index check subtracted
   one from the length, which overflows for an empty list (release builds, including the npm and PyPI packages,
   wrapped around and did the right thing). Found running Limitr's suite with a debug build of stof-cli.
+
+### Docs
+
+- **Units and plain numbers.** The skill and the site (Types and Units, Units Reference) now say what math between
+  units gives (the larger unit: `Time::now() + 1hr` is in hours) and that a plain number compared with a unit value
+  compares bare numbers, so a time read from JSON should be given its units first (`const at: ms = record.expires;`).
+
+### Tests
+
+- Stof suite (3 new): `copy()` at every depth, digests of objects in lists, removable containers; and the empty
+  list `insert`/`replace` cases. `tests/seal.rs` (1 new): a refusal stays with its call.
 
 ## 0.11.0
 

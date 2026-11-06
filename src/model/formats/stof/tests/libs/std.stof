@@ -205,6 +205,20 @@ Copy: {
             copied.test_sub.test_field = 'yo';
             assert_neq(copied.test_sub.test_field, existing.test_sub.test_field);
             assert_eq(copied.test_sub.test_field, 'yo');
+            drop(copied);
+        }
+
+        nested: { a: { b: { c: 1 } } }
+
+        #[test]
+        /// A copy's fields hold its own copies of the objects, at every depth: one copy each, however it's read.
+        fn deep_copy_nested_fields() {
+            using copied = copy(self.nested);
+            copied.a.b.c = 2;
+            assert_eq(copied.a.get('b').c, 2, 'the field and the path are the same object');
+            assert_eq(copied.get('a').get('b').c, 2);
+            assert_eq(copied.a.children().len(), 1, 'one copy of b');
+            assert_eq(self.nested.a.b.c, 1, 'the original is unchanged');
         }
     }
 }

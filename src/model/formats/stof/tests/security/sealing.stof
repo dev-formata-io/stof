@@ -218,6 +218,41 @@ fn removable_seals() {
 }
 
 
+/// An object that holds only removable seals (Ex. a plugin's container) can be dropped, and they go with it.
+holders: {
+    plugins: { tool: { fn v() -> int { 1 } } }
+    mixed: {
+        tool: { fn v() -> int { 1 } }
+        core: { fn v() -> int { 1 } }
+    }
+}
+
+#[test]
+fn removable_containers() {
+    seal(self.holders.plugins.tool, removable = true);
+    drop(self.holders.plugins);
+    assert_null(self.holders.plugins, 'dropped with the removable part in it');
+
+    seal(self.holders.mixed.tool, removable = true);
+    seal(self.holders.mixed.core);
+    assert(self.refused(() => drop(self.holders.mixed)).contains('sealed'), 'not when anything in it is sealed for good');
+    assert_eq(self.holders.mixed.core.v(), 1);
+}
+
+
+#[test]
+/// Objects in a list are digested by what they hold (their names are random), so the same data has the same digest.
+fn digests_of_objects_in_lists() {
+    using a = new {};
+    using b = new {};
+    parse('{"tools": [{"name": "forecast", "params": [{"name": "city"}]}]}', a, 'json');
+    parse('{"tools": [{"name": "forecast", "params": [{"name": "city"}]}]}', b, 'json');
+    assert_eq(digest(a, true), digest(b, true));
+    b.tools[0].params[0].name = 'town';
+    assert_neq(digest(a, true), digest(b, true), 'and changing one changes it');
+}
+
+
 /// reads are paths: replace the object at a path, and the part reads the new one.
 followed: {
     inputs: { city: 'Boston' }

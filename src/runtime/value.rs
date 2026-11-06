@@ -1030,13 +1030,34 @@ impl Val {
                 };
                 let obj = graph.insert_stof_node(node, parent.clone());
 
-                // Deep copy all children
+                // Deep copy all children (each original child -> its copy)
+                let mut copies: FxHashMap<NodeRef, NodeRef> = FxHashMap::default();
                 for child in children {
-                    Self::Obj(child).deep_copy(graph, Some(obj.clone()));
+                    if let Self::Obj(copy) = Self::Obj(child.clone()).deep_copy(graph, Some(obj.clone())) {
+                        copies.insert(child, copy);
+                    }
                 }
 
                 // Deep copy all data and put back on obj
                 for dref in data {
+                    // A field for one of the original's child objects points at that child's copy (copied above),
+                    // never at a second copy of it
+                    let mut child_field = None;
+                    if let Some(field) = graph.get_stof_data::<Field>(&dref) {
+                        if let Some(copy) = field.value.try_obj().and_then(|child| copies.get(&child)) {
+                            let mut value = field.value.clone();
+                            value.val = ValRef::new(Self::Obj(copy.clone()));
+                            let name = dref.data_name(graph).map(|name| name.to_string()).unwrap_or_default();
+                            child_field = Some((name, Field { value, attributes: field.attributes.clone() }, copy.clone()));
+                        }
+                    }
+                    if let Some((name, field, copy)) = child_field {
+                        if let Some(field_ref) = graph.insert_stof_data(&obj, name, Box::new(field), None) {
+                            graph.add_field_holder(&copy, Some(&field_ref));
+                        }
+                        continue;
+                    }
+
                     // Skip fields that are for child nodes
                     if let Some(parent) = &parent {
                         if let Some(field) = graph.get_stof_data::<Field>(&dref) {

@@ -1,6 +1,6 @@
 [project]
 name = "stof"
-version = "0.11.0"
+version = "0.11.1"
 description = "Software that behaves differently for every user: each customer's rules, tools, and state in one document that an agent can edit, a person can review, and your app runs, sandboxed, in Rust, JavaScript, and Python."
 license = "Apache-2.0"
 readme = "README.md"

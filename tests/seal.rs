@@ -256,3 +256,22 @@ fn unsealed_documents_are_unchanged() {
     Runtime::call(&mut graph, "root.evil.attack", vec![]).unwrap();
     assert_eq!(price(&mut graph), Val::from(0i64));
 }
+
+
+#[test]
+/// A seal that refuses dropping a `using` value while a process fails (uncaught) never surfaces in another call.
+fn refusals_stay_with_their_call() {
+    let mut graph = Graph::default();
+    graph.quiet(true);
+    graph.parse_stof_src(r#"
+        kept: { fn v() -> int { 1 } }
+        fn fails() { using k = self.kept; throw('failed'); }
+        fn fine() -> int { 1 }
+    "#, None, Profile::default()).unwrap();
+    graph.seal_path("kept", false, None).unwrap();
+    let res = Runtime::call(&mut graph, "fails", vec![]);
+    assert!(res.is_err_and(|err| err.to_string().contains("failed")));
+    assert_eq!(Runtime::call(&mut graph, "fine", vec![]).unwrap(), Val::from(1i64), "no refusal left over");
+    assert!(graph.field_value("kept", None).is_some(), "and the sealed object stays");
+}
+
