@@ -93,13 +93,15 @@ export class Stof {
      * changed (see `model::seal`). With `fields`, its fields are frozen too. With `expected`, only if its digest is
      * that. With `public_key` and `signature`, only if the digest is signed by that key. Returns the digest.
      * With `removable`, it can still be removed whole. With `reads` (paths, looked up each time the part is entered),
-     * its code reaches only itself and those objects; with `hosts`, its Http.fetch reaches only those hosts (see
-     * `model::seal::Confine`).
+     * its code reaches only itself and those objects; with `hosts`, its Http.fetch reaches only those hosts; with
+     * `libs`, it calls only those libraries (host libraries included); with `time` (ms), it runs for at most that
+     * long each time it's entered; with `calls` (function paths), those functions are its gates: it may call them,
+     * and they run unconfined (see `model::seal::Confine`).
      */
-    seal(path: string, fields?: boolean | null, expected?: string | null, public_key?: string | null, signature?: string | null, removable?: boolean | null, reads?: string[] | null, hosts?: string[] | null): string;
+    seal(path: string, fields?: boolean | null, expected?: string | null, public_key?: string | null, signature?: string | null, removable?: boolean | null, reads?: string[] | null, hosts?: string[] | null, libs?: string[] | null, time?: number | null, calls?: string[] | null): string;
     /**
      * How an object (a path, or a type as "<Name>") is sealed, as JSON: { part, fields, removable, confined:
-     * [{ reads, hosts }] }, or null when it isn't sealed.
+     * [{ reads, hosts, libs, time, calls }] }, or null when it isn't sealed.
      */
     sealed(path: string): string | undefined;
     /**
@@ -264,7 +266,7 @@ export interface InitOutput {
     readonly stof_remove: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly stof_report: (a: number, b: number) => [number, number, number, number];
     readonly stof_result: (a: number, b: number) => [number, number, number];
-    readonly stof_seal: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number) => [number, number, number, number];
+    readonly stof_seal: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number, u: number) => [number, number, number, number];
     readonly stof_sealed: (a: number, b: number, c: number) => [number, number, number, number];
     readonly stof_set: (a: number, b: number, c: number, d: any, e: any) => [number, number, number];
     readonly stof_setMaxExecutionTime: (a: number, b: number, c: number) => [number, number];

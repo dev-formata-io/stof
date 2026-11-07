@@ -426,13 +426,13 @@ impl Instruction for Base {
             },
             Self::PopCall => {
                 env.call_stack.pop();
-                if !env.confines.is_empty() { env.leave_confined(graph); }
+                if !env.confines.is_empty() || !env.suspended.is_empty() { env.leave_confined(graph); }
             },
             Self::PopCallUntilDepth(depth) => {
                 while env.call_stack.len() > *depth {
                     env.call_stack.pop();
                 }
-                if !env.confines.is_empty() { env.leave_confined(graph); }
+                if !env.confines.is_empty() || !env.suspended.is_empty() { env.leave_confined(graph); }
             },
             
             Self::PushNew => {

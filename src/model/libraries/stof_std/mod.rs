@@ -820,6 +820,7 @@ impl Instruction for StdIns {
                                     "test" => Profile::test(),
                                     "prod" => Profile::prod(),
                                     "prod_docs" => Profile::docs(false),
+                                    "untrusted" => Profile::untrusted(),
                                     "docs" => Profile::docs(true),
                                     _ => Profile::default(),
                                 };

@@ -15,7 +15,7 @@
 //
 
 /*!
- * Seals for code from somewhere else: confined parts (reads, hosts), removable parts, signed messages, and digests
+ * Seals for code from somewhere else: confined parts (reads, hosts, libs, time), removable parts, signed messages, and digests
  * that travel. Tests run at the same time on this one document, so each seals parts of its own.
  */
 
@@ -194,6 +194,76 @@ fn confined_hosts() {
 }
 
 
+libbed: {
+    fn split() -> list { 'a/b/c'.split('/') }
+    fn upper() -> str { Str.upper('abc') }
+    fn count() -> int { [1, 2, 3].len() }
+    fn sign() -> str { Key.sign(Key.generate(), 'orders/v1', 'pay me') }
+    fn printed() -> str { using made = new { a: 1 }; stringify('json', made) }
+    fn pure() -> int { let x = 1; x += 2; x * 3 }
+}
+
+#[test]
+fn confined_libs() {
+    seal(self.libbed, libs = ['Str']);
+    assert_eq(self.libbed.split(), ['a', 'b', 'c'], 'a method call counts as its library (Str)');
+    assert_eq(self.libbed.upper(), 'ABC');
+    assert_eq(self.libbed.pure(), 9, 'code with no library calls runs');
+    let message = self.refused(() => self.libbed.count());
+    assert(message.contains("List library isn't one it may use"), message);
+    message = self.refused(() => self.libbed.sign());
+    assert(message.contains('Key'), 'a library that signs is out unless listed: ' + message);
+    message = self.refused(() => self.libbed.printed());
+    assert(message.contains('Std'), message);
+
+    let bad = '';
+    try seal(self.libbed, libs = 'Str');
+    catch (e, m) bad = m;
+    assert(bad.contains('list of library names'), bad);
+}
+
+libs_nested: {
+    inner: {
+        fn count() -> int { [1, 2].len() }
+    }
+    outer: {
+        fn through() -> int { super.inner.count() }
+    }
+}
+
+#[test]
+fn confined_libs_stack() {
+    seal(self.libs_nested.inner, libs = ['List']);
+    seal(self.libs_nested.outer, libs = ['Str'], reads = [self.libs_nested.inner]);
+    assert_eq(self.libs_nested.inner.count(), 2, 'its own confinement allows List');
+    const message = self.refused(() => self.libs_nested.outer.through());
+    assert(message.contains('List'), 'called from outer, it runs under both: ' + message);
+}
+
+timed: {
+    fn spin() -> int {
+        let i = 0;
+        while (i < 100000000) i += 1;
+        i
+    }
+    fn quick() -> int { 1 + 1 }
+}
+
+#[test]
+fn confined_time() {
+    seal(self.timed, time = 300ms); // wall-clock, and tests run together: room for the quick calls, not the spin
+    assert_eq(self.timed.quick(), 2);
+    const message = self.refused(() => self.timed.spin());
+    assert(message.contains('past its time limit'), message);
+    assert_eq(self.timed.quick(), 2, 'its time starts again each time it is entered');
+
+    let bad = '';
+    try seal(self.timed, time = 0ms);
+    catch (e, m) bad = m;
+    assert(bad.contains('more than 0'), bad);
+}
+
+
 removable: {
     count: 0
     fn v() -> int { 1 }
@@ -288,6 +358,13 @@ fn sealed_tells_how() {
     assert_eq(confined.len(), 1);
     assert(confined[0].get('reads')[0].ends_with('inspected.other'));
     assert_eq(confined[0].get('hosts'), ['api.example.com']);
+    assert_null(confined[0].get('libs'));
+    assert_null(confined[0].get('time'));
+    seal(self.inspected.tool, libs = ['Str', 'Http'], time = 2s);
+    const again = sealed(self.inspected.tool).get('confined');
+    assert_eq(again.len(), 2, 'confinements add up');
+    assert_eq(again[1].get('libs'), ['Http', 'Str']);
+    assert_eq(again[1].get('time'), 2000ms);
     assert_null(sealed(self.inspected.other), 'what it reads is not sealed');
 }
 

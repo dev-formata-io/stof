@@ -65,6 +65,10 @@ pub struct ProcEnv {
     /// what it reaches (see `model::seal::Confine`). Empty unless sealed parts were confined.
     pub confines: Vec<(usize, std::sync::Arc<crate::model::seal::Confine>, std::sync::Arc<crate::model::seal::Reach>)>,
 
+    /// Confinements set aside while a gate runs (a function confined code may call that runs unconfined): the call
+    /// stack depth the gate was entered at, and the confinements to restore when it returns.
+    pub suspended: Vec<(usize, Vec<(usize, std::sync::Arc<crate::model::seal::Confine>, std::sync::Arc<crate::model::seal::Reach>)>)>,
+
     // Setting this will put the process into a waiting mode
     pub spawn: Option<Box<Process>>,
 
@@ -93,6 +97,7 @@ impl Default for ProcEnv {
             spawn: None,
             yield_enabled: true,
             confines: Vec::new(),
+            suspended: Vec::new(),
 
             #[cfg(feature = "tokio")]
             tokio_runtime: None,

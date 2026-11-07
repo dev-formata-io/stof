@@ -300,9 +300,15 @@ assert_neq(nanoid(), nanoid(33));
 
 # Std::parse(source: str | blob, context: str | obj = self, format: str = "stof", profile: str = "prod") -> bool
 Parse data into this document/graph at the given location (default context is the calling object), using the given format (default is Stof). Formats are extensible and replaceable in Stof, so use whichever formats you have loaded (json, stof, images, pdfs, docx, etc.).
+
+Profiles: "prod" (the default; #[test]s left out), "test", "docs", "prod_docs", and "untrusted": Stof source from somewhere else, declarations only. Nothing runs while it's parsed (field and attribute values must be literals; no #[init] functions), it imports nothing, and it declares no #[type]s. Parse it into a fresh object (drop it if the parse fails), then seal that object confined before calling anything in it.
 ```rust
 parse("fn hello() -> str { \"hello\" }");
 assert_eq(self.hello(), "hello"); // can now call it
+
+using tool = new {};
+parse(source_from_elsewhere, tool, 'stof', 'untrusted');
+seal(tool, removable = true, reads = [], hosts = ['api.example.com'], libs = ['Std', 'Str', 'Http'], time = 2s);
 ```
 
 
@@ -346,12 +352,15 @@ remove_env("HOST");
 ```
 
 
-# Std::seal(obj: obj, fields: bool = false, removable: bool = false, reads: list = null, hosts: list = null) -> str
+# Std::seal(obj: obj, fields: bool = false, removable: bool = false, reads: list = null, hosts: list = null, libs: list = null, time: ms = null, calls: list = null) -> str
 Seal an object (Ex. `self.rules`, or a type: `<Engine>`) and everything under it: from now on its functions can be called but not added, removed, renamed, replaced, or moved, and its attributes can't change, by this document's code or by the host. Its fields still change unless `fields` is true. Returns its digest (see `digest`). It's one-way: a document can't unseal, only the host can. A change a seal refuses fails with a `sealed: ...` error and changes nothing.
 
 - `removable`: the object can still be dropped whole (nothing in it can change, and it can't be moved or renamed). For code that comes and goes, Ex. a provider's capabilities.
 - `reads` (a list of objects or paths): confine the part's code. While it runs (and everything it calls), it finds only the sealed object and these objects (a path to anything else finds nothing, calling a function elsewhere fails), changes only the sealed object, and can't hand an object elsewhere to a library function (Ex. `stringify`). `[]` means only itself. They're kept as paths and looked up each time the part is entered, so an object replaced at a path is the one it reads.
 - `hosts` (a list of host names): `Http.fetch` from the part's code reaches only these hosts (the document's own allowlist still applies). `[]` means no network.
+- `libs` (a list of library names, Ex. `['Std', 'Str', 'Num', 'List', 'Map', 'Http']`): the part's code calls only these libraries, the host's own libraries included (Ex. one a host added to sign with its key), so code from somewhere else can't use what the host gave the document. Method calls count as their library's (`text.split('/')` is `Str`). `[]` means no library calls at all.
+- `time` (Ex. `500ms`): the part's code runs for at most this long each time it's entered (and everything it calls), on top of the call's own limit. It's wall-clock time from entering, waits included (Ex. an `Http.fetch`), like the call's own limit.
+- `calls` (a list of functions outside the part, Ex. `[self.api.request]`): gates, the part's only way to anything else. Its code may call them, and they run unconfined, as themselves: an API you choose for it (Ex. one that signs a request for it, which it can't do itself). Hand them to it as values (a field in the part holding the function, set before sealing: `tool.api = new { sign: self.keys.sign } on tool`, made `on` the part so it's within its reach; or an argument), since a path to them finds nothing from inside. A gate runs with everything the document has, so it must check what it's given. A gate must be outside the part, and a call is a gate's only when every confinement it's called under lists it, so the part can't make one of its own. The functions themselves are kept, not their paths.
 
 Sealing again only adds to a seal: it never unfreezes fields, makes an object removable that wasn't, or lifts a confinement. Confined code can only seal what it may change.
 ```rust
@@ -366,14 +375,16 @@ fn later() {
 
 fn add_tool(source: str) {
     const tool = new {} on self.tools;
-    parse(source, tool);
-    seal(tool, removable = true, reads = [self.inputs], hosts = ['api.weather.com']);
+    parse(source, tool, 'stof', 'untrusted');           // code from elsewhere: declarations only
+    tool.api = new { sign: self.keys.sign_for_tool } on tool; // its gate, handed in (it calls self.api.sign(text))
+    seal(tool, removable = true, reads = [self.inputs], hosts = ['api.weather.com'], libs = ['Std', 'Str', 'Http'],
+        time = 2s, calls = [self.keys.sign_for_tool]);  // once, with everything: every confinement must list a gate
 }
 ```
 
 
 # Std::sealed(obj: obj) -> map | null
-How an object is sealed, or null when it isn't: a map with `part` (the path of the object `seal` was called on, which may be this one or one around it), `fields` (its fields are frozen), `removable` (it can be dropped whole), and `confined` (a list of `{ reads, hosts }`, one per confinement its code runs under; empty when it isn't confined).
+How an object is sealed, or null when it isn't: a map with `part` (the path of the object `seal` was called on, which may be this one or one around it), `fields` (its fields are frozen), `removable` (it can be dropped whole), and `confined` (a list of `{ reads, hosts, libs, time, calls }`, one per confinement its code runs under; empty when it isn't confined; `calls` as function paths).
 ```rust
 fn check() {
     seal(self.tool, removable = true, reads = [self.inputs]);

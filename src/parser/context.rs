@@ -428,6 +428,13 @@ impl<'ctx> ParseContext<'ctx> {
     /// Use this to quickly evaluate one instruction in the parse process.
     /// Must have a process in done.
     pub fn eval(&mut self, instruction: Arc<dyn Instruction>) -> Result<Val, Error> {
+        // untrusted source runs nothing while it's parsed: a value must be a literal (one instruction loading it)
+        if self.profile.untrusted {
+            return match instruction.as_dyn_any().downcast_ref::<crate::runtime::instructions::Base>() {
+                Some(crate::runtime::instructions::Base::Literal(val)) if !matches!(val, Val::Fn(_)) => Ok(val.clone()),
+                _ => Err(Error::Custom("untrusted source: values must be literals (Ex. 'text', 42, 30s, true, null, [..], { .. }), not expressions".into())),
+            };
+        }
         // get the process and clear it (preserving memory allocations)
         let mut proc = self.runtime.done.remove(&PARSE_ID).unwrap();
         //proc.env.self_stack.clear(); // use this stack as the parse self stack, so dont clear!

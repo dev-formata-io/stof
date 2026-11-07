@@ -79,6 +79,9 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
     // These functions will get called automatically when the context is dropped (after parse complete).
     let mut init_func = false;
     if func.attributes.contains_key("init") { init_func = true; }
+    if init_func && context.profile.untrusted {
+        return Err(nom::Err::Failure(StofParseError::from(format!("untrusted source can't have #[init] functions (nothing runs while it's parsed): fn {name}"))));
+    }
 
     // Instert the new function in the current parse context
     //println!("({name}){{{func:?}}}");

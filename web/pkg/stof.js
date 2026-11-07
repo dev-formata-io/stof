@@ -287,8 +287,10 @@ export class Stof {
      * changed (see `model::seal`). With `fields`, its fields are frozen too. With `expected`, only if its digest is
      * that. With `public_key` and `signature`, only if the digest is signed by that key. Returns the digest.
      * With `removable`, it can still be removed whole. With `reads` (paths, looked up each time the part is entered),
-     * its code reaches only itself and those objects; with `hosts`, its Http.fetch reaches only those hosts (see
-     * `model::seal::Confine`).
+     * its code reaches only itself and those objects; with `hosts`, its Http.fetch reaches only those hosts; with
+     * `libs`, it calls only those libraries (host libraries included); with `time` (ms), it runs for at most that
+     * long each time it's entered; with `calls` (function paths), those functions are its gates: it may call them,
+     * and they run unconfined (see `model::seal::Confine`).
      * @param {string} path
      * @param {boolean | null} [fields]
      * @param {string | null} [expected]
@@ -297,11 +299,14 @@ export class Stof {
      * @param {boolean | null} [removable]
      * @param {string[] | null} [reads]
      * @param {string[] | null} [hosts]
+     * @param {string[] | null} [libs]
+     * @param {number | null} [time]
+     * @param {string[] | null} [calls]
      * @returns {string}
      */
-    seal(path, fields, expected, public_key, signature, removable, reads, hosts) {
-        let deferred8_0;
-        let deferred8_1;
+    seal(path, fields, expected, public_key, signature, removable, reads, hosts, libs, time, calls) {
+        let deferred10_0;
+        let deferred10_1;
         try {
             const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
             const len0 = WASM_VECTOR_LEN;
@@ -315,23 +320,27 @@ export class Stof {
             var len4 = WASM_VECTOR_LEN;
             var ptr5 = isLikeNone(hosts) ? 0 : passArrayJsValueToWasm0(hosts, wasm.__wbindgen_malloc);
             var len5 = WASM_VECTOR_LEN;
-            const ret = wasm.stof_seal(this.__wbg_ptr, ptr0, len0, isLikeNone(fields) ? 0xFFFFFF : fields ? 1 : 0, ptr1, len1, ptr2, len2, ptr3, len3, isLikeNone(removable) ? 0xFFFFFF : removable ? 1 : 0, ptr4, len4, ptr5, len5);
-            var ptr7 = ret[0];
-            var len7 = ret[1];
+            var ptr6 = isLikeNone(libs) ? 0 : passArrayJsValueToWasm0(libs, wasm.__wbindgen_malloc);
+            var len6 = WASM_VECTOR_LEN;
+            var ptr7 = isLikeNone(calls) ? 0 : passArrayJsValueToWasm0(calls, wasm.__wbindgen_malloc);
+            var len7 = WASM_VECTOR_LEN;
+            const ret = wasm.stof_seal(this.__wbg_ptr, ptr0, len0, isLikeNone(fields) ? 0xFFFFFF : fields ? 1 : 0, ptr1, len1, ptr2, len2, ptr3, len3, isLikeNone(removable) ? 0xFFFFFF : removable ? 1 : 0, ptr4, len4, ptr5, len5, ptr6, len6, !isLikeNone(time), isLikeNone(time) ? 0 : time, ptr7, len7);
+            var ptr9 = ret[0];
+            var len9 = ret[1];
             if (ret[3]) {
-                ptr7 = 0; len7 = 0;
+                ptr9 = 0; len9 = 0;
                 throw takeFromExternrefTable0(ret[2]);
             }
-            deferred8_0 = ptr7;
-            deferred8_1 = len7;
-            return getStringFromWasm0(ptr7, len7);
+            deferred10_0 = ptr9;
+            deferred10_1 = len9;
+            return getStringFromWasm0(ptr9, len9);
         } finally {
-            wasm.__wbindgen_free(deferred8_0, deferred8_1, 1);
+            wasm.__wbindgen_free(deferred10_0, deferred10_1, 1);
         }
     }
     /**
      * How an object (a path, or a type as "<Name>") is sealed, as JSON: { part, fields, removable, confined:
-     * [{ reads, hosts }] }, or null when it isn't sealed.
+     * [{ reads, hosts, libs, time, calls }] }, or null when it isn't sealed.
      * @param {string} path
      * @returns {string | undefined}
      */

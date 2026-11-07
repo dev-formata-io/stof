@@ -527,7 +527,8 @@ Four tools, for four questions. Pick by what you need to know:
 |---|---|---|---|
 | This logic can't be changed | seal | `seal(self.rules)` | `doc.seal('rules')` |
 | It's the logic that was shipped | digest + signature | `digest(obj)`, `Key::sign(secret, 'stof/seal', digest(obj))` | `doc.seal(path, { digest })` or `{ publicKey, signature }` |
-| Code from elsewhere sees only what it's given | confined seal | `seal(tool, reads = [self.inputs], hosts = [..])` | `doc.seal(path, { reads: ['inputs'], hosts: [..] })` |
+| Code from elsewhere sees only what it's given | confined seal | `seal(tool, reads = [self.inputs], hosts = [..], libs = [..], time = 2s)` | `doc.seal(path, { reads: ['inputs'], hosts: [..], libs: [..], time: 2000 })` |
+| ...and reaches the rest only through an API you give it | gates | `seal(tool, .., calls = [self.api.request])` | `doc.seal(path, { .., calls: ['api.request'] })` |
 | Data came from who it says, unchanged | signature | `Key::verify(public, context, message, sig)` | `StofDoc.verify(..)`, `Doc.verify(..)` |
 
 **Seal** an object (path, or a type as `<Name>`) and everything under it: its functions, prototypes, attributes,
@@ -564,8 +565,8 @@ Key::verify(public, 'orders/v1', order, sig);       // true only for these bytes
   'json', msg); const sig = Key::sign(secret, 'messages/v1', box);` and the reader verifies, then
   `Age::parse(reader, box, dest, 'json')`. `Age::parse`/`Age::public` take a `Data<Age>` or the secret key string.
 
-**Confined seals** (`reads`, `hosts`) are for code that didn't come from you. While its code runs (and everything
-it calls):
+**Confined seals** (`reads`, `hosts`, `libs`, `time`, `calls`) are for code that didn't come from you. While its
+code runs (and everything it calls):
 - It finds only itself and the objects in `reads` (paths or `<Type>`s, looked up each time it's entered; objects in
   Stof are kept as their paths). Anything else finds nothing (null): `root.secrets.x`, `super.x`. Types not listed
   can't be used (no `new Type {}` or casts: those read the type's defaults).
@@ -577,9 +578,17 @@ it calls):
 - It can't give a library an object outside its reach or get one back (`Obj.parent(self)`, `funcs()`,
   `stringify('json')` of everything or of an object holding one out of reach all fail).
 - `Http.fetch` reaches only `hosts` (redirects too), and the document's own allowlist still applies.
+- It calls only the libraries in `libs` (Ex. `['Std', 'Str', 'Num', 'List', 'Map', 'Http']`), the host's own
+  libraries included (`doc.lib(...)`), so it can't use a host function the document was given (Ex. one that signs
+  with the host's key). Method calls count as their library's: `text.split('/')` is `Str`, `[1, 2].len()` is
+  `List`, `stringify`/`parse` are `Std`.
+- It runs for at most `time` (Ex. `500ms`) each time it's entered, on top of the call's own limit: wall-clock time
+  from entering, waits included (Ex. an `Http.fetch`). Running past it fails with a `sealed: ...` error the calling
+  code can catch.
 - Objects from elsewhere stay opaque even when handed to it (argument or field): it can hold and return them, not
   look inside. Pass values (strings, numbers, lists, maps), or list the objects in `reads`.
-- `[]` means nothing: `reads = []` (only itself), `hosts = []` (no network).
+- Its only way to anything else is through its gates (`calls`, below).
+- `[]` means nothing: `reads = []` (only itself), `hosts = []` (no network), `libs = []` (no library calls).
 - The rest of the document (and every host call) is unconfined, including after a confined call returns or fails.
 
 **Removable:** `seal(obj, removable = true)` / `{ removable: true }`: it can still be dropped whole (`drop(obj)`,
@@ -588,12 +597,32 @@ goes (a plugin turned on, a tool for one task).
 
 **Inspect:** `sealed(obj)` (Stof map) / `doc.sealed(path)` (JS object, Python dict) / `graph.seal_info(node)`: null
 when not sealed, else `part` (path of the object sealed: this one or one around it), `fields`, `removable`,
-`confined` (list of `{ reads, hosts }`).
+`confined` (list of `{ reads, hosts, libs, time, calls }`; `time` in ms, `calls` as function paths).
+
+**Gates** (`calls`): functions outside the part that its code may call, and that run unconfined, as themselves: an
+API you give it (Ex. one that signs a request with a key the part never sees, or reads one record it may have).
+- Hand them in as values, since a path to them finds nothing from inside: a field in the part holding the function,
+  set before sealing and made `on` the part (`tool.api = new { request: self.link.request } on tool`), or an
+  argument. Then seal once with everything: `seal(tool, reads = [], libs = ['Str'], calls = [self.link.request])`
+  (host: `{ calls: ['link.request'] }`, function paths). A call is a gate's only when every confinement it's called
+  under lists it, so a part can't make one of its own, and confining again only narrows.
+- A gate must be outside the part (one inside would run the part's code unconfined), and is kept as that function,
+  not its path: a function put at the same path later isn't a gate.
+- A gate runs with everything the document has, so it's a door: check what it's given, and hand back values.
+  Objects it hands back stay opaque to the part. Code it calls back in a confined part (Ex. a function value the
+  part passed it) runs confined again, and the part is confined again when the gate returns or fails.
+
+**Untrusted source:** parse code you didn't write with the `untrusted` profile (`parse(src, obj, 'stof',
+'untrusted')`, `doc.parse(src, 'stof', node, 'untrusted')`): declarations only. Nothing runs while it's parsed (field
+and attribute values must be literals; no `#[init]`), it imports nothing, and it declares no `#[type]`s (types are
+found by name across the document). Otherwise parsing runs expressions (`leak: root.secrets.key`) before any seal is
+on. Parse into a fresh object (drop it if the parse fails), then seal it confined before calling it.
 
 A typical plugin, end to end:
 ```typescript
-doc.parse(pluginSource, 'plugins.weather');                       // code you didn't write
-doc.seal('plugins.weather', { reads: ['inputs'], hosts: ['api.weather.example'], removable: true });
+doc.parse(pluginSource, 'stof', 'plugins.weather', 'untrusted');  // code you didn't write: declarations only
+doc.parse('api: { quota: root.app.quota_for_plugin }', 'stof', 'plugins.weather'); // its gate (your function)
+doc.seal('plugins.weather', { reads: ['inputs'], hosts: ['api.weather.example'], libs: ['Std', 'Str', 'Http'], time: 2000, calls: ['app.quota_for_plugin'], removable: true });
 await doc.call('plugins.weather.forecast');                       // sees itself + inputs; fetches one host
 doc.remove('plugins.weather');                                    // when it's turned off
 ```

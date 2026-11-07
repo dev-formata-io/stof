@@ -399,7 +399,7 @@ export interface SealInfo {
     /** It can be removed whole. */
     removable: boolean;
     /** The confinements its code runs under (empty: not confined). */
-    confined: { reads: string[] | null, hosts: string[] | null }[];
+    confined: { reads: string[] | null, hosts: string[] | null, libs: string[] | null, time: number | null, calls: string[] | null }[];
 }
 
 
@@ -407,7 +407,7 @@ export interface SealInfo {
  * Stof document.
  */
 export class StofDoc {
-    static readonly VERSION = '0.11.1';
+    static readonly VERSION = '0.11.2';
     private static initialized?: Promise<unknown>;
     private static wasmMutex = new WasmMutex();
     stof: Stof;
@@ -530,9 +530,15 @@ export class StofDoc {
 
 
     /**
-     * Parse string source, array, or a JS record.
+     * Parse string source, array, or a JS record, into the main root or the object at `node` (a path, Ex.
+     * 'plugins.weather', or an object ID); a path with no object there is an error.
+     *
+     * Profile 'untrusted' is for Stof source from somewhere else: declarations only. Nothing runs while it's parsed
+     * (field and attribute values must be literals; no #[init]), it imports nothing, and it declares no #[type]s.
+     * Parse it into a fresh object (remove it if the parse fails), then seal that object confined before calling
+     * anything in it: doc.seal(node, { reads: [], hosts: [...], libs: [...], time: 2000 }).
      */
-    parse(src: string | Record<string, unknown> | Uint8Array, format: string = "stof", node: string | null = null, profile: 'prod' | 'test' = 'prod'): boolean {
+    parse(src: string | Record<string, unknown> | Uint8Array, format: string = "stof", node: string | null = null, profile: 'prod' | 'test' | 'untrusted' = 'prod'): boolean {
         if (typeof src === 'string') {
             return this.stof.stringImport(src, format, node, profile);
         } else if (src instanceof Uint8Array) {
@@ -648,19 +654,25 @@ export class StofDoc {
      *   at these paths (looked up each time it's entered), changes only itself, and can't hand anything else to a
      *   library function. `[]`: only itself.
      * - `hosts`: its Http.fetch reaches only these hosts (your allowHttp list still applies). `[]`: no network.
+     * - `libs`: its code calls only these libraries (Ex. ['Std', 'Str', 'Http']), your own (doc.lib(...)) included,
+     *   so code from somewhere else can't use a function you gave the document. `[]`: no library calls.
+     * - `time` (ms): its code runs for at most this long each time it's entered, on top of the call's own limit.
+     * - `calls` (function paths, Ex. ['link.request']): gates, its only way to anything else. Its code may call these
+     *   functions, which run unconfined, as themselves. Hand them in as values first (a field made in the part:
+     *   doc.parse('api: { request: root.link.request }', 'stof', path)), then seal once with everything.
      *
      * Ex. doc.seal('<Engine>', { publicKey: ENGINE_KEY, signature: ENGINE_SIGNATURE })
-     * Ex. doc.seal('plugins.weather', { removable: true, reads: ['inputs'], hosts: ['api.weather.example'] })
+     * Ex. doc.seal('plugins.weather', { removable: true, reads: ['inputs'], hosts: ['api.weather.example'], libs: ['Std', 'Str', 'Http'], time: 2000 })
      */
-    seal(path: string, options: { fields?: boolean, digest?: string, publicKey?: string, signature?: string, removable?: boolean, reads?: string[], hosts?: string[] } = {}): string {
-        return this.stof.seal(path, options.fields ?? false, options.digest, options.publicKey, options.signature, options.removable ?? false, options.reads, options.hosts);
+    seal(path: string, options: { fields?: boolean, digest?: string, publicKey?: string, signature?: string, removable?: boolean, reads?: string[], hosts?: string[], libs?: string[], time?: number, calls?: string[] } = {}): string {
+        return this.stof.seal(path, options.fields ?? false, options.digest, options.publicKey, options.signature, options.removable ?? false, options.reads, options.hosts, options.libs, options.time, options.calls);
     }
 
 
     /**
      * How an object (a path, or a type as "<Name>") is sealed, or null when it isn't: the `part` that was sealed
-     * (its path: this object, or one around it), `fields` (frozen), `removable`, and `confined` (one { reads, hosts }
-     * per confinement its code runs under; empty when it isn't confined).
+     * (its path: this object, or one around it), `fields` (frozen), `removable`, and `confined` (one { reads, hosts,
+     * libs, time } per confinement its code runs under; empty when it isn't confined).
      */
     sealed(path: string): SealInfo | null {
         const info = this.stof.sealed(path);

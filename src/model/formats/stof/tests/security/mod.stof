@@ -24,3 +24,9 @@ import './age' as self.AgeSec;
 
 #[test]
 import './sealing' as self.Sealing;
+
+#[test]
+import './untrusted' as self.Untrusted;
+
+#[test]
+import './gates' as self.Gates;

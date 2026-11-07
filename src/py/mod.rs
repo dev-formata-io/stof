@@ -270,7 +270,9 @@ impl Doc {
      *****************************************************************************/
     
     #[pyo3(signature = (stof, node = None, profile = "prod"))]
-    /// Parse some Stof into this document.
+    /// Parse some Stof into this document. Profile "untrusted" is for source from somewhere else: declarations only
+    /// (nothing runs while it's parsed, no imports, no #[type]s); parse it into a fresh object, then seal that object
+    /// confined before calling it.
     pub fn parse(&mut self, stof: &str, node: Option<&Bound<'_, PyAny>>, profile: &str) -> PyResult<bool> {
         self.string_import(stof, "stof", node, profile)
     }
@@ -296,6 +298,13 @@ impl Doc {
             },
             Val::Null |
             Val::Void => {},
+            Val::Str(path) => {
+                // a path to an object (Ex. 'plugins.weather'): an error when there's none, never a quiet no-op
+                match self.graph.host_object(&path) {
+                    Some(node) => parse_node = node,
+                    None => return Err(PyValueError::new_err(format!("there's no object at '{path}' to parse into"))),
+                }
+            },
             _ => {
                 return Ok(false);
             }
@@ -305,6 +314,7 @@ impl Doc {
             "prod" => Profile::prod(),
             "test" => Profile::test(),
             "prod_docs" => Profile::docs(false),
+            "untrusted" => Profile::untrusted(),
             "docs" => Profile::docs(true),
             _ => Profile::default(),
         };
@@ -336,6 +346,13 @@ impl Doc {
             },
             Val::Null |
             Val::Void => {},
+            Val::Str(path) => {
+                // a path to an object (Ex. 'plugins.weather'): an error when there's none, never a quiet no-op
+                match self.graph.host_object(&path) {
+                    Some(node) => parse_node = node,
+                    None => return Err(PyValueError::new_err(format!("there's no object at '{path}' to parse into"))),
+                }
+            },
             _ => {
                 return Ok(false);
             }
@@ -345,6 +362,7 @@ impl Doc {
             "prod" => Profile::prod(),
             "test" => Profile::test(),
             "prod_docs" => Profile::docs(false),
+            "untrusted" => Profile::untrusted(),
             "docs" => Profile::docs(true),
             _ => Profile::default(),
         };
@@ -361,15 +379,26 @@ impl Doc {
         }
     }
 
-    #[pyo3(signature = (path, fields = false, digest = None, public_key = None, signature = None, removable = false, reads = None, hosts = None))]
+    #[pyo3(signature = (path, fields = false, digest = None, public_key = None, signature = None, removable = false, reads = None, hosts = None, libs = None, time = None, calls = None))]
     /// Seal an object (path, or a type as "<Name>") and everything under it: its functions can be called but not
     /// changed. With fields, its fields are frozen too. With digest, only if its digest is that; with public_key and
     /// signature, only if the digest is signed by that key (a signature under "stof/seal": Doc.sign(secret,
     /// "stof/seal", digest)). With removable, it can still be removed whole. With reads (paths, looked up each time
     /// the part is entered), its code reaches only itself and those objects; with hosts, its Http.fetch reaches only
-    /// those hosts. Returns the digest.
-    pub fn seal(&mut self, path: &str, fields: bool, digest: Option<&str>, public_key: Option<&str>, signature: Option<&str>, removable: bool, reads: Option<Vec<String>>, hosts: Option<Vec<String>>) -> PyResult<String> {
-        let options = crate::model::seal::SealOptions { fields, removable, reads, hosts };
+    /// those hosts; with libs, it calls only those libraries (host libraries included); with time (ms), it runs for
+    /// at most that long each time it's entered; with calls (function paths), those functions are its gates: it may
+    /// call them, and they run unconfined. Returns the digest.
+    pub fn seal(&mut self, path: &str, fields: bool, digest: Option<&str>, public_key: Option<&str>, signature: Option<&str>, removable: bool, reads: Option<Vec<String>>, hosts: Option<Vec<String>>, libs: Option<Vec<String>>, time: Option<f64>, calls: Option<Vec<String>>) -> PyResult<String> {
+        let calls = match calls {
+            Some(paths) => Some(self.graph.seal_calls(&paths).map_err(|error| PyValueError::new_err(error.to_string()))?),
+            None => None,
+        };
+        let time = match time {
+            Some(ms) if !(ms > 0.0) || !ms.is_finite() => return Err(PyValueError::new_err("sealed: seal time must be more than 0 ms")),
+            Some(ms) => Some(web_time::Duration::from_micros((ms * 1000.0) as u64)),
+            None => None,
+        };
+        let options = crate::model::seal::SealOptions { fields, removable, reads, hosts, libs, time, calls };
         let res = match (public_key, signature) {
             (Some(key), Some(signature)) => {
                 if let Some(expected) = digest {

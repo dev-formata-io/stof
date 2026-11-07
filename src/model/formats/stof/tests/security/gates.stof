@@ -1,0 +1,204 @@
+//
+// Copyright 2026 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+/*!
+ * Gates: functions outside a confined part that its code may call (`seal(part, calls = [..])`), which run unconfined,
+ * as themselves. The part's only way to anything else: a controlled API the host chooses.
+ */
+
+secrets: { key: 'abc' }
+
+/// What the host lets tools do: sign a text for them (with a secret they never see), and a few things to test with.
+keys: {
+    fn sign(text: str) -> str { 'signed(' + text + ')=' + Key.public(Key.generate()).len() + super.secrets.key }
+    fn fails() -> str { throw('the gate refused') }
+    fn secrets_obj() -> obj { super.secrets }
+    fn call_back(f: fn) -> unknown { f() }
+    async fn later(text: str) -> str { 'later ' + text + ' ' + super.secrets.key }
+    fn not_a_gate() -> str { super.secrets.key }
+}
+
+helpers: {
+    fn peek() -> unknown { super.secrets.key }
+    fn sign_through(gate: fn) -> unknown { gate('via helper') }
+}
+
+/// A gate that's itself in a confined part: it runs under that part's confinement, not unconfined.
+boxed: {
+    fn peek() -> unknown { super.secrets.key }
+}
+
+/// A fresh tool (on this object: its super is this one): untrusted source, its gates handed in, sealed once with
+/// everything (unless `sealed` is false: the control, to show what the probes find without the seal). Dropped by the
+/// caller.
+fn tool(source: str, calls: list, reads: list = [], sealed: bool = true, libs: list = ['Str']) -> obj {
+    const tool = new {} on self;
+    parse(source, tool, 'stof', 'untrusted');
+    tool.api = new {
+        sign: self.keys.sign
+        fails: self.keys.fails
+        secrets: self.keys.secrets_obj
+        call_back: self.keys.call_back
+        later: self.keys.later
+        not_a_gate: self.keys.not_a_gate
+        boxed: self.boxed.peek
+    } on tool; // inside the part: an object outside it would be out of its reach (opaque)
+    if (sealed) seal(tool, removable = true, reads = reads, hosts = [], libs = libs, calls = calls);
+    tool
+}
+
+/// Why a call failed (or 'ok: <result>').
+fn refused(f: fn) -> str {
+    let res = '';
+    try res = 'ok: ' + f();
+    catch (e, message) res = message;
+    res
+}
+
+#[type_ignore]
+source: "
+    fn signs() -> str { self.api.sign('order') }
+    fn by_path() -> unknown { super.keys }
+    fn unlisted() -> str { self.api.not_a_gate() }
+    fn after() -> unknown { self.api.sign('x'); super.secrets }
+    fn after_lib() -> str { self.api.sign('x'); Key.generate() }
+    fn caught() -> unknown {
+        let message = '';
+        try self.api.fails();
+        catch (e, m) message = m;
+        super.secrets
+    }
+    fn caught_message() -> str {
+        let message = '';
+        try self.api.fails();
+        catch (e, m) message = m;
+        message
+    }
+    fn mine() -> unknown { super.secrets }
+    fn callback() -> unknown { self.api.call_back(self.mine) }
+    fn opaque() -> unknown { self.api.secrets().key }
+    fn holds() -> bool { self.api.secrets() != null }
+    fn waits() -> str { await self.api.later('x') }
+    fn then_mine() -> unknown { await self.api.later('x'); super.secrets }
+    fn helper_peek() -> unknown { super.helpers.peek() }
+    fn helper_signs() -> unknown { super.helpers.sign_through(self.api.sign) }
+    fn widen() { seal(self, removable = true, calls = [super.helpers.peek]); }
+    fn boxed() -> unknown { self.api.boxed() }
+"
+
+#[test]
+fn a_gate_runs_unconfined() {
+    using tool = self.tool(self.source, [self.keys.sign]);
+    const signed = tool.signs();
+    assert(signed.starts_with('signed(order)=44abc'), 'it reads the secret and calls Key, which the tool cannot: ' + signed);
+}
+
+#[test]
+/// The probes below find things when the tool isn't sealed, so a null under the seal means the seal hid it.
+fn controls_find_things_unsealed() {
+    using tool = self.tool(self.source, [], [], false);
+    assert_neq(tool.by_path(), null);
+    assert_eq(tool.unlisted(), 'abc');
+    assert_neq(tool.mine(), null);
+    assert_eq(tool.opaque(), 'abc');
+    assert_eq(tool.helper_peek(), 'abc');
+    assert_eq(tool.boxed(), 'abc');
+}
+
+#[test]
+fn only_the_gates_it_was_handed() {
+    using tool = self.tool(self.source, [self.keys.sign]);
+    assert_null(tool.by_path(), 'a path to the gate (or what it reads) finds nothing from inside');
+    const message = self.refused(() => tool.unlisted());
+    assert(message.contains("can't call 'not_a_gate'"), 'a function value it holds is not a gate unless listed: ' + message);
+}
+
+#[test]
+fn confined_again_after_a_gate() {
+    using tool = self.tool(self.source, [self.keys.sign, self.keys.fails]);
+    assert_null(tool.after(), 'after the gate returns it reads only itself');
+    assert(self.refused(() => tool.after_lib()).contains('Key'), 'and calls only its libraries');
+    assert_null(tool.caught(), 'after a gate fails, and the error is caught in the tool, too');
+    assert_eq(tool.caught_message(), 'the gate refused');
+}
+
+#[test]
+fn code_a_gate_calls_back_runs_confined() {
+    using tool = self.tool(self.source, [self.keys.call_back]);
+    assert_null(tool.callback(), "the tool's own function, called by the gate, is still confined");
+}
+
+#[test]
+fn what_a_gate_returns_stays_opaque() {
+    using tool = self.tool(self.source, [self.keys.secrets_obj]);
+    assert(tool.holds(), 'it can hold what a gate hands back');
+    assert_null(tool.opaque(), 'but not look inside an object out of its reach');
+}
+
+#[test]
+fn async_gates() {
+    using tool = self.tool(self.source, [self.keys.later]);
+    assert_eq(tool.waits(), 'later x abc');
+    assert_null(tool.then_mine(), 'confined again after awaiting it');
+}
+
+#[test]
+fn a_part_cannot_make_its_own_gates() {
+    using tool = self.tool(self.source, [self.keys.sign], [self.helpers], true, ['Str', 'Std']); // Std: it may call seal
+    assert_null(tool.helper_peek(), 'listed code runs confined');
+    tool.widen(); // seals itself again, listing the helper as a gate
+    assert_null(tool.helper_peek(), "still confined: the host's confinement doesn't list it as a gate");
+    assert(self.refused(() => tool.helper_signs()).contains("can't call 'sign'"), "a gate is the host's only where every confinement lists it: code running under another (the helper's call, confined too) can't use it");
+}
+
+#[test]
+fn a_gate_in_a_confined_part_runs_confined_there() {
+    // its own confined part (tests run together: sealing the shared one would confine it for the others)
+    using boxed = new {} on self;
+    parse('fn peek() -> unknown { super.secrets.key }', boxed);
+    assert_eq(boxed.peek(), 'abc');
+    seal(boxed, removable = true, reads = []);
+    using tool = new {} on self;
+    parse('fn boxed() -> unknown { self.api.boxed() }', tool, 'stof', 'untrusted');
+    tool.api = new { boxed: boxed.peek } on tool;
+    seal(tool, removable = true, reads = [], libs = [], calls = [boxed.peek]);
+    assert_null(tool.boxed(), "the gate runs, under its own part's confinement");
+}
+
+#[test]
+fn gates_are_checked_when_sealing() {
+    using tool = new {};
+    parse("fn inner() -> str { 'x' }", tool, 'stof', 'untrusted');
+    let message = '';
+    try seal(tool, reads = [], calls = [tool.inner]);
+    catch (e, m) message = m;
+    assert(message.contains('outside the part'), "a gate in the part would run the part's code unconfined: " + message);
+    message = '';
+    try seal(tool, reads = [], calls = ['keys.missing']);
+    catch (e, m) message = m;
+    assert(message.contains("there's none at"), message);
+    message = '';
+    try seal(tool, reads = [], calls = [42]);
+    catch (e, m) message = m;
+    assert(message.contains('list of functions'), message);
+}
+
+#[test]
+fn sealed_tells_its_gates() {
+    using tool = self.tool(self.source, [self.keys.sign, self.keys.later]);
+    const calls = sealed(tool).get('confined')[0].get('calls');
+    assert_eq(calls, ['root.Security.Gates.keys.later', 'root.Security.Gates.keys.sign']);
+}

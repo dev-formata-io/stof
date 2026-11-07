@@ -2,7 +2,7 @@
 # RUN "stof run project.stof" TO REGENERATE.
 [package]
 name = "stof"
-version = "0.11.1"
+version = "0.11.2"
 authors = ["CJ Cummings <cj@formata.io>"]
 description = "Software that behaves differently for every user: each customer's rules, tools, and state in one document that an agent can edit, a person can review, and your app runs, sandboxed, in Rust, JavaScript, and Python."
 license = "Apache-2.0"

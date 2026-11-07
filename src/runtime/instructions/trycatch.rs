@@ -59,10 +59,12 @@ impl Instruction for TryCatchIns {
         instructions.push(Arc::new(Base::PopReturnUntilDepth(return_depth)));
         instructions.push(Arc::new(Base::PopSelfUntilDepth(self_depth)));
         instructions.push(Arc::new(Base::PopRetValidUntilDepth(ret_valid_depth)));
-        // ...and symbol scopes and loops: an unwound call's function scope would otherwise hide this
-        // function's variables from the catch block (function scopes are lookup boundaries)
-        instructions.push(Arc::new(Base::PopSymbolScopeUntilDepth(scope_depth)));
+        // ...and loops and symbol scopes: an unwound call's function scope would otherwise hide this
+        // function's variables from the catch block (function scopes are lookup boundaries). Loops first: popping
+        // a loop pops its scope too, so after the scopes it would pop one of this function's own (Ex. an error
+        // thrown in a loop inside a called function lost the caller's variables in its catch block)
         instructions.push(Arc::new(Base::PopLoopUntilDepth(loop_depth)));
+        instructions.push(Arc::new(Base::PopSymbolScopeUntilDepth(scope_depth)));
         
         // the catch variable lives in its own scope (a second "catch (e)" in the same function is fine)
         instructions.push(Arc::new(Base::PushSymbolScope));

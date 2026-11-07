@@ -260,6 +260,9 @@ fn array_value<'a>(input: &'a str, _name: &str, context: &mut ParseContext) -> I
 /// Create a new object and parse it for this field's value.
 fn object_value<'a>(input: &'a str, name: &str, context: &mut ParseContext, attributes: &mut FxHashMap<String, Val>, merge: bool) -> IResult<&'a str, Variable, StofParseError> {
     let (input, _) = char('{')(input)?;
+    if context.profile.untrusted && attributes.contains_key(crate::model::PROTOTYPE_TYPE_ATTR.as_str()) {
+        return Err(nom::Err::Failure(StofParseError::from(format!("untrusted source can't declare types (#[type] {name}): types are found by name across the document"))));
+    }
 
     // Optional custom object ID - not recommended unless you know what you're doing
     let (mut input, custom_id) = opt(delimited(

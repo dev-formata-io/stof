@@ -32,6 +32,12 @@ pub struct Profile {
 
     /// Excluded attributes (both functions and fields).
     pub exclude_attributes: FxHashSet<String>,
+
+    /// Source from somewhere else (Ex. another party's tools): declarations only. Nothing runs while it's parsed
+    /// (no expressions: field and attribute values must be literals; no #[init] functions), it imports nothing, and it
+    /// declares no #[type]s (types are found by name across the document). Its functions are compiled, not run: seal
+    /// the part it was parsed into (confined) before calling them.
+    pub untrusted: bool,
 }
 impl Default for Profile {
     fn default() -> Self {
@@ -47,6 +53,7 @@ impl Profile {
             debug_info: true,
             docs: false,
             exclude_attributes: Default::default(),
+            untrusted: false,
         }
     }
 
@@ -60,6 +67,7 @@ impl Profile {
             debug_info: false,
             docs: true,
             exclude_attributes,
+            untrusted: false,
         }
     }
 
@@ -73,6 +81,21 @@ impl Profile {
             debug_info: false,
             docs: false,
             exclude_attributes,
+            untrusted: false,
+        }
+    }
+
+    /// Untrusted profile ("untrusted"): source from somewhere else, declarations only (see `untrusted`). Test
+    /// attributes are excluded.
+    pub fn untrusted() -> Self {
+        let mut exclude_attributes = FxHashSet::default();
+        exclude_attributes.insert("test".into());
+        Self {
+            name: "untrusted".to_string(),
+            debug_info: false,
+            docs: false,
+            exclude_attributes,
+            untrusted: true,
         }
     }
 }

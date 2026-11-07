@@ -392,11 +392,22 @@ impl Stof {
     /// changed (see `model::seal`). With `fields`, its fields are frozen too. With `expected`, only if its digest is
     /// that. With `public_key` and `signature`, only if the digest is signed by that key. Returns the digest.
     /// With `removable`, it can still be removed whole. With `reads` (paths, looked up each time the part is entered),
-    /// its code reaches only itself and those objects; with `hosts`, its Http.fetch reaches only those hosts (see
-    /// `model::seal::Confine`).
-    pub fn seal(&self, path: &str, fields: Option<bool>, expected: Option<String>, public_key: Option<String>, signature: Option<String>, removable: Option<bool>, reads: Option<Vec<String>>, hosts: Option<Vec<String>>) -> Result<String, String> {
+    /// its code reaches only itself and those objects; with `hosts`, its Http.fetch reaches only those hosts; with
+    /// `libs`, it calls only those libraries (host libraries included); with `time` (ms), it runs for at most that
+    /// long each time it's entered; with `calls` (function paths), those functions are its gates: it may call them,
+    /// and they run unconfined (see `model::seal::Confine`).
+    pub fn seal(&self, path: &str, fields: Option<bool>, expected: Option<String>, public_key: Option<String>, signature: Option<String>, removable: Option<bool>, reads: Option<Vec<String>>, hosts: Option<Vec<String>>, libs: Option<Vec<String>>, time: Option<f64>, calls: Option<Vec<String>>) -> Result<String, String> {
         let mut graph = self.graph_mut()?;
-        let options = SealOptions { fields: fields.unwrap_or(false), removable: removable.unwrap_or(false), reads, hosts };
+        let calls = match calls {
+            Some(paths) => Some(graph.seal_calls(&paths).map_err(|error| error.to_string())?),
+            None => None,
+        };
+        let time = match time {
+            Some(ms) if !(ms > 0.0) || !ms.is_finite() => return Err("sealed: seal time must be more than 0 ms".into()),
+            Some(ms) => Some(web_time::Duration::from_micros((ms * 1000.0) as u64)),
+            None => None,
+        };
+        let options = SealOptions { fields: fields.unwrap_or(false), removable: removable.unwrap_or(false), reads, hosts, libs, time, calls };
         let res = match (public_key, signature) {
             (Some(key), Some(signature)) => {
                 if let Some(expected) = &expected {
@@ -414,7 +425,7 @@ impl Stof {
     }
 
     /// How an object (a path, or a type as "<Name>") is sealed, as JSON: { part, fields, removable, confined:
-    /// [{ reads, hosts }] }, or null when it isn't sealed.
+    /// [{ reads, hosts, libs, time, calls }] }, or null when it isn't sealed.
     pub fn sealed(&self, path: &str) -> Result<Option<String>, String> {
         let graph = self.graph_ref()?;
         let info = graph.seal_info_path(path).map_err(|error| error.to_string())?;
@@ -523,6 +534,13 @@ impl Stof {
             },
             Val::Null |
             Val::Void => {},
+            Val::Str(path) => {
+                // a path to an object (Ex. 'plugins.weather'): an error when there's none, never a quiet no-op
+                match graph.host_object(&path) {
+                    Some(node) => parse_node = node,
+                    None => return Err(format!("there's no object at '{path}' to parse into")),
+                }
+            },
             _ => {
                 return Ok(false);
             }
@@ -532,6 +550,7 @@ impl Stof {
             "prod" => Profile::prod(),
             "test" => Profile::test(),
             "prod_docs" => Profile::docs(false),
+            "untrusted" => Profile::untrusted(),
             "docs" => Profile::docs(true),
             _ => Profile::default(),
         };
@@ -559,6 +578,13 @@ impl Stof {
             },
             Val::Null |
             Val::Void => {},
+            Val::Str(path) => {
+                // a path to an object (Ex. 'plugins.weather'): an error when there's none, never a quiet no-op
+                match graph.host_object(&path) {
+                    Some(node) => parse_node = node,
+                    None => return Err(format!("there's no object at '{path}' to parse into")),
+                }
+            },
             _ => {
                 return Ok(false);
             }
@@ -569,6 +595,7 @@ impl Stof {
             "prod" => Profile::prod(),
             "test" => Profile::test(),
             "prod_docs" => Profile::docs(false),
+            "untrusted" => Profile::untrusted(),
             "docs" => Profile::docs(true),
             _ => Profile::default(),
         };

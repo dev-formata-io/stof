@@ -147,6 +147,53 @@ def confined():
     assert info['removable'] and info['part'] == 'root.tools.weather' and info['confined'][0]['reads'] == ['inputs'], info
     assert doc.remove('tools.weather')
 
+def untrusted():
+    doc = Doc(); doc.quiet(True); doc.parse("secrets: { key: 'abc' }")
+    ran = True
+    try:
+        doc.parse('leak: root.secrets.key', None, 'untrusted')
+    except Exception as error:
+        ran = False
+        assert 'values must be literals' in str(error), str(error)
+    assert not ran, 'an expression ran while parsing untrusted source'
+    doc.parse("tool: { label: 'Weather'\nfn f(city: str) -> str { 'sunny in ' + city }\nfn lib() -> str { Key.generate() } }", None, 'untrusted')
+    doc.seal('tool', removable=True, reads=[], hosts=[], libs=['Str'], time=2000)
+    assert doc.call('tool.f', ['Austin']) == 'sunny in Austin'
+    try:
+        message = str(doc.call('tool.lib'))
+    except Exception as error:
+        message = str(error)
+    assert "Key library isn't one it may use" in message, message
+    assert doc.sealed('tool')['confined'][0]['libs'] == ['Str']
+    # into an object by path (not only the main root); a path with no object there is an error, not a quiet no-op
+    doc.parse('plugins: { weather: {} }')
+    doc.parse("fn forecast() -> str { 'sunny' }", 'plugins.weather', 'untrusted')
+    assert doc.call('plugins.weather.forecast') == 'sunny'
+    try:
+        doc.parse("fn f() -> str { 'x' }", 'plugins.missing', 'untrusted'); missing = 'parsed'
+    except Exception as error:
+        missing = str(error)
+    assert "no object at 'plugins.missing'" in missing, missing
+
+def gates():
+    doc = Doc(); doc.quiet(True)
+    doc.parse('''
+        link: { fn request(route: str) -> str { Host.sign('limitr-network/v1/request', route) } }
+        tool: {
+            api: { request: super.super.link.request }
+            fn calls() -> str { self.api.request('/forecast') }
+            fn direct() -> str { Host.sign('limitr-network/v1/voucher', 'more spend') }
+        }''')
+    doc.lib('Host', 'sign', lambda context, message: f'signed {context} {message}', False)
+    doc.seal('tool', removable=True, reads=[], libs=['Str'], calls=['link.request'])
+    assert doc.call('tool.calls') == 'signed limitr-network/v1/request /forecast'
+    try:
+        message = str(doc.call('tool.direct'))
+    except Exception as error:
+        message = str(error)
+    assert "Host library isn't one it may use" in message, message
+    assert doc.sealed('tool')['confined'][0]['calls'] == ['root.link.request']
+
 def keys():
     secret = Doc.generate_key(); public = Doc.public_key(secret)
     assert secret != Doc.generate_key()
@@ -160,7 +207,7 @@ def keys():
     doc = Doc(); doc.parse("fn check(m: str, k: str, s: str) -> bool { Key::verify(k, 'orders/v1', m, s) }")
     assert doc.call('check', [order, public, signature]) is True
 
-for name, fn in [('calls', calls), ('sealing', sealing), ('confined', confined), ('keys', keys), ('library functions', library_functions), ('values', values), ('memory limit', memory_limit),
+for name, fn in [('calls', calls), ('sealing', sealing), ('confined', confined), ('untrusted', untrusted), ('gates', gates), ('keys', keys), ('library functions', library_functions), ('values', values), ('memory limit', memory_limit),
                  ('sandbox', sandbox), ('network', network), ('html', html)]:
     check(name, fn)
 print(f'{failed} failed' if failed else 'all ok')

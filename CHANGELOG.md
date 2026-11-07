@@ -1,5 +1,58 @@
 # Changelog
 
+## 0.11.2
+
+For code from somewhere else that runs in your document (Ex. a provider's tools in an agent's Limitr policy): parse it
+without running anything, limit what it may call and how long it may run (not only what it reads and which hosts it
+reaches), and give it an API of your own (gates) as its only way to anything else.
+
+### Added
+
+- **The `untrusted` parse profile: declarations only.** `parse(src, obj, 'stof', 'untrusted')` (JS
+  `doc.parse(src, 'stof', node, 'untrusted')`, Python `doc.parse(src, node, 'untrusted')`, Rust `Profile::untrusted()`).
+  Nothing runs while it's parsed: field and attribute values must be literals (strings, numbers with units, booleans,
+  null, and lists and objects of them), and `#[init]` functions are refused. It imports nothing, and it declares no
+  `#[type]`s (types are found by name across the document). Its functions are compiled, not run. Before, parsing
+  source ran its expressions with the whole document in reach, before any seal could be on (Ex. `leak:
+  root.secrets.key` copied a secret into the parsed part), and its imports read files. Parse into a fresh object,
+  then seal it confined before calling anything in it.
+- **Confined seals limit libraries: `libs`.** `seal(obj, libs = ['Std', 'Str', 'Http'])` (JS `{ libs: [...] }`,
+  Python `libs=[...]`, Rust `SealOptions::libs`): the part's code (and everything it calls) can call only these
+  libraries, the host's own libraries included. Before, confined code could call any library with plain values
+  (strings, numbers), so it could use a host function the document was given, Ex. one that signs with the host's
+  key. Method calls count as their library's (`text.split('/')` is `Str`). `[]` means no library calls.
+- **Confined seals limit time: `time`.** `seal(obj, time = 500ms)` (JS and Python in ms, Rust a `Duration`): the
+  part's code runs for at most this long each time it's entered, on top of the call's own limit. It's wall-clock time
+  from entering, waits included (Ex. an `Http.fetch`), like the call's own limit. Running past it is a `sealed: ...`
+  error the calling code can catch (the call's own limit isn't).
+- **Gates: `calls`.** `seal(part, calls = [self.link.request])` (JS and Python `calls: ['link.request']`, function
+  paths; Rust `SealOptions::calls` with `Graph::seal_calls`): functions outside a confined part that its code may
+  call, and that run unconfined, as themselves. A controlled API for code from somewhere else (Ex. one that signs a
+  request with a key the part never sees), and its only way to anything else. The part gets them as values (a field
+  in the part holding the function, or an argument). A call is a gate's only when every confinement it's called under
+  lists it, so a part can't make one of its own; a gate must be outside the part; it's kept as that function, not
+  its path. Code a gate calls back in a confined part runs confined again, and the part is confined again when the
+  gate returns or fails (async gates too).
+- `sealed()` (and `doc.sealed()`, `SealInfo`) report each confinement's `libs`, `time`, and `calls`.
+
+### Fixed
+
+- **An error thrown in a loop inside a called function, caught by the caller, no longer loses the caller's
+  variables.** `try` unwound scopes before loops, and unwinding a loop pops its scope too, so it popped one of the
+  catching function's own scopes: the catch block failed (Ex. "only an object can be assigned to a root" on
+  `catch (e, message) res = message`). Loops are unwound first now.
+- **The host's `parse` (JS `doc.parse`, Python `doc.parse`, and `stringImport`/`binaryImport`/`string_import`/
+  `binary_import`) takes a path for `node`** (Ex. `doc.parse(src, 'stof', 'plugins.weather')`), like `get`, `call`,
+  and `seal`. A path was taken as an object ID, found nothing, and the parse quietly did nothing (it returned false);
+  a path with no object there is now an error.
+
+### Docs
+
+- The skill's plugin example passed its path as `doc.parse`'s format (`doc.parse(src, 'plugins.weather')`); it's
+  `doc.parse(src, 'stof', 'plugins.weather', 'untrusted')` now.
+- `Std::parse` lists its profiles, and the seal docs (skill, `Std::seal`, JS, Python, README) cover `libs`, `time`,
+  gates, and parsing untrusted source.
+
 ## 0.11.1
 
 Fixes found building the first real use of 0.11's seals (a signed, sealed module in Limitr), and a note on units.

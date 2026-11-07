@@ -28,6 +28,9 @@ pub fn import<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a str
     if !do_import {
         return Ok((input, ()));
     }
+    if context.profile.untrusted {
+        return Err(nom::Err::Failure(StofParseError::from(format!("untrusted source can't import ('{path}')"))));
+    }
 
     let mut start = None;
     if scope.starts_with(SELF_STR_KEYWORD.as_str()) || scope.starts_with(SUPER_STR_KEYWORD.as_str()) {

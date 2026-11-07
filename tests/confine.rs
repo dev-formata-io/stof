@@ -223,6 +223,76 @@ fn confined_hosts() {
 }
 
 #[test]
+fn confined_libs_and_time() {
+    let mut graph = doc();
+    graph.parse_stof_src(r#"
+        tools: { timed: {
+            fn split() -> list { 'a/b'.split('/') }
+            fn signs() -> str { Key.sign(Key.generate(), 'limitr-network/v1/voucher', 'more spend') }
+            fn spin() -> int { let i = 0; while (i < 100000000) i += 1; i }
+        } }
+    "#, None, Profile::default()).unwrap();
+    let options = SealOptions { libs: Some(vec!["Str".into()]), time: Some(std::time::Duration::from_millis(300)), ..Default::default() };
+    graph.seal_path_with("tools.timed", &options, None).unwrap();
+
+    // a listed library (method calls count as theirs), and one that isn't: a library that signs stays out
+    assert!(call(&mut graph, "tools.timed.split").is_ok());
+    let res = call(&mut graph, "tools.timed.signs");
+    assert!(res.as_ref().is_err_and(|err| err.contains("Key library isn't one it may use")), "{res:?}");
+    // its time, each time it's entered (the call's own limit is longer)
+    let res = call(&mut graph, "tools.timed.spin");
+    assert!(res.as_ref().is_err_and(|err| err.contains("past its time limit")), "{res:?}");
+    assert!(call(&mut graph, "tools.timed.split").is_ok(), "entered again: a new time");
+
+    // libs alone don't limit what it reads
+    let info = graph.seal_info_path("tools.timed").unwrap().unwrap().to_json(&graph);
+    assert_eq!(info["confined"][0]["libs"], serde_json::json!(["Str"]));
+    assert_eq!(info["confined"][0]["time"], serde_json::json!(300));
+    assert_eq!(info["confined"][0]["reads"], serde_json::Value::Null);
+}
+
+#[test]
+fn gates() {
+    let mut graph = doc();
+    graph.parse_stof_src(r#"
+        keys: {
+            fn sign(text: str) -> str { Key.sign(Key.generate(), 'tools/v1', text).len() + ' ' + root.secrets.key }
+            fn other() -> str { root.secrets.key }
+        }
+        tools: { gated: {
+            fn signs() -> str { self.api.sign('order') }
+            fn direct() -> str { Key.sign(Key.generate(), 'tools/v1', 'order') }
+            fn other() -> unknown { self.api.other() }
+            fn after() -> unknown { self.api.sign('x'); root.secrets }
+        } }
+    "#, None, Profile::default()).unwrap();
+    // its gate, handed in (on the part, so it's within its reach), then sealed once with everything
+    let part = graph.find_node_named(&graph.host_path("tools.gated", None), graph.main_root());
+    assert!(part.is_some());
+    graph.parse_stof_src("api: { sign: root.keys.sign, other: root.keys.other }", part, Profile::default()).unwrap();
+    let calls = graph.seal_calls(&["keys.sign".into()]).map_err(|e| e.to_string()).unwrap();
+    let options = SealOptions { reads: Some(vec![]), libs: Some(vec!["Str".into()]), calls: Some(calls), removable: true, ..Default::default() };
+    graph.seal_path_with("tools.gated", &options, None).unwrap();
+
+    // through the gate it signs (Key, and the secret, are the gate's); itself it can't
+    assert_eq!(call(&mut graph, "tools.gated.signs").unwrap(), Val::from("88 abc"));
+    let res = call(&mut graph, "tools.gated.direct");
+    assert!(res.as_ref().is_err_and(|err| err.contains("Key library isn't one it may use")), "{res:?}");
+    // a function it holds that isn't a gate stays out; and it's confined again after a gate
+    let res = call(&mut graph, "tools.gated.other");
+    assert!(res.as_ref().is_err_and(|err| err.contains("can't call 'other'")), "{res:?}");
+    assert_eq!(call(&mut graph, "tools.gated.after").unwrap(), Val::Null);
+
+    // gates are functions, outside the part, and shown by path
+    assert!(graph.seal_calls(&["keys.missing".into()]).is_err());
+    let inside = graph.seal_calls(&["tools.gated.signs".into()]).unwrap();
+    let res = graph.seal_path_with("tools.gated", &SealOptions { calls: Some(inside), ..Default::default() }, None);
+    assert!(res.as_ref().is_err_and(|err| err.to_string().contains("outside the part")), "{res:?}");
+    let info = graph.seal_info_path("tools.gated").unwrap().unwrap().to_json(&graph);
+    assert_eq!(info["confined"][0]["calls"], serde_json::json!(["root.keys.sign"]));
+}
+
+#[test]
 fn host_lists() {
     let hosts = ["api.example.com", "localhost:8080", "[::1]"].iter().map(|h| h.to_string()).collect();
     assert!(seal::host_listed("https://api.example.com/v1?x=1", &hosts));

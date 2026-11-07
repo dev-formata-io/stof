@@ -36,9 +36,12 @@
 //! - `removable`: the sealed object can still be removed whole (dropped), though nothing in it can change and it
 //!   can't be moved or renamed. For code that comes and goes (Ex. a provider's capabilities, removed when access
 //!   ends).
-//! - confined (`reads`, `hosts`): code in the sealed part (and everything it calls) reaches only the sealed part
-//!   itself and the objects listed in `reads`, changes only the sealed part, and the Http library reaches only the
-//!   listed `hosts`. See `Confine`. For code from somewhere else that shouldn't see the rest of the document.
+//! - confined (`reads`, `hosts`, `libs`, `time`, `calls`): code in the sealed part (and everything it calls) reaches
+//!   only the sealed part itself and the objects listed in `reads`, changes only the sealed part, the Http library
+//!   reaches only the listed `hosts`, it calls only the libraries listed in `libs` (host libraries included), it runs
+//!   for at most `time` each time it's entered, and the functions in `calls` (gates) are its only way out: they run
+//!   unconfined, as themselves. See `Confine`. For code from somewhere else that shouldn't see the rest of the
+//!   document, or use what the host gave the document, except through the API the host chose.
 //!
 //! `Graph::digest(node)` is a SHA-256 over the sealed part's functions (names, parameters, return types,
 //! attributes, and instructions) and structure (the objects, types, and the fields that hold functions or objects),
@@ -127,12 +130,18 @@ pub struct SealInfo {
     pub confines: Vec<Arc<Confine>>,
 }
 impl SealInfo {
-    /// As JSON: `{ part, fields, removable, confined: [{ reads, hosts }] }` (for hosts).
+    /// As JSON: `{ part, fields, removable, confined: [{ reads, hosts, libs, time, calls }] }` (for hosts; `time` in
+    /// ms, `calls` as function paths).
     pub fn to_json(&self, graph: &Graph) -> serde_json::Value {
         let confined: Vec<serde_json::Value> = self.confines.iter().map(|confine| {
             let mut hosts: Option<Vec<String>> = confine.hosts.as_ref().map(|hosts| hosts.iter().cloned().collect());
             if let Some(hosts) = &mut hosts { hosts.sort(); }
-            serde_json::json!({ "reads": confine.reads, "hosts": hosts })
+            let mut libs: Option<Vec<String>> = confine.libs.as_ref().map(|libs| libs.iter().cloned().collect());
+            if let Some(libs) = &mut libs { libs.sort(); }
+            let time = confine.time.map(|time| time.as_millis() as u64);
+            let mut calls: Option<Vec<String>> = confine.calls.as_ref().map(|calls| calls.iter().map(|func| graph.func_path(func)).collect());
+            if let Some(calls) = &mut calls { calls.sort(); }
+            serde_json::json!({ "reads": confine.reads, "hosts": hosts, "libs": libs, "time": time, "calls": calls })
         }).collect();
         serde_json::json!({
             "part": self.part.node_path(graph, true).map(|path| path.join(".")).unwrap_or_default(),
@@ -142,7 +151,8 @@ impl SealInfo {
         })
     }
 
-    /// As a Stof map: `part` (path), `fields`, `removable`, `confined` (a list of `{ reads, hosts }` maps).
+    /// As a Stof map: `part` (path), `fields`, `removable`, `confined` (a list of `{ reads, hosts, libs, time, calls }`
+    /// maps, `time` in ms, `calls` as function paths).
     pub fn to_val(&self, graph: &Graph) -> Val {
         use imbl::{OrdMap, Vector};
         use crate::runtime::ValRef;
@@ -154,9 +164,20 @@ impl SealInfo {
         for confine in &self.confines {
             let mut hosts: Option<Vec<String>> = confine.hosts.as_ref().map(|hosts| hosts.iter().cloned().collect());
             if let Some(hosts) = &mut hosts { hosts.sort(); }
+            let mut libs: Option<Vec<String>> = confine.libs.as_ref().map(|libs| libs.iter().cloned().collect());
+            if let Some(libs) = &mut libs { libs.sort(); }
+            let time = match confine.time {
+                Some(time) => Val::Num(crate::runtime::Num::Units(time.as_millis() as f64, crate::runtime::Units::Milliseconds)),
+                None => Val::Null,
+            };
             let mut map = OrdMap::new();
             map.insert(ValRef::new(Val::Str("reads".into())), ValRef::new(list(&confine.reads)));
             map.insert(ValRef::new(Val::Str("hosts".into())), ValRef::new(list(&hosts)));
+            map.insert(ValRef::new(Val::Str("libs".into())), ValRef::new(list(&libs)));
+            map.insert(ValRef::new(Val::Str("time".into())), ValRef::new(time));
+            let mut calls: Option<Vec<String>> = confine.calls.as_ref().map(|calls| calls.iter().map(|func| graph.func_path(func)).collect());
+            if let Some(calls) = &mut calls { calls.sort(); }
+            map.insert(ValRef::new(Val::Str("calls".into())), ValRef::new(list(&calls)));
             confined.push_back(ValRef::new(Val::Map(map)));
         }
         let part = self.part.node_path(graph, true).map(|path| path.join(".")).unwrap_or_default();
@@ -183,6 +204,15 @@ pub struct SealOptions {
     pub reads: Option<Vec<String>>,
     /// Confine the part's network access to these hosts (Some, even empty: no network).
     pub hosts: Option<Vec<String>>,
+    /// Confine the part's code to these libraries, by name (Ex. "Str", "Http", or a host's own library), host
+    /// libraries included (Some, even empty: no library calls at all).
+    pub libs: Option<Vec<String>>,
+    /// Confine how long the part's code runs each time it's entered (and everything it calls).
+    pub time: Option<web_time::Duration>,
+    /// Gates: functions outside the part its code may call, which run unconfined, as themselves (the part's only way
+    /// to anything else; see `Confine`). The functions themselves, not their paths: a function later put at the same
+    /// path isn't a gate. `Graph::seal_calls` finds them by path.
+    pub calls: Option<Vec<DataRef>>,
 }
 
 
@@ -193,7 +223,19 @@ pub struct SealOptions {
 /// anything else finds nothing, calling a function elsewhere fails, and so does handing an object elsewhere to a
 /// library function (Ex. `stringify`), or a library function handing one back (Ex. `Obj.parent`). It changes only
 /// the sealed part (the listed objects are read-only to it) and makes no new roots. With `hosts`, `Http.fetch`
-/// reaches only those hosts (and the document's own allowlist still applies).
+/// reaches only those hosts (and the document's own allowlist still applies). With `libs`, it calls only the listed
+/// libraries (Ex. `Str`, `Http`), the host's own libraries included, so a document's code can't use a host function
+/// (Ex. one that signs with the host's key) it wasn't given. With `time`, it runs for at most that long each time
+/// it's entered: wall-clock time from entering, waits included (Ex. an `Http.fetch`), checked as it runs, like the
+/// process's own limit.
+///
+/// With `calls` (gates), it may call those functions outside its reach, and they run unconfined, as themselves: a
+/// controlled API the host gives it (Ex. one that signs a request for it, which it couldn't do itself). The host hands
+/// them to it as values (a field of the part holding the function, or an argument), since a path to them finds nothing.
+/// A gate is a door: it runs with everything the document has, so it must check what it's given. A call is a gate's
+/// only when every confinement the code runs under lists it, so a part can't make one of its own (sealing itself
+/// again with `calls` only narrows). Code a gate calls in a confined part (Ex. a function value it was handed) runs
+/// confined again.
 ///
 /// Objects out of its reach stay opaque to it, even ones it's handed (an argument, or a field the host put in it):
 /// it can hold one and hand it back, but not look inside, change it, or export it. Give it values (strings, numbers,
@@ -205,14 +247,24 @@ pub struct Confine {
     pub reads: Option<Vec<String>>,
     /// Hosts `Http.fetch` may reach (None: not limited beyond the document's allowlist).
     pub hosts: Option<Arc<FxHashSet<String>>>,
+    /// Libraries the code may call (None: any).
+    pub libs: Option<Arc<FxHashSet<String>>>,
+    /// How long the code may run each time the part is entered (None: only the process's own limit).
+    pub time: Option<web_time::Duration>,
+    /// Gates: functions outside its reach the code may call, which run unconfined (None: none).
+    pub calls: Option<Arc<FxHashSet<DataRef>>>,
 }
 impl Confine {
-    /// What it reaches now: its `reads` paths looked up (a path with nothing there reaches nothing).
+    /// What it reaches now: its `reads` paths looked up (a path with nothing there reaches nothing), and when its
+    /// time runs out.
     pub fn resolve(&self, graph: &Graph) -> Reach {
         Reach {
             root: self.root.clone(),
             reads: self.reads.as_ref().map(|paths| paths.iter().filter_map(|path| graph.seal_target(path).ok()).collect()),
             hosts: self.hosts.clone(),
+            libs: self.libs.clone(),
+            deadline: self.time.map(|time| web_time::Instant::now() + time),
+            calls: self.calls.clone(),
         }
     }
 }
@@ -227,8 +279,37 @@ pub struct Reach {
     pub reads: Option<Vec<NodeRef>>,
     /// Hosts `Http.fetch` may reach.
     pub hosts: Option<Arc<FxHashSet<String>>>,
+    /// Libraries the code may call (None: any).
+    pub libs: Option<Arc<FxHashSet<String>>>,
+    /// When the code's time runs out (None: no limit of its own).
+    pub deadline: Option<web_time::Instant>,
+    /// Gates: functions outside its reach the code may call, which run unconfined.
+    pub calls: Option<Arc<FxHashSet<DataRef>>>,
 }
 impl Reach {
+    /// Is this function one of its gates?
+    pub fn gate(&self, func: &DataRef) -> bool {
+        self.calls.as_ref().is_some_and(|calls| calls.contains(func))
+    }
+
+    /// May the code read this data (on an object it may read)?
+    pub fn reaches_data(&self, graph: &Graph, dref: &DataRef) -> bool {
+        dref.data(graph).is_some_and(|data| data.nodes.iter().any(|node| self.reaches(graph, node)))
+    }
+
+    /// May the code call this library?
+    pub fn lib_allowed(&self, lib: &str) -> bool {
+        match &self.libs {
+            Some(libs) => libs.contains(lib),
+            None => true,
+        }
+    }
+
+    /// Has the code run past its time?
+    pub fn out_of_time(&self) -> bool {
+        self.deadline.is_some_and(|deadline| web_time::Instant::now() > deadline)
+    }
+
     /// May the code read this object?
     pub fn reaches(&self, graph: &Graph, node: &NodeRef) -> bool {
         let Some(reads) = &self.reads else { return true };
@@ -304,17 +385,29 @@ impl Graph {
     /// Returns the part's digest.
     pub fn seal_with(&mut self, node: &NodeRef, options: &SealOptions) -> Result<String, Error> {
         if !node.node_exists(self) { return Err(Error::Sealed("there's no object to seal".into())); }
+        // gates are functions outside the part: one inside it would run the part's own code unconfined
+        for gate in options.calls.iter().flatten() {
+            let Some(data) = gate.data(self) else { return Err(Error::Sealed("a seal's gate (calls) must be a function in the document".into())) };
+            if !gate.type_of::<crate::model::Func>(self) { return Err(Error::Sealed("a seal's gate (calls) must be a function".into())); }
+            if data.nodes.iter().any(|on| on == node || on.child_of(self, node)) {
+                let name = gate.data_name(self).map(|name| name.to_string()).unwrap_or_default();
+                return Err(Error::Sealed(format!("a seal's gate (calls) must be outside the part it's for ('{name}' is inside it, and would run its code unconfined)")));
+            }
+        }
         let digest = self.digest(node, options.fields)?;
         let nodes = self.all_child_nodes(node, true);
         let mut types = FxHashSet::default();
         for (name, typed) in &self.typemap {
             if typed.iter().any(|ty| nodes.contains(ty)) { types.insert(name.clone()); }
         }
-        let confine = if options.reads.is_some() || options.hosts.is_some() {
+        let confine = if options.reads.is_some() || options.hosts.is_some() || options.libs.is_some() || options.time.is_some() || options.calls.is_some() {
             Some(Arc::new(Confine {
                 root: node.clone(),
                 reads: options.reads.clone(),
                 hosts: options.hosts.as_ref().map(|hosts| Arc::new(hosts.iter().map(|host| host.trim().to_lowercase()).collect())),
+                libs: options.libs.as_ref().map(|libs| Arc::new(libs.iter().map(|lib| lib.trim().to_string()).collect())),
+                time: options.time,
+                calls: options.calls.as_ref().map(|calls| Arc::new(calls.iter().cloned().collect())),
             }))
         } else {
             None
@@ -1069,6 +1162,30 @@ impl Graph {
         }
         self.seal_with(&node, options)
     }
+
+    /// The functions at these paths (host paths, Ex. "link.request"), for a seal's gates (`SealOptions::calls`).
+    /// An error for a path with no function.
+    pub fn seal_calls(&self, paths: &[String]) -> Result<Vec<DataRef>, Error> {
+        let mut calls = Vec::new();
+        for path in paths {
+            let search = self.host_path(path, None);
+            match crate::model::Func::func_from_path(self, &search, self.main_root()) {
+                Some(func) => calls.push(func),
+                None => return Err(Error::Sealed(format!("a seal's gate (calls) must be a function: there's none at '{path}'"))),
+            }
+        }
+        Ok(calls)
+    }
+
+    /// A function's path (Ex. "root.link.request"), for showing a seal's gates.
+    pub(crate) fn func_path(&self, func: &DataRef) -> String {
+        let name = func.data_name(self).map(|name| name.to_string()).unwrap_or_default();
+        let owner = func.data(self).and_then(|data| data.nodes.iter().next().cloned());
+        match owner.and_then(|node| node.node_path(self, true)) {
+            Some(path) => format!("{}.{}", path.join("."), name),
+            None => name,
+        }
+    }
 }
 
 
@@ -1077,14 +1194,22 @@ impl Graph {
  *****************************************************************************/
 
 impl ProcEnv {
-    /// Entering a function: it must be within reach of the code that's confined now, and code in a confined part
-    /// runs confined from here (until the call returns). Called right after the function is on the call stack.
+    /// Entering a function: it must be within reach of the code that's confined now (or a gate every confinement
+    /// lists, which then runs unconfined until it returns), and code in a confined part runs confined from here
+    /// (until the call returns). Called right after the function is on the call stack.
     pub(crate) fn enter_confined(&mut self, func: &DataRef, graph: &mut Graph) -> Result<(), Error> {
-        if !self.confines.is_empty() && !graph.confined_reaches_data(func) {
-            let name = func.data_name(graph).map(|name| name.to_string()).unwrap_or_default();
-            return Err(Error::Sealed(format!("this sealed part can't call '{name}': it's outside what the part may reach")));
-        }
         let depth = self.call_stack.len();
+        if !self.confines.is_empty() {
+            // a gate: listed by every confinement it's called under (so a part can't make one of its own)
+            if self.confines.iter().all(|(_, _, reach)| reach.gate(func)) {
+                let confines = std::mem::take(&mut self.confines);
+                self.suspended.push((depth, confines));
+                graph.confined = Vec::new();
+            } else if !graph.confined_reaches_data(func) {
+                let name = func.data_name(graph).map(|name| name.to_string()).unwrap_or_default();
+                return Err(Error::Sealed(format!("this sealed part can't call '{name}': it's outside what the part may reach")));
+            }
+        }
         let mut added = false;
         for confine in graph.func_confines(func) {
             // entering the part (not already running in it): its reads are looked up now
@@ -1098,13 +1223,26 @@ impl ProcEnv {
         Ok(())
     }
 
-    /// Leaving functions: confinements entered deeper than the call stack is now are done.
+    /// Leaving functions: confinements entered deeper than the call stack is now are done, and a gate that returned
+    /// (or that an error unwound) gives its caller's confinements back.
     pub(crate) fn leave_confined(&mut self, graph: &mut Graph) {
         let before = self.confines.len();
-        while self.confines.last().is_some_and(|(depth, _, _)| *depth > self.call_stack.len()) {
-            self.confines.pop();
+        let mut changed = false;
+        loop {
+            while self.confines.last().is_some_and(|(depth, _, _)| *depth > self.call_stack.len()) {
+                self.confines.pop();
+                changed = true;
+            }
+            if self.suspended.last().is_some_and(|(depth, _)| *depth > self.call_stack.len()) {
+                // anything the gate entered is done (popped above); its caller's confinements come back
+                let (_, confines) = self.suspended.pop().unwrap();
+                self.confines = confines;
+                changed = true;
+                continue; // the restored ones may be done too (Ex. an error unwound past the caller as well)
+            }
+            break;
         }
-        if self.confines.len() != before { graph.confined = self.confined(); }
+        if changed || self.confines.len() != before { graph.confined = self.confined(); }
     }
 
     /// The confinements this process runs under now.
@@ -1117,8 +1255,8 @@ impl ProcEnv {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 /// Checks for a library call made by confined code (added to the call only while confined; never stored).
 pub enum ConfineIns {
-    /// The call's arguments (the top `count` values) must be within reach, and `Http.fetch` must go to a host the
-    /// confined parts allow.
+    /// The library must be one every confined part allows, the call's arguments (the top `count` values) must be
+    /// within reach, and `Http.fetch` must go to a host the confined parts allow.
     Args { count: usize, lib: ArcStr, func: ArcStr },
     /// What the call returned (above `base` on the stack) must be within reach.
     Result { base: usize, lib: ArcStr, func: ArcStr },
@@ -1129,6 +1267,12 @@ impl Instruction for ConfineIns {
         if graph.confined.is_empty() { return Ok(None); }
         match self {
             Self::Args { count, lib, func } => {
+                if graph.confined.iter().any(|reach| !reach.lib_allowed(lib)) {
+                    return Err(Error::Sealed(format!("this sealed part can't call {lib}.{func}: the {lib} library isn't one it may use")));
+                }
+                if graph.confined.iter().any(|reach| reach.out_of_time()) {
+                    return Err(Error::Sealed("this sealed part ran past its time limit".into()));
+                }
                 let start = env.stack.len().saturating_sub(*count);
                 for var in &env.stack[start..] {
                     if !graph.confined_reaches_val(&var.val.read()) {

@@ -176,6 +176,7 @@ impl Instructions {
         }
         let keep_count = limit > 0;
         let mut since_clock_check: u32 = 0;
+        let mut confined_late = false; // a confined part ran past its own time (a catchable error, see below)
         'exec_loop: loop {
             if keep_count {
                 if limit <= 0 {
@@ -198,6 +199,11 @@ impl Instructions {
                             return Err(Error::ExecutionTimeout);
                         }
                     }
+                }
+                // a confined part's own time limit (sealed with `time`), from when it was entered: it fails the next
+                // instruction, so the code around the part can catch it (unlike the process's own limit)
+                if !graph.confined.is_empty() && graph.confined.iter().any(|reach| reach.out_of_time()) {
+                    confined_late = true;
                 }
             }
 
@@ -435,7 +441,12 @@ impl Instructions {
                     }
                 }
 
-                let mut res = ins.exec(env, graph);
+                let mut res = if confined_late {
+                    confined_late = false;
+                    Err(Error::Sealed("this sealed part ran past its time limit".into()))
+                } else {
+                    ins.exec(env, graph)
+                };
                 // a change refused by a seal fails the instruction that made it (catchable; nothing changed); one
                 // that failed for another reason has its own error, and the refusal is cleared either way, so it
                 // never surfaces in another instruction (or another process)

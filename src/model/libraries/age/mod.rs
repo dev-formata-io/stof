@@ -289,6 +289,7 @@ impl Instruction for AgeIns {
                                                 "test" => Profile::test(),
                                                 "prod" => Profile::prod(),
                                                 "prod_docs" => Profile::docs(false),
+                                                "untrusted" => Profile::untrusted(),
                                                 "docs" => Profile::docs(true),
                                                 _ => Profile::default(),
                                             };
@@ -373,6 +374,7 @@ impl Instruction for AgeIns {
                                         "test" => Profile::test(),
                                         "prod" => Profile::prod(),
                                         "prod_docs" => Profile::docs(false),
+                                        "untrusted" => Profile::untrusted(),
                                         "docs" => Profile::docs(true),
                                         _ => Profile::default(),
                                     };

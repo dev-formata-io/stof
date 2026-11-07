@@ -232,3 +232,24 @@ fn catch_message_scope() {
     try throw('a'); catch (e, message) {}
     try throw('b'); catch (e, message) { assert_eq(message, 'b'); }
 }
+
+looper: {
+    fn throws_in_loop() -> int { let i = 0; while (i < 10) { i += 1; if (i > 3) throw('in a loop'); } i }
+    fn throws_in_nested_loops() -> int { for (const a in [1, 2]) { for (const b in [1, 2, 3]) { if (b > 1) throw('nested'); } } 0 }
+}
+
+#[test]
+/// An error thrown in a loop inside a called function: the catch block still sees this function's variables.
+fn catch_after_a_loop_in_a_call() {
+    let res = 'none';
+    try self.looper.throws_in_loop();
+    catch (e, message) res = message;
+    assert_eq(res, 'in a loop');
+
+    let count = 0;
+    for (const round in [1, 2]) {
+        try self.looper.throws_in_nested_loops();
+        catch count += 1;
+    }
+    assert_eq(count, 2, "the caller's own loop and variables survive");
+}

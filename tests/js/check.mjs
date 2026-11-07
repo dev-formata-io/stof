@@ -218,6 +218,52 @@ await check('seal: confined parts reach only what they read (by path); removable
     assert(info.confined.length === 1 && info.confined[0].reads[0] === 'inputs' && info.confined[0].hosts[0] === 'api.weather.example', JSON.stringify(info));
     assert(doc.remove('tools.weather'), 'removable');
 });
+await check('parse: untrusted source is declarations only, then sealed confined', async () => {
+    const doc = await StofDoc.new(`secrets: { key: 'abc' }\ntool: {}`);
+    doc.quiet();
+    let error = ''; try { doc.parse('leak: root.secrets.key', 'stof', 'tool', 'untrusted'); } catch (e) { error = String(e?.message ?? e); }
+    assert(error.includes('values must be literals'), error);
+    error = ''; try { doc.parse("import './x.json' as self.x;", 'stof', 'tool', 'untrusted'); } catch (e) { error = String(e?.message ?? e); }
+    assert(error.includes("can't import"), error);
+    doc.parse(`label: 'Weather'\nfn f(city: str) -> str { 'sunny in ' + city }`, 'stof', 'tool', 'untrusted');
+    doc.seal('tool', { removable: true, reads: [], hosts: [], libs: ['Str'], time: 2000 });
+    assert(await doc.call('tool.f', 'Austin') === 'sunny in Austin', 'its functions run, sealed');
+});
+await check('seal: confined code calls only the libraries it may (your own included), for at most its time', async () => {
+    const doc = await StofDoc.new(`
+        tools: { weather: {
+            fn split() -> list { 'a/b'.split('/') }
+            fn signs() -> str { Host.sign('limitr-network/v1/voucher', 'more spend') }
+            fn spin() -> int { let i = 0; while (i < 100000000) i += 1; i }
+        } }
+        fn signs() -> str { Host.sign('limitr-network/v1/voucher', 'more spend') }`);
+    doc.quiet();
+    doc.lib('Host', 'sign', (context, message) => `signed ${context} ${message}`, false, ['context', 'message']);
+    doc.seal('tools.weather', { removable: true, reads: [], libs: ['Str'], time: 100 });
+    assert(JSON.stringify(await doc.call('tools.weather.split')) === '["a","b"]', 'a listed library');
+    await rejects(doc.call('tools.weather.signs'), /Host library isn't one it may use/);
+    assert((await doc.call('signs')).startsWith('signed'), 'the rest of the document still has it');
+    await rejects(doc.call('tools.weather.spin'), /past its time limit/);
+    const info = doc.sealed('tools.weather');
+    assert(info.confined[0].libs[0] === 'Str' && info.confined[0].time === 100, JSON.stringify(info));
+});
+await check('seal: gates are the confined part\'s only way to a host library', async () => {
+    const doc = await StofDoc.new(`
+        link: { fn request(route: str) -> str { Host.sign('limitr-network/v1/request', route) } }
+        tool: {
+            api: { request: super.super.link.request }
+            fn calls() -> str { self.api.request('/forecast') }
+            fn direct() -> str { Host.sign('limitr-network/v1/voucher', 'more spend') }
+        }`);
+    doc.quiet();
+    doc.lib('Host', 'sign', (context, message) => `signed ${context} ${message}`, false, ['context', 'message']);
+    doc.seal('tool', { removable: true, reads: [], libs: ['Str'], calls: ['link.request'] });
+    assert(await doc.call('tool.calls') === 'signed limitr-network/v1/request /forecast', 'through its gate');
+    await rejects(doc.call('tool.direct'), /Host library isn't one it may use/);
+    assert(doc.sealed('tool').confined[0].calls[0] === 'root.link.request', JSON.stringify(doc.sealed('tool')));
+    let error = ''; try { doc.seal('tool', { calls: ['tool.calls'] }); } catch (e) { error = String(e?.message ?? e); }
+    assert(error.includes('outside the part'), error);
+});
 await check('keys: sign on the host, verify in the document, and the other way around', async () => {
     const secret = StofDoc.generateKey();
     assert(secret !== StofDoc.generateKey() && secret.length === 44, 'random');

@@ -207,6 +207,14 @@ impl Graph {
     /// the start object (the main root by default) when its first segment names a field, function, or child
     /// there, so `doc.get('config.port')` and `doc.call('hello')` work. Otherwise the path is unchanged
     /// (roots, types, libraries), except a single name, which is always relative (Ex. setting a new field).
+    ///
+    /// `host_object`: the object at a host path (Ex. 'plugins.weather' for `doc.parse(src, 'stof', 'plugins.weather')`).
+    pub fn host_object(&self, path: &str) -> Option<NodeRef> {
+        let search = self.host_path(path, None);
+        self.find_node_named(&search, self.main_root())
+    }
+
+    /// Path for host (embedder) APIs (see above).
     pub fn host_path(&self, path: &str, start: Option<&NodeRef>) -> String {
         let first = path.split('.').next().unwrap_or_default().trim_end_matches('?');
         if first.is_empty() || first.starts_with('<') || path.contains("::") || first == "self" || first == "super" {

@@ -30,9 +30,15 @@ pub fn std_parse() -> LibFunc {
         is_async: false,
         docs: r#"# Std::parse(source: str | blob, context: str | obj = self, format: str = "stof", profile: str = "prod") -> bool
 Parse data into this document/graph at the given location (default context is the calling object), using the given format (default is Stof). Formats are extensible and replaceable in Stof, so use whichever formats you have loaded (json, stof, images, pdfs, docx, etc.).
+
+Profiles: "prod" (the default; #[test]s left out), "test", "docs", "prod_docs", and "untrusted": Stof source from somewhere else, declarations only. Nothing runs while it's parsed (field and attribute values must be literals; no #[init] functions), it imports nothing, and it declares no #[type]s. Parse it into a fresh object (drop it if the parse fails), then seal that object confined before calling anything in it.
 ```rust
 parse("fn hello() -> str { \"hello\" }");
 assert_eq(self.hello(), "hello"); // can now call it
+
+using tool = new {};
+parse(source_from_elsewhere, tool, 'stof', 'untrusted');
+seal(tool, removable = true, reads = [], hosts = ['api.example.com'], libs = ['Std', 'Str', 'Http'], time = 2s);
 ```
 "#.into(),
         params: crate::params![
