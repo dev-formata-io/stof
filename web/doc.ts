@@ -283,8 +283,9 @@ function checkHost(url: URL, allowed: Set<string> | null, privateNetwork: boolea
 /**
  * Http.fetch for JavaScript hosts (added by StofDoc.allowHttp()).
  * Same signature and response map as the native runtime's Http.fetch, so documents behave the same everywhere:
- * Http.fetch(url, method = 'get', body = null, headers = null, timeout (seconds) = null, query = null, bearer = null)
- * -> map { status, ok, headers, content_type, bytes }
+ * Http.fetch(url, method = 'get', body = null, headers = null, timeout (seconds) = null, query = null, bearer = null,
+ * max (bytes) = null) -> map { status, ok, headers, content_type, bytes }. A response larger than max (by default the
+ * call's memory limit) isn't read: the map is { error } instead.
  * From a confined sealed part, Stof adds the host lists it may reach (`scopes`): each must allow every hop.
  */
 async function stofFetch(
@@ -297,6 +298,7 @@ async function stofFetch(
     timeout: number | null = null,
     query: StofHeaders = null,
     bearer: string | null = null,
+    max: number | null = null,
     scopes: string[][] | null = null,
 ): Promise<Map<string, unknown>> {
     const hosts = allowed();
@@ -350,6 +352,8 @@ async function stofFetch(
     }
     if (!manual && response.url) checkHost(new URL(response.url), hosts, privateOk, true, confined);
 
+    const bytes = await readBody(response, max);
+    if (typeof bytes === 'string') return new Map<string, unknown>([['error', bytes]]); // too large: not read
     const responseHeaders = new Map<string, string>();
     response.headers.forEach((value, key) => responseHeaders.set(key, value));
     const result = new Map<string, unknown>();
@@ -357,8 +361,40 @@ async function stofFetch(
     result.set('ok', response.ok);
     result.set('headers', responseHeaders);
     result.set('content_type', response.headers.get('content-type') ?? 'text/plain');
-    result.set('bytes', new Uint8Array(await response.arrayBuffer()));
+    result.set('bytes', bytes);
     return result;
+}
+
+/** A response's body, up to `max` bytes; a larger one isn't read past the limit (the error, as text). */
+async function readBody(response: Response, max: number | null): Promise<Uint8Array | string> {
+    if (max == null || !(max >= 0)) return new Uint8Array(await response.arrayBuffer());
+    const tooLarge = `the response is larger than ${max} bytes (Http.fetch's max, by default the call's memory limit)`;
+    const length = Number(response.headers.get('content-length'));
+    if (length > max) {
+        await response.body?.cancel();
+        return tooLarge;
+    }
+    if (!response.body) return new Uint8Array(await response.arrayBuffer());
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.length;
+        if (size > max) {
+            await reader.cancel();
+            return tooLarge;
+        }
+        chunks.push(value);
+    }
+    const out = new Uint8Array(size);
+    let at = 0;
+    for (const chunk of chunks) {
+        out.set(chunk, at);
+        at += chunk.length;
+    }
+    return out;
 }
 
 
@@ -587,7 +623,7 @@ export class StofDoc {
         const allowed = () => this.httpHosts;
         const privateNetwork = () => this.privateNetwork;
         const hostFetch = (...args: unknown[]) => (stofFetch as Function)(allowed, privateNetwork, ...args);
-        this.lib('Http', 'fetch', hostFetch, true, ['url', 'method', 'body', 'headers', 'timeout', 'query', 'bearer']);
+        this.lib('Http', 'fetch', hostFetch, true, ['url', 'method', 'body', 'headers', 'timeout', 'query', 'bearer', 'max']);
     }
 
 

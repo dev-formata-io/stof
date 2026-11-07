@@ -187,8 +187,8 @@ pub fn insert_http_lib(graph: &mut Graph) {
         library: HTTP_LIB.clone(),
         name: "fetch".into(),
         is_async: true,
-        docs: r#"# async Http::fetch(url: str, method: str = "get", body: str | blob = null, headers: map = null, timeout: seconds = null, query: map = null, bearer: str = null) -> Promise<map>
-Make an HTTP request, using the thread pool in the background so that other Stof processes can continue running.
+        docs: r#"# async Http::fetch(url: str, method: str = "get", body: str | blob = null, headers: map = null, timeout: seconds = null, query: map = null, bearer: str = null, max: bytes = null) -> Promise<map>
+Make an HTTP request, using the thread pool in the background so that other Stof processes can continue running. `max` is the largest response body it reads (Ex. `10MB`); by default, the call's memory limit (the host's max memory, 256 MB unless it's changed). A larger response isn't read: the response map has an `error` instead (and no status).
 ```rust
 const resp = await Http::fetch("https://restcountries.com/v3.1/region/europe");
 assert(Http::text(resp).len() > 100); // response map: status, ok, headers, content_type, bytes
@@ -201,6 +201,7 @@ assert(Http::text(resp).len() > 100); // response map: status, ok, headers, cont
             Param { name: "timeout".into(), param_type: Type::Num(NumT::Float), default: Some(Arc::new(Base::Literal(Val::Null))) },
             Param { name: "query".into(), param_type: Type::Map, default: Some(Arc::new(Base::Literal(Val::Null))) },
             Param { name: "bearer".into(), param_type: Type::Str, default: Some(Arc::new(Base::Literal(Val::Null))) },
+            Param { name: "max".into(), param_type: Type::Num(NumT::Float), default: Some(Arc::new(Base::Literal(Val::Null))) },
         ],
         return_type: None,
         unbounded_args: false,
@@ -396,6 +397,9 @@ pub(self) struct HTTPRequest {
     pub timeout: Option<Duration>,
     pub query: Option<FxHashMap<String, String>>,
 
+    /// The largest response body it reads (bytes), if any.
+    pub max: Option<usize>,
+
     /// Put results from the request into this value.
     pub results: ValRef<Val>,
 
@@ -448,7 +452,7 @@ impl HTTPRequest {
                             Ok(response) => {
                                 let status = response.status();
                                 let headers = response.headers().clone();
-                                let response_body = response.bytes().await;
+                                let response_body = read_body_async(response, self.max).await;
 
                                 let mut results = self.results.write();
                                 match results.deref_mut() {
@@ -470,8 +474,10 @@ impl HTTPRequest {
                                             }
                                         }
 
-                                        if let Ok(bytes) = response_body {
-                                            results.insert(ValRef::new(Val::Str("bytes".into())), ValRef::new(Val::Blob(bytes)));
+                                        match response_body {
+                                            Ok(bytes) => { results.insert(ValRef::new(Val::Str("bytes".into())), ValRef::new(Val::Blob(bytes))); },
+                                            // too large (or cut off): the response is an error, without its status
+                                            Err(error) => { results.clear(); results.insert(ValRef::new(Val::Str("error".into())), ValRef::new(Val::Str(error.into()))); },
                                         }
                                     },
                                     _ => {},
@@ -518,7 +524,7 @@ impl HTTPRequest {
                         Ok(response) => {
                             let status = response.status();
                             let headers = response.headers().clone();
-                            let response_body = response.bytes();
+                            let response_body = read_body(response, self.max);
 
                             let mut results = self.results.write();
                             match results.deref_mut() {
@@ -540,8 +546,10 @@ impl HTTPRequest {
                                         }
                                     }
 
-                                    if let Ok(bytes) = response_body {
-                                        results.insert(ValRef::new(Val::Str("bytes".into())), ValRef::new(Val::Blob(bytes)));
+                                    match response_body {
+                                        Ok(bytes) => { results.insert(ValRef::new(Val::Str("bytes".into())), ValRef::new(Val::Blob(bytes))); },
+                                        // too large (or cut off): the response is an error, without its status
+                                        Err(error) => { results.clear(); results.insert(ValRef::new(Val::Str("error".into())), ValRef::new(Val::Str(error.into()))); },
                                     }
                                 },
                                 _ => {},
@@ -590,7 +598,7 @@ impl HTTPRequest {
                     Ok(response) => {
                         let status = response.status();
                         let headers = response.headers().clone();
-                        let response_body = response.bytes();
+                        let response_body = read_body(response, self.max);
 
                         let mut results = self.results.write();
                         match results.deref_mut() {
@@ -612,8 +620,10 @@ impl HTTPRequest {
                                     }
                                 }
 
-                                if let Ok(bytes) = response_body {
-                                    results.insert(ValRef::new(Val::Str("bytes".into())), ValRef::new(Val::Blob(bytes)));
+                                match response_body {
+                                    Ok(bytes) => { results.insert(ValRef::new(Val::Str("bytes".into())), ValRef::new(Val::Blob(bytes))); },
+                                    // too large (or cut off): the response is an error, without its status
+                                    Err(error) => { results.clear(); results.insert(ValRef::new(Val::Str("error".into())), ValRef::new(Val::Str(error.into()))); },
                                 }
                             },
                             _ => {},
@@ -654,6 +664,47 @@ fn host_allowed(url: &reqwest::Url, hosts: &Option<Arc<FxHashSet<String>>>) -> b
 /// Do the confined sealed parts that made a request allow this URL's host (each of their lists)?
 fn scopes_allow(scopes: &[Arc<FxHashSet<String>>], url: &reqwest::Url) -> bool {
     scopes.iter().all(|hosts| host_allowed(url, &Some(hosts.clone())))
+}
+
+#[cfg(all(feature = "http", feature = "tokio"))]
+/// A response's body, up to `max` bytes (a larger one is an error, and isn't read past the limit).
+async fn read_body_async(mut response: reqwest::Response, max: Option<usize>) -> Result<Bytes, String> {
+    if let (Some(max), Some(length)) = (max, response.content_length()) {
+        if length as usize > max { return Err(too_large(max)); }
+    }
+    let mut body = bytes::BytesMut::new();
+    loop {
+        match response.chunk().await {
+            Ok(Some(chunk)) => {
+                if max.is_some_and(|max| body.len() + chunk.len() > max) { return Err(too_large(max.unwrap_or_default())); }
+                body.extend_from_slice(&chunk);
+            },
+            Ok(None) => return Ok(body.freeze()),
+            Err(error) => return Err(error.to_string()),
+        }
+    }
+}
+
+#[cfg(feature = "http")]
+/// A response's body (blocking client), up to `max` bytes (a larger one is an error, and isn't read past the limit).
+fn read_body(response: reqwest::blocking::Response, max: Option<usize>) -> Result<Bytes, String> {
+    use std::io::Read;
+    if let (Some(max), Some(length)) = (max, response.content_length()) {
+        if length as usize > max { return Err(too_large(max)); }
+    }
+    let mut body = Vec::new();
+    let read = match max {
+        Some(max) => response.take(max as u64 + 1).read_to_end(&mut body),
+        None => { let mut response = response; response.read_to_end(&mut body) },
+    };
+    if let Err(error) = read { return Err(error.to_string()); }
+    if max.is_some_and(|max| body.len() > max) { return Err(too_large(max.unwrap_or_default())); }
+    Ok(Bytes::from(body))
+}
+
+#[cfg(feature = "http")]
+fn too_large(max: usize) -> String {
+    format!("the response is larger than {max} bytes (Http.fetch's max, by default the call's memory limit)")
 }
 
 #[cfg(feature = "http")]
@@ -702,6 +753,21 @@ impl Instruction for HttpIns {
                 let mut body = None;
                 let mut timeout = None;
                 let mut query = None;
+                let mut max = env.max_memory; // by default, the call's memory limit
+                if let Some(max_var) = env.stack.pop() {
+                    match max_var.val.read().deref() {
+                        Val::Void |
+                        Val::Null => {},
+                        Val::Num(num) => {
+                            let bytes = num.float(Some(Units::Bytes));
+                            if !(bytes >= 0.) || !bytes.is_finite() { return Err(Error::HttpArgs(format!("max must be a size (Ex. 10MB)"))); }
+                            max = Some(bytes as usize);
+                        },
+                        _ => {
+                            return Err(Error::HttpArgs(format!("max must be a size (Ex. 10MB)")));
+                        }
+                    }
+                }
                 if let Some(bearer_var) = env.stack.pop() {
                     match bearer_var.val.read().deref() {
                         Val::Void |
@@ -744,7 +810,8 @@ impl Instruction for HttpIns {
                         },
                         Val::Num(num) => {
                             let seconds = num.float(Some(Units::Seconds));
-                            timeout = Some(Duration::from_secs(seconds as u64));
+                            if !(seconds > 0.) || !seconds.is_finite() { return Err(Error::HttpArgs(format!("timeout must be more than 0"))); }
+                            timeout = Some(Duration::from_secs_f64(seconds)); // fractions too (Ex. 500ms)
                         },
                         _ => {
                             return Err(Error::HttpArgs(format!("timeout must be a number")));
@@ -854,6 +921,7 @@ impl Instruction for HttpIns {
                     body,
                     timeout,
                     query,
+                    max,
                     results: map.clone(),
                     waker: waker.clone(),
                     hosts: graph.http_hosts.clone(),

@@ -656,6 +656,47 @@ fn confined_redirects() {
 }
 
 #[test]
+#[cfg(feature = "http")]
+/// Http.fetch reads at most `max` bytes of a response (by default the call's memory limit): a larger one is an error,
+/// not read past the limit, so a server can't make a document hold more than it may.
+fn fetch_reads_at_most_max() {
+    use std::io::{Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        for stream in listener.incoming().take(8) {
+            let Ok(mut stream) = stream else { continue };
+            let mut buf = [0u8; 2048];
+            let n = stream.read(&mut buf).unwrap_or(0);
+            let request = String::from_utf8_lossy(&buf[..n]).to_string();
+            let body = "x".repeat(1000);
+            let response = if request.starts_with("GET /chunked") {
+                // no content length: the limit applies as it's read
+                format!("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n3e8\r\n{body}\r\n0\r\n\r\n")
+            } else {
+                format!("HTTP/1.1 200 OK\r\nContent-Length: 1000\r\nConnection: close\r\n\r\n{body}")
+            };
+            let _ = stream.write_all(response.as_bytes());
+        }
+    });
+
+    let mut graph = Graph::default();
+    graph.quiet(true);
+    graph.parse_stof_src("fn size(url: str, max: unknown) -> unknown { const res = await Http.fetch(url, max = max); if (res.get('error') != null) return res.get('error'); Http.size(res) }", None, Profile::default()).unwrap();
+    graph.allow_http_hosts(["127.0.0.1"]);
+    let size = |graph: &mut Graph, path: &str, max: Val| Runtime::call(graph, "size", vec![Val::from(format!("http://127.0.0.1:{port}{path}").as_str()), max]).map(|v| v.to_string());
+
+    assert!(size(&mut graph, "/", Val::Null).is_ok_and(|s| s.starts_with("1000")), "under the call's memory limit");
+    for path in ["/", "/chunked"] {
+        let res = size(&mut graph, path, Val::from(100i64));
+        assert!(res.as_ref().is_ok_and(|e| e.contains("larger than 100 bytes")), "{path}: {res:?}");
+    }
+    graph.max_memory = Some(500);
+    let res = size(&mut graph, "/", Val::Null);
+    assert!(res.as_ref().is_ok_and(|e| e.contains("larger than 500 bytes")), "by default, the call's memory limit: {res:?}");
+}
+
+#[test]
 /// Types are reached like objects: confined code can't make or cast to a type it isn't given (that would read its
 /// defaults), and can't export a function value it was handed.
 fn types_and_function_values_out_of_reach() {

@@ -46,8 +46,19 @@ The `untrusted` parse profile:
   any seal on it); and `data |..|` is compiled data (functions with any attributes, values of any kind), not
   declarations. Untrusted source can't have any of the three now.
 
+### Added
+
+- **`sha256(data)`**: the SHA-256 (lowercase hex) of text (its UTF-8 bytes) or a blob, the same as any other SHA-256
+  of those bytes, for hashes another system checks (Ex. a protocol's message hashes). `digest(obj)` is still the hash
+  of a part of the document.
+- **`Http::fetch(..., max)`**: the largest response body it reads (Ex. `10MB`); by default the call's memory limit.
+  A larger response isn't read past the limit (natively and in JavaScript): the response map has an `error` instead.
+  Before, a response of any size was read whole, outside the call's memory limit, so a server could make the host
+  hold as much as it sent.
+
 ### Fixed
 
+- **`Http::fetch`'s `timeout` dropped fractions of a second:** `timeout = 500ms` was 0 seconds (and failed at once).
 - **A value could hold itself, and printing, comparing, or exporting it crashed the process** (a stack overflow;
   native hosts abort, JavaScript marks the document crashed). `l = [l]`, `l.push_back(m)` with `m = [l]`,
   `m.insert('me', m)`, `s.insert(s)`, and `swap(a, b)` with `b = [a]` made one. Now they fail with "a list, tuple, map,

@@ -18,8 +18,8 @@ const resp = await Http::fetch("https://restcountries.com/v3.1/region/europe");
 assert_not(Http::client_error(resp));
 ```
 
-# async Http::fetch(url: str, method: str = "get", body: str | blob = null, headers: map = null, timeout: seconds = null, query: map = null, bearer: str = null) -> Promise<map>
-Make an HTTP request, using the thread pool in the background so that other Stof processes can continue running.
+# async Http::fetch(url: str, method: str = "get", body: str | blob = null, headers: map = null, timeout: seconds = null, query: map = null, bearer: str = null, max: bytes = null) -> Promise<map>
+Make an HTTP request, using the thread pool in the background so that other Stof processes can continue running. `max` is the largest response body it reads (Ex. `10MB`); by default, the call's memory limit (the host's max memory, 256 MB unless it's changed). A larger response isn't read: the response map has an `error` instead (and no status).
 ```rust
 const resp = await Http::fetch("https://restcountries.com/v3.1/region/europe");
 assert(Http::text(resp).len() > 100); // response map: status, ok, headers, content_type, bytes

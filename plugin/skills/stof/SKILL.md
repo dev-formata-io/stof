@@ -480,6 +480,8 @@ To allow only some hosts: `graph.allow_http_hosts(["api.example.com"])` (Rust), 
 `doc.allowHttp(['api.example.com'])` (JS). Requests and redirects elsewhere fail; `"localhost:8080"` limits the port too.
 Calling it again adds hosts; `graph.disallow_http_hosts([...])` (Rust), `doc.disallow_http_hosts([...])` (Python),
 `doc.disallowHttp([...])` (JS) removes them (removing every listed host leaves none, not any host).
+`Http::fetch(url, ..., timeout = 5s, max = 10MB)`: a response larger than `max` (by default the call's memory limit)
+isn't read; the response map has `error` instead of a status.
 With no list, any public host: this machine and private networks (localhost, 10.x, 192.168.x, 169.254.x metadata,
 `*.internal`, ...) fail unless listed or allowed with `allow_private_network()` (Rust, Python) / `doc.allowPrivateNetwork()` (JS).
 A call fails with an execution timeout after 2 minutes by default: `graph.max_execution_time = Some(duration)` (Rust),
@@ -543,6 +545,8 @@ document sent as BSTF arrives unsealed, and the receiver seals it (checking the 
 **Digest:** `digest(obj)` / `doc.digest(path)` is a SHA-256 (hex) over the part's functions and structure (plus
 field values with `fields`). The same part has the same digest in any document, parsed or loaded, wherever it sits
 (its own name and place aren't part of it; JSON-imported data digests like the same data written in Stof).
+For a plain hash another system can check (Ex. of a message's text), `sha256(text_or_blob)` is the SHA-256 (hex) of
+those bytes.
 
 **Keys and signatures** (`Key` library; Ed25519; keys and signatures are base64 strings):
 ```stof

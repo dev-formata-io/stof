@@ -288,6 +288,32 @@ assert_neq(nanoid(), nanoid(33));
     }
 }
 
+/// SHA-256 of text or bytes.
+pub fn std_sha256() -> LibFunc {
+    LibFunc {
+        library: STD_LIB.clone(),
+        name: "sha256".into(),
+        is_async: false,
+        docs: r#"# Std::sha256(data: str | blob) -> str
+The SHA-256 of text (its UTF-8 bytes) or a blob, as lowercase hex: the same as any other SHA-256 of those bytes, so another system can check it (Ex. a hash a protocol sends). For a part of the document (its logic and structure), use `digest`.
+```rust
+assert_eq(sha256('abc'), 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+```
+"#.into(),
+        params: crate::params![
+            Param { name: "data".into(), param_type: Type::Union(imbl::vector![Type::Str, Type::Blob]), default: None, },
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(StdIns::Sha256));
+            Ok(instructions)
+        })
+    }
+}
+
 #[inline(always)]
 /// Infinity.
 pub fn std_inf() -> LibFunc {

@@ -704,3 +704,13 @@ sealing: {
         assert_eq(digest(self.locked), before, 'nothing changed');
     }
 }
+
+
+#[test]
+fn sha256_of_text_and_bytes() {
+    assert_eq(sha256('abc'), 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+    assert_eq(sha256(''), 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
+    assert_eq(sha256('abc' as blob), sha256('abc'), 'text is its UTF-8 bytes');
+    assert_eq(sha256('héllo'), sha256('héllo' as blob));
+    assert_neq(sha256('abc'), sha256('abd'));
+}

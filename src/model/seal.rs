@@ -1085,7 +1085,7 @@ fn bytes<T: Serialize + ?Sized>(value: &T) -> Result<Vec<u8>, Error> {
     bincode::serialize(value).map_err(|error| Error::Sealed(format!("couldn't digest: {error}")))
 }
 
-fn hex(bytes: &[u8]) -> String {
+pub(crate) fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 

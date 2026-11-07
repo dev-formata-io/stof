@@ -410,6 +410,13 @@ set_env("HOST", "localhost");
 ```
 
 
+# Std::sha256(data: str | blob) -> str
+The SHA-256 of text (its UTF-8 bytes) or a blob, as lowercase hex: the same as any other SHA-256 of those bytes, so another system can check it (Ex. a hash a protocol sends). For a part of the document (its logic and structure), use `digest`.
+```rust
+assert_eq(sha256('abc'), 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+```
+
+
 # Std::shallow_drop(..) -> bool | list
 Operates the same way Std::drop(..) does, however, if dropping a field and the field points to an object or data, only remove the field and not the associated object/data. This is used instead of drop in instances where multiple fields might point to the same object and you'd like to remove the field without removing the object.
 ```rust

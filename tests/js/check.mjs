@@ -106,6 +106,7 @@ await check('memory limit: one big step ("a" * n) and setMaxMemory', async () =>
 // network
 const server = http.createServer((req, res) => {
     if (req.url === '/redirect') { res.writeHead(302, { location: `http://localhost:${server.address().port}/` }); res.end(); return; }
+    if (req.url === '/big') { res.end('x'.repeat(3 * 1024 * 1024)); return; }
     res.end('hi');
 }).listen(0, '127.0.0.1');
 await new Promise((resolve) => server.once('listening', resolve));
@@ -149,6 +150,15 @@ await check('network: a confined sealed part reaches only its hosts, on every re
     assert((await c.call('tool.f')).includes('not a host this sealed part may reach'), `redirected away (port ${port})`);
     const d = await StofDoc.new(src(`${local}redirect`)); d.allowHttp(['127.0.0.1', 'localhost']);
     assert(await d.call('tool.f') === 'hi', 'unsealed: the redirect is followed');
+});
+await check('network: a response is read up to max (by default the memory limit)', async () => {
+    const doc = await StofDoc.new(`fn f(max: unknown) -> unknown { const res = await Http.fetch('${local}big', max = max); res.get('error') ?? Http.size(res) }`);
+    doc.allowHttp(['127.0.0.1']);
+    assert(String(await doc.call('f', null)).startsWith('3145728'), 'under the limit (256 MB by default)');
+    assert(String(await doc.call('f', 100)).includes('larger than 100 bytes'), 'max');
+    doc.setMaxMemory(1024 * 1024); // the response (3 MB) is over the call's memory limit; the call itself isn't
+    assert(String(await doc.call('f', null)).includes('larger than 1048576 bytes'), 'the memory limit');
+    doc.setMaxMemory(null);
 });
 server.close();
 

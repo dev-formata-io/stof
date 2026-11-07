@@ -129,9 +129,10 @@ impl Instruction for JsLibFuncIns {
         match self {
             Self::Call(docid, arg_count, library, name) => {
                 let context = JsValue::from(Val::Obj(env.self_ptr()));
-                // Http.fetch from a confined sealed part: the host lists it may reach go to the fetch (checked on
-                // every redirect too), after its seven parameters
+                // Http.fetch: its max (by default the call's memory limit) and, from a confined sealed part, the host
+                // lists it may reach (checked on every redirect too) go to the fetch, after its eight parameters
                 let fetch_scopes = if library == "Http" && name == "fetch" { Some(graph.confined_hosts()) } else { None };
+                let fetch_max = env.max_memory;
                 let res = JS_FUNCTIONS.with_borrow(|map| {
                     if let Some(doc) = map.get(docid) {
                         if let Some(lib) = doc.get(library) {
@@ -146,8 +147,11 @@ impl Instruction for JsLibFuncIns {
                                     }
                                     args.reverse();
                                     if let Some(scopes) = &fetch_scopes {
-                                        args.truncate(7);
-                                        while args.len() < 7 { args.push(JsValue::NULL); }
+                                        args.truncate(8);
+                                        while args.len() < 8 { args.push(JsValue::NULL); }
+                                        if args[7].is_null() || args[7].is_undefined() {
+                                            if let Some(max) = fetch_max { args[7] = JsValue::from_f64(max as f64); }
+                                        }
                                         if !scopes.is_empty() {
                                             let lists = js_sys::Array::new();
                                             for hosts in scopes {
