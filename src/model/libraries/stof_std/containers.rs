@@ -185,7 +185,7 @@ pub fn std_funcs() -> LibFunc {
         name: "funcs".into(),
         is_async: false,
         docs: r#"# Std::funcs(attributes: str | list | set = null) -> list
-Get a list of all functions in this graph, optionally filtering by attributes (single string, list of strings, set of strings, or tuple of strings).
+Get a list of all functions in this graph, optionally filtering by attributes (single string, list of strings, set of strings, or tuple of strings). Functions in a confined part (see `seal`) aren't found: call them through the part.
 ```rust
 for (const func in funcs({"test", "main"})) {
     // all test and main functions in the graph

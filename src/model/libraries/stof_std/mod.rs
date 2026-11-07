@@ -404,8 +404,13 @@ impl Instruction for StdIns {
                     return Err(Error::StackError);
                 }
 
+                let mut sleep = Duration::from_millis(duration.abs() as u64);
+                // confined code sleeps no longer than its time has left (and then runs out of it)
+                if let Some(left) = graph.confined.iter().filter_map(|reach| reach.deadline).min().map(|deadline| deadline.saturating_duration_since(web_time::Instant::now())) {
+                    if left < sleep { sleep = left + Duration::from_millis(1); }
+                }
                 let mut instructions = Instructions::default();
-                instructions.push(Arc::new(Base::CtrlSleepFor(Duration::from_millis(duration.abs() as u64))));
+                instructions.push(Arc::new(Base::CtrlSleepFor(sleep)));
                 return Ok(Some(instructions));
             },
 
@@ -578,6 +583,10 @@ impl Instruction for StdIns {
                 if let Some(first) = env.stack.pop() {
                     if let Some(second) = env.stack.pop() {
                         if !Arc::ptr_eq(&first.val, &second.val) {
+                            // swapped in place: neither may then hold itself (Ex. swap(a, b) with b = [a])
+                            if first.val.read().holds(&second.val.0) || second.val.read().holds(&first.val.0) {
+                                return Err(Error::Custom(crate::runtime::HOLDS_ITSELF.into()));
+                            }
                             // either value can end up in a field (swapped in place): their holders aren't known
                             for obj in [first.try_obj(), second.try_obj()].into_iter().flatten() {
                                 graph.add_field_holder(&obj, None);
@@ -816,14 +825,24 @@ impl Instruction for StdIns {
                                     }
                                 }
 
-                                let profile = match profile_var.val.read().to_string().as_str() {
+                                // confined code parses only declarations: an import would read files (with
+                                // allow_system), and #[init] functions and field expressions would run. Nor does it
+                                // parse whole graphs or packages: bstf adds its types to the document, and pkg
+                                // unpacks to the file system.
+                                if !graph.confined.is_empty() {
+                                    let fmt = graph.get_format(&format).or_else(|| graph.get_format_by_content_type(&format));
+                                    if fmt.is_some_and(|fmt| fmt.identifiers().iter().any(|id| id == "bstf" || id == "pkg")) {
+                                        return Err(Error::Sealed(format!("this sealed part can't parse {format}")));
+                                    }
+                                }
+                                let profile = if !graph.confined.is_empty() { Profile::untrusted() } else { match profile_var.val.read().to_string().as_str() {
                                     "test" => Profile::test(),
                                     "prod" => Profile::prod(),
                                     "prod_docs" => Profile::docs(false),
                                     "untrusted" => Profile::untrusted(),
                                     "docs" => Profile::docs(true),
                                     _ => Profile::default(),
-                                };
+                                } };
 
                                 match source_var.val.read().deref() {
                                     Val::Str(src) => {

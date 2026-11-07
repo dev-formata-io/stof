@@ -562,13 +562,15 @@ impl Graph {
     
     /// Insert a root node directly.
     pub fn insert_root(&mut self, name: impl Into<SId>) -> NodeRef {
-        if !self.confined.is_empty() { self.may_add_root(); } // reported (the call fails), though the root is made
+        // reported (the call fails): it's made for the call to finish, then removed (see take_seal_violation)
+        let refused = !self.confined.is_empty() && !self.may_add_root();
         let mut node = Node::new(name.into(), SId::default(), false);
         node.invalidate(INVALID_NODE_NEW);
 
         let nref = node.id.clone();
         self.nodes.insert(node.id.clone(), node);
         self.roots.insert(nref.clone());
+        if refused { Arc::make_mut(&mut self.seals).refused.push(nref.clone()); }
         nref
     }
 
@@ -620,12 +622,12 @@ impl Graph {
     /// Insert stof node.
     /// Don't call this with nodes that already exist in the graph (have a valid ID already).
     pub fn insert_stof_node(&mut self, mut node: Node, parent: Option<NodeRef>) -> NodeRef {
-        if let Some(parent) = &parent {
-            // under an object sealed with its fields: reported (the call fails), though the object is still made
-            if !self.seals.nodes.is_empty() { self.may_add_child(parent); }
-        } else if !self.confined.is_empty() {
-            self.may_add_root();
-        }
+        // under an object sealed with its fields (or a new root, from confined code): reported (the call fails), and
+        // made for the call to finish, then removed (see take_seal_violation)
+        let refused = match &parent {
+            Some(parent) => !self.seals.nodes.is_empty() && !self.may_add_child(parent),
+            None => !self.confined.is_empty() && !self.may_add_root(),
+        };
         if let Some(parent) = &parent {
             if parent.node_exists(&self) {
                 node.parent = Some(parent.clone());
@@ -652,7 +654,22 @@ impl Graph {
         } else {
             self.roots.insert(nref.clone());
         }
+        if refused { Arc::make_mut(&mut self.seals).refused.push(nref.clone()); }
         nref
+    }
+
+    /// Remove an object a refused change made (see take_seal_violation), past the seal that refused it: it was never
+    /// allowed to be there.
+    pub(crate) fn discard_refused_node(&mut self, nref: &NodeRef) {
+        let mut removed = Vec::new();
+        if !self.remove_node_tree(nref, &mut removed) { return; }
+        if !self.seals.nodes.is_empty() {
+            let ids = removed.iter().map(|node| node.id.clone()).collect::<Vec<_>>();
+            self.forget_seals(&ids);
+        }
+        for node in removed {
+            self.insert_node_deadpool(node);
+        }
     }
 
     /// Create nodes from a named path.

@@ -65,6 +65,17 @@ impl ValRef<Val> {
     }
 }
 
+impl ValRef<Val> {
+    /// Would putting `value` in this list, tuple, map, or set (or writing it in place of this value) make this value
+    /// hold itself? See Val::holds.
+    pub fn would_hold_itself(&self, value: &ValRef<Val>) -> bool {
+        Arc::ptr_eq(&self.0, &value.0) || value.0.read().holds(&self.0)
+    }
+}
+
+/// The error for a change that would make a value hold itself (see Val::holds).
+pub const HOLDS_ITSELF: &str = "a list, tuple, map, or set can't hold itself";
+
 impl PartialEq for ValRef<Val> {
     fn eq(&self, other: &Self) -> bool {
         self.0.read().eq(&other.0.read())
@@ -84,6 +95,27 @@ impl Ord for ValRef<Val> {
 impl Clone for ValRef<Val> {
     fn clone(&self) -> Self {
         Self(self.0.clone(), self.1)
+    }
+}
+
+
+impl Val {
+    /// Does this value hold `target` (that very value, not one equal to it), in a list, tuple, map, or set in it?
+    /// Nothing may: a value that held itself would never finish printing, comparing, copying, or exporting. Never reads
+    /// `target` itself, so it's safe to call while `target` is locked for writing. Deeper than any real data (4096
+    /// levels) counts as holding it.
+    pub fn holds(&self, target: &Arc<RwLock<Val>>) -> bool {
+        fn walk(val: &Val, target: &Arc<RwLock<Val>>, depth: usize) -> bool {
+            if depth > 4096 { return true; }
+            let item = |item: &ValRef<Val>| Arc::ptr_eq(&item.0, target) || walk(&item.0.read(), target, depth + 1);
+            match val {
+                Val::List(items) | Val::Tup(items) => items.iter().any(item),
+                Val::Map(map) => map.iter().any(|(key, value)| item(key) || item(value)),
+                Val::Set(set) => set.iter().any(item),
+                _ => false,
+            }
+        }
+        walk(self, target, 0)
     }
 }
 

@@ -18,7 +18,7 @@ use std::{ops::{Deref, DerefMut}, sync::Arc};
 use imbl::{Vector, vector};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{Func, Graph}, parser::types::parse_type_complete, runtime::{Error, Num, NumT, Type, Val, Variable, instruction::{Instruction, Instructions}, instructions::{Base, call::FuncCall}, memory, proc::ProcEnv}};
+use crate::{model::{Func, Graph}, parser::types::parse_type_complete, runtime::{Error, HOLDS_ITSELF, Num, NumT, Type, Val, Variable, instruction::{Instruction, Instructions}, instructions::{Base, call::FuncCall}, memory, proc::ProcEnv}};
 
 
 lazy_static! {
@@ -141,8 +141,17 @@ impl Instruction for ListIns {
             Self::AppendOther => {
                 if let Some(other_var) = env.stack.pop() {
                     if let Some(var) = env.stack.pop() {
-                        match other_var.val.read().deref() {
-                            Val::List(other) => {
+                        // a copy of the other list first: it may be this one (l.append(l)), and none of its items may
+                        // hold this one
+                        let other = match other_var.val.read().deref() {
+                            Val::List(other) => Some(other.clone()),
+                            _ => None,
+                        };
+                        if let Some(other) = &other {
+                            if other.iter().any(|item| var.val.would_hold_itself(item)) { return Err(Error::Custom(HOLDS_ITSELF.into())); }
+                        }
+                        match other.as_ref() {
+                            Some(other) => {
                                 match var.val.write().deref_mut() {
                                     Val::List(list) => {
                                         list.append(other.clone());
@@ -165,6 +174,7 @@ impl Instruction for ListIns {
                     }
                 }
                 if let Some(var) = env.stack.pop() {
+                    if to_push.iter().any(|item| var.val.would_hold_itself(&item.val)) { return Err(Error::Custom(HOLDS_ITSELF.into())); }
                     match var.val.write().deref_mut() {
                         Val::List(list) => {
                             for var in to_push.into_iter().rev() {
@@ -185,6 +195,7 @@ impl Instruction for ListIns {
                     }
                 }
                 if let Some(var) = env.stack.pop() {
+                    if to_push.iter().any(|item| var.val.would_hold_itself(&item.val)) { return Err(Error::Custom(HOLDS_ITSELF.into())); }
                     match var.val.write().deref_mut() {
                         Val::List(list) => {
                             for var in to_push.into_iter().rev() {
@@ -525,6 +536,12 @@ impl Instruction for ListIns {
             Self::RemoveFirst => {
                 if let Some(search_var) = env.stack.pop() {
                     if let Some(var) = env.stack.pop() {
+                        if var.val.would_hold_itself(&search_var.val) {
+                            // it can't be one of the list's items (nothing holds itself), and comparing it would read
+                            // the list while it's locked
+                            env.stack.push(Variable::val(Val::Null));
+                            return Ok(None);
+                        }
                         match var.val.write().deref_mut() {
                             Val::List(list) => {
                                 let mut index: usize = 0;
@@ -553,6 +570,12 @@ impl Instruction for ListIns {
             Self::RemoveLast => {
                 if let Some(search_var) = env.stack.pop() {
                     if let Some(var) = env.stack.pop() {
+                        if var.val.would_hold_itself(&search_var.val) {
+                            // it can't be one of the list's items (nothing holds itself), and comparing it would read
+                            // the list while it's locked
+                            env.stack.push(Variable::val(Val::Null));
+                            return Ok(None);
+                        }
                         match var.val.write().deref_mut() {
                             Val::List(list) => {
                                 // search from the end (an empty list, or no match, finds nothing)
@@ -582,6 +605,12 @@ impl Instruction for ListIns {
             Self::RemoveAll => {
                 if let Some(search_var) = env.stack.pop() {
                     if let Some(var) = env.stack.pop() {
+                        if var.val.would_hold_itself(&search_var.val) {
+                            // it can't be one of the list's items (nothing holds itself), and comparing it would read
+                            // the list while it's locked
+                            env.stack.push(Variable::val(Val::Bool(false)));
+                            return Ok(None);
+                        }
                         match var.val.write().deref_mut() {
                             Val::List(list) => {
                                 let mut index: usize = 0;
@@ -611,6 +640,7 @@ impl Instruction for ListIns {
                 if let Some(insert_var) = env.stack.pop() {
                     if let Some(index_var) = env.stack.pop() {
                         if let Some(var) = env.stack.pop() {
+                            if var.val.would_hold_itself(&insert_var.val) { return Err(Error::Custom(HOLDS_ITSELF.into())); }
                             match index_var.val.read().deref() {
                                 Val::Num(index) => {
                                     match var.val.write().deref_mut() {
@@ -639,6 +669,7 @@ impl Instruction for ListIns {
                 if let Some(replace_var) = env.stack.pop() {
                     if let Some(index_var) = env.stack.pop() {
                         if let Some(var) = env.stack.pop() {
+                            if var.val.would_hold_itself(&replace_var.val) { return Err(Error::Custom(HOLDS_ITSELF.into())); }
                             match index_var.val.read().deref() {
                                 Val::Num(index) => {
                                     match var.val.write().deref_mut() {
@@ -686,8 +717,13 @@ impl Instruction for ListIns {
                 if let Some(cmp) = env.stack.pop() {
                     if let Some(cmp) = cmp.try_func() {
                         if let Some(var) = env.stack.pop() {
-                            match var.val.write().deref_mut() {
-                                Val::List(list) => {
+                            // sorted from a copy, not under the list's lock: the compare function may read the list
+                            let snapshot = match var.val.read().deref() {
+                                Val::List(list) => Some(list.clone()),
+                                _ => None,
+                            };
+                            match snapshot {
+                                Some(list) => {
                                     // check func signature
                                     if let Some(func) = graph.get_stof_data::<Func>(&cmp) {
                                         if func.return_type != Type::Num(NumT::Int) || func.params.len() != 2 {
@@ -755,7 +791,8 @@ impl Instruction for ListIns {
                                     if let Some(err) = failure.into_inner() {
                                         return Err(err);
                                     }
-                                    *list = items.into_iter().collect();
+                                    let sorted: Vector<_> = items.into_iter().collect();
+                                    if let Val::List(list) = var.val.write().deref_mut() { *list = sorted; }
                                     return Ok(None);
                                 },
                                 _ => {}

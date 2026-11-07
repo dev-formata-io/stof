@@ -30,3 +30,6 @@ import './untrusted' as self.Untrusted;
 
 #[test]
 import './gates' as self.Gates;
+
+#[test]
+import './escapes' as self.Escapes;

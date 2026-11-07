@@ -201,9 +201,13 @@ impl Func {
     /// the functions found are then ordered, by where they are in the document.
     pub fn all_functions(graph: &Graph, attrs: &Option<FxHashSet<String>>) -> Vec<DataRef> {
         let mut keyed = Vec::new();
+        let confined = !graph.seals.confines.is_empty();
         for (dref, data) in &graph.data {
             if let Some(func) = data.data.as_dyn_any().downcast_ref::<Self>() {
-                if func.has_any_attr(attrs) {
+                // a confined part's functions aren't found by a scan of the whole document (Ex. funcs(attributes = ..),
+                // a host running functions by attribute): code from somewhere else can't make itself a handler that
+                // code outside it calls. Call them through the part.
+                if func.has_any_attr(attrs) && !(confined && !graph.func_confines(dref).is_empty()) {
                     keyed.push((Self::definition_key(graph, dref), dref.clone()));
                 }
             }

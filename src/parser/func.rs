@@ -82,6 +82,11 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
     if init_func && context.profile.untrusted {
         return Err(nom::Err::Failure(StofParseError::from(format!("untrusted source can't have #[init] functions (nothing runs while it's parsed): fn {name}"))));
     }
+    if context.profile.untrusted && func.attributes.contains_key("dropped") {
+        // a #[dropped] function runs when its object is dropped: code from somewhere else would run (and could refuse
+        // to go) when the host removes it
+        return Err(nom::Err::Failure(StofParseError::from(format!("untrusted source can't have #[dropped] functions (they'd run when the host removes it): fn {name}"))));
+    }
 
     // Instert the new function in the current parse context
     //println!("({name}){{{func:?}}}");

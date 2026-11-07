@@ -176,7 +176,7 @@ impl Instructions {
         }
         let keep_count = limit > 0;
         let mut since_clock_check: u32 = 0;
-        let mut confined_late = false; // a confined part ran past its own time (a catchable error, see below)
+        let mut confined_late = false; // a confined part ran past its own time (an error code outside it can catch)
         'exec_loop: loop {
             if keep_count {
                 if limit <= 0 {
@@ -200,11 +200,6 @@ impl Instructions {
                         }
                     }
                 }
-                // a confined part's own time limit (sealed with `time`), from when it was entered: it fails the next
-                // instruction, so the code around the part can catch it (unlike the process's own limit)
-                if !graph.confined.is_empty() && graph.confined.iter().any(|reach| reach.out_of_time()) {
-                    confined_late = true;
-                }
             }
 
             // enforce the memory budget (a thread-local read; no growth is seen without the counting allocator)
@@ -220,6 +215,32 @@ impl Instructions {
             }
             if env.call_stack.len() > env.max_call_stack_depth {
                 return Err(Error::CallStackOverflow);
+            }
+
+            if !graph.confined.is_empty() {
+                // confined code runs only while it's called: a process its code spawned ends (with no value, so
+                // anything awaiting it carries on) once the part has been left
+                if graph.confined.iter().any(|reach| reach.has_ended()) {
+                    self.instructions.clear();
+                    for val in env.table.take_all_using() {
+                        match val {
+                            Val::Obj(nref) => { graph.remove_node(&nref, true); },
+                            Val::Fn(dref) | Val::Data(dref) => { graph.remove_data(&dref, None); },
+                            _ => {}
+                        }
+                    }
+                    env.stack.clear();
+                    env.stack.push(Variable::val(Val::Null));
+                    return Ok(ProcRes::Done);
+                }
+                // a confined part's own time limit (sealed with `time`), from when it was entered, on a clock that
+                // counts only its own steps (a gate's steps can't hide it): it fails the next instruction, and only
+                // code outside the part can catch it (see below)
+                env.confined_steps += 1;
+                if env.confined_steps >= 64 {
+                    env.confined_steps = 0;
+                    if graph.confined.iter().any(|reach| reach.out_of_time()) { confined_late = true; }
+                }
             }
 
             if let Some(ins) = self.instructions.pop_front() {
@@ -465,7 +486,18 @@ impl Instructions {
                         }
                     },
                     Err(error) => {
-                        if let Some(try_tag) = env.try_stack.pop() {
+                        // a confined part out of time can't catch that (or anything else) itself: only a try opened
+                        // outside it (below the call depth it was entered at) catches
+                        let floor = if graph.confined.is_empty() { None } else {
+                            env.confines.iter().filter(|(_, _, reach)| reach.out_of_time()).map(|(depth, _, _)| *depth).min()
+                        };
+                        let mut caught = None;
+                        while let Some((tag, depth)) = env.try_stack.pop() {
+                            if floor.is_some_and(|floor| depth >= floor) { continue; }
+                            caught = Some(tag);
+                            break;
+                        }
+                        if let Some(try_tag) = caught {
                             self.forward_to(&try_tag);
                             // the readable message under the catch value: `catch (e, message)` takes both, and
                             // `catch (e)` (or code compiled before messages) takes the value on top

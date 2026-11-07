@@ -359,7 +359,7 @@ impl Instruction for Base {
             Self::CtrlJumpTable(..) => {}, // Nothing here... used by instructions...
 
             Self::Try(tag) => {
-                env.try_stack.push(tag.clone());
+                env.try_stack.push((tag.clone(), env.call_stack.len()));
             },
             Self::PopTryUntilDepth(usize) => {
                 while env.try_stack.len() > *usize {

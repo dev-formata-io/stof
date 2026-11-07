@@ -18,7 +18,7 @@ use std::{ops::{Deref, DerefMut}, sync::Arc};
 use imbl::vector;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, parser::types::parse_type_complete, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Num, Type, Val, ValRef, Variable}};
+use crate::{model::Graph, parser::types::parse_type_complete, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, HOLDS_ITSELF, Num, Type, Val, ValRef, Variable}};
 
 
 lazy_static! {
@@ -135,8 +135,17 @@ impl Instruction for SetIns {
             Self::AppendOther => {
                 if let Some(other_var) = env.stack.pop() {
                     if let Some(var) = env.stack.pop() {
-                        match other_var.val.read().deref() {
-                            Val::Set(other) => {
+                        if Arc::ptr_eq(&other_var.val.0, &var.val.0) { return Ok(None); } // s.append(s): nothing new
+                        // a copy of the other set first, and none of its values may hold this one
+                        let other = match other_var.val.read().deref() {
+                            Val::Set(other) => Some(other.clone()),
+                            _ => None,
+                        };
+                        if let Some(other) = &other {
+                            if other.iter().any(|item| var.val.would_hold_itself(item)) { return Err(Error::Custom(HOLDS_ITSELF.into())); }
+                        }
+                        match other.as_ref() {
+                            Some(other) => {
                                 match var.val.write().deref_mut() {
                                     Val::Set(set) => {
                                         for val in other {
@@ -247,6 +256,7 @@ impl Instruction for SetIns {
             Self::Insert => {
                 if let Some(insert_var) = env.stack.pop() {
                     if let Some(var) = env.stack.pop() {
+                        if var.val.would_hold_itself(&insert_var.val) { return Err(Error::Custom(HOLDS_ITSELF.into())); }
                         match var.val.write().deref_mut() {
                             Val::Set(set) => {
                                 let newly_inserted = set.insert(insert_var.val).is_none();
@@ -393,6 +403,11 @@ impl Instruction for SetIns {
             Self::Remove => {
                 if let Some(remove_var) = env.stack.pop() {
                     if let Some(var) = env.stack.pop() {
+                        if var.val.would_hold_itself(&remove_var.val) {
+                            // not a value (nothing holds itself), and comparing it would read the set while it's locked
+                            env.stack.push(Variable::val(Val::Null));
+                            return Ok(None);
+                        }
                         match var.val.write().deref_mut() {
                             Val::Set(set) => {
                                 if let Some(val) = set.remove(&remove_var.val) {
@@ -413,7 +428,7 @@ impl Instruction for SetIns {
                     if let Some(var) = env.stack.pop() {
                         match other_var.val.read().deref() {
                             Val::Set(other) => {
-                                match var.val.write().deref_mut() {
+                                match var.val.read().deref() {
                                     Val::Set(set) => {
                                         let new = set.clone().union(other.clone());
                                         env.stack.push(Variable::val(Val::Set(new)));
@@ -433,7 +448,7 @@ impl Instruction for SetIns {
                     if let Some(var) = env.stack.pop() {
                         match other_var.val.read().deref() {
                             Val::Set(other) => {
-                                match var.val.write().deref_mut() {
+                                match var.val.read().deref() {
                                     Val::Set(set) => {
                                         let new = set.clone().relative_complement(other.clone());
                                         env.stack.push(Variable::val(Val::Set(new)));
@@ -453,7 +468,7 @@ impl Instruction for SetIns {
                     if let Some(var) = env.stack.pop() {
                         match other_var.val.read().deref() {
                             Val::Set(other) => {
-                                match var.val.write().deref_mut() {
+                                match var.val.read().deref() {
                                     Val::Set(set) => {
                                         let new = set.clone().intersection(other.clone());
                                         env.stack.push(Variable::val(Val::Set(new)));
@@ -473,7 +488,7 @@ impl Instruction for SetIns {
                     if let Some(var) = env.stack.pop() {
                         match other_var.val.read().deref() {
                             Val::Set(other) => {
-                                match var.val.write().deref_mut() {
+                                match var.val.read().deref() {
                                     Val::Set(set) => {
                                         let new = set.clone().symmetric_difference(other.clone());
                                         env.stack.push(Variable::val(Val::Set(new)));
@@ -493,7 +508,7 @@ impl Instruction for SetIns {
                     if let Some(var) = env.stack.pop() {
                         match other_var.val.read().deref() {
                             Val::Set(other) => {
-                                match var.val.write().deref_mut() {
+                                match var.val.read().deref() {
                                     Val::Set(set) => {
                                         let new = set.clone().intersection(other.clone());
                                         env.stack.push(Variable::val(Val::Bool(new.is_empty())));

@@ -18,7 +18,7 @@ use std::{ops::{Deref, DerefMut}, sync::Arc};
 use imbl::{vector, OrdSet, Vector};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Num, Val, Variable}};
+use crate::{model::Graph, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, HOLDS_ITSELF, Num, Val, Variable}};
 
 
 lazy_static! {
@@ -128,8 +128,17 @@ impl Instruction for MapIns {
             Self::AppendOther => {
                 if let Some(other) = env.stack.pop() {
                     if let Some(var) = env.stack.pop() {
-                        match other.val.read().deref() {
-                            Val::Map(other) => {
+                        if std::sync::Arc::ptr_eq(&other.val.0, &var.val.0) { return Ok(None); } // m.append(m): nothing new
+                        // a copy of the other map first, and none of its keys or values may hold this one
+                        let other = match other.val.read().deref() {
+                            Val::Map(other) => Some(other.clone()),
+                            _ => None,
+                        };
+                        if let Some(other) = &other {
+                            if other.iter().any(|(k, v)| var.val.would_hold_itself(k) || var.val.would_hold_itself(v)) { return Err(Error::Custom(HOLDS_ITSELF.into())); }
+                        }
+                        match other.as_ref() {
+                            Some(other) => {
                                 match var.val.write().deref_mut() {
                                     Val::Map(map) => {
                                         for (k, v) in other.iter() {
@@ -277,6 +286,7 @@ impl Instruction for MapIns {
                 if let Some(value_var) = env.stack.pop() {
                     if let Some(key_var) = env.stack.pop() {
                         if let Some(var) = env.stack.pop() {
+                            if var.val.would_hold_itself(&key_var.val) || var.val.would_hold_itself(&value_var.val) { return Err(Error::Custom(HOLDS_ITSELF.into())); }
                             match var.val.write().deref_mut() {
                                 Val::Map(map) => {
                                     if let Some(old) = map.insert(key_var.val, value_var.val) {
@@ -466,6 +476,11 @@ impl Instruction for MapIns {
             Self::Remove => {
                 if let Some(search_var) = env.stack.pop() {
                     if let Some(var) = env.stack.pop() {
+                        if var.val.would_hold_itself(&search_var.val) {
+                            // not a key (nothing holds itself), and comparing it would read the map while it's locked
+                            env.stack.push(Variable::val(Val::Null));
+                            return Ok(None);
+                        }
                         match var.val.write().deref_mut() {
                             Val::Map(map) => {
                                 if let Some(val) = map.remove(&search_var.val) {

@@ -583,8 +583,18 @@ code runs (and everything it calls):
   with the host's key). Method calls count as their library's: `text.split('/')` is `Str`, `[1, 2].len()` is
   `List`, `stringify`/`parse` are `Std`.
 - It runs for at most `time` (Ex. `500ms`) each time it's entered, on top of the call's own limit: wall-clock time
-  from entering, waits included (Ex. an `Http.fetch`). Running past it fails with a `sealed: ...` error the calling
-  code can catch.
+  from entering, waits included (Ex. an `Http.fetch`). Running past it fails with a `sealed: ...` error that only
+  code outside the part can catch (a `try` inside it can't keep it going), its gates can't be called, and its
+  `sleep` wakes at the limit.
+- It runs only while it's called: a process its code spawns and leaves running (an `async` block it doesn't
+  await) ends when the call into the part returns.
+- It can never end the process or reach the host's environment: `exit()`, `env`, `env_vars`, `set_env`, and
+  `remove_env` fail even with `Std` in `libs` (an `exit()` would end the code that called it too, past its
+  try/catch). Its `parse` is always the `untrusted` profile (declarations only, no imports), and can't parse `bstf`
+  or `pkg` (a whole graph adds its types to the document; a package unpacks to disk).
+- What it isn't allowed to make isn't made: a refused `new {}` (fields frozen, or a new root) leaves nothing behind.
+- A scan of the whole document (`funcs(attributes = ..)`, a host running functions by attribute) doesn't find its
+  functions, so it can't make itself a handler that code outside it calls.
 - Objects from elsewhere stay opaque even when handed to it (argument or field): it can hold and return them, not
   look inside. Pass values (strings, numbers, lists, maps), or list the objects in `reads`.
 - Its only way to anything else is through its gates (`calls`, below).
@@ -614,8 +624,9 @@ API you give it (Ex. one that signs a request with a key the part never sees, or
 
 **Untrusted source:** parse code you didn't write with the `untrusted` profile (`parse(src, obj, 'stof',
 'untrusted')`, `doc.parse(src, 'stof', node, 'untrusted')`): declarations only. Nothing runs while it's parsed (field
-and attribute values must be literals; no `#[init]`), it imports nothing, and it declares no `#[type]`s (types are
-found by name across the document). Otherwise parsing runs expressions (`leak: root.secrets.key`) before any seal is
+and attribute values must be literals; no `#[init]`, and no `#[dropped]`, which would run when the host removes it),
+it imports nothing, and it declares no `#[type]`s (types are found by name across the document), roots, or binary
+data (`data |..|`). Otherwise parsing runs expressions (`leak: root.secrets.key`) before any seal is
 on. Parse into a fresh object (drop it if the parse fails), then seal it confined before calling it.
 
 A typical plugin, end to end:

@@ -1,0 +1,131 @@
+//
+// Copyright 2026 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+/*!
+ * Ways code from somewhere else could get past a confined seal (or take its host down), each closed: its time limit,
+ * objects it isn't allowed to make, promises it hands back, document-wide scans, declarations that aren't, and values
+ * that hold themselves.
+ */
+
+counter: { n: 0 }
+gate: { fn hit() -> int { super.counter.n += 1; super.counter.n } }
+
+/// What a call to `f` throws ('' when it doesn't).
+fn thrown(f: fn) -> str {
+    let out = '';
+    try f();
+    catch (e, message) out = message;
+    out
+}
+
+/// A confined part from untrusted source, with the gate, for `time`.
+fn part(source: str, time: ms = 100ms) -> obj {
+    const tool = new {} on self;
+    parse(source, tool, 'stof', 'untrusted');
+    tool.api = new { hit: self.gate.hit } on tool;
+    seal(tool, true, removable = true, reads = [], libs = ['Std'], time = time, calls = [self.gate.hit]);
+    tool
+}
+
+
+#[test]
+fn its_time_limit_cant_be_caught_inside_it() {
+    using tool = self.part('fn spin() { loop { try { loop {} } catch {} } }');
+    const message = self.thrown(() => { tool.spin(); });
+    assert(message.contains('time limit'), `only code outside the part catches it: ${message}`);
+}
+
+#[test]
+fn it_sleeps_no_longer_than_its_time() {
+    using tool = self.part('fn nap() -> str { sleep(10s); "woke" }');
+    const start: ms = Time::now();
+    let out = '';
+    try out = tool.nap(); catch (e, message) out = message;
+    const took: ms = Time::now() - start;
+    assert(took < 5s, `capped at its time: ${took}`);
+}
+
+#[test]
+fn its_gates_run_on_its_clock() {
+    using tool = self.part('fn hammer() { loop { try { self.api.hit(); } catch {} } }');
+    const message = self.thrown(() => { tool.hammer(); });
+    assert(message.contains('time limit'), message);
+    const after = self.counter.n;
+    sleep(20ms);
+    assert_eq(self.counter.n, after, 'and stops calling them');
+}
+
+#[test]
+fn objects_it_may_not_make_are_not_made() {
+    using tool = self.part('fn grow() -> int { let i = 0; while (i < 50) { try new { a: 1 }; catch {} i += 1; } i }', 30s);
+    assert_eq(tool.grow(), 50);
+    assert_eq(tool.children().len(), 1, 'only its api (fields frozen: a refused object is removed, not kept)');
+}
+
+#[test]
+fn a_promise_it_hands_back_never_strands_the_caller() {
+    using tool = self.part(r#"
+        async fn later() -> int { sleep(10ms); 6 }
+        fn handoff() -> list { [self.later()] }
+    "#, 5s);
+    assert_eq(await tool.later(), 6, 'what it runs while called finishes');
+    const handed = tool.handoff();
+    assert_null(await handed[0], 'what it left running ended when it returned, with no value');
+}
+
+#[test]
+fn document_scans_skip_confined_parts() {
+    using tool = self.part('#[escape_scan] fn handler(value: unknown) { self.api.hit(); }');
+    assert_eq(funcs(attributes = 'escape_scan').len(), 0, "code from somewhere else can't make itself a handler");
+    assert_eq(tool.funcs(attributes = 'escape_scan').len(), 1, 'it is still there, through the part');
+}
+
+#[test]
+fn untrusted_source_is_only_declarations() {
+    for (const source in ['#[dropped] fn stay() { }', 'root Elsewhere { x: 1 }', 'data |1, 2, 3|']) {
+        using scratch = new {};
+        const message = self.thrown(() => { parse(source, scratch, 'stof', 'untrusted'); });
+        assert(message.contains("untrusted source can't"), `${source}: ${message}`);
+    }
+    assert_null(root.Elsewhere);
+}
+
+#[test]
+fn a_value_cant_hold_itself() {
+    for (const make in [
+        () => { let l = [1]; l = [l]; },
+        () => { const l = [1]; const m = [l]; l.push_back(m); },
+        () => { const l = [1]; l.insert(0, [[l]]); },
+        () => { const m = map(); m.insert('me', m); },
+        () => { const s = {1}; s.insert([s]); },
+        () => { const a = [1]; const b = [a]; swap(a, b); },
+    ]) {
+        assert(self.thrown(make).contains("can't hold itself"));
+    }
+    // ...but a value can still use itself
+    const l = [1, 2];
+    l.append(l);
+    assert_eq(l, [1, 2, 1, 2]);
+    const s = {1, 2};
+    assert_eq(s.union(s), {1, 2});
+    const m = map(('a', 1));
+    m.append(m);
+    assert_eq(m.len(), 1);
+    assert_null(l.remove_first(l));
+    const sorted = [3, 1, 2];
+    sorted.sort_by((a: int, b: int): int => { const n = sorted.len(); a - b });
+    assert_eq(sorted, [1, 2, 3]);
+}

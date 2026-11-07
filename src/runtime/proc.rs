@@ -58,7 +58,8 @@ pub struct ProcEnv {
     pub loop_stack: Vec<ArcStr>,
     pub return_stack: Vec<ArcStr>,
     pub ret_valid_stack: Vec<usize>,
-    pub try_stack: Vec<ArcStr>,
+    /// Open try blocks: each catch's tag, and how deep the call stack was when it opened.
+    pub try_stack: Vec<(ArcStr, usize)>,
     pub yield_enabled: bool,
 
     /// Confined sealed parts this process is running in: the call stack depth each was entered at, its rule, and
@@ -68,6 +69,9 @@ pub struct ProcEnv {
     /// Confinements set aside while a gate runs (a function confined code may call that runs unconfined): the call
     /// stack depth the gate was entered at, and the confinements to restore when it returns.
     pub suspended: Vec<(usize, Vec<(usize, std::sync::Arc<crate::model::seal::Confine>, std::sync::Arc<crate::model::seal::Reach>)>)>,
+
+    /// Steps run while confined, since its time was last checked (kept across a process's slices of the runtime).
+    pub confined_steps: u32,
 
     // Setting this will put the process into a waiting mode
     pub spawn: Option<Box<Process>>,
@@ -98,6 +102,7 @@ impl Default for ProcEnv {
             yield_enabled: true,
             confines: Vec::new(),
             suspended: Vec::new(),
+            confined_steps: 0,
 
             #[cfg(feature = "tokio")]
             tokio_runtime: None,

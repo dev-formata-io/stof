@@ -83,6 +83,88 @@ fn then_seal_it_confined() {
 }
 
 #[test]
+fn confined_code_parses_declarations_only() {
+    using tool = new {};
+    parse(r#"
+        fn imports() -> unknown { parse("import './secrets.json' as self.got;", self); self.got }
+        fn runs() -> unknown { parse('x: 1 + 2', self); self.x }
+        fn declares() -> unknown { parse('y: 3', self); self.y }
+        fn data() -> unknown { parse('{"z": 4}', self, 'json'); self.z }
+    "#, tool, 'stof', 'untrusted');
+    seal(tool, removable = true, reads = [], libs = ['Std']);
+    let message = '';
+    try tool.imports(); catch (e, why) message = why;
+    assert(message.contains("can't import"), `a confined parse imports nothing: ${message}`);
+    try tool.runs(); catch (e, why) message = why;
+    assert(message.contains('values must be literals'), `nor runs anything: ${message}`);
+    assert_eq(tool.declares(), 3);
+    assert_eq(tool.data(), 4, 'other formats parse as before');
+}
+
+#[test]
+fn confined_code_cannot_parse_graphs() {
+    using maker = new {};
+    parse('#[type] Shadow: { fn price() -> int { 0 } }', maker);
+    const bytes = blobify('bstf', maker);
+    using tool = new {};
+    parse(`graph: ${str(bytes as list)}\nfn load() -> unknown { parse(self.graph as blob, self, 'bstf'); true }`, tool, 'stof', 'untrusted');
+    seal(tool, removable = true, reads = [], libs = ['Std', 'List', 'Blob']);
+    let message = '';
+    try tool.load(); catch (e, why) message = why;
+    assert(message.contains("can't parse bstf"), `bstf would add its types to the document: ${message}`);
+}
+
+#[test]
+fn confined_code_cannot_end_its_caller() {
+    using tool = new {};
+    parse("fn quit() -> str { exit(); 'quit' }", tool, 'stof', 'untrusted');
+    seal(tool, removable = true, reads = [], libs = ['Std']);
+    let message = '';
+    try tool.quit(); catch (e, why) message = why;
+    assert(message.contains("can't call Std.exit"), `exit() is refused (it would end this caller too): ${message}`);
+}
+
+#[test]
+fn confined_code_cannot_reach_the_environment() {
+    using tool = new {};
+    parse(r#"
+        fn read() -> unknown { env('HOME') }
+        fn all() -> unknown { env_vars() }
+        fn write() -> unknown { set_env('STOF_CONFINED_TEST', '1'); true }
+        fn remove() -> unknown { remove_env('STOF_CONFINED_TEST'); true }
+    "#, tool, 'stof', 'untrusted');
+    seal(tool, removable = true, reads = [], libs = ['Std']);
+    for (const name in ['read', 'all', 'write', 'remove']) {
+        let message = '';
+        try tool.get(name).call(); catch (e, why) message = why;
+        assert(message.len() > 0, `${name}: refused (or not there, without allow_system)`);
+        if (lib('Std', 'env')) assert(message.contains("can't call Std."), `${name}: ${message}`);
+    }
+}
+
+counter: { n: 0 }
+gate: { fn hit() -> int { super.counter.n += 1; super.counter.n } }
+
+#[test]
+fn confined_code_runs_only_while_its_called() {
+    using tool = new {};
+    parse(r#"
+        fn background() -> str { async { loop { self.api.hit(); sleep(5ms); } }; 'returned' }
+        fn awaited() -> int { await async { self.api.hit(); 7 } }
+    "#, tool, 'stof', 'untrusted');
+    tool.api = new { hit: self.gate.hit } on tool;
+    seal(tool, removable = true, reads = [], libs = ['Std'], time = 30s, calls = [self.gate.hit]);
+    assert_eq(tool.awaited(), 7, 'what it awaits runs while it is called');
+    assert_eq(self.counter.n, 1);
+    assert_eq(tool.background(), 'returned');
+    sleep(20ms); // a gate call already under way when the part returned finishes (the part's code doesn't go on)
+    const settled = self.counter.n;
+    assert(settled <= 3, `it ran at most a step or two while the call was going: ${settled}`);
+    sleep(50ms);
+    assert_eq(self.counter.n, settled, 'what it spawned and left running ended when it returned');
+}
+
+#[test]
 fn trusted_source_is_unchanged() {
     using scratch = new {};
     parse('x: 1 + 2', scratch, 'stof', 'prod');

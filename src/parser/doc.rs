@@ -395,6 +395,10 @@ fn root_statements<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'
     let statement = input;
     let (input, name) = preceded(tag("root"), delimited(multispace0, opt(alt((map(ident, |s| s.to_owned()), double_string, single_string))), multispace0)).parse(input)?;
     let (input, _) = char('{')(input)?;
+    if context.profile.untrusted {
+        // a new root is outside the object it's parsed into (and outside any seal on it)
+        return Err(nom::Err::Failure(StofParseError::from(format!("untrusted source can't declare roots (root {})", name.unwrap_or_default()))));
+    }
 
     // Optional custom object ID - not recommended unless you know what you're doing
     let (mut input, custom_id) = opt(delimited(

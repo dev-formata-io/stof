@@ -17,7 +17,7 @@
 use std::ops::Deref;
 use arcstr::ArcStr;
 use serde::{Deserialize, Serialize};
-use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{Error, Type, Val, ValRef}};
+use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{Error, Type, Val, ValRef, value::HOLDS_ITSELF}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -105,6 +105,7 @@ impl Variable {
             if self.value_type() && !self.by_ref() && !self.shared {
                 self.val = ValRef::new(val);
             } else {
+                if val.holds(&self.val.0) { return Err(Error::Custom(HOLDS_ITSELF.into())); } // Ex. `l = [l]`
                 *self.val.write() = val;
             }
             self.note_obj_holder(graph);
@@ -124,6 +125,7 @@ impl Variable {
                 val.cast(vtype, graph, context)?;
             }
         }
+        if val.holds(&self.val.0) { return Err(Error::Custom(HOLDS_ITSELF.into())); }
         *self.val.write() = val;
         self.note_obj_holder(graph);
         Ok(())

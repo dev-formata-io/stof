@@ -60,7 +60,7 @@ use arcstr::ArcStr;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use crate::{model::{ARROW_FUNC_ATTR, DataRef, Field, Func, Graph, NodeRef, Prototype}, runtime::{Error, Val, ValRef, Variable, instruction::{Instruction, Instructions}, proc::ProcEnv}};
+use crate::{model::{ARROW_FUNC_ATTR, DataRef, Field, Func, Graph, NodeRef, Prototype, SId}, runtime::{Error, Val, ValRef, Variable, instruction::{Instruction, Instructions}, proc::ProcEnv}};
 
 
 thread_local! {
@@ -114,6 +114,9 @@ pub struct Seals {
     pub types: FxHashSet<String>,
     /// Why the last change was refused, until the instruction or host call that made it reports it.
     pub violation: Option<String>,
+    /// Objects made by a change that was refused (Ex. `new {}` in a part sealed with its fields): they're removed when
+    /// the refusal is reported, so a refused change never grows the document.
+    pub refused: Vec<NodeRef>,
 }
 
 
@@ -257,8 +260,10 @@ pub struct Confine {
 impl Confine {
     /// What it reaches now: its `reads` paths looked up (a path with nothing there reaches nothing), and when its
     /// time runs out.
-    pub fn resolve(&self, graph: &Graph) -> Reach {
+    pub fn resolve(&self, graph: &Graph, owner: SId) -> Reach {
         Reach {
+            owner,
+            ended: Default::default(),
             root: self.root.clone(),
             reads: self.reads.as_ref().map(|paths| paths.iter().filter_map(|path| graph.seal_target(path).ok()).collect()),
             hosts: self.hosts.clone(),
@@ -273,6 +278,11 @@ impl Confine {
 #[derive(Debug, Clone)]
 /// A `Confine` while its code runs: the objects its `reads` paths point to now.
 pub struct Reach {
+    /// The process that entered the part (and leaves it).
+    pub owner: SId,
+    /// Has that process left the part? A process the part's code spawned (Ex. an `async` block it didn't await) still
+    /// runs under this, and ends at its next instruction when it has: confined code runs only while it's called.
+    pub ended: Arc<std::sync::atomic::AtomicBool>,
     /// The object `seal` was called on.
     pub root: NodeRef,
     /// What the code may read besides its own part (None: reads and changes aren't limited).
@@ -305,7 +315,12 @@ impl Reach {
         }
     }
 
-    /// Has the code run past its time?
+    /// Has the process that entered the part left it (see `ended`)?
+    pub fn has_ended(&self) -> bool {
+        self.ended.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Has the code run past its time limit?
     pub fn out_of_time(&self) -> bool {
         self.deadline.is_some_and(|deadline| web_time::Instant::now() > deadline)
     }
@@ -578,7 +593,11 @@ impl Graph {
     /// The reason a change was refused since the last check, if one was (and clear it).
     pub fn take_seal_violation(&mut self) -> Option<String> {
         if self.seals.violation.is_none() { return None; }
-        Arc::make_mut(&mut self.seals).violation.take()
+        let seals = Arc::make_mut(&mut self.seals);
+        let why = seals.violation.take();
+        let refused = std::mem::take(&mut seals.refused);
+        for nref in refused { self.discard_refused_node(&nref); }
+        why
     }
 
     /// Is this data on this node sealed (it can't change)?
@@ -1202,6 +1221,10 @@ impl ProcEnv {
         if !self.confines.is_empty() {
             // a gate: listed by every confinement it's called under (so a part can't make one of its own)
             if self.confines.iter().all(|(_, _, reach)| reach.gate(func)) {
+                // out of time, a part calls nothing more (its gates run on the clock too)
+                if self.confines.iter().any(|(_, _, reach)| reach.out_of_time()) {
+                    return Err(Error::Sealed("this sealed part ran past its time limit".into()));
+                }
                 let confines = std::mem::take(&mut self.confines);
                 self.suspended.push((depth, confines));
                 graph.confined = Vec::new();
@@ -1214,7 +1237,7 @@ impl ProcEnv {
         for confine in graph.func_confines(func) {
             // entering the part (not already running in it): its reads are looked up now
             if !self.confines.iter().any(|(_, existing, _)| Arc::ptr_eq(existing, &confine)) {
-                let reach = Arc::new(confine.resolve(graph));
+                let reach = Arc::new(confine.resolve(graph, self.pid.clone()));
                 self.confines.push((depth, confine, reach));
                 added = true;
             }
@@ -1230,7 +1253,10 @@ impl ProcEnv {
         let mut changed = false;
         loop {
             while self.confines.last().is_some_and(|(depth, _, _)| *depth > self.call_stack.len()) {
-                self.confines.pop();
+                if let Some((_, _, reach)) = self.confines.pop() {
+                    // left by the process that entered it: anything its code spawned that's still running ends too
+                    if reach.owner == self.pid { reach.ended.store(true, std::sync::atomic::Ordering::Relaxed); }
+                }
                 changed = true;
             }
             if self.suspended.last().is_some_and(|(depth, _)| *depth > self.call_stack.len()) {
@@ -1250,6 +1276,11 @@ impl ProcEnv {
         self.confines.iter().map(|(_, _, reach)| reach.clone()).collect()
     }
 }
+
+
+/// Std functions confined code can never call: exit() (it would end the unconfined code that called the part, past
+/// its try/catch), and the host's environment (env, env_vars, set_env, remove_env, with allow_system).
+const CONFINED_STD_REFUSED: [&str; 5] = ["exit", "env", "env_vars", "set_env", "remove_env"];
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1272,6 +1303,11 @@ impl Instruction for ConfineIns {
                 }
                 if graph.confined.iter().any(|reach| reach.out_of_time()) {
                     return Err(Error::Sealed("this sealed part ran past its time limit".into()));
+                }
+                if lib.as_str() == "Std" && CONFINED_STD_REFUSED.contains(&func.as_str()) {
+                    // ending the process would end the code that called the part too (past its try/catch), and the
+                    // environment is the host's (with allow_system), not something a part can be given
+                    return Err(Error::Sealed(format!("this sealed part can't call {lib}.{func}")));
                 }
                 let start = env.stack.len().saturating_sub(*count);
                 for var in &env.stack[start..] {

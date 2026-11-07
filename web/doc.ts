@@ -407,7 +407,7 @@ export interface SealInfo {
  * Stof document.
  */
 export class StofDoc {
-    static readonly VERSION = '0.11.2';
+    static readonly VERSION = '0.11.3';
     private static initialized?: Promise<unknown>;
     private static wasmMutex = new WasmMutex();
     stof: Stof;

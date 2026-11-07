@@ -47,6 +47,10 @@ pub fn parse_data<'a>(input: &'a str, context: &mut ParseContext) -> IResult<&'a
 
     // Optionally end the binary data declaration with a semicolon or a comma
     let (input, _) = opt(preceded(space0, alt((char(';'), char(','))))).parse(input)?;
+    if context.profile.untrusted {
+        // binary data is compiled, not declared: functions with any attributes, prototypes, values of any kind
+        return Err(nom::Err::Failure(StofParseError::from("untrusted source can't have binary data (data |..|): it's declarations only".to_string())));
+    }
 
     let self_ptr = context.self_ptr();
     if let Ok(mut data) = crate::model::cautious::bincode_deserialize::<Data>(&bytes) {

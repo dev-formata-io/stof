@@ -1,5 +1,62 @@
 # Changelog
 
+## 0.11.3
+
+Confined seals are for code from somewhere else (Ex. a provider's tools running in an agent's Limitr policy), so
+everything such code can do is what the seal says, and nothing it does can take its host down. Building on them
+(and an independent review of them) found the ways below that it could get past one. All are closed, with tests
+(`security/escapes.stof`, `security/untrusted.stof`).
+
+### Security
+
+Confined code (a part sealed with `reads`):
+
+- **Couldn't be stopped by its time limit when it caught the error.** A `try` inside the part caught "ran past its
+  time limit" and kept going (Ex. `loop { try { loop {} } catch {} }` ran forever), its gate calls hid its time (the
+  check every 256 steps mostly landed inside a gate, where it doesn't apply), and `sleep(10s)` slept 10 seconds past a
+  100ms limit. Now its own steps are counted (every 64, and every gate call checks first), only code outside the part
+  can catch the error once it's out of time, and its `sleep` wakes at the limit.
+- **Kept running after it returned.** A process it spawned and didn't await (Ex. `async { loop { ... } }`) went on
+  after the call into the part returned, still confined but calling its gates (Ex. spending through an API it was
+  given), until its time limit, and an error in it failed the caller's call afterwards. Confined code runs only while
+  it's called now: such a process ends at its next step once the call returns, with no value, so anything awaiting it
+  carries on.
+- **`exit()` ended the code that called it,** past the caller's try/catch, so the caller's own code after it never
+  ran (Ex. its cleanup or bookkeeping). Confined code can't call `exit()` now: a `sealed: ...` error.
+- **The host's environment, with `Std` in `libs`.** With `allow_system()` (Python, Rust, the CLI), `env`, `env_vars`,
+  `set_env`, and `remove_env` are `Std` functions, so `libs = ['Std']` let confined code read the host's environment
+  (Ex. an API key) and pass it on. Confined code can't call them now, whatever `libs` says. (JavaScript has no
+  environment functions.)
+- **Files and types, through `parse`.** A confined `parse()` of Stof source could import files (with
+  `allow_system()`), and of `bstf` could add its `#[type]`s to the document's types, by name, where code outside the
+  part found them. Confined code's `parse` is always the `untrusted` profile now (declarations only, nothing imported
+  or run), and it can't parse `bstf` or `pkg` (a package, which unpacks to disk). Other formats parse as before.
+- **Objects it wasn't allowed to make were still made.** A refused `new {}` (in a part sealed with its fields, or a new
+  root) failed the call but kept the object, so a loop catching the error grew the document without limit. A refused
+  object is removed now.
+- **Document scans found its functions.** `funcs(attributes = ..)` (and a host running functions by attribute) found
+  functions inside a confined part, so code from somewhere else could make itself a handler that code outside it
+  called (Ex. on an event, with the event's data). A scan of the whole document doesn't find them now; call them
+  through the part (`part.funcs(attributes = ..)` still does).
+
+The `untrusted` parse profile:
+
+- **Accepted `#[dropped]` functions, roots, and binary data.** A `#[dropped]` function ran when the host removed the
+  part (and could fail to stop it); `root Name { .. }` made a root outside the object it was parsed into (and outside
+  any seal on it); and `data |..|` is compiled data (functions with any attributes, values of any kind), not
+  declarations. Untrusted source can't have any of the three now.
+
+### Fixed
+
+- **A value could hold itself, and printing, comparing, or exporting it crashed the process** (a stack overflow;
+  native hosts abort, JavaScript marks the document crashed). `l = [l]`, `l.push_back(m)` with `m = [l]`,
+  `m.insert('me', m)`, `s.insert(s)`, and `swap(a, b)` with `b = [a]` made one. Now they fail with "a list, tuple, map,
+  or set can't hold itself".
+- **A collection used with itself hung forever** (a lock it already held): `l.append(l)`, `m.append(m)`,
+  `s.union(s)` (and the other set operations with itself), `l.remove_first(l)`, and a `sort_by` whose compare
+  function read the list. They work now (`l.append(l)` appends a copy; `m.append(m)` changes nothing).
+
+
 ## 0.11.2
 
 For code from somewhere else that runs in your document (Ex. a provider's tools in an agent's Limitr policy): parse it
