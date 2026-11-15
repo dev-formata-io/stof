@@ -455,6 +455,8 @@ github: {
                 }
                 wheels: {
                     strategy: {
+                        // a failing platform doesn't cancel the others, so one run shows every failure
+                        fail-fast: false
                         matrix: {
                             include: [
                                 { os: 'ubuntu-latest', target: 'x86_64', smoke: true },
@@ -478,6 +480,8 @@ github: {
                             name: 'Build the wheel'
                             uses: 'PyO3/maturin-action@v1'
                             with: { target: '${{ matrix.target }}', args: '--release --out dist', manylinux: '2014' }
+                            // the manylinux2014 ARM cross compiler doesn't define __ARM_ARCH, which ring's assembly needs (rustls)
+                            env: { CFLAGS_aarch64_unknown_linux_gnu: '-D__ARM_ARCH=8' }
                         },
                         {
                             name: 'Check the Python build'

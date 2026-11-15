@@ -36,6 +36,7 @@ jobs:
         path: web/formata-stof-*.tgz
   wheels:
     strategy:
+      fail-fast: false
       matrix:
         include:
         - os: ubuntu-latest
@@ -62,6 +63,8 @@ jobs:
         target: ${{ matrix.target }}
         args: --release --out dist
         manylinux: '2014'
+      env:
+        CFLAGS_aarch64_unknown_linux_gnu: -D__ARM_ARCH=8
     - name: Check the Python build
       if: matrix.smoke
       shell: bash
