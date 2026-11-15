@@ -184,6 +184,9 @@ Cargo cargo: {
         zip: {
             version: 4.6.1
             optional: true
+            // only what pkg reads and writes: no getrandom 0.3, no C codecs (wasm builds)
+            default-features: false
+            features: ['bzip2', 'deflate']
         }
         chrono: 0.4.45
         tokio: {
@@ -347,7 +350,7 @@ github: {
                         {
                             // the same build as a local release (BUILD.md): default features plus js, optimized by wasm-opt
                             name: 'Build the engine'
-                            run: 'rustup target add wasm32-unknown-unknown && cargo install wasm-pack --locked && wasm-pack build --target web --release --out-dir web/pkg -- --features js'
+                            run: 'rustup target add wasm32-unknown-unknown && cargo install wasm-pack --locked && wasm-pack build --target web --release --out-dir web/pkg -- --no-default-features --features js'
                         },
                         {
                             name: 'Build the package'
@@ -432,7 +435,7 @@ github: {
                         {
                             // the same build as a local release (BUILD.md): default features plus js, optimized by wasm-opt
                             name: 'Build the engine'
-                            run: 'rustup target add wasm32-unknown-unknown && cargo install wasm-pack --locked && wasm-pack build --target web --release --out-dir web/pkg -- --features js'
+                            run: 'rustup target add wasm32-unknown-unknown && cargo install wasm-pack --locked && wasm-pack build --target web --release --out-dir web/pkg -- --no-default-features --features js'
                         },
                         {
                             // what prepublishOnly does (the skill, README, and LICENSE, then the build), then pack it

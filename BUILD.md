@@ -82,15 +82,17 @@ cargo publish
 
 ## JavaScript (npm)
 
-wasm-pack builds the engine with the default features plus `js` (the same as the CI and release workflows) and
-optimizes it with wasm-opt. It fetches the wasm-bindgen CLI that matches the `wasm-bindgen` crate itself. `web/pkg` is
+wasm-pack builds the engine with only the `js` feature and optimizes it with wasm-opt. Either pass
+`--no-default-features --features js` (as below, and as the CI and release workflows do), or run
+`stof run project.stof -a javascript` first, which makes `js` the default, and `stof run project.stof` after to put
+`Cargo.toml` back. It fetches the wasm-bindgen CLI that matches the `wasm-bindgen` crate itself. `web/pkg` is
 committed, so commit it after building.
 
 ```sh
 rustup target add wasm32-unknown-unknown
 cargo install wasm-pack --locked
 
-wasm-pack build --target web --release --out-dir web/pkg -- --features js
+wasm-pack build --target web --release --out-dir web/pkg -- --no-default-features --features js
 
 cd web && npm ci && npm run build && cd ..
 node tests/js/check.mjs

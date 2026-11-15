@@ -29,7 +29,7 @@ jobs:
       with:
         node-version: '22'
     - name: Build the engine
-      run: rustup target add wasm32-unknown-unknown && cargo install wasm-pack --locked && wasm-pack build --target web --release --out-dir web/pkg -- --features js
+      run: rustup target add wasm32-unknown-unknown && cargo install wasm-pack --locked && wasm-pack build --target web --release --out-dir web/pkg -- --no-default-features --features js
     - name: Build the package
       run: npm ci && npm run build
       working-directory: web

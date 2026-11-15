@@ -54,6 +54,8 @@ and every suite passes, Limitr's included).
 - **HTTP uses rustls** (with the OS's root certificates, as before) instead of linking the system's OpenSSL. Nothing
   changes for code calling `Http`. Stof links no system libraries now, so Linux wheels cross-compile from any machine
   and install on any glibc Linux from 2014 on (`manylinux2014`).
+- **Packages use only the zip codecs Stof needs** (Bzip2 to write, Deflate and Bzip2 to read). This drops the C codecs
+  (zstd, lzma, xz) and AES from every build, and lets the default features build for WebAssembly.
 
 ### Fixed
 

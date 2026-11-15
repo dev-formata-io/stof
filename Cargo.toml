@@ -114,6 +114,8 @@ optional = true
 [dependencies.zip]
 version = "4.6.1"
 optional = true
+default-features = false
+features = ["bzip2", "deflate"]
 
 [dependencies.tokio]
 version = "1.53.1"
