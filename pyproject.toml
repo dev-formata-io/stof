@@ -1,10 +1,10 @@
 [project]
 name = "stof"
-version = "0.11.3"
+version = "0.11.4"
 description = "JSON that runs: JSON with functions, run in a sandbox that can only touch what you hand it. In Rust, JavaScript, and Python."
 license = "Apache-2.0"
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 classifiers = ["Programming Language :: Rust", "Programming Language :: Python :: Implementation :: CPython", "Programming Language :: Python :: Implementation :: PyPy", "License :: OSI Approved :: Apache Software License", "Operating System :: OS Independent", "Topic :: Software Development :: Interpreters", "Topic :: Scientific/Engineering :: Artificial Intelligence"]
 keywords = ["sandbox", "json", "rules-engine", "ai-agents", "llm", "wasm", "scripting", "embedded", "dsl"]
 
@@ -22,4 +22,4 @@ build-backend = "maturin"
 
 [tool.maturin]
 module-name = "pystof"
-features = ["py"]
+features = ["py", "mimalloc"]

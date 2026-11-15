@@ -59,7 +59,7 @@ impl StofPackageFormat {
         let dir_pth = dir_pth_buf.join("/");
         if dir_pth.len() > 0 { let _ = fs::create_dir_all(&dir_pth); }
 
-        let file = fs::File::create(&path).unwrap();
+        let Ok(file) = fs::File::create(&path) else { return None; }; // Ex. no permission to write there
         let walkdir = WalkDir::new(dir_path);
         let iter = walkdir.into_iter();
         let res = Self::zip_directory(&mut iter.filter_map(|e| e.ok()), dir_path, file, zip::CompressionMethod::Bzip2, included, excluded);
@@ -85,11 +85,9 @@ impl StofPackageFormat {
         let mut buffer = Vec::new();
         'entries: for entry in iter {
             let path = entry.path();
-            let name = path.strip_prefix(pref).unwrap();
-            let path_as_string = name
-                .to_str()
-                .map(str::to_owned)
-                .unwrap();
+            let Ok(name) = path.strip_prefix(pref) else { continue 'entries; };
+            // a name that isn't UTF-8 can't be matched or stored as a package path: left out (was a panic)
+            let Some(path_as_string) = name.to_str().map(str::to_owned) else { continue 'entries; };
             
             if included.len() > 0 {
                 let mut found_match = false;
@@ -167,7 +165,8 @@ impl StofPackageFormat {
         if let Ok(file) = fs::File::open(pkg_file_path) {
             if let Ok(mut archive) = zip::ZipArchive::new(file) {
                 for i in 0..archive.len() {
-                    let mut file = archive.by_index(i).unwrap();
+                    // an entry that can't be read (Ex. a corrupt package) is skipped (was a panic)
+                    let Ok(mut file) = archive.by_index(i) else { continue; };
                     
                     let outname = match file.enclosed_name() {
                         Some(path) => path,
@@ -397,4 +396,32 @@ fn perform_imports(pkg_graph: &Graph, import_val: Val, context: &mut ParseContex
         }
     }
     Ok(())
+}
+#[cfg(test)]
+mod tests {
+    use std::io::Write;
+    use super::StofPackageFormat;
+
+    #[test]
+    /// A package whose entry can't be read (its local header is broken, while the directory still lists it) is
+    /// skipped when unzipped, not a panic.
+    fn corrupt_entry_is_not_a_panic() {
+        let mut buf = std::io::Cursor::new(Vec::new());
+        {
+            let mut writer = zip::ZipWriter::new(&mut buf);
+            writer.start_file("pkg.stof", zip::write::SimpleFileOptions::default()).unwrap();
+            writer.write_all(b"value: 42").unwrap();
+            writer.finish().unwrap();
+        }
+        let mut bytes = buf.into_inner();
+        bytes[0] = b'X'; // the entry's local header signature (PK\x03\x04)
+
+        let dir = std::env::temp_dir().join(format!("stof_corrupt_pkg_{}", nanoid::nanoid!()));
+        let file = dir.with_extension("pkg");
+        std::fs::write(&file, &bytes).unwrap();
+        StofPackageFormat::unzip_file(file.to_str().unwrap(), dir.to_str().unwrap());
+        assert!(!dir.join("pkg.stof").exists());
+        let _ = std::fs::remove_file(&file);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

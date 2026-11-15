@@ -1,5 +1,101 @@
 # Changelog
 
+## 0.11.4
+
+### Arrow functions are closures
+
+Two changes to what an arrow function sees. Both make arrows behave like closures in JavaScript, Python, or Rust:
+
+- **Each evaluation keeps its own variables.** An arrow captured the variables its body uses when it was evaluated,
+  but the captures were kept on the function itself, so the latest evaluation replaced them for every value of
+  that arrow. Arrows made in a loop all saw the last iteration (`for (const i in 3) handlers.push_back(() => i)`
+  gave `[2, 2, 2]`, now `[0, 1, 2]`), and a function returning an arrow (Ex. `fn adder(n: int) -> fn`) gave every
+  arrow the last call's `n`. Now each evaluation is its own function value carrying its own captures, wherever it
+  goes: variables, fields, lists, library calls (`map`, `sort_by`, `Fn::call`, ...), and copies.
+- **Captured variables come before the caller's.** An arrow called from a function with a variable of the same name
+  as one it captured saw the caller's (an arrow capturing `rate = 0.5` saw `99` when called from a function with
+  `const rate = 99`). An arrow now looks in its own variables, then what it captured, then the caller's, so what
+  an arrow means doesn't depend on where it's called. The caller's variables are still visible after that, so an
+  arrow can call itself by the name it's assigned to (a recursive `const fact = (n) => ... fact(n - 1)`).
+
+Code that relied on an arrow reading a variable of the function calling it (one it didn't capture where it was
+written) still works; code that relied on a caller's variable *replacing* a captured one of the same name now sees
+the captured one. Captures stay runtime only: a function value is stored and exported as the function alone (BSTF
+and seal digests are unchanged), so an arrow loaded from BSTF captures again when it's evaluated. Evaluating an arrow
+no longer writes to the document, and a function value is the same size as before.
+
+### Performance
+
+The runtime does the same work with fewer allocations: Limitr's `allow` and `check` take about 14% fewer CPU
+instructions, Stof function calls about 21%, and loops about 12% (measured instruction counts; behavior is unchanged,
+and every suite passes, Limitr's included).
+
+- **Function calls** no longer copy part of the function's stored instructions on every call (adding the return tag
+  to that shared vector copied a chunk of it), and build their instructions in one allocation.
+- **Variables and lookups:** loading a plain variable, and finding a field or function by a single name, no longer
+  builds and joins a path. A call's path is only copied when it has a `?` in it.
+- **Assigning** a number, string, or other value to a variable that nothing else holds writes it in place instead of
+  allocating a new value.
+- **Spawned processes** (async calls and blocks, Ex. event handlers) no longer copy the stacks they start without.
+- **Control flow:** `if`, loops, and `&&`/`||` size their instructions once, and their jump tags are one allocation.
+- The seal check after every instruction is inline (nothing refused is the usual case).
+
+### Changed
+
+- **Python wheels use the stable ABI** (pyo3's `abi3-py38`): one wheel per OS and CPU installs on every CPython from
+  3.8 on, including future versions, so pip finds a wheel instead of building Stof from source (minutes, and it needs
+  Rust). PyPy and free-threaded Python still build from source.
+- **mimalloc under the counting allocator** (new `mimalloc` Cargo feature, off by default): the allocator Stof uses
+  to count memory for a call's budget (`StofAlloc`) can sit on mimalloc instead of the system's. The Python wheels
+  and stof-cli turn it on. Through Limitr's Python SDK, `allow` is 16-21% faster, `check` and flag checks 18-25%,
+  and loading the engine up to a fifth. Memory budgets count the same. mimalloc keeps freed memory for reuse, so a
+  process's memory sits a little higher (17 MB more at peak in that benchmark). Building from source with the
+  feature needs a C compiler. Rust users don't get it unless they turn the feature on; JavaScript is unchanged.
+- **HTTP uses rustls** (with the OS's root certificates, as before) instead of linking the system's OpenSSL. Nothing
+  changes for code calling `Http`. Stof links no system libraries now, so Linux wheels cross-compile from any machine
+  and install on any glibc Linux from 2014 on (`manylinux2014`).
+
+### Fixed
+
+Python (`pystof`):
+
+- **Library functions are each document's own.** `doc.lib(..)` kept its Python functions in one table per thread,
+  by library and name, so two documents that registered the same name (Ex. `App.handler`) both called the one
+  registered last. Each document's function now lives in that document's own library table, like Stof's other
+  library functions.
+- **Library functions work from any thread.** For the same reason, a document called from a thread other than the
+  one that registered its functions failed with "JS/Stof Function not found" (Ex. a web server's worker threads).
+  Python functions can be called from any thread, so a document's functions now go wherever it does.
+- `requires-python` is `>=3.8` (was `>=3.7`): pyo3 0.29 builds for Python 3.8 and later.
+
+Sealing:
+
+- **A sealed part's time limit could escape the code that caught it.** When a part ran out of time, the error was
+  caught outside it as it should be, but the catch's first steps (unwinding out of the part) still counted as the
+  part's, and the part's clock check could land on one of them about once in 64. That second time-limit error had no
+  try left to catch it, so it went past the caller's `try` to the host (it failed safe: the part had stopped). The
+  clock now restarts once the error is caught outside. A part that catches its own errors keeps its clock as before.
+  This was the occasional failure of `its_gates_run_on_its_clock`; `its_time_limit_is_always_caught_outside_it` runs
+  the case 150 times.
+
+Packages (`pkg`):
+
+- **A corrupt package was a panic.** Unzipping one with an entry that couldn't be read (Ex. a broken local header)
+  panicked, taking the host down (a wasm trap in JavaScript). That entry is skipped now. Exporting a package where
+  the file can't be created returns nothing instead of panicking, and a file whose name isn't UTF-8 is left out.
+
+### Docs
+
+- `BUILD.md`: building and publishing every package (crates.io, npm, and PyPI wheels for each platform), by hand or
+  with the release workflow.
+
+### Added
+
+- **A release workflow** (`.github/workflows/release.yml`, from `project.stof`): builds and tests every package
+  (the crate, the npm package, a Python wheel for Windows, Linux x64 and arm64, and macOS, and the source package),
+  then publishes to crates.io, npm, and PyPI only if all of them pass. It runs only when started by hand from the
+  Actions tab, and publishes through a `release` environment that can require your approval.
+
 ## 0.11.3
 
 Confined seals are for code from somewhere else (Ex. a provider's tools running in an agent's Limitr policy), so

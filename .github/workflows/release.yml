@@ -1,0 +1,141 @@
+name: Release
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: read
+env:
+  CARGO_TERM_COLOR: always
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Versions match
+      run: v=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2); for f in pyproject.toml web/package.json web/doc.ts plugin/.claude-plugin/plugin.json; do grep -q "$v" "$f" || { echo "$f is not $v"; exit 1; }; done; grep -q "^## $v" CHANGELOG.md || { echo "CHANGELOG.md has no $v section"; exit 1; }; echo "releasing $v"
+    - name: Run tests (all features)
+      run: cargo test --features full
+    - name: Check the crate
+      run: cargo publish --dry-run
+  npm-build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+    - name: Build the engine
+      run: rustup target add wasm32-unknown-unknown && cargo install wasm-pack --locked && wasm-pack build --target web --release --out-dir web/pkg -- --features js
+    - name: Build the package
+      run: npm ci && npm run skill && npm run readme && npm run build && npm pack
+      working-directory: web
+    - name: Check the JavaScript build
+      run: node tests/js/check.mjs
+    - uses: actions/upload-artifact@v4
+      with:
+        name: npm-package
+        path: web/formata-stof-*.tgz
+  wheels:
+    strategy:
+      matrix:
+        include:
+        - os: ubuntu-latest
+          target: x86_64
+          smoke: true
+        - os: ubuntu-latest
+          target: aarch64
+          smoke: false
+        - os: windows-latest
+          target: x64
+          smoke: true
+        - os: macos-latest
+          target: universal2-apple-darwin
+          smoke: true
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Build the wheel
+      uses: PyO3/maturin-action@v1
+      with:
+        target: ${{ matrix.target }}
+        args: --release --out dist
+        manylinux: '2014'
+    - name: Check the Python build
+      if: matrix.smoke
+      shell: bash
+      run: pip install --no-index --find-links dist stof && python tests/python/smoke.py
+    - uses: actions/upload-artifact@v4
+      with:
+        name: python-${{ matrix.os }}-${{ matrix.target }}
+        path: dist
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build the source package
+      uses: PyO3/maturin-action@v1
+      with:
+        command: sdist
+        args: --out dist
+    - uses: actions/upload-artifact@v4
+      with:
+        name: python-sdist
+        path: dist
+  crates:
+    needs:
+    - check
+    - npm-build
+    - wheels
+    - sdist
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+    - uses: actions/checkout@v4
+    - uses: rust-lang/crates-io-auth-action@v1
+      id: auth
+    - name: Publish to crates.io
+      run: v=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2); if curl -sf -A "stof-release" "https://crates.io/api/v1/crates/stof/$v" > /dev/null; then echo "stof $v is already on crates.io"; else cargo publish; fi
+      env:
+        CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+  npm:
+    needs:
+    - crates
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+        registry-url: https://registry.npmjs.org
+    - uses: actions/download-artifact@v4
+      with:
+        name: npm-package
+    - name: Publish to npm
+      run: npm install -g npm@latest && v=$(node -p "require('./web/package.json').version"); if npm view "@formata/stof@$v" version > /dev/null 2>&1; then echo "@formata/stof $v is already on npm"; else npm publish formata-stof-$v.tgz --access public; fi
+  pypi:
+    needs:
+    - npm
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: python-*
+        merge-multiple: true
+        path: dist
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        skip-existing: true

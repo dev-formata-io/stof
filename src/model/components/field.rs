@@ -118,16 +118,27 @@ impl Field {
     /// Get a field from a dot separated name path string.
     /// Ex. "root.hello" -> root object with a field named "hello". If hello is an object, a field might get created for it.
     pub fn field_from_path(graph: &mut Graph, path: &str, start: Option<NodeRef>) -> Option<DataRef> {
-        let mut spath = SPath::from(path);
+        // one name (most lookups): the field is on start, which is what an empty path finds (no path to build)
+        if !path.is_empty() && !path.contains('.') {
+            let node = SPath::node(&graph, SPath::new(Vec::new(), true), start);
+            return Self::field_on(graph, node, path);
+        }
+        let mut spath = SPath::string(path, true, "."); // SPath::from(path) copies the string first
         if spath.path.is_empty() { return None; }
         
         let field_name = spath.path.pop().unwrap();
-        if let Some(node) = SPath::node(&graph, spath, start) {
-            if graph.confined.is_empty() { return Self::field(graph, &node, field_name.as_ref()); }
+        let node = SPath::node(&graph, spath, start);
+        Self::field_on(graph, node, field_name.as_ref())
+    }
+
+    /// The field named `field_name` on the object a path found, if it found one.
+    fn field_on(graph: &mut Graph, node: Option<NodeRef>, field_name: &str) -> Option<DataRef> {
+        if let Some(node) = node {
+            if graph.confined.is_empty() { return Self::field(graph, &node, field_name); }
             // a field found through a parent (Ex. super) lives on that object: confined code reaches only its own,
             // and the field made for it out there (refused) isn't this lookup's failure
             let refused = graph.seals.violation.is_some();
-            let found = Self::field(graph, &node, field_name.as_ref());
+            let found = Self::field(graph, &node, field_name);
             if found.as_ref().is_some_and(|dref| graph.confined_reaches_data(dref)) { return found; }
             if !refused { graph.take_seal_violation(); }
             return None;

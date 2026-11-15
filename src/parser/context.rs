@@ -564,7 +564,7 @@ impl<'ctx> Drop for ParseContext<'ctx> {
                     as_ref: false,
                     cnull: false,
                     stack: false,
-                    func: Some(init),
+                    func: Some(init.into()),
                     search: None,
                     args: vector![],
                     oself: None,

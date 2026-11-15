@@ -45,6 +45,14 @@ const doc = await StofDoc.new(source);   // doc.stof
 await doc.call('sum');                    // 66
 ```
 
+```python
+from pystof import Doc
+
+doc = Doc()
+doc.parse(source)                         # doc.stof
+doc.call('sum')                           # 66
+```
+
 Any JSON is already a Stof document. Add a function where the logic belongs, and your app calls it the way it reads a
 field. The document runs inside your process: no server, no container, and it can't reach anything you didn't give it.
 
@@ -90,8 +98,18 @@ await doc.call('leak');
 // throws: 'fs::read' isn't available: this host hasn't given documents file system access
 ```
 
+The same in Python:
+
+```python
+doc.lib('Host', 'greet', lambda name: f'hello, {name}')
+
+doc.call('greet', 'world')   # 'hello, world'
+doc.call('leak')             # raises ValueError: 'fs::read' isn't available: ...
+```
+
 A document sees itself and the functions your app registers. There's no file system, network, or environment unless
-you turn them on, and network access can be limited to the hosts you list (`doc.allowHttp(['api.example.com'])`).
+you turn them on, and network access can be limited to the hosts you list (`doc.allowHttp(['api.example.com'])` in
+JavaScript, `doc.allow_http_hosts(['api.example.com'])` in Python).
 Every call has a time and memory limit. You can also seal the parts you trust, so nothing can change them, and confine
 code from somewhere else so it sees only what you list. See [Security and the Sandbox](https://stof.dev/start/security).
 
@@ -118,7 +136,7 @@ in-process on every call.
 ```bash
 npm i @formata/stof     # JavaScript / TypeScript
 cargo add stof          # Rust
-pip install stof        # Python
+pip install stof        # Python (import pystof)
 cargo install stof-cli  # command line: stof run, stof test
 ```
 

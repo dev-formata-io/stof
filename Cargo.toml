@@ -2,7 +2,7 @@
 # RUN "stof run project.stof" TO REGENERATE.
 [package]
 name = "stof"
-version = "0.11.3"
+version = "0.11.4"
 authors = ["CJ Cummings <cj@formata.io>"]
 description = "JSON that runs: JSON with functions, run in a sandbox that can only touch what you hand it. In Rust, JavaScript, and Python."
 license = "Apache-2.0"
@@ -34,6 +34,7 @@ http = ["dep:reqwest"]
 tokio = ["dep:tokio"]
 age_encrypt = ["dep:age"]
 xml = ["dep:quick-xml"]
+mimalloc = ["dep:mimalloc"]
 py = ["full", "dep:pyo3"]
 js = ["stof_std", "age_encrypt", "xml", "dep:js-sys", "dep:wasm-bindgen", "dep:serde-wasm-bindgen", "dep:getrandom", "dep:wasm-bindgen-futures", "dep:web-sys", "dep:console_error_panic_hook"]
 
@@ -122,7 +123,8 @@ optional = true
 [dependencies.reqwest]
 version = "0.12.28"
 optional = true
-features = ["blocking"]
+default-features = false
+features = ["blocking", "rustls-tls-native-roots", "charset", "http2"]
 
 [dependencies.imbl]
 version = "7.0.2"
@@ -153,10 +155,15 @@ optional = true
 version = "1.1.0"
 features = ["serde"]
 
+[dependencies.mimalloc]
+version = "0.1.52"
+optional = true
+default-features = false
+
 [dependencies.pyo3]
 version = "0.29.3"
 optional = true
-features = ["macros", "chrono", "chrono-tz", "hashbrown", "indexmap", "generate-import-lib", "extension-module"]
+features = ["macros", "chrono", "chrono-tz", "hashbrown", "indexmap", "generate-import-lib", "extension-module", "abi3-py38"]
 
 [dependencies.wasm-bindgen]
 version = "0.2.129"

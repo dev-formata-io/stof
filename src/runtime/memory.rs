@@ -30,7 +30,7 @@
 //! allocator); without it, only the one-big-step checks apply. Memory a call keeps (Ex. fields it sets) counts
 //! against that call only; the next call starts from zero.
 
-use std::alloc::{GlobalAlloc, Layout, System};
+use std::alloc::{GlobalAlloc, Layout};
 use std::cell::Cell;
 use crate::runtime::Error;
 
@@ -63,7 +63,14 @@ fn sub(bytes: usize) {
 }
 
 
-/// The system allocator, counting live heap bytes for the memory budget.
+/// The allocator under StofAlloc: mimalloc with the `mimalloc` feature (native builds), otherwise the system's.
+#[cfg(all(feature = "mimalloc", not(target_arch = "wasm32")))]
+static INNER: mimalloc::MiMalloc = mimalloc::MiMalloc;
+#[cfg(not(all(feature = "mimalloc", not(target_arch = "wasm32"))))]
+static INNER: std::alloc::System = std::alloc::System;
+
+
+/// The system allocator (mimalloc with the `mimalloc` feature), counting live heap bytes for the memory budget.
 ///
 /// ```ignore
 /// #[global_allocator]
@@ -73,27 +80,27 @@ pub struct StofAlloc;
 unsafe impl GlobalAlloc for StofAlloc {
     #[inline]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        let ptr = unsafe { System.alloc(layout) };
+        let ptr = unsafe { INNER.alloc(layout) };
         if !ptr.is_null() { add(layout.size()); }
         ptr
     }
 
     #[inline]
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-        let ptr = unsafe { System.alloc_zeroed(layout) };
+        let ptr = unsafe { INNER.alloc_zeroed(layout) };
         if !ptr.is_null() { add(layout.size()); }
         ptr
     }
 
     #[inline]
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        unsafe { System.dealloc(ptr, layout) };
+        unsafe { INNER.dealloc(ptr, layout) };
         sub(layout.size());
     }
 
     #[inline]
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        let new_ptr = unsafe { System.realloc(ptr, layout, new_size) };
+        let new_ptr = unsafe { INNER.realloc(ptr, layout, new_size) };
         if !new_ptr.is_null() {
             if new_size >= layout.size() {
                 add(new_size - layout.size());

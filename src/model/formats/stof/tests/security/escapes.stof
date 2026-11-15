@@ -69,6 +69,21 @@ fn its_gates_run_on_its_clock() {
 }
 
 #[test]
+/// Caught outside, every time: the catch's first steps unwind out of the part, and its clock must not fail them
+/// (that left the error with no try to catch it, about once in 15 runs of the test above). And a part that catches
+/// its own errors in a loop still runs out of time (it doesn't call the gate: the test above counts its calls).
+fn its_time_limit_is_always_caught_outside_it() {
+    let caught = 0;
+    for (const i in 150) {
+        using tool = self.part('fn hammer() { loop { try { throw("again"); } catch {} } }', 2ms);
+        const message = self.thrown(() => { tool.hammer(); });
+        // its time limit, or its own error that it couldn't catch once out of time: either way, caught out here
+        if (message.contains('time limit') || message == 'again') caught += 1;
+    }
+    assert_eq(caught, 150);
+}
+
+#[test]
 fn objects_it_may_not_make_are_not_made() {
     using tool = self.part('fn grow() -> int { let i = 0; while (i < 50) { try new { a: 1 }; catch {} i += 1; } i }', 30s);
     assert_eq(tool.grow(), 50);

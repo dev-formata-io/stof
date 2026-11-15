@@ -41,6 +41,39 @@ def library_functions():
     doc.parse('fn f() -> int { App.total(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12) }') # more than 9 arguments
     assert doc.call('f') == 78
 
+def library_functions_per_doc():
+    # each document keeps its own library functions: two documents can register the same name
+    a = Doc(); b = Doc()
+    a.lib('App', 'who', lambda: 'a')
+    b.lib('App', 'who', lambda: 'b')
+    a.parse("fn f() -> str { App.who() }"); b.parse("fn f() -> str { App.who() }")
+    assert a.call('f') == 'a' and b.call('f') == 'b', (a.call('f'), b.call('f'))
+    # a document without the function doesn't see another document's
+    c = Doc(); c.quiet(True); c.parse("fn f() -> str { App.who() }")
+    try:
+        missing = str(c.call('f'))
+    except Exception as error:
+        missing = str(error)
+    assert missing not in ('a', 'b'), missing
+
+def library_functions_threads():
+    # a document's library functions work from any thread, not only the one that registered them
+    import threading
+    doc = Doc()
+    doc.lib('App', 'double', lambda n: n * 2)
+    doc.parse("fn f(n: int) -> int { App.double(n) }")
+    results, errors, lock = [], [], threading.Lock()
+    def work(n):
+        try:
+            with lock: results.append(doc.call('f', [n]))
+        except Exception as error:
+            errors.append(str(error))
+    threads = [threading.Thread(target=work, args=(n,)) for n in range(8)]
+    for thread in threads: thread.start()
+    for thread in threads: thread.join()
+    assert not errors, errors[0]
+    assert sorted(results) == [n * 2 for n in range(8)], results
+
 def values():
     doc = Doc()
     doc.parse('fn f() -> set { const s: set = {[1], [2]}; s }\nfn g() -> map { const m = map(); m.insert([1], 2); m }')
@@ -207,7 +240,7 @@ def keys():
     doc = Doc(); doc.parse("fn check(m: str, k: str, s: str) -> bool { Key::verify(k, 'orders/v1', m, s) }")
     assert doc.call('check', [order, public, signature]) is True
 
-for name, fn in [('calls', calls), ('sealing', sealing), ('confined', confined), ('untrusted', untrusted), ('gates', gates), ('keys', keys), ('library functions', library_functions), ('values', values), ('memory limit', memory_limit),
+for name, fn in [('calls', calls), ('sealing', sealing), ('confined', confined), ('untrusted', untrusted), ('gates', gates), ('keys', keys), ('library functions', library_functions), ('library functions per doc', library_functions_per_doc), ('library functions across threads', library_functions_threads), ('values', values), ('memory limit', memory_limit),
                  ('sandbox', sandbox), ('network', network), ('html', html)]:
     check(name, fn)
 print(f'{failed} failed' if failed else 'all ok')

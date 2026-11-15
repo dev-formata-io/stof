@@ -408,7 +408,7 @@ impl Instruction for Base {
 
             Self::PushCall => {
                 if let Some(var) = env.stack.pop() {
-                    if let Some(func) = var.try_func() {
+                    if let Some(func) = var.try_func().map(|func| func.dref) {
                         if env.confines.is_empty() && graph.seals.confines.is_empty() {
                             env.call_stack.push(func);
                         } else {
@@ -499,15 +499,7 @@ impl Instruction for Base {
                 let mut proc = Process::from(async_ins.clone());
                 let pid = proc.env.pid.clone();
 
-                proc.env = env.clone(); // clone this environment
-                proc.env.table.disown_using(); // the parent's `using` values are still the parent's to drop
-                proc.env.stack.clear(); // new stack for this new proc
-                proc.env.loop_stack.clear();
-                proc.env.return_stack.clear();
-                proc.env.ret_valid_stack.clear();
-                proc.env.try_stack.clear();
-                proc.env.spawn = None;
-                proc.env.pid = pid.clone();
+                proc.env = env.spawned(pid.clone()); // this environment, with the new process's own stacks
 
                 let mut promise_type = ty.clone();
                 loop {
@@ -643,13 +635,22 @@ impl Instruction for Base {
                                 env.stack.push(Variable::val(Val::Obj(node)));
                                 return Ok(None);
                             } else if let Some(func) = Func::func_from_path(graph, &name, Some(obj)) {
-                                env.stack.push(Variable::val(Val::Fn(func)));
+                                env.stack.push(Variable::val(Val::Fn(func.into())));
                                 return Ok(None);
                             }
                         }
                     }
                     env.stack.push(Variable::val(Val::Null));
                     return Ok(None);
+                }
+
+                // A plain variable (most loads): the same result as the variable case below, without splitting
+                // and joining the path
+                if !name.contains('.') && !name.starts_with('<') && name.as_str() != SELF_STR_KEYWORD.as_str() && name.as_str() != SUPER_STR_KEYWORD.as_str() {
+                    if let Some(var) = env.table.get(name.as_str()) {
+                        env.stack.push(var.stack_var(*by_ref));
+                        return Ok(None);
+                    }
                 }
 
                 let mut split_path = name.split('.').collect::<Vec<_>>();
@@ -696,7 +697,7 @@ impl Instruction for Base {
                     split_path.remove(0);
                 } else if split_path[0] == "this" && env.call_stack.len() > 0 {
                     // Shortcut for referencing the current function as a context
-                    context = Variable::val(Val::Fn(env.call_stack.last().unwrap().clone()));
+                    context = Variable::val(Val::Fn(env.call_stack.last().unwrap().clone().into()));
                     split_path.remove(0);
                 } else {
                     // Global case
@@ -717,7 +718,7 @@ impl Instruction for Base {
                         env.stack.push(Variable::val(Val::Obj(node)));
                         return Ok(None);
                     } else if let Some(func) = Func::func_from_path(graph, &name, None) {
-                        env.stack.push(Variable::val(Val::Fn(func)));
+                        env.stack.push(Variable::val(Val::Fn(func.into())));
                         return Ok(None);
                     }
                     env.stack.push(Variable::val(Val::Null));
@@ -750,7 +751,7 @@ impl Instruction for Base {
                         env.stack.push(Variable::val(Val::Obj(node)));
                         return Ok(None);
                     } else if let Some(func) = Func::func_from_path(graph, &name, Some(obj)) {
-                        env.stack.push(Variable::val(Val::Fn(func)));
+                        env.stack.push(Variable::val(Val::Fn(func.into())));
                         return Ok(None);
                     }
                 }
@@ -800,7 +801,7 @@ impl Instruction for Base {
                         }
                         for func in constructors {
                             instructions.push(Arc::new(FuncCall {
-                                func: Some(func),
+                                func: Some(func.into()),
                                 search: None,
                                 stack: false,
                                 as_ref: false,
@@ -1290,7 +1291,13 @@ impl Instruction for Base {
 pub(crate) fn unique_tag() -> arcstr::ArcStr {
     use std::sync::atomic::{AtomicU64, Ordering};
     static NEXT: AtomicU64 = AtomicU64::new(0);
-    format!("#{}", NEXT.fetch_add(1, Ordering::Relaxed)).into()
+    // written into a stack buffer, so making the tag is one allocation (not a String and then the ArcStr)
+    use std::io::Write;
+    let mut buf = [0u8; 24];
+    let mut cursor = std::io::Cursor::new(&mut buf[..]);
+    let _ = write!(cursor, "#{}", NEXT.fetch_add(1, Ordering::Relaxed));
+    let len = cursor.position() as usize;
+    arcstr::ArcStr::from(std::str::from_utf8(&buf[..len]).unwrap_or("#"))
 }
 
 

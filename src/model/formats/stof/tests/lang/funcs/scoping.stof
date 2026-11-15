@@ -149,3 +149,154 @@ fn arrow_recursion_and_nesting() {
     const make = (): fn => (x: int): int => x + offset;
     assert_eq(self.apply_rule(1, make()), 11);
 }
+/*****************************************************************************
+ * Each evaluation of an arrow keeps its own variables, and they come before the caller's.
+ *****************************************************************************/
+
+fn adder(n: int) -> fn { (x: int): int => x + n }
+fn counter() -> fn { let count = 0; return (): int => { count += 1; return count; }; }
+fn shadows(rule: fn) -> unknown { const rate = 99; return rule(); }
+fn call_all(funcs: list) -> list { const out = []; for (const f in funcs) out.push_back(f()); return out; }
+
+#[test]
+fn arrows_made_in_a_loop_keep_their_iteration() {
+    const handlers = [];
+    for (const i in 3) handlers.push_back((): int => i);
+    assert_eq(self.call_all(handlers), [0, 1, 2]);
+
+    const scaled = [];
+    for (const factor in [2, 10]) scaled.push_back((x: int): int => x * factor);
+    const double = scaled[0];
+    const tenfold = scaled[1];
+    assert_eq(double(3), 6);
+    assert_eq(tenfold(3), 30);
+}
+
+#[test]
+fn each_call_of_a_factory_keeps_its_own_variables() {
+    const add_one = self.adder(1);
+    const add_five = self.adder(5);
+    assert_eq(add_one(1), 2);
+    assert_eq(add_five(1), 6);
+
+    const a = self.counter();
+    const b = self.counter();
+    a(); a();
+    assert_eq(b(), 1);
+    assert_eq(a(), 3);
+}
+
+#[test]
+fn arrow_ignores_a_callers_variable_with_the_same_name() {
+    const rate = 0.5;
+    assert_eq(self.shadows((): float => rate), 0.5);
+}
+
+#[test]
+fn library_calls_keep_each_arrows_variables() {
+    const rules = [];
+    for (const n in [1, 2, 3]) rules.push_back((x: int): int => x + n);
+    assert_eq(rules.map((rule: fn): int => rule(10)), [11, 12, 13]);
+    assert_eq(Fn::call(rules[0], 10), 11);
+
+    const offsets = [];
+    for (const n in [100, 200]) offsets.push_back((x: int): int => x + n);
+    const plus_100 = offsets[0];
+    const plus_200 = offsets[1];
+    let sorted = [3, 1, 2];
+    sorted.sort_by((a: int, b: int): int => plus_100(a) - plus_200(b) + 100);  // (a + 100) - (b + 200) + 100 = a - b
+    assert_eq(sorted, [1, 2, 3]);
+}
+
+#[test]
+fn copied_and_stored_arrows_keep_their_variables() {
+    for (const n in [7, 8]) {
+        self.last_rule = (): int => n;
+    }
+    assert_eq(self.last_rule(), 8);
+    const copied = copy(self.last_rule);
+    assert_eq(copied(), 8);
+}
+fn with_param(rate: float, rule: fn) -> unknown { rule() }
+
+#[test]
+fn arrows_made_inside_arrows_in_a_loop_keep_their_iteration() {
+    const makers = [];
+    for (const i in 3) makers.push_back((): fn => (): int => i * 10);
+    const out = [];
+    for (const make in makers) {
+        const made = make();
+        out.push_back(made());
+    }
+    assert_eq(out, [0, 10, 20]);
+}
+
+#[test]
+fn assigning_in_a_loop_arrow_changes_only_its_iteration() {
+    const incs = [];
+    const reads = [];
+    for (const i in 2) {
+        let n = i * 10;
+        incs.push_back(() => { n += 1; });
+        reads.push_back((): int => n);
+    }
+    const inc_first = incs[0];
+    inc_first();
+    inc_first();
+    const read_first = reads[0];
+    const read_second = reads[1];
+    assert_eq(read_first(), 2);
+    assert_eq(read_second(), 10);
+}
+
+#[test]
+fn an_arrows_own_names_come_before_what_it_captured() {
+    const v = 1;
+    const local = (): int => { const v = 5; return v; };
+    assert_eq(local(), 5);
+    assert_eq(v, 1);
+
+    const x = 1;
+    const param = (x: int): int => x * 2;
+    assert_eq(param(10), 20);
+}
+
+#[test]
+fn a_callers_parameter_with_the_same_name_doesnt_replace_a_capture() {
+    const rate = 0.5;
+    assert_eq(self.with_param(99, (): float => rate), 0.5);
+}
+
+#[test]
+fn objects_made_in_a_loop_keep_their_arrows_variables() {
+    const objs = [];
+    for (const i in 3) objs.push_back(new { rule: (): int => i });
+    const out = [];
+    for (const obj in objs) out.push_back(obj.rule());
+    assert_eq(out, [0, 1, 2]);
+    for (const obj in objs) drop(obj);
+}
+
+#[test]
+fn arrows_kept_in_a_map_keep_their_variables() {
+    const rules = map();
+    for (const key in ['a', 'b']) rules.insert(key, (): str => key);
+    assert_eq(Fn::call(rules.get('a')), 'a');
+    assert_eq(Fn::call(rules.get('b')), 'b');
+}
+
+#[test]
+fn async_code_keeps_each_arrows_variables() {
+    const handlers = [];
+    for (const i in 2) handlers.push_back((): int => i);
+    const second = handlers[1];
+    const res = await async { return second(); };
+    assert_eq(res, 1);
+}
+
+#[test]
+fn a_variable_declared_after_the_arrow_is_still_seen_by_a_call_from_here() {
+    const read = (): int => later;
+    const later = 3;
+    assert_eq(read(), 3);
+}

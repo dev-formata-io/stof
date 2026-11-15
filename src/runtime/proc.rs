@@ -79,6 +79,41 @@ pub struct ProcEnv {
     #[cfg(feature = "tokio")]
     pub tokio_runtime: Option<tokio::runtime::Handle>,
 }
+impl ProcEnv {
+    /// The environment for a process this one spawns: its variables (the parent's `using` values stay the parent's
+    /// to drop), self, call stack, limits, and confinements, with its own empty stacks. Every field is listed (no
+    /// `..`), so a new field has to decide whether a spawned process inherits it. The same as cloning this
+    /// environment and clearing the stacks, without copying what would be cleared.
+    pub fn spawned(&self, pid: SId) -> Self {
+        let mut table = self.table.clone();
+        table.disown_using();
+        Self {
+            pid,
+            start_time: self.start_time.clone(),
+            max_execution_time: self.max_execution_time.clone(),
+            max_memory: self.max_memory,
+            memory_used: self.memory_used,
+            self_stack: self.self_stack.clone(),
+            max_call_stack_depth: self.max_call_stack_depth,
+            call_stack: self.call_stack.clone(),
+            new_stack: self.new_stack.clone(),
+            max_stack_size: self.max_stack_size,
+            stack: Vec::new(),
+            table,
+            loop_stack: Vec::new(),
+            return_stack: Vec::new(),
+            ret_valid_stack: Vec::new(),
+            try_stack: Vec::new(),
+            yield_enabled: self.yield_enabled,
+            confines: self.confines.clone(),
+            suspended: self.suspended.clone(),
+            confined_steps: self.confined_steps,
+            spawn: None,
+            #[cfg(feature = "tokio")]
+            tokio_runtime: self.tokio_runtime.clone(),
+        }
+    }
+}
 impl Default for ProcEnv {
     fn default() -> Self {
         Self {

@@ -53,7 +53,7 @@ impl Instruction for WhileIns {
         let scope_count = env.table.scopes.len();
         let while_count = env.loop_stack.len();
 
-        let mut instructions = Instructions::default();
+        let mut instructions = Instructions::with_capacity(self.ins.len() + 16);
         instructions.push(Arc::new(Base::PushLoop(tag)));
 
         if let Some(declare) = &self.declare {

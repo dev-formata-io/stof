@@ -19,7 +19,7 @@ use arcstr::ArcStr;
 use colored::Colorize;
 use imbl::Vector;
 use serde::{Deserialize, Serialize};
-use crate::{model::Graph, runtime::{instructions::{list::{NEW_LIST, PUSH_LIST}, Base, ConsumeStack, AWAIT}, proc::{ProcEnv, ProcRes}, memory, Error, Val, Variable}};
+use crate::{model::Graph, runtime::{instructions::{list::{NEW_LIST, PUSH_LIST}, Base, ConsumeStack, AWAIT}, proc::{ProcEnv, ProcRes}, memory, Error, FnRef, Val, Variable}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -53,6 +53,12 @@ impl Instructions {
     /// Create a new Instructions.
     pub fn new(instructions: Vector<Arc<dyn Instruction>>) -> Self {
         Self { instructions: instructions.into_iter().collect(), ..Default::default() }
+    }
+
+    #[inline]
+    /// Instructions with room for `capacity` (an expansion that knows its size grows its queue once).
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self { instructions: VecDeque::with_capacity(capacity), ..Default::default() }
     }
 
     #[inline]
@@ -225,7 +231,7 @@ impl Instructions {
                     for val in env.table.take_all_using() {
                         match val {
                             Val::Obj(nref) => { graph.remove_node(&nref, true); },
-                            Val::Fn(dref) | Val::Data(dref) => { graph.remove_data(&dref, None); },
+                            Val::Fn(FnRef { dref, .. }) | Val::Data(dref) => { graph.remove_data(&dref, None); },
                             _ => {}
                         }
                     }
@@ -498,6 +504,14 @@ impl Instructions {
                             break;
                         }
                         if let Some(try_tag) = caught {
+                            if floor.is_some() {
+                                // caught outside a part that's out of time: the catch's first steps unwind out of it,
+                                // and they still count as the part's (it's on the call stack until they run), so the
+                                // part's clock check must not land on them (a second time-limit error there has no try
+                                // left to catch it). Only here: a part that catches its own errors keeps its clock.
+                                env.confined_steps = 0;
+                                confined_late = false;
+                            }
                             self.forward_to(&try_tag);
                             // the readable message under the catch value: `catch (e, message)` takes both, and
                             // `catch (e)` (or code compiled before messages) takes the value on top
@@ -510,7 +524,7 @@ impl Instructions {
                             for val in env.table.take_all_using() {
                                 match val {
                                     Val::Obj(nref) => { graph.remove_node(&nref, true); },
-                                    Val::Fn(dref) | Val::Data(dref) => { graph.remove_data(&dref, None); },
+                                    Val::Fn(FnRef { dref, .. }) | Val::Data(dref) => { graph.remove_data(&dref, None); },
                                     _ => {}
                                 }
                             }

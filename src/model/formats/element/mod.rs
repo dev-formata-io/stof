@@ -264,7 +264,7 @@ impl<'a> Writer<'a> {
         let (func, method) = match &entry.value {
             Value::Val(Val::Fn(dref)) => (dref.clone(), false),
             Value::Val(val) => return Some(val.clone()),
-            Value::Method(dref) => (dref.clone(), true),
+            Value::Method(dref) => (dref.clone().into(), true),
         };
         if let Some(val) = self.known.get(node, entry.name) {
             return Some(val.clone());

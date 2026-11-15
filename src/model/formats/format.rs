@@ -18,7 +18,7 @@ use std::{fs, path::PathBuf};
 use arcstr::ArcStr;
 use bytes::Bytes;
 use rustc_hash::FxHashMap;
-use crate::{model::{DataRef, FS_LIB, Graph, NodeRef, Profile}, parser::context::ParseContext, runtime::{Error, Val}};
+use crate::{model::{FS_LIB, Graph, NodeRef, Profile}, parser::context::ParseContext, runtime::{Error, FnRef, Val}};
 
 
 /// A function an export calls before writing (Ex. an `#[attr]` function in the html format): computed values.
@@ -30,8 +30,8 @@ pub struct ComputedCall {
     pub obj: NodeRef,
     pub name: ArcStr,
 
-    /// The function to call.
-    pub func: DataRef,
+    /// The function to call (an arrow's value carries what it captured).
+    pub func: FnRef,
 
     /// Call it as a method of `obj` (self is the object, Ex. a function from its prototype)? Otherwise the function
     /// is called as it is (Ex. a field holding an arrow function).

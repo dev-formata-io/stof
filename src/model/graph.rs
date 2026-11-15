@@ -20,7 +20,7 @@ use bytes::Bytes;
 use colored::Colorize;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{model::{INVALID_NODE_ATTRS, BstfFormat, BytesFormat, HtmlFormat, XmlFormat, Data, DataRef, Field, FieldHolders, Format, INVALID_NODE_NEW, JsonFormat, LibFunc, MdDocsFormat, MdFormat, Node, NodeRef, Profile, Prototype, SId, SPath, StofData, StofFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, blob::insert_blob_lib, libraries::{data::insert_data_lib, function::insert_fn_lib}, libs::insert_lib_documentation, list::insert_list_lib, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, prompt::insert_prompt_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, time::insert_time_lib, tup::insert_tup_lib, ver::insert_semver_lib}, parser::context::ParseContext, runtime::{Error, Runtime, Type, Val, ValRef, Variable, proc::DEFAULT_MAX_EXECUTION_TIME, table::SymbolTable}};
+use crate::{model::{INVALID_NODE_ATTRS, BstfFormat, BytesFormat, HtmlFormat, XmlFormat, Data, DataRef, Field, FieldHolders, Format, INVALID_NODE_NEW, JsonFormat, LibFunc, MdDocsFormat, MdFormat, Node, NodeRef, Profile, Prototype, SId, SPath, StofData, StofFormat, TextFormat, TomlFormat, UrlEncodedFormat, YamlFormat, blob::insert_blob_lib, libraries::{data::insert_data_lib, function::insert_fn_lib}, libs::insert_lib_documentation, list::insert_list_lib, map::insert_map_lib, md::insert_md_lib, num::insert_number_lib, obj::insert_obj_lib, prompt::insert_prompt_lib, set::insert_set_lib, stof_std::stof_std_lib, string::insert_string_lib, time::insert_time_lib, tup::insert_tup_lib, ver::insert_semver_lib}, parser::context::ParseContext, runtime::{Error, FnRef, Runtime, Type, Val, ValRef, Variable, proc::DEFAULT_MAX_EXECUTION_TIME, table::SymbolTable}};
 
 #[cfg(feature = "system")]
 use crate::model::{filesys::fs_library};
@@ -857,7 +857,7 @@ impl Graph {
         let inner = |val: &ValRef<Val>| Self::reassign_val_ids(&mut val.write(), node_id, data_id);
         match val {
             Val::Obj(nref) => *nref = node_id(nref),
-            Val::Fn(dref) | Val::Data(dref) => *dref = data_id(dref),
+            Val::Fn(FnRef { dref, .. }) | Val::Data(dref) => *dref = data_id(dref),
             Val::List(vals) | Val::Tup(vals) => vals.iter().for_each(inner),
             Val::Set(vals) => {
                 // ordered by value: rebuild after updating

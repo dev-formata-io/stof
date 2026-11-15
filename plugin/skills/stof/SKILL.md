@@ -40,7 +40,8 @@ Read these before writing Stof. Each one is a real mistake that produces wrong r
    can't resolve: `warning: unknown name 'config' ... (use self.config for a field)`.
 2. **Functions only see their own parameters and locals.** A named function can't read its caller's variables;
    pass values as arguments. Arrow functions (`(x: int): int => x + offset`) do see the variables of the
-   function they're written in.
+   function they're written in, as they were where each arrow was made (arrows made in a loop each keep their
+   own iteration's), before any variable of the function that calls them.
 3. **Arithmetic with null is an error.** `null * 3` throws `cannot multiply null: the left value is null or
    missing (use ?? to give a default)`. Give defaults with `??`: `(self.rate ?? 0) * 3`. Initialize
    accumulators: `let total = 0;`. Comparisons with null don't throw (`null < 10` is `true`), so check for null first.
@@ -447,7 +448,7 @@ const quick = await stofAsync`fn hi() -> str { 'hi' }`;
 from pystof import Doc
 
 doc = Doc()
-doc.lib('Host', 'name', lambda first, last: first + ' ' + last)
+doc.lib('Host', 'name', lambda first, last: first + ' ' + last)   # this doc's own; any thread can call the doc
 doc.parse("rate: 2\nfn total(units: int) -> float { units * self.rate }")
 doc.call('total', [21])        # args: a list, a single value, or none (doc.call('fn'))
 doc.get('rate'); doc.set('rate', 3)   # optional start object id as a last argument

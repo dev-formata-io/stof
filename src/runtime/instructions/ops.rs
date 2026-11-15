@@ -57,7 +57,7 @@ pub struct OpIns {
 #[typetag::serde(name = "OpIns")]
 impl Instruction for OpIns {
     fn exec(&self, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
-        let mut instructions = Instructions::default();
+        let mut instructions = Instructions::with_capacity(6);
         match self.op {
             Op::And => {
                 instructions.push(self.lhs.clone());

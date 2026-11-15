@@ -15,6 +15,7 @@
 //
 
 use std::ops::Deref;
+use crate::runtime::FnRef;
 use arcstr::ArcStr;
 use serde::{Deserialize, Serialize};
 use crate::{model::{DataRef, Graph, NodeRef, SId}, runtime::{Error, Type, Val, ValRef, value::HOLDS_ITSELF}};
@@ -103,7 +104,13 @@ impl Variable {
                 }
             }
             if self.value_type() && !self.by_ref() && !self.shared {
-                self.val = ValRef::new(val);
+                // a value (number, string, ..) gets a new cell, so nothing holding the old one sees the change; when
+                // nothing else holds it, writing in place is the same and allocates nothing
+                if std::sync::Arc::strong_count(&self.val.0) == 1 && std::sync::Arc::weak_count(&self.val.0) == 0 {
+                    *self.val.write() = val;
+                } else {
+                    self.val = ValRef::new(val);
+                }
             } else {
                 if val.holds(&self.val.0) { return Err(Error::Custom(HOLDS_ITSELF.into())); } // Ex. `l = [l]`
                 *self.val.write() = val;
@@ -168,8 +175,8 @@ impl Variable {
     }
 
     #[inline]
-    /// Try extracting a function reference from this var.
-    pub fn try_func(&self) -> Option<DataRef> {
+    /// Try extracting a function value from this var (with what an arrow captured).
+    pub fn try_func(&self) -> Option<FnRef> {
         self.val.read().try_func()
     }
 

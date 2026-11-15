@@ -60,7 +60,7 @@ use arcstr::ArcStr;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use crate::{model::{ARROW_FUNC_ATTR, DataRef, Field, Func, Graph, NodeRef, Prototype, SId}, runtime::{Error, Val, ValRef, Variable, instruction::{Instruction, Instructions}, proc::ProcEnv}};
+use crate::{model::{ARROW_FUNC_ATTR, DataRef, Field, Func, Graph, NodeRef, Prototype, SId}, runtime::{Error, FnRef, Val, ValRef, Variable, instruction::{Instruction, Instructions}, proc::ProcEnv}};
 
 
 thread_local! {
@@ -590,9 +590,16 @@ impl Graph {
         false
     }
 
+    #[inline]
     /// The reason a change was refused since the last check, if one was (and clear it).
+    /// Checked after every instruction, so the usual case (nothing refused) is inline.
     pub fn take_seal_violation(&mut self) -> Option<String> {
         if self.seals.violation.is_none() { return None; }
+        self.take_refusal()
+    }
+
+    #[cold]
+    fn take_refusal(&mut self) -> Option<String> {
         let seals = Arc::make_mut(&mut self.seals);
         let why = seals.violation.take();
         let refused = std::mem::take(&mut seals.refused);
@@ -687,7 +694,7 @@ impl Graph {
         if depth > 64 { return true; } // values nested that deep hold no new references worth the walk
         match val {
             Val::Obj(nref) => self.confined_reaches(nref),
-            Val::Fn(dref) | Val::Data(dref) => self.confined_reaches_data(dref),
+            Val::Fn(FnRef { dref, .. }) | Val::Data(dref) => self.confined_reaches_data(dref),
             Val::List(items) | Val::Tup(items) => items.iter().all(|item| self.reaches_val(&item.read(), depth + 1)),
             Val::Set(items) => items.iter().all(|item| self.reaches_val(&item.read(), depth + 1)),
             Val::Map(map) => map.iter().all(|(k, v)| self.reaches_val(&k.read(), depth + 1) && self.reaches_val(&v.read(), depth + 1)),
@@ -1012,7 +1019,7 @@ impl Graph {
                 tagged("obj-in", sub.finalize().to_vec())
             },
             Val::Obj(obj) => tagged("obj", self.path_from(root, obj).into_bytes()),
-            Val::Fn(func) | Val::Data(func) => match self.get_stof_data::<Func>(func) {
+            Val::Fn(FnRef { dref: func, .. }) | Val::Data(func) => match self.get_stof_data::<Func>(func) {
                 Some(f) if f.attributes.contains_key(ARROW_FUNC_ATTR.as_str()) => tagged("arrow", bytes(f)?),
                 _ => {
                     let at = func.data(self).and_then(|d| d.nodes.iter().next().cloned());

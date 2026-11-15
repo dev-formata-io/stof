@@ -51,51 +51,39 @@ impl SymbolTable {
         self.scopes.iter().rposition(|scope| scope.boundary).unwrap_or(0)
     }
 
-    /// The variables an arrow function captures where it's evaluated: the ones visible from here (including what
-    /// visible scopes captured themselves, for an arrow inside an arrow), closest first. Only `names` when given
-    /// (the names the arrow's body uses), otherwise all of them. The variables are marked shared, so they and the
-    /// arrow keep seeing the same value when either assigns to it.
+    /// The variables an arrow function captures where it's evaluated: the ones visible from here, closest first, the
+    /// same way `get` finds them (an arrow inside an arrow captures what the outer one captured). Only `names` when
+    /// given (the names the arrow's body uses), otherwise all of them. The variables are marked shared, so they and
+    /// the arrow keep seeing the same value when either assigns to it.
     pub fn capture(&mut self, names: Option<&[String]>) -> FxHashMap<String, Variable> {
         let start = self.visible_start();
         let mut vars = FxHashMap::default();
         match names {
             Some(names) => {
                 for name in names {
-                    let mut found = false;
                     for scope in self.scopes[start..].iter_mut().rev() {
                         if let Some(var) = scope.variables.get_mut(name) {
                             var.shared = true;
                             vars.insert(name.clone(), var.clone());
-                            found = true;
                             break;
                         }
-                    }
-                    if !found {
-                        for scope in self.scopes[start..].iter().rev() {
-                            if let Some(var) = scope.captured.as_ref().and_then(|captured| captured.get(name)) {
-                                vars.insert(name.clone(), var.clone());
-                                break;
-                            }
+                        if let Some(var) = scope.captured.as_ref().and_then(|captured| captured.get(name)) {
+                            vars.insert(name.clone(), var.clone());
+                            break;
                         }
                     }
                 }
             },
             None => {
+                // outermost first, so closer ones replace farther ones (a scope's own variables replace what it captured)
                 for scope in &mut self.scopes[start..] {
-                    for var in scope.variables.values_mut() {
-                        var.shared = true;
-                    }
-                }
-                let visible = &self.scopes[start..];
-                for scope in visible {
                     if let Some(captured) = &scope.captured {
                         for (name, var) in captured.iter() {
                             vars.insert(name.clone(), var.clone());
                         }
                     }
-                }
-                for scope in visible {
-                    for (name, var) in &scope.variables {
+                    for (name, var) in scope.variables.iter_mut() {
+                        var.shared = true;
                         vars.insert(name.clone(), var.clone());
                     }
                 }
@@ -105,7 +93,9 @@ impl SymbolTable {
     }
 
     /// Push a scope for an arrow function call, with the variables it captured where it was evaluated. They're
-    /// looked up after every visible scope, so a call from the defining function sees what it always did.
+    /// looked up right after the arrow's own variables and before the caller's (lexical, like closures elsewhere): a
+    /// caller's variable with the same name doesn't change what the arrow means. The caller's variables are still
+    /// visible after those, so an arrow can call itself by the name it's assigned to (Ex. a recursive `const fact`).
     pub fn push_captured(&mut self, captured: Option<Arc<FxHashMap<String, Variable>>>) {
         self.scopes.push(Scope { captured, ..Default::default() });
     }
@@ -191,9 +181,7 @@ impl SymbolTable {
             if let Some(var) = scope.get(name) {
                 return Some(var);
             }
-        }
-        // then what arrow functions captured where they were evaluated
-        for scope in self.scopes[start..].iter().rev() {
+            // an arrow call's scope: what the arrow captured, before the caller's variables
             if let Some(var) = scope.captured.as_ref().and_then(|captured| captured.get(name)) {
                 return Some(var);
             }
@@ -205,15 +193,14 @@ impl SymbolTable {
     /// Will return an error if the var exists but is const.
     pub fn set(&mut self, name: impl AsRef<str>, var: &Variable, graph: &mut Graph, context: Option<NodeRef>) -> Result<bool, Error> {
         let name = name.as_ref();
-        for scope in self.visible_mut() {
-            if scope.set(name, var, graph, context.clone())? {
+        let start = self.visible_start();
+        for index in (start..self.scopes.len()).rev() {
+            if self.scopes[index].set(name, var, graph, context.clone())? {
                 return Ok(true);
             }
-        }
-        // a variable an arrow function captured: written in place, so the variable it came from sees it too
-        let start = self.visible_start();
-        for scope in self.scopes[start..].iter().rev() {
-            if let Some(captured) = scope.captured.as_ref().and_then(|captured| captured.get(name)) {
+            // a variable an arrow captured (before the caller's): written in place, so the variable it came from
+            // sees it too
+            if let Some(captured) = self.scopes[index].captured.as_ref().and_then(|captured| captured.get(name)) {
                 captured.set_shared(var, graph, context)?;
                 return Ok(true);
             }

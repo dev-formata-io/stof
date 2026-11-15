@@ -23,7 +23,72 @@ use arcstr::{literal, ArcStr};
 use bytes::Bytes;
 use imbl::{vector, OrdMap, OrdSet, Vector};
 use serde::{Deserialize, Serialize};
-use crate::{model::{export::json_value_from_node, Data, DataRef, Field, Func, Graph, FieldHolders, Node, NodeRef, PROTOTYPE_DATA_NAME, Prototype, SId}, parser::{number::number, semver::parse_semver_alone}, runtime::{Error, Num, NumT, Prompt, Type, Units, DATA, OBJ}};
+use crate::{model::{export::json_value_from_node, Data, DataRef, Field, Func, Graph, FieldHolders, Node, NodeRef, PROTOTYPE_DATA_NAME, Prototype, SId}, parser::{number::number, semver::parse_semver_alone}, runtime::{Error, Num, NumT, Prompt, Type, Units, Variable, DATA, OBJ}};
+
+
+/// The variables an arrow function captured where it was evaluated.
+pub type Captured = Arc<FxHashMap<String, Variable>>;
+
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(transparent)]
+/// A function value: the function, and for an arrow, the variables it captured where it was evaluated. Each
+/// evaluation is its own value with its own captures (Ex. arrows made in a loop each keep their iteration's
+/// variables), and they go wherever the value goes. Stored, exported, compared, and hashed as the function's ID
+/// alone: captures are runtime only, so BSTF and seal digests are the same as a plain function reference.
+pub struct FnRef {
+    pub dref: DataRef,
+    #[serde(skip)]
+    pub captured: Option<Captured>,
+}
+impl FnRef {
+    /// A function value with what an arrow captured.
+    pub fn new(dref: DataRef, captured: Option<Captured>) -> Self {
+        Self { dref, captured }
+    }
+}
+impl From<DataRef> for FnRef {
+    fn from(dref: DataRef) -> Self {
+        Self { dref, captured: None }
+    }
+}
+impl Deref for FnRef {
+    type Target = DataRef;
+    fn deref(&self) -> &Self::Target {
+        &self.dref
+    }
+}
+impl PartialEq for FnRef {
+    fn eq(&self, other: &Self) -> bool {
+        self.dref == other.dref
+    }
+}
+impl Eq for FnRef {}
+impl PartialOrd for FnRef {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for FnRef {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.dref.cmp(&other.dref)
+    }
+}
+impl Hash for FnRef {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.dref.hash(state);
+    }
+}
+impl std::fmt::Debug for FnRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.dref.fmt(f)
+    }
+}
+impl std::fmt::Display for FnRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.dref.fmt(f)
+    }
+}
 
 
 /// Value reference (value, by reference?).
@@ -142,7 +207,7 @@ pub enum Val {
 
     // Reference types
     Obj(NodeRef),
-    Fn(DataRef),
+    Fn(FnRef),
     Data(DataRef),
 
     // Compound types
@@ -778,8 +843,8 @@ impl Val {
     }
 
     #[inline]
-    /// Try extracting an func value.
-    pub fn try_func(&self) -> Option<DataRef> {
+    /// Try extracting a function value (with what an arrow captured).
+    pub fn try_func(&self) -> Option<FnRef> {
         match self {
             Self::Fn(dref) => Some(dref.clone()),
             _ => None,
@@ -809,7 +874,7 @@ impl Val {
     pub fn try_data_or_func(&self) -> Option<DataRef> {
         match self {
             Self::Data(dref) => Some(dref.clone()),
-            Self::Fn(dref) => Some(dref.clone()),
+            Self::Fn(func) => Some(func.dref.clone()),
             _ => None,
         }
     }
@@ -865,7 +930,7 @@ impl Val {
     pub fn is_data_ref(&self, data: &DataRef) -> bool {
         match self {
             Self::Data(dref) => dref == data,
-            Self::Fn(dref) => dref == data,
+            Self::Fn(func) => &func.dref == data,
             _ => false,
         }
     }
@@ -986,8 +1051,8 @@ impl Val {
                     }
                     if let Some(mut clone) = clone {
                         clone.data = clone.data.deep_copy(graph, Some(context.clone()));
-                        if let Some(dref) = graph.insert_data(&context, clone) {
-                            Self::Fn(dref)
+                        if let Some(copy) = graph.insert_data(&context, clone) {
+                            Self::Fn(FnRef::new(copy, dref.captured.clone())) // a copied arrow keeps what it captured
                         } else {
                             Self::Null
                         }
@@ -1361,7 +1426,7 @@ impl Val {
                         if inner != &DATA && inner != &literal!("Fn") {
                             Err(Error::NotImplemented)
                         } else {
-                            *self = Self::Data(dref.clone());
+                            *self = Self::Data(dref.dref.clone());
                             Ok(())
                         }
                     },
@@ -1385,7 +1450,7 @@ impl Val {
                     },
                     Type::Fn => {
                         if dref.type_of::<Func>(graph) {
-                            *self = Self::Fn(dref.clone());
+                            *self = Self::Fn(dref.clone().into());
                             Ok(())
                         } else {
                             Err(Error::CastVal(self.spec_type(graph), target.clone()))
@@ -1881,7 +1946,7 @@ impl Val {
             Self::Fn(dref) =>{
                 match other {
                     Self::Data(odref) => {
-                        return Ok((dref == odref).into());
+                        return Ok((&dref.dref == odref).into());
                     },
                     _ => {}
                 }
@@ -1889,7 +1954,7 @@ impl Val {
             Self::Data(dref) => {
                 match other {
                     Self::Fn(odref) => {
-                        return Ok((dref == odref).into());
+                        return Ok((dref == &odref.dref).into());
                     },
                     _ => {}
                 }

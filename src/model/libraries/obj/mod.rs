@@ -511,7 +511,7 @@ impl Instruction for ObjIns {
                                             if let Some(field) = graph.get_stof_data::<Field>(dref) {
                                                 env.stack.push(graph.field_var(dref, &field.value, false));
                                             } else if let Some(_func) = graph.get_stof_data::<Func>(dref) {
-                                                env.stack.push(Variable::val(Val::Fn(dref.clone())));
+                                                env.stack.push(Variable::val(Val::Fn(dref.clone().into())));
                                             } else {
                                                 env.stack.push(Variable::val(Val::Data(dref.clone())));
                                             }
@@ -539,7 +539,7 @@ impl Instruction for ObjIns {
                                             if let Some(field) = graph.get_stof_data::<Field>(dref) {
                                                 env.stack.push(graph.field_var(dref, &field.value, true));
                                             } else if let Some(_func) = graph.get_stof_data::<Func>(dref) {
-                                                env.stack.push(Variable::val(Val::Fn(dref.clone())));
+                                                env.stack.push(Variable::val(Val::Fn(dref.clone().into())));
                                             } else {
                                                 env.stack.push(Variable::val(Val::Data(dref.clone())));
                                             }
@@ -780,7 +780,7 @@ impl Instruction for ObjIns {
                                 Val::Null => {
                                     let functions = Func::functions(&graph, &obj, &None, false)
                                         .into_iter()
-                                        .map(|dref| ValRef::new(Val::Fn(dref)))
+                                        .map(|dref| ValRef::new(Val::Fn(dref.into())))
                                         .collect::<Vector<_>>();
                                     env.stack.push(Variable::val(Val::List(functions)));
                                     return Ok(None);
@@ -790,7 +790,7 @@ impl Instruction for ObjIns {
                                     attributes.insert(attr.to_string());
                                     let functions = Func::functions(&graph, &obj, &Some(attributes), false)
                                         .into_iter()
-                                        .map(|dref| ValRef::new(Val::Fn(dref)))
+                                        .map(|dref| ValRef::new(Val::Fn(dref.into())))
                                         .collect::<Vector<_>>();
                                     env.stack.push(Variable::val(Val::List(functions)));
                                     return Ok(None);
@@ -806,7 +806,7 @@ impl Instruction for ObjIns {
                                     }
                                     let functions = Func::functions(&graph, &obj, &Some(attributes), false)
                                         .into_iter()
-                                        .map(|dref| ValRef::new(Val::Fn(dref)))
+                                        .map(|dref| ValRef::new(Val::Fn(dref.into())))
                                         .collect::<Vector<_>>();
                                     env.stack.push(Variable::val(Val::List(functions)));
                                     return Ok(None);
@@ -821,7 +821,7 @@ impl Instruction for ObjIns {
                                     }
                                     let functions = Func::functions(&graph, &obj, &Some(attributes), false)
                                         .into_iter()
-                                        .map(|dref| ValRef::new(Val::Fn(dref)))
+                                        .map(|dref| ValRef::new(Val::Fn(dref.into())))
                                         .collect::<Vector<_>>();
                                     env.stack.push(Variable::val(Val::List(functions)));
                                     return Ok(None);

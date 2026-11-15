@@ -36,7 +36,7 @@ pub fn to_graph_value(js: JsValue, doc: &Graph) -> Val {
         }
         if sid.data_exists(&doc) {
             if sid.type_of::<Func>(&doc) {
-                return Val::Fn(sid);
+                return Val::Fn(sid.into());
             }
             return Val::Data(sid);
         }

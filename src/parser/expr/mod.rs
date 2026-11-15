@@ -113,7 +113,7 @@ pub fn block_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseE
     // and compiling the same source always gives the same instructions (seal digests rely on it).
     let tmp = SId::from(BLOCK_RETURN_TAG);
     statements.push_front(PUSH_RETURN.clone());
-    statements.push_front(Arc::new(Base::Literal(Val::Fn(tmp.clone()))));
+    statements.push_front(Arc::new(Base::Literal(Val::Fn(tmp.clone().into()))));
 
     statements.push_back(Arc::new(Base::Tag(tmp.as_ref().into())));
     statements.push_back(POP_RETURN.clone());
@@ -132,7 +132,7 @@ pub fn switch_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParse
     // and compiling the same source always gives the same instructions (seal digests rely on it).
     let tmp = SId::from(BLOCK_RETURN_TAG);
     statements.push_front(PUSH_RETURN.clone());
-    statements.push_front(Arc::new(Base::Literal(Val::Fn(tmp.clone()))));
+    statements.push_front(Arc::new(Base::Literal(Val::Fn(tmp.clone().into()))));
 
     statements.push_back(Arc::new(Base::Tag(tmp.as_ref().into())));
     statements.push_back(POP_RETURN.clone());

@@ -5,7 +5,7 @@ import '@cargo' as Rust;
 import pkg '@github' as GitHub;
 
 /// Current version.
-const version: 0.11.3
+const version: 0.11.4
 
 /// Cargo.toml definition.
 Cargo cargo: {
@@ -79,6 +79,11 @@ Cargo cargo: {
 
         /// xml import (xml export is always there)
         xml: ['dep:quick-xml']
+
+        /// mimalloc as the allocator under StofAlloc (the memory-counting global allocator the Python build uses, and
+        /// stof-cli sets): faster than the system allocator (about a fifth off a Limitr allow). Native builds only;
+        /// off by default, so Rust users choose their own allocator.
+        mimalloc: ['dep:mimalloc']
 
         /// python bindings for stof with full functionality (TODO min/sandboxing)
         /// when building for python, set this as the only "default" feature
@@ -189,7 +194,9 @@ Cargo cargo: {
         reqwest: {
             version: 0.12.28
             optional: true
-            features: ['blocking']
+            // rustls with the OS's root certificates instead of the system's OpenSSL: nothing to link, so Python wheels cross-compile (see BUILD.md)
+            default-features: false
+            features: ['blocking', 'rustls-tls-native-roots', 'charset', 'http2']
         }
         rustc-hash: 2.1.3
         imbl: {
@@ -222,6 +229,11 @@ Cargo cargo: {
             version: 1.1.0
             features: ['serde']
         }
+        mimalloc: {
+            version: 0.1.52
+            optional: true
+            default-features: false
+        }
 
         /*****************************************************************************
          * Python features.
@@ -237,6 +249,8 @@ Cargo cargo: {
                 'indexmap',
                 'generate-import-lib',
                 'extension-module',
+                // the stable ABI: one wheel per platform for every CPython 3.8+ (see BUILD.md)
+                'abi3-py38',
             ]
         }
 
@@ -331,9 +345,9 @@ github: {
                             with: { node-version: '22' }
                         },
                         {
-                            // the wasm-bindgen CLI must match the wasm-bindgen crate (the version in cargo below)
+                            // the same build as a local release (BUILD.md): default features plus js, optimized by wasm-opt
                             name: 'Build the engine'
-                            run: `rustup target add wasm32-unknown-unknown && cargo install wasm-bindgen-cli --locked --version ${Obj.get(root.cargo.dependencies, 'wasm-bindgen').version} && cargo build --release --target wasm32-unknown-unknown --no-default-features --features js && wasm-bindgen --target web --out-dir web/pkg --out-name stof target/wasm32-unknown-unknown/release/stof.wasm`
+                            run: 'rustup target add wasm32-unknown-unknown && cargo install wasm-pack --locked && wasm-pack build --target web --release --out-dir web/pkg -- --features js'
                         },
                         {
                             name: 'Build the package'
@@ -368,6 +382,196 @@ github: {
                     ]
                 }
             }
+        } as GitHub.Workflow,
+        {
+            // Publishes everything (crates.io, npm, PyPI) for the version in this file. Manual only: it runs when
+            // started from the Actions tab (Run workflow), never on a push. Every package is built and tested first,
+            // and nothing publishes unless all of them pass. See BUILD.md.
+            name: 'Release'
+            on: {
+                workflow_dispatch: {}
+            }
+            permissions: {
+                contents: 'read'
+            }
+            env: {
+                CARGO_TERM_COLOR: 'always'
+            }
+            jobs: {
+                check: {
+                    runs-on: 'ubuntu-latest'
+                    steps: [
+                        {
+                            uses: 'actions/checkout@v4'
+                        },
+                        {
+                            // project.stof writes Cargo.toml and pyproject.toml; the rest are set by hand
+                            name: 'Versions match'
+                            run: r#"v=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2); for f in pyproject.toml web/package.json web/doc.ts plugin/.claude-plugin/plugin.json; do grep -q "$v" "$f" || { echo "$f is not $v"; exit 1; }; done; grep -q "^## $v" CHANGELOG.md || { echo "CHANGELOG.md has no $v section"; exit 1; }; echo "releasing $v""#
+                        },
+                        {
+                            name: 'Run tests (all features)'
+                            run: 'cargo test --features full'
+                        },
+                        {
+                            name: 'Check the crate'
+                            run: 'cargo publish --dry-run'
+                        }
+                    ]
+                }
+                npm-build: {
+                    runs-on: 'ubuntu-latest'
+                    steps: [
+                        {
+                            uses: 'actions/checkout@v4'
+                        },
+                        {
+                            uses: 'actions/setup-node@v4'
+                            with: { node-version: '22' }
+                        },
+                        {
+                            // the same build as a local release (BUILD.md): default features plus js, optimized by wasm-opt
+                            name: 'Build the engine'
+                            run: 'rustup target add wasm32-unknown-unknown && cargo install wasm-pack --locked && wasm-pack build --target web --release --out-dir web/pkg -- --features js'
+                        },
+                        {
+                            // what prepublishOnly does (the skill, README, and LICENSE, then the build), then pack it
+                            name: 'Build the package'
+                            run: 'npm ci && npm run skill && npm run readme && npm run build && npm pack'
+                            working-directory: 'web'
+                        },
+                        {
+                            name: 'Check the JavaScript build'
+                            run: 'node tests/js/check.mjs'
+                        },
+                        {
+                            uses: 'actions/upload-artifact@v4'
+                            with: { name: 'npm-package', path: 'web/formata-stof-*.tgz' }
+                        }
+                    ]
+                }
+                wheels: {
+                    strategy: {
+                        matrix: {
+                            include: [
+                                { os: 'ubuntu-latest', target: 'x86_64', smoke: true },
+                                { os: 'ubuntu-latest', target: 'aarch64', smoke: false },
+                                { os: 'windows-latest', target: 'x64', smoke: true },
+                                { os: 'macos-latest', target: 'universal2-apple-darwin', smoke: true },
+                            ]
+                        }
+                    }
+                    runs-on: '${{ matrix.os }}'
+                    steps: [
+                        {
+                            uses: 'actions/checkout@v4'
+                        },
+                        {
+                            uses: 'actions/setup-python@v5'
+                            with: { python-version: '3.12' }
+                        },
+                        {
+                            // one stable-ABI (abi3) wheel per platform: every CPython 3.8+
+                            name: 'Build the wheel'
+                            uses: 'PyO3/maturin-action@v1'
+                            with: { target: '${{ matrix.target }}', args: '--release --out dist', manylinux: '2014' }
+                        },
+                        {
+                            name: 'Check the Python build'
+                            "if": 'matrix.smoke'
+                            shell: 'bash'
+                            run: 'pip install --no-index --find-links dist stof && python tests/python/smoke.py'
+                        },
+                        {
+                            uses: 'actions/upload-artifact@v4'
+                            with: { name: 'python-${{ matrix.os }}-${{ matrix.target }}', path: 'dist' }
+                        }
+                    ]
+                }
+                sdist: {
+                    runs-on: 'ubuntu-latest'
+                    steps: [
+                        {
+                            uses: 'actions/checkout@v4'
+                        },
+                        {
+                            name: 'Build the source package'
+                            uses: 'PyO3/maturin-action@v1'
+                            with: { command: 'sdist', args: '--out dist' }
+                        },
+                        {
+                            uses: 'actions/upload-artifact@v4'
+                            with: { name: 'python-sdist', path: 'dist' }
+                        }
+                    ]
+                }
+                // publishing: crates.io, then npm, then PyPI; each skips a version that's already out, so a failed
+                // release can be run again. No tokens: each registry trusts this workflow in the "release" environment.
+                crates: {
+                    needs: ['check', 'npm-build', 'wheels', 'sdist']
+                    runs-on: 'ubuntu-latest'
+                    environment: 'release'
+                    // trusted publishing: the registry trusts this workflow in the release environment (no token)
+                    permissions: { contents: 'read', id-token: 'write' }
+                    steps: [
+                        {
+                            uses: 'actions/checkout@v4'
+                        },
+                        {
+                            uses: 'rust-lang/crates-io-auth-action@v1'
+                            id: 'auth'
+                        },
+                        {
+                            name: 'Publish to crates.io'
+                            run: r#"v=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2); if curl -sf -A "stof-release" "https://crates.io/api/v1/crates/stof/$v" > /dev/null; then echo "stof $v is already on crates.io"; else cargo publish; fi"#
+                            env: { CARGO_REGISTRY_TOKEN: '${{ steps.auth.outputs.token }}' }
+                        }
+                    ]
+                }
+                npm: {
+                    needs: ['crates']
+                    runs-on: 'ubuntu-latest'
+                    environment: 'release'
+                    // trusted publishing: the registry trusts this workflow in the release environment (no token)
+                    permissions: { contents: 'read', id-token: 'write' }
+                    steps: [
+                        {
+                            uses: 'actions/checkout@v4'
+                        },
+                        {
+                            uses: 'actions/setup-node@v4'
+                            // Node 24's npm (11.5.1+) does trusted publishing
+                            with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
+                        },
+                        {
+                            uses: 'actions/download-artifact@v4'
+                            with: { name: 'npm-package' }
+                        },
+                        {
+                            name: 'Publish to npm'
+                            run: r#"npm install -g npm@latest && v=$(node -p "require('./web/package.json').version"); if npm view "@formata/stof@$v" version > /dev/null 2>&1; then echo "@formata/stof $v is already on npm"; else npm publish formata-stof-$v.tgz --access public; fi"#
+                        }
+                    ]
+                }
+                pypi: {
+                    needs: ['npm']
+                    runs-on: 'ubuntu-latest'
+                    environment: 'release'
+                    // trusted publishing: the registry trusts this workflow in the release environment (no token)
+                    permissions: { contents: 'read', id-token: 'write' }
+                    steps: [
+                        {
+                            uses: 'actions/download-artifact@v4'
+                            with: { pattern: 'python-*', merge-multiple: true, path: 'dist' }
+                        },
+                        {
+                            name: 'Publish to PyPI'
+                            uses: 'pypa/gh-action-pypi-publish@release/v1'
+                            with: { skip-existing: true }
+                        }
+                    ]
+                }
+            }
         } as GitHub.Workflow
     ]
 
@@ -396,7 +600,7 @@ pyproject: {
             }
         ]
         readme: 'README.md'
-        requires-python: '>=3.7'
+        requires-python: '>=3.8'
         classifiers: [
             "Programming Language :: Rust",
             "Programming Language :: Python :: Implementation :: CPython",
@@ -432,7 +636,7 @@ pyproject: {
     tool: {
         maturin: {
             module-name: 'pystof'
-            features: ['py']
+            features: ['py', 'mimalloc']
         }
     }
 }

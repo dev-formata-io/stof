@@ -612,7 +612,7 @@ impl Instruction for StdIns {
                         Val::Null => {
                             let functions = Func::all_functions(&graph, &None)
                                 .into_iter()
-                                .map(|dref| ValRef::new(Val::Fn(dref)))
+                                .map(|dref| ValRef::new(Val::Fn(dref.into())))
                                 .collect::<Vector<_>>();
                             env.stack.push(Variable::val(Val::List(functions)));
                             return Ok(None);
@@ -622,7 +622,7 @@ impl Instruction for StdIns {
                             attributes.insert(attr.to_string());
                             let functions = Func::all_functions(&graph, &Some(attributes))
                                 .into_iter()
-                                .map(|dref| ValRef::new(Val::Fn(dref)))
+                                .map(|dref| ValRef::new(Val::Fn(dref.into())))
                                 .collect::<Vector<_>>();
                             env.stack.push(Variable::val(Val::List(functions)));
                             return Ok(None);
@@ -638,7 +638,7 @@ impl Instruction for StdIns {
                             }
                             let functions = Func::all_functions(&graph, &Some(attributes))
                                 .into_iter()
-                                .map(|dref| ValRef::new(Val::Fn(dref)))
+                                .map(|dref| ValRef::new(Val::Fn(dref.into())))
                                 .collect::<Vector<_>>();
                             env.stack.push(Variable::val(Val::List(functions)));
                             return Ok(None);
@@ -653,7 +653,7 @@ impl Instruction for StdIns {
                             }
                             let functions = Func::all_functions(&graph, &Some(attributes))
                                 .into_iter()
-                                .map(|dref| ValRef::new(Val::Fn(dref)))
+                                .map(|dref| ValRef::new(Val::Fn(dref.into())))
                                 .collect::<Vector<_>>();
                             env.stack.push(Variable::val(Val::List(functions)));
                             return Ok(None);
@@ -1104,7 +1104,7 @@ impl Instruction for StdIns {
             Self::Callstack => {
                 let callstack = env.call_stack.iter()
                     .cloned()
-                    .map(|id| ValRef::new(Val::Fn(id)))
+                    .map(|id| ValRef::new(Val::Fn(id.into())))
                     .collect::<Vector<_>>();
                 env.stack.push(Variable::val(Val::List(callstack)));
             },

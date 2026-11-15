@@ -34,7 +34,7 @@
 use std::{ops::Deref, sync::Arc};
 use imbl::{vector, Vector};
 use rustc_hash::FxHashMap;
-use crate::{model::{DataRef, Field, Func, Graph, NodeRef, Prototype}, runtime::{Error, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{AWAIT, Base, block::Block, call::FuncCall, empty::EmptyIns}}};
+use crate::{model::{DataRef, Field, Func, Graph, NodeRef, Prototype}, runtime::{Error, FnRef, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{AWAIT, Base, block::Block, call::FuncCall, empty::EmptyIns}}};
 use super::RUN;
 
 
@@ -154,7 +154,7 @@ pub(super) fn run_instructions(graph: &mut Graph, obj: &NodeRef, context: Option
         let arguments = step_arguments(&step.args);
         match &step.action {
             RunAction::Func(dref) => {
-                instructions.push(call_func(dref.clone(), arguments, oself));
+                instructions.push(call_func(dref.clone().into(), arguments, oself));
             },
             RunAction::Value(value) => {
                 match value {
@@ -279,10 +279,10 @@ fn step_arguments(args: &Option<ValRef<Val>>) -> Vector<Arc<dyn Instruction>> {
 
 /// Call a function as a step (its return value is discarded). An async function is awaited, so the step is done
 /// before the next one starts and before run() returns (await passes any other value through).
-fn call_func(dref: DataRef, args: Vector<Arc<dyn Instruction>>, oself: Option<Arc<dyn Instruction>>) -> Arc<dyn Instruction> {
+fn call_func(func: FnRef, args: Vector<Arc<dyn Instruction>>, oself: Option<Arc<dyn Instruction>>) -> Arc<dyn Instruction> {
     Arc::new(EmptyIns {
         ins: Arc::new(Block { ins: imbl::vector![
-            Arc::new(FuncCall { func: Some(dref), search: None, stack: false, as_ref: false, cnull: false, args, oself }) as Arc<dyn Instruction>,
+            Arc::new(FuncCall { func: Some(func), search: None, stack: false, as_ref: false, cnull: false, args, oself }) as Arc<dyn Instruction>,
             AWAIT.clone(),
         ] })
     })

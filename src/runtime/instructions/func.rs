@@ -16,8 +16,7 @@
 
 use std::sync::Arc;
 use serde::{Deserialize, Serialize};
-use rustc_hash::FxHashMap;
-use crate::{model::{DataRef, Func, Graph}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Error, Val, Variable}};
+use crate::{model::{DataRef, Func, Graph}, runtime::{instruction::{Instruction, Instructions}, instructions::Base, proc::ProcEnv, Captured, Error, FnRef, Val}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,9 +34,11 @@ impl Instruction for FuncLit {
     fn exec(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<Option<Instructions>, Error> {
         let mut instructions = Instructions::default();
 
-        // the variables visible here, for when the arrow is called from somewhere they aren't (latest evaluation wins)
+        // the variables its body uses, as they are here: they go with this evaluation's value (each evaluation is its
+        // own value with its own captures; nothing about them is written to the document)
         let captured = env.table.capture(self.func.capture_names.as_ref().map(|names| names.as_slice()));
         let captured = if captured.is_empty() { None } else { Some(Arc::new(captured)) };
+        let value = |dref: DataRef| Arc::new(Base::Literal(Val::Fn(FnRef::new(dref, captured.clone()))));
 
         // code confined to part of the document (see model::seal::Confine) makes arrows on its own part: one it
         // evaluates somewhere it can't change (Ex. in a helper it reads) is a new arrow on the part instead
@@ -52,18 +53,14 @@ impl Instruction for FuncLit {
                 !graph.confined_changes(&target)
             };
             if outside {
-                // one copy per arrow and part (evaluating it again updates what it captured, like any arrow)
+                // one copy per arrow and part (made once; each evaluation's value carries its own captures)
                 let id = crate::model::SId::from(format!("{}@{}", self.dref.as_ref(), root.as_ref()).as_str());
                 if id.data_exists(&graph) {
-                    graph.without_seals(|graph| {
-                        if let Some(func) = graph.get_mut_stof_data::<Func>(&id) { func.captured = captured; }
-                    });
-                    instructions.push(Arc::new(Base::Literal(Val::Fn(id))));
+                    instructions.push(value(id));
                 } else {
-                    let mut func = self.func.clone();
-                    func.captured = captured;
+                    let func = self.func.clone();
                     if let Some(dref) = graph.without_seals(|graph| graph.insert_stof_data(root, id.clone(), Box::new(func), Some(id.clone()))) {
-                        instructions.push(Arc::new(Base::Literal(Val::Fn(dref))));
+                        instructions.push(value(dref));
                     }
                 }
                 return Ok(Some(instructions));
@@ -71,25 +68,16 @@ impl Instruction for FuncLit {
         }
 
         if self.dref.data_exists(&graph) {
-            let unchanged = captured.is_none() && graph.get_stof_data::<Func>(&self.dref).is_some_and(|func| func.captured.is_none());
-            if !unchanged {
-                graph.without_seals(|graph| { // an arrow that sealed code evaluates still captures
-                    if let Some(func) = graph.get_mut_stof_data::<Func>(&self.dref) {
-                        func.captured = captured;
-                    }
-                });
-            }
-            instructions.push(Arc::new(Base::Literal(Val::Fn(self.dref.clone()))));
+            instructions.push(value(self.dref.clone()));
         } else {
             let mut self_ptr = env.self_ptr();
             if let Some(ns) = env.new_stack.last() {
                 self_ptr = ns.clone(); // if we are currently creating an object, make it the scope!
             }
-            let mut func = self.func.clone();
-            func.captured = captured;
+            let func = self.func.clone();
             // an arrow that sealed code evaluates lives on the sealed object, under its own new name
             if let Some(dref) = graph.without_seals(|graph| graph.insert_stof_data(&self_ptr, &self.dref, Box::new(func), Some(self.dref.clone()))) {
-                instructions.push(Arc::new(Base::Literal(Val::Fn(dref))));
+                instructions.push(value(dref));
             }
         }
 
@@ -99,11 +87,11 @@ impl Instruction for FuncLit {
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-/// An arrow function call's scope, with the variables the arrow captured where it was evaluated (looked up after
-/// every visible scope). Made when the arrow is called, so never stored in documents.
+/// An arrow function call's scope, with the variables the arrow captured where it was evaluated (looked up right
+/// after the arrow's own variables, before the caller's). Made when the arrow is called, so never stored in documents.
 pub struct ArrowScope {
     #[serde(skip)]
-    pub captured: Option<Arc<FxHashMap<String, Variable>>>,
+    pub captured: Option<Captured>,
 }
 #[typetag::serde(name = "ArrowScope")]
 impl Instruction for ArrowScope {

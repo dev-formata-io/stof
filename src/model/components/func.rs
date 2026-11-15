@@ -19,7 +19,7 @@ use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use crate::{parser::source::SrcLoc, model::{DataRef, Graph, NodeRef, SId, SPath, StofData}, runtime::{instruction::{Instruction, Instructions}, Type, Val, Variable}};
+use crate::{parser::source::SrcLoc, model::{DataRef, Graph, NodeRef, SId, SPath, StofData}, runtime::{instruction::{Instruction, Instructions}, Type, Val}};
 
 
 /// Attribute used to denote a main function.
@@ -72,11 +72,6 @@ pub struct Func {
     /// never stored in documents (a function loaded from BSTF has none).
     #[serde(skip)]
     pub source: Option<ArcStr>,
-
-    /// Arrow functions: the variables visible where the arrow was last evaluated (shared with them, so an
-    /// assignment in the arrow is seen by the variable it captured). Runtime only, never stored in documents.
-    #[serde(skip)]
-    pub captured: Option<Arc<FxHashMap<String, Variable>>>,
 
     /// Arrow functions: the outer variable names the body uses, so only those are captured. Set by the parser and
     /// never stored in documents (None captures every visible variable).
@@ -139,7 +134,6 @@ impl Func {
             attributes,
             src: None,
             source: None,
-            captured: None,
             capture_names: None,
         }
     }
@@ -147,7 +141,14 @@ impl Func {
     /// Get a func from a dot separated name path string.
     /// Ex. "root.hello" -> root object with a func named "hello".
     pub fn func_from_path(graph: &Graph, path: &str, start: Option<NodeRef>) -> Option<DataRef> {
-        let mut spath = SPath::from(path);
+        // one name (most lookups): the function is on start, which is what an empty path finds (no path to build)
+        if !path.is_empty() && !path.contains('.') {
+            if let Some(node) = SPath::node(&graph, SPath::new(Vec::new(), true), start) {
+                return Self::func(graph, &node, &SId::from(path));
+            }
+            return None;
+        }
+        let mut spath = SPath::string(path, true, "."); // SPath::from(path) copies the string first
         if spath.path.is_empty() { return None; }
         
         let func_name = spath.path.pop().unwrap();

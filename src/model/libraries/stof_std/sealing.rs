@@ -103,7 +103,7 @@ impl Instruction for SealIns {
                     let mut calls = Vec::new();
                     for item in items {
                         match &*item.read() {
-                            Val::Fn(func) => calls.push(func.clone()),
+                            Val::Fn(func) => calls.push(func.dref.clone()),
                             Val::Str(path) => calls.extend(graph.seal_calls(&[path.to_string()])?),
                             _ => return Err(Error::Sealed("seal calls must be a list of functions (Ex. [self.api.request])".into())),
                         }

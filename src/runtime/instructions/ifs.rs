@@ -32,7 +32,7 @@ pub struct IfIns {
 #[typetag::serde(name = "IfIns")]
 impl Instruction for IfIns {
     fn exec(&self, _env: &mut ProcEnv, _graph: &mut Graph) -> Result<Option<Instructions>, Error> {
-        let mut instructions = Instructions::default();
+        let mut instructions = Instructions::with_capacity(self.if_ins.len() + self.el_ins.len() + 6);
         if let Some(test) = &self.if_test {
             instructions.push(test.clone());
         }

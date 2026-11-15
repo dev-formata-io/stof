@@ -100,7 +100,7 @@ impl Instruction for FuncIns {
             Self::Data => {
                 if let Some(val) = env.stack.pop() {
                     if let Some(dref) = val.try_func() {
-                        env.stack.push(Variable::val(Val::Data(dref)));
+                        env.stack.push(Variable::val(Val::Data(dref.dref)));
                         return Ok(None);
                     }
                 }
@@ -212,7 +212,7 @@ impl Instruction for FuncIns {
                     Val::Str(name) => name.to_string(),
                     _ => return Err(Error::FnAttributes),
                 };
-                let changed = graph.set_attribute(Err(func), &name, value.map(|value| value.val.read().clone()))?;
+                let changed = graph.set_attribute(Err(func.dref), &name, value.map(|value| value.val.read().clone()))?;
                 env.stack.push(Variable::val(Val::Bool(changed)));
                 Ok(None)
             },

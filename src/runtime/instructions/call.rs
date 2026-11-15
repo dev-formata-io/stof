@@ -19,7 +19,7 @@ use arcstr::{literal, ArcStr};
 use imbl::Vector;
 use serde::{Deserialize, Serialize};
 use crate::model::seal::ConfineIns;
-use crate::{model::{Param, ARROW_FUNC_ATTR, ASYNC_FUNC_ATTR, DataRef, Field, Func, Graph, LibFunc, NodeRef, PROTOTYPE_TYPE_ATTR, Prototype, SELF_STR_KEYWORD, SId, SUPER_STR_KEYWORD, UNSELF_FUNC_ATTR}, runtime::{Error, Type, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{func::ArrowScope, Base, DUPLICATE, POP_CALL, POP_RETURN, POP_SELF, PUSH_CALL, PUSH_RETURN, PUSH_FUNCTION_SCOPE, PUSH_SELF, PUSH_SYMBOL_SCOPE, PUSH_VAL_RET, PUSH_VOID_RET, SUSPEND, VALIDATE_FN_RET, YIELD}, proc::ProcEnv}};
+use crate::{model::{Param, ARROW_FUNC_ATTR, ASYNC_FUNC_ATTR, Field, Func, Graph, LibFunc, NodeRef, PROTOTYPE_TYPE_ATTR, Prototype, SELF_STR_KEYWORD, SId, SUPER_STR_KEYWORD, UNSELF_FUNC_ATTR}, runtime::{Captured, Error, FnRef, Type, Val, ValRef, Variable, instruction::{Instruction, Instructions}, instructions::{func::ArrowScope, Base, DUPLICATE, POP_CALL, POP_RETURN, POP_SELF, PUSH_CALL, PUSH_RETURN, PUSH_FUNCTION_SCOPE, PUSH_SELF, PUSH_SYMBOL_SCOPE, PUSH_VAL_RET, PUSH_VOID_RET, SUSPEND, VALIDATE_FN_RET, YIELD}, proc::ProcEnv}};
 
 
 
@@ -50,8 +50,8 @@ fn count_problem(given: usize, params: &[Param]) -> String {
 /// Call a function instruction (expr).
 /// An expression will add this as the next instruction after a lookup to an internal function.
 pub struct FuncCall {
-    /// Specific function we are calling.
-    pub func: Option<DataRef>,
+    /// Specific function we are calling (a function value: an arrow's carries what it captured).
+    pub func: Option<FnRef>,
 
     /// Optionally look up the function from a path in the graph.
     pub search: Option<ArcStr>,
@@ -79,12 +79,15 @@ impl FuncCall {
     /// Uses search or the stack to find the function we are going to call if needed.
     pub(self) fn get_func_context(&self, env: &mut ProcEnv, graph: &mut Graph) -> Result<CallContext, Error> {
         if let Some(dref) = &self.func {
-            return Ok(CallContext { lib: None, stack_arg: None, prototype_self: None, func: dref.clone() });
+            return Ok(CallContext { lib: None, stack_arg: None, prototype_self: None, func: dref.dref.clone(), captured: dref.captured.clone() });
         }
         if let Some(search) = &self.search {
-            // remove all '?', because they may be present in the path (Ex. hello?.hi()).
-            let path = search.replace('?', "");
-            return self.search_func(&path, env, graph);
+            // remove all '?', because they may be present in the path (Ex. hello?.hi()); most paths have none
+            if search.contains('?') {
+                let path = search.replace('?', "");
+                return self.search_func(&path, env, graph);
+            }
+            return self.search_func(search, env, graph);
         }
         Err(Error::FuncDne("No Func or Search".into()))
     }
@@ -97,7 +100,7 @@ impl FuncCall {
             if let Some((lib, func)) = path.split_once("::") {
                 let libname = ArcStr::from(lib);
                 if graph.has_libfunc(&libname, func) {
-                    return Ok(CallContext { lib: Some(libname), stack_arg: None, prototype_self: None, func: SId::from(func) });
+                    return Ok(CallContext { lib: Some(libname), stack_arg: None, prototype_self: None, func: SId::from(func), captured: None });
                 }
                 return Err(Error::FuncDne(path.into()));
             }
@@ -126,12 +129,12 @@ impl FuncCall {
                     // val is a func case {val}()
                     if split_path[0].len() < 1 {
                         if let Some(dref) = var.try_func() {
-                            return Ok(CallContext { lib: None, prototype_self: None, func: dref, stack_arg: Some(Arc::new(Base::Variable(var))) });
+                            return Ok(CallContext { lib: None, prototype_self: None, func: dref.dref, captured: dref.captured, stack_arg: Some(Arc::new(Base::Variable(var))) });
                         }
                     }
 
                     let libname = var.lib_name(&graph);
-                    return Ok(CallContext { lib: Some(libname), stack_arg: Some(Arc::new(Base::Variable(var))), prototype_self: None, func: SId::from(split_path[0]) });
+                    return Ok(CallContext { lib: Some(libname), stack_arg: Some(Arc::new(Base::Variable(var))), prototype_self: None, func: SId::from(split_path[0]), captured: None });
                 }
             }
             return Err(Error::FuncDne("Stack Search Failed".into()));
@@ -143,13 +146,13 @@ impl FuncCall {
             if let Some(var) = env.table.get(name) {
                 if let Some(func) = var.try_func() {
                     // Calling directly into a variable function
-                    return Ok(CallContext { lib: None, prototype_self: None, func, stack_arg: None });
+                    return Ok(CallContext { lib: None, prototype_self: None, func: func.dref, captured: func.captured, stack_arg: None });
                 }
             }
             if name == "this" && env.call_stack.len() > 0 {
-                return Ok(CallContext { lib: None, stack_arg: None, prototype_self: None, func: env.call_stack.last().unwrap().clone() });
+                return Ok(CallContext { lib: None, stack_arg: None, prototype_self: None, func: env.call_stack.last().unwrap().clone(), captured: None });
             }
-            return Ok(CallContext { lib: Some(literal!("Std")), stack_arg: None, prototype_self: None, func: SId::from(split_path[0]) });
+            return Ok(CallContext { lib: Some(literal!("Std")), stack_arg: None, prototype_self: None, func: SId::from(split_path[0]), captured: None });
         }
         
         // In this case, we are searching for a generic path, using the symbol table, libraries, and graph
@@ -168,7 +171,7 @@ impl FuncCall {
             context = var.val.clone();
             split_path.remove(0);
         } else if split_path[0] == "this" && env.call_stack.len() > 0 {
-            context = ValRef::new(Val::Fn(env.call_stack.last().unwrap().clone()));
+            context = ValRef::new(Val::Fn(env.call_stack.last().unwrap().clone().into()));
             split_path.remove(0);
         } else {
             // Look for a function at the root of the graph before resorting to a library
@@ -180,7 +183,7 @@ impl FuncCall {
             if split_path.len() == 2 {
                 let libname = ArcStr::from(split_path[0]);
                 if graph.has_libfunc(&libname, split_path[1]) {
-                    return Ok(CallContext { lib: Some(libname), stack_arg: None, prototype_self: None, func: SId::from(split_path[1]) });
+                    return Ok(CallContext { lib: Some(libname), stack_arg: None, prototype_self: None, func: SId::from(split_path[1]), captured: None });
                 }
             }
 
@@ -195,7 +198,7 @@ impl FuncCall {
                 let var = env.stack.pop().ok_or(Error::StackError)?;
 
                 let libname = var.lib_name(&graph);
-                return Ok(CallContext { lib: Some(libname), stack_arg: Some(Arc::new(Base::Variable(var))), prototype_self: None, func: SId::from(func_name) });
+                return Ok(CallContext { lib: Some(libname), stack_arg: Some(Arc::new(Base::Variable(var))), prototype_self: None, func: SId::from(func_name), captured: None });
             }
             return Err(Error::FuncDne(path.into()));
         }
@@ -211,7 +214,7 @@ impl FuncCall {
         if split_path.len() < 2 {
             // var.split('.'); // string variable for example
             let libname = context.read().lib_name(&graph);
-            return Ok(CallContext { lib: Some(libname), stack_arg: Some(Arc::new(Base::Variable(Variable::refval(context)))), prototype_self: None, func: SId::from(split_path[0]) });
+            return Ok(CallContext { lib: Some(libname), stack_arg: Some(Arc::new(Base::Variable(Variable::refval(context)))), prototype_self: None, func: SId::from(split_path[0]), captured: None });
         }
 
         Err(Error::FuncDne(path.into()))
@@ -224,7 +227,7 @@ impl FuncCall {
 
         // If we are in a prototype, check to see if the path has a specific type associated with it Ex. special_func<MyType>().
         // If there's a special type and this node has the wrong typename, don't allow a function to resolve on it.
-        let mut adjusted_path = path.to_string();
+        let mut adjusted_path = std::borrow::Cow::Borrowed(path); // only copied when a type is named below
         if in_proto && path.contains("<") {
             if let Some(node) = &start {
                 if let Some(node) = node.node(&graph) {
@@ -232,19 +235,19 @@ impl FuncCall {
                     if let Some(type_attr) = node.attributes.get(PROTOTYPE_TYPE_ATTR.as_str()) {
                         match type_attr {
                             Val::Str(name) => {
-                                adjusted_path = type_path.pop().unwrap().trim_end_matches(">").to_string();
-                                if adjusted_path != name.as_str() {
+                                adjusted_path = type_path.pop().unwrap().trim_end_matches(">").to_string().into();
+                                if adjusted_path.as_ref() != name.as_str() {
                                     allow_node_contemplation = false;
                                 } else {
-                                    adjusted_path = type_path.join("<");
+                                    adjusted_path = type_path.join("<").into();
                                 }
                             },
                             _ => {
-                                adjusted_path = type_path.pop().unwrap().trim_end_matches(">").to_string();
-                                if adjusted_path != node.name.as_ref() {
+                                adjusted_path = type_path.pop().unwrap().trim_end_matches(">").to_string().into();
+                                if adjusted_path.as_ref() != node.name.as_ref() {
                                     allow_node_contemplation = false;
                                 } else {
-                                    adjusted_path = type_path.join("<");
+                                    adjusted_path = type_path.join("<").into();
                                 }
                             }
                         }
@@ -257,7 +260,7 @@ impl FuncCall {
             // Look for a function on the object at the path first (always highest priority)
             if let Some(func) = Func::func_from_path(graph, &adjusted_path, start.clone()) {
                 // prototype_self gets set below
-                return Ok(CallContext { lib: None, stack_arg: None, prototype_self: None, func });
+                return Ok(CallContext { lib: None, stack_arg: None, prototype_self: None, func, captured: None });
             }
 
             // Look for a field on the object at the path next that is a function
@@ -265,7 +268,7 @@ impl FuncCall {
                 if let Some(field) = graph.get_stof_data::<Field>(&field) {
                     if let Some(func) = field.value.try_func() {
                         // prototype_self will get set below
-                        return Ok(CallContext { lib: None, stack_arg: None, prototype_self: None, func });
+                        return Ok(CallContext { lib: None, stack_arg: None, prototype_self: None, func: func.dref, captured: func.captured });
                     }
                 }
             }
@@ -319,7 +322,7 @@ impl FuncCall {
 
         if allow_node_contemplation {
             // Look for a field (or obj) on the object at the path minus the func name for a library call on that field
-            let (pth, func_name) = adjusted_path.rsplit_once('.').unwrap_or(("", adjusted_path.as_str()));
+            let (pth, func_name) = adjusted_path.rsplit_once('.').unwrap_or(("", adjusted_path.as_ref()));
             if start.is_some() {
                 if let Some(field_ref) = Field::field_from_path(graph, pth, start.clone()) {
                     if let Some(field) = graph.get_stof_data::<Field>(&field_ref) {
@@ -336,6 +339,7 @@ impl FuncCall {
                             stack_arg: Some(Arc::new(Base::Variable(Variable::refval(value)))),
                             prototype_self: None,
                             func: SId::from(func_name),
+                            captured: None,
                         });
                     }
                 }
@@ -345,9 +349,10 @@ impl FuncCall {
                     if let Some(func) = Func::func_from_path(graph, pth, start.clone()) {
                         return Ok(CallContext {
                             lib: Some(literal!("Fn")),
-                            stack_arg: Some(Arc::new(Base::Literal(Val::Fn(func)))),
+                            stack_arg: Some(Arc::new(Base::Literal(Val::Fn(func.into())))),
                             prototype_self: None,
                             func: SId::from(func_name),
+                            captured: None,
                         });
                     }
                 }
@@ -360,6 +365,7 @@ impl FuncCall {
                         stack_arg: Some(Arc::new(Base::Literal(Val::Obj(obj)))),
                         prototype_self: None,
                         func: SId::from(func_name),
+                        captured: None,
                     });
                 }
             } else if start.is_none() && graph.roots.len() > 0 {
@@ -373,6 +379,7 @@ impl FuncCall {
                         stack_arg: Some(Arc::new(Base::Literal(Val::Obj(obj)))),
                         prototype_self: None,
                         func: SId::from(func_name),
+                        captured: None,
                     });
                 }
             }
@@ -389,7 +396,7 @@ impl FuncCall {
         let while_depth = env.loop_stack.len();
         let try_depth = env.try_stack.len();
         
-        let mut instructions = Instructions::default();
+        let mut instructions = Instructions::with_capacity(self.args.len() * 2 + 12);
 
         let params = func.params;
         let rtype = func.return_type;
@@ -480,7 +487,7 @@ impl FuncCall {
             // bind from the stack: the last argument is on top
             for index in (0..args.len().min(params.len())).rev() {
                 let param = &params[index];
-                instructions.push(Arc::new(Base::DeclareVar(param.name.to_string().into(), param.param_type.clone()))); // these must keep their type
+                instructions.push(Arc::new(Base::DeclareVar(ArcStr::from(param.name.as_ref()), param.param_type.clone()))); // these must keep their type
             }
         }
 
@@ -524,6 +531,8 @@ pub(self) struct CallContext {
     pub lib: Option<ArcStr>,
     pub prototype_self: Option<Arc<dyn Instruction>>,
     pub func: SId,
+    /// What an arrow captured where it was evaluated, when the call came from its value.
+    pub captured: Option<Captured>,
     pub stack_arg: Option<Arc<dyn Instruction>>,
 }
 
@@ -559,8 +568,9 @@ impl Instruction for FuncCall {
         }
 
         let func = func_context.func;
+        let context_captured = func_context.captured; // an arrow's, from the value the call came from
         let params;
-        let mut func_instructions;
+        let func_instructions;
         let rtype;
         let is_async;
         let unself;
@@ -579,7 +589,7 @@ impl Instruction for FuncCall {
 
             // Arrow functions see the caller's variables (closure-like); named functions start a boundary
             arrow = func.attributes.contains_key(ARROW_FUNC_ATTR.as_str());
-            if arrow { captured = func.captured.clone(); }
+            if arrow { captured = context_captured; }
         } else {
             if self.cnull {
                 let mut instructions = Instructions::default();
@@ -589,15 +599,16 @@ impl Instruction for FuncCall {
             return Err(Error::FuncDne(format!("Data Ptr not Func")));
         }
 
-        // Add return tag to the end of the func statements
-        func_instructions.push_back(Arc::new(Base::Tag(func.as_ref().into())));
+        // the return tag goes right after the function's own instructions (pushed below, not onto the function's
+        // stored instructions: changing that shared vector copies part of it on every call)
+        let return_tag: Arc<dyn Instruction> = Arc::new(Base::Tag(func.as_ref().into()));
 
         // Record the current table depth, because we need to pop until we get back here at the end
         let scope_depth = env.table.scopes.len();
         let while_depth = env.loop_stack.len();
         let try_depth = env.try_stack.len();
        
-        let mut instructions = Instructions::default();
+        let mut instructions = Instructions::with_capacity(func_instructions.len() + self.args.len() * 2 + params.len() * 3 + 24);
 
         // A self override (prototype self or oself) is evaluated first, in the caller's scope; it stays on the
         // stack under the arguments until PUSH_SELF, after the parameters are bound.
@@ -664,7 +675,7 @@ impl Instruction for FuncCall {
 
         // Start the call: call stack, return, and the function's own scope (a boundary: the function never
         // sees its caller's variables)
-        instructions.push(Arc::new(Base::Literal(Val::Fn(func.clone()))));
+        instructions.push(Arc::new(Base::Literal(Val::Fn(func.clone().into()))));
         instructions.push(DUPLICATE.clone());
         instructions.push(PUSH_CALL.clone());
         instructions.push(PUSH_RETURN.clone());
@@ -674,7 +685,7 @@ impl Instruction for FuncCall {
         for (index, arg) in args.iter().enumerate().rev() {
             if arg.is_some() {
                 let param = &params[index];
-                instructions.push(Arc::new(Base::DeclareVar(param.name.to_string().into(), param.param_type.clone()))); // these must keep their type
+                instructions.push(Arc::new(Base::DeclareVar(ArcStr::from(param.name.as_ref()), param.param_type.clone()))); // these must keep their type
             }
         }
         // Then defaults, in order, inside the function (a default can use earlier params, Ex. fn f(a, b = a * 2))
@@ -684,7 +695,7 @@ impl Instruction for FuncCall {
                 if let Some(default) = &param.default {
                     instructions.push(default.clone());
                     instructions.push(Arc::new(Base::Cast(param.param_type.clone())));
-                    instructions.push(Arc::new(Base::DeclareVar(param.name.to_string().into(), param.param_type.clone())));
+                    instructions.push(Arc::new(Base::DeclareVar(ArcStr::from(param.name.as_ref()), param.param_type.clone())));
                 }
             }
         }
@@ -717,6 +728,7 @@ impl Instruction for FuncCall {
         if !rtype.empty() {
             instructions.push(PUSH_VAL_RET.clone());
             instructions.append(&func_instructions);
+            instructions.push(return_tag);
             instructions.push(VALIDATE_FN_RET.clone());
             if !is_async { // await will perform the cast lazily
                 instructions.push(Arc::new(Base::Cast(rtype.clone())));
@@ -724,6 +736,7 @@ impl Instruction for FuncCall {
         } else {
             instructions.push(PUSH_VOID_RET.clone());
             instructions.append(&func_instructions);
+            instructions.push(return_tag);
             instructions.push(VALIDATE_FN_RET.clone());
         }
 

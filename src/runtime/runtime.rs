@@ -659,7 +659,7 @@ impl Runtime {
                                 as_ref: false,
                                 cnull: false,
                                 stack: false,
-                                func: Some(func_ref),
+                                func: Some(func_ref.into()),
                                 search: None,
                                 args: Default::default(),
                                 oself: None,
@@ -675,7 +675,7 @@ impl Runtime {
                     as_ref: false,
                     cnull: false,
                     stack: false,
-                    func: Some(func_ref),
+                    func: Some(func_ref.into()),
                     search: None,
                     args: Default::default(),
                     oself: None,
@@ -753,7 +753,7 @@ impl Runtime {
                                 as_ref: false,
                                 cnull: false,
                                 stack: false,
-                                func: Some(func_ref),
+                                func: Some(func_ref.into()),
                                 search: None,
                                 args: Default::default(),
                                 oself: None,
@@ -769,7 +769,7 @@ impl Runtime {
                     as_ref: false,
                     cnull: false,
                     stack: false,
-                    func: Some(func_ref),
+                    func: Some(func_ref.into()),
                     search: None,
                     args: Default::default(),
                     oself: None,
@@ -871,7 +871,7 @@ impl Runtime {
                                 as_ref: false,
                                 cnull: false,
                                 stack: false,
-                                func: Some(func_ref.clone()),
+                                func: Some(func_ref.clone().into()),
                                 search: None,
                                 args: Default::default(),
                                 oself: None,
@@ -888,7 +888,7 @@ impl Runtime {
                     as_ref: false,
                     cnull: false,
                     stack: false,
-                    func: Some(func_ref.clone()),
+                    func: Some(func_ref.clone().into()),
                     search: None,
                     args: Default::default(),
                     oself: None,
@@ -1019,7 +1019,7 @@ impl Runtime {
                                 as_ref: false,
                                 cnull: false,
                                 stack: false,
-                                func: Some(func_ref.clone()),
+                                func: Some(func_ref.clone().into()),
                                 search: None,
                                 args: Default::default(),
                                 oself: None,
@@ -1041,7 +1041,7 @@ impl Runtime {
                     as_ref: false,
                     cnull: false,
                     stack: false,
-                    func: Some(func_ref.clone()),
+                    func: Some(func_ref.clone().into()),
                     search: None,
                     args: Default::default(),
                     oself: None,
@@ -1166,7 +1166,7 @@ impl Runtime {
                         match func {
                             Base::Literal(val) => {
                                 if let Some(fref) = val.try_func() {
-                                    func_ref = fref;
+                                    func_ref = fref.dref;
                                     err_str = format!("\texpected to error, but received a result of '{:?}'", failure.result);
                                 } else {
                                     continue;
@@ -1289,7 +1289,7 @@ impl Runtime {
             as_ref: false,
             cnull: false,
             stack: false,
-            func: Some(func.clone()),
+            func: Some(func.clone().into()),
             search: None,
             args: arguments,
             oself: None,
@@ -1573,7 +1573,7 @@ impl SourceCall {
             as_ref: false,
             cnull: false,
             stack: false,
-            func: Some(func),
+            func: Some(func.into()),
             search: None,
             args: arguments,
             oself: Some(Arc::new(Base::Literal(Val::Obj(context)))),

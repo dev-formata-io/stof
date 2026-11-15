@@ -29,7 +29,8 @@ pub fn py_any_to_val(py: &Bound<'_, PyAny>, graph: &Graph) -> Val {
     // Text
     // PyString is used to map Stof Obj & Data pointers too
     if let Ok(res) = py.cast::<PyString>() {
-        if let Ok(value) = res.to_str() {
+        if let Ok(value) = res.to_cow() { // to_cow: works in the stable ABI (abi3) too, and borrows otherwise
+            let value: &str = &value;
             if value.len() < 100 { // large strings go right into an ArcStr and skip ptr checks
                 let sid = SId::from(value);
                 if sid.node_exists(graph) {
@@ -37,7 +38,7 @@ pub fn py_any_to_val(py: &Bound<'_, PyAny>, graph: &Graph) -> Val {
                 }
                 if sid.data_exists(graph) {
                     if sid.type_of::<Func>(graph) {
-                        return Val::Fn(sid);
+                        return Val::Fn(sid.into());
                     }
                     return Val::Data(sid);
                 }
@@ -160,7 +161,8 @@ pub fn py_any_to_raw_val(py: &Bound<'_, PyAny>) -> Val {
     // Text
     // PyString is used to map Stof Obj & Data pointers too
     if let Ok(res) = py.cast::<PyString>() {
-        if let Ok(value) = res.to_str() {
+        if let Ok(value) = res.to_cow() { // to_cow: works in the stable ABI (abi3) too, and borrows otherwise
+            let value: &str = &value;
             if value.len() < 100 { // large strings go right into an ArcStr and skip ptr checks
                 if value.contains("_pr:_ms") {
                     let id_type = value.split("_pr:_ms").collect::<Vec<_>>();
