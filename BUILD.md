@@ -28,7 +28,8 @@ jobs in the CI and release workflows (`github.workflows` in `project.stof`).
 4. Update the Stof skill (`content/SKILL.md`). The npm package ships it, so this comes before publishing.
 5. Commit and push, then run the release workflow (below). To publish by hand instead, test everything and publish
    in this order: crates.io, npm, PyPI.
-6. Update stof-cli and stof.dev to the new version.
+6. Update stof-cli and stof.dev to the new version. stof-cli releases with its own workflow, which builds the
+   `stof` binaries and installers (see "Building and releasing" in its README).
 
 ## Release workflow
 

@@ -458,6 +458,11 @@ doc.call_source('fn check(x: int) -> bool { x < self.rate }', [1])   # run once,
 doc.remove('rate')
 ```
 
+A `Doc` is safe to share across threads: calls run one at a time (another thread's call waits its turn), and a running
+call releases the GIL, so other threads go on (Ex. a server in the same process answering the call's `Http.fetch`). A
+`doc.lib` function runs with the GIL on the calling thread and can call other documents, but not back into the one that
+called it (that raises). Type stubs ship in the package.
+
 **Rust** (`cargo add stof`):
 
 ```rust

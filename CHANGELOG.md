@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.11.5
+
+### Python: share a document across threads, and other threads run during a call
+
+A Python `Doc` is now safe to share across threads, and a running call no longer stops every other Python thread.
+
+- **A call releases the GIL while it runs** (`call`, `call_source`, and `run`). Before, a call held it the whole time,
+  so every other Python thread waited until it finished: a call whose `Http.fetch` reached a server in the same process
+  (Ex. a test server, or a provider and a consumer of a Limitr Network service in one program) waited out its
+  timeout, and a call waiting on the network held up every thread around it (a web server's other requests, a thread
+  receiving on a socket). A library function added with `doc.lib` takes the GIL back while it runs, on the thread
+  making the call.
+- **Calls from many threads take turns.** Each document has its own lock: a call from another thread waits for the
+  running one (without the GIL), then runs, as it did when the GIL kept them apart. Every method takes the lock, so
+  `get`, `set`, imports, and exports never see a call half done.
+- **A library function can't call back into its own document.** It can call other documents. Calling the document
+  that is running it raises (`Already borrowed`, as before) instead of waiting on itself forever.
+- **Type stubs** (`pystof/__init__.pyi`, with `py.typed`): every `Doc` method with its parameters and docs, for
+  editors and type checkers. The package is now `pystof/` with the extension inside; `from pystof import Doc` is
+  unchanged.
+
+Nothing changes for Rust or JavaScript: this release is the Python package (the others get the version number).
+
 ## 0.11.4
 
 ### Arrow functions are closures

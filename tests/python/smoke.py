@@ -74,6 +74,69 @@ def library_functions_threads():
     assert not errors, errors[0]
     assert sorted(results) == [n * 2 for n in range(8)], results
 
+def shared_across_threads():
+    # one document, many threads, no lock of their own: each call runs whole, one at a time
+    import threading
+    doc = Doc()
+    doc.parse("count: 0\nfn slow() -> int { for (const i in 20000) { self.count += 1; } self.count }")
+    results, errors = [], []
+    def work():
+        try:
+            results.append(doc.call('slow')); doc.get('count'); doc.set('seen', True)
+        except Exception as error:
+            errors.append(str(error))
+    threads = [threading.Thread(target=work) for _ in range(6)]
+    for thread in threads: thread.start()
+    for thread in threads: thread.join()
+    assert not errors, errors[0]
+    assert sorted(results) == [20000 * n for n in range(1, 7)], results
+
+def gil_released():
+    # other Python threads run while a call does
+    import threading
+    ticks, stop = [], threading.Event()
+    def tick():
+        while not stop.is_set(): ticks.append(1); time.sleep(0.001)
+    thread = threading.Thread(target=tick); thread.start()
+    doc = Doc(); doc.parse("fn busy() -> int { let t = 0; for (const i in 300000) { t += 1; } t }")
+    try:
+        before = len(ticks); doc.call('busy'); after = len(ticks)
+    finally:
+        stop.set(); thread.join()
+    assert after - before > 3, (before, after)
+
+def in_process_server():
+    # a call's Http::fetch reaches a server running on a thread in this process (it would wait out its timeout if
+    # the call held the GIL)
+    import http.server, threading
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200); self.end_headers(); self.wfile.write(b'hi')
+        def log_message(self, *args): pass
+    server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        doc = Doc(); doc.allow_http_hosts(['127.0.0.1'])
+        doc.parse('fn f() -> str { Http.text(await Http.fetch("http://127.0.0.1:%d/", timeout = 5s)) }' % server.server_address[1])
+        start = time.time()
+        assert doc.call('f') == 'hi'
+        assert time.time() - start < 2
+    finally:
+        server.shutdown()
+
+def reentry():
+    # a library function calling back into the document that called it is an error (never a deadlock), and the
+    # document works after; calling another document is fine
+    doc = Doc()
+    doc.lib('App', 'back', lambda: doc.get('x'))
+    doc.parse("x: 1\nfn f() -> str { try { App.back(); 'no error' } catch (e, message) { message } }")
+    assert 'Already borrowed' in doc.call('f'), doc.call('f')
+    assert doc.get('x') == 1
+    other = Doc(); other.parse('y: 42')
+    doc.lib('App', 'other', lambda: other.get('y'))
+    doc.parse("fn g() -> int { App.other() }")
+    assert doc.call('g') == 42
+
 def values():
     doc = Doc()
     doc.parse('fn f() -> set { const s: set = {[1], [2]}; s }\nfn g() -> map { const m = map(); m.insert([1], 2); m }')
@@ -96,7 +159,7 @@ def sandbox():
     assert doc.call('f') == 'blocked'
 
 def network():
-    # a server in another process: a Stof call holds the GIL while it waits on a request
+    # a server in another process (in_process_server, below, covers one in this process)
     folder = tempfile.mkdtemp()
     with open(os.path.join(folder, 'hi'), 'w') as f: f.write('hi')
     with socket.socket() as s:
@@ -240,7 +303,7 @@ def keys():
     doc = Doc(); doc.parse("fn check(m: str, k: str, s: str) -> bool { Key::verify(k, 'orders/v1', m, s) }")
     assert doc.call('check', [order, public, signature]) is True
 
-for name, fn in [('calls', calls), ('sealing', sealing), ('confined', confined), ('untrusted', untrusted), ('gates', gates), ('keys', keys), ('library functions', library_functions), ('library functions per doc', library_functions_per_doc), ('library functions across threads', library_functions_threads), ('values', values), ('memory limit', memory_limit),
+for name, fn in [('calls', calls), ('sealing', sealing), ('confined', confined), ('untrusted', untrusted), ('gates', gates), ('keys', keys), ('library functions', library_functions), ('library functions per doc', library_functions_per_doc), ('library functions across threads', library_functions_threads), ('shared across threads', shared_across_threads), ('GIL released', gil_released), ('in-process server', in_process_server), ('reentry', reentry), ('values', values), ('memory limit', memory_limit),
                  ('sandbox', sandbox), ('network', network), ('html', html)]:
     check(name, fn)
 print(f'{failed} failed' if failed else 'all ok')

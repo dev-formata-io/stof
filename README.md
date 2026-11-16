@@ -140,7 +140,12 @@ in-process on every call.
 npm i @formata/stof     # JavaScript / TypeScript
 cargo add stof          # Rust
 pip install stof        # Python (import pystof)
-cargo install stof-cli  # command line: stof run, stof test
+```
+
+The `stof` command line (`stof run`, `stof test`, and the language server) is prebuilt for macOS, Linux, and Windows. See [stof-cli](https://github.com/dev-formata-io/stof-cli#install), or on macOS and Linux:
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/dev-formata-io/stof-cli/releases/latest/download/stof-cli-installer.sh | sh
 ```
 
 **TypeScript**

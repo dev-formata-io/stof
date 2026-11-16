@@ -2,7 +2,7 @@
 # RUN "stof run project.stof" TO REGENERATE.
 [package]
 name = "stof"
-version = "0.11.4"
+version = "0.11.5"
 authors = ["CJ Cummings <cj@formata.io>"]
 description = "JSON that runs: JSON with functions, run in a sandbox that can only touch what you hand it. In Rust, JavaScript, and Python."
 license = "Apache-2.0"
