@@ -28,12 +28,15 @@
 ## JSON, plus a function
 
 ```rust
-// doc.stof
+// acme.stof: one customer's pricing
 {
-    "values": { "a": 42, "b": 24 },
+    "customer": "acme",
+    "plan": { "rate": 0.02, "included": 1000 },
 
-    fn sum() -> int {
-        self.values.a + self.values.b
+    fn price(units: int) -> float {
+        const billable = units - self.plan.included;
+        if (billable <= 0) return 0;
+        billable * self.plan.rate
     }
 }
 ```
@@ -41,16 +44,16 @@
 ```typescript
 import { StofDoc } from '@formata/stof';
 
-const doc = await StofDoc.new(source);   // doc.stof
-await doc.call('sum');                    // 66
+const doc = await StofDoc.new(source);   // acme.stof
+await doc.call('price', 5000);           // 80
 ```
 
 ```python
 from pystof import Doc
 
 doc = Doc()
-doc.parse(source)                         # doc.stof
-doc.call('sum')                           # 66
+doc.parse(source)                         # acme.stof
+doc.call('price', 5000)                   # 80.0
 ```
 
 Any JSON is already a Stof document. Add a function where the logic belongs, and your app calls it the way it reads a
@@ -196,6 +199,17 @@ helps.
 **Why not have the model write Python and run it in a container?**
 You can, but that's infrastructure, startup time, and a lot of access to lock down, and what a person reviews is a
 program. Stof runs inside your process, starts instantly, has no access by default, and a change is a diff to a document.
+
+**Why not Lua?**
+Lua is a great language for scripting your own app. Stof is for documents that carry logic. With Lua, the data lives
+somewhere else, each host language needs its own Lua binding, and schemas, units, tests, and the sandbox are yours to
+build. A Stof document holds the data and its logic together, runs the same in Rust, JavaScript, and Python, and starts
+with no access. Any JSON is already a Stof document, so there's nothing to migrate.
+
+**Why not CEL or JSONLogic?**
+Expression languages are safe because they're small: one expression, no functions of your own, no state. That's
+enough for a single condition, and it runs out quickly for pricing, scoring, or an agent's tools. Stof has functions,
+types, and tests, inside the same kind of sandbox.
 
 **Why not WebAssembly?**
 WebAssembly needs a compiler toolchain, and its binaries are large to send. Stof is readable, small, and travels with

@@ -42,9 +42,9 @@ jobs:
         - os: ubuntu-latest
           target: x86_64
           smoke: true
-        - os: ubuntu-latest
+        - os: ubuntu-24.04-arm
           target: aarch64
-          smoke: false
+          smoke: true
         - os: windows-latest
           target: x64
           smoke: true
@@ -63,8 +63,6 @@ jobs:
         target: ${{ matrix.target }}
         args: --release --out dist
         manylinux: '2014'
-      env:
-        CFLAGS_aarch64_unknown_linux_gnu: -D__ARM_ARCH=8
     - name: Check the Python build
       if: matrix.smoke
       shell: bash
