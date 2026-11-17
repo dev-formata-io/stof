@@ -54,8 +54,10 @@ await check('empty document (StofDoc.new() with no source)', async () => {
     doc.set('count', doc.get('count') + 1);
     assert(doc.get('count') === 2, 'get after set');
     assert(doc.set('a.b', 3) === true && doc.get('a.b') === 3, 'set a nested path');
-    assert(doc.stringify('json') === '{"count":2}', `stringify: ${doc.stringify('json')}`);
-    assert(JSON.stringify(doc.record()) === '{"count":2}', 'record');
+    // a JavaScript number is a float in Stof, so compare values, not JSON text ('2.0')
+    const json = JSON.parse(doc.stringify('json'));
+    assert(Object.keys(json).length === 1 && json.count === 2, `stringify: ${doc.stringify('json')}`);
+    assert(doc.record().count === 2 && Object.keys(doc.record()).length === 1, 'record');
     assert(await doc.callSource('fn f() -> int { self.count * 10 }') === 20, 'callSource on the root');
     assert((await doc.clone()).get('count') === 2, 'clone');
     doc = await StofDoc.new();
