@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use arcstr::literal;
-use crate::{model::{LibFunc, Param, string::{AT, CONTAINS, ENDS_WITH, FIND_ALL, FIRST, INDEX_OF, IS_MATCH, LAST, LEN, LOWER, PUSH, REPLACE, SPLIT, STARTS_WITH, STR_LIB, SUBSTRING, TRIM, TRIM_END, TRIM_START, UPPER}}, runtime::{Num, NumT, Type, Val, instruction::Instructions, instructions::Base}};
+use crate::{model::{LibFunc, Param, string::{AT, CONTAINS, ENDS_WITH, FIND_ALL, FIRST, INDEX_OF, IS_MATCH, LAST, LEN, LOWER, PUSH, REPLACE, SPLIT, STARTS_WITH, STR_LIB, SUBSTRING, TRIM, TRIM_END, TRIM_START, UPPER, CHARS, CHAR_LEN, CHAR_AT, CHAR_INDEX_OF, CHAR_SUBSTRING}}, runtime::{Num, NumT, Type, Val, instruction::Instructions, instructions::Base}};
 
 
 /// Len.
@@ -26,9 +26,10 @@ pub fn str_len() -> LibFunc {
         name: "len".into(),
         is_async: false,
         docs: r#"# Str::len(val: str) -> int
-Returns the length (number of characters) in this string.
+Returns the length of this string in bytes (UTF-8). For the number of characters, use `Str::char_len`.
 ```rust
 assert_eq("hello".len(), 5);
+assert_eq("héllo".len(), 6);
 ```
 "#.into(),
         params: crate::params![
@@ -247,7 +248,7 @@ pub fn str_index_of() -> LibFunc {
         name: "index_of".into(),
         is_async: false,
         docs: r#"# Str::index_of(val: str, seq: str) -> int
-Find the first occurrance of the given sequence in this string, returning the index of the first char. If not found, returns -1.
+Find the first occurrence of the given sequence in this string, returning its byte index (like `len`). If not found, returns -1. For a character index, use `Str::char_index_of`.
 ```rust
 const val = "hello, world";
 assert_eq(val.index_of(", w"), 5);
@@ -544,6 +545,146 @@ assert_eq(val.find_matches(regex), [("categorically", 2, 15)]);
         func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
             let mut instructions = Instructions::default();
             instructions.push(FIND_ALL.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// Chars.
+pub fn str_chars() -> LibFunc {
+    LibFunc {
+        library: STR_LIB.clone(),
+        name: "chars".into(),
+        is_async: false,
+        docs: r#"# Str::chars(val: str) -> list
+The characters of this string, each as a string. Unlike `len`, `at`, `index_of`, and `substring`, which count bytes, the `char_` functions and `chars` count characters (Unicode scalar values), so text with accents, emoji, or other non-ASCII characters indexes the way it reads.
+```rust
+assert_eq("héllo".chars(), ["h", "é", "l", "l", "o"]);
+```
+"#.into(),
+        params: crate::params![
+            Param { name: "val".into(), param_type: Type::Str, default: None }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(CHARS.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// Char len.
+pub fn str_char_len() -> LibFunc {
+    LibFunc {
+        library: STR_LIB.clone(),
+        name: "char_len".into(),
+        is_async: false,
+        docs: r#"# Str::char_len(val: str) -> int
+The number of characters in this string (`len` is the number of bytes).
+```rust
+assert_eq("héllo".char_len(), 5);
+assert_eq("héllo".len(), 6);
+```
+"#.into(),
+        params: crate::params![
+            Param { name: "val".into(), param_type: Type::Str, default: None }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(CHAR_LEN.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// Char at.
+pub fn str_char_at() -> LibFunc {
+    LibFunc {
+        library: STR_LIB.clone(),
+        name: "char_at".into(),
+        is_async: false,
+        docs: r#"# Str::char_at(val: str, index: int) -> str
+The character at a character index. A negative index counts from the end (-1 is the last character). An index past either end gives an empty string.
+```rust
+assert_eq("héllo".char_at(1), "é");
+assert_eq("héllo".char_at(-1), "o");
+assert_eq("héllo".char_at(9), "");
+```
+"#.into(),
+        params: crate::params![
+            Param { name: "val".into(), param_type: Type::Str, default: None },
+            Param { name: "index".into(), param_type: Type::Num(NumT::Int), default: None }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(CHAR_AT.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// Char index of.
+pub fn str_char_index_of() -> LibFunc {
+    LibFunc {
+        library: STR_LIB.clone(),
+        name: "char_index_of".into(),
+        is_async: false,
+        docs: r#"# Str::char_index_of(val: str, seq: str) -> int
+The character index where a sequence first appears in this string, or -1 if it isn't found.
+```rust
+assert_eq("héllo, world".char_index_of("world"), 7);
+assert_eq("héllo, world".index_of("world"), 8); // bytes
+```
+"#.into(),
+        params: crate::params![
+            Param { name: "val".into(), param_type: Type::Str, default: None },
+            Param { name: "seq".into(), param_type: Type::Str, default: None }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(CHAR_INDEX_OF.clone());
+            Ok(instructions)
+        })
+    }
+}
+
+/// Char substring.
+pub fn str_char_substring() -> LibFunc {
+    LibFunc {
+        library: STR_LIB.clone(),
+        name: "char_substring".into(),
+        is_async: false,
+        docs: r#"# Str::char_substring(val: str, start: int = 0, end: int = -1) -> str
+The part of this string from a start character index up to, but not including, an end character index. Like `substring`, but indexes count characters. The default end (-1) is the end of the string.
+```rust
+const val = "héllo, wörld";
+assert_eq(val.char_substring(7), "wörld");
+assert_eq(val.char_substring(1, 4), "éll");
+```
+"#.into(),
+        params: crate::params![
+            Param { name: "val".into(), param_type: Type::Str, default: None },
+            Param { name: "start".into(), param_type: Type::Num(NumT::Int), default: Some(Arc::new(Base::Literal(Val::Num(Num::Int(0))))) },
+            Param { name: "end".into(), param_type: Type::Num(NumT::Int), default: Some(Arc::new(Base::Literal(Val::Num(Num::Int(-1))))) }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(CHAR_SUBSTRING.clone());
             Ok(instructions)
         })
     }

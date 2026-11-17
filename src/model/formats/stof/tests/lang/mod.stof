@@ -34,6 +34,18 @@ import './order' as self.Order;
 
 
 #[test]
+/// A name that starts with a literal keyword is a name (0.11.5 and earlier read `nullable` as `null` + `able`).
+fn names_that_start_with_keywords() {
+    const nullable = 1;
+    const trueish = 2;
+    const falsey = 3;
+    assert_eq(nullable + trueish + falsey, 6);
+    assert_eq([nullable, trueish], [1, 2]);
+    assert(true && !false);
+    assert_eq(null ?? falsey, 3);
+}
+
+#[test]
 fn declarations() {
     let a;
     assert_eq(a, null);

@@ -71,11 +71,29 @@ pub enum Type {
 
     Unknown,
     Union(Vector<Self>),
+
+    /// A function with a signature: `fn(str, int) -> str` (parameter types, then the return type).
+    /// Matches a compatible function (see `Type::fits_fn`); a missing return type is Unknown (any return).
+    /// Last on purpose: BSTF stores a type by its position here, so new types go at the end (older documents keep
+    /// loading the same).
+    FnSig(Vector<Self>, Box<Self>),
 }
 impl PartialEq for Type {
     fn eq(&self, other: &Self) -> bool {
+        // not-null: the same type without null. Two not-null types compare their types; a not-null type and a plain
+        // one compare the types (a value's own type is never not-null); null never matches a not-null type.
+        match (self, other) {
+            (Self::NotNull(a), Self::NotNull(b)) => return a.deref() == b.deref(),
+            (Self::NotNull(_), Self::Null) | (Self::Null, Self::NotNull(_)) => return false,
+            (Self::NotNull(a), b) => return a.deref() == b,
+            (a, Self::NotNull(b)) => return a == b.deref(),
+            _ => {}
+        }
         match other {
-            Self::Null => return !self.exp_not_null(),
+            Self::Null => return match self {
+                Self::Union(types) => types.iter().any(|ty| ty == &Self::Null), // null if any of its types can be
+                _ => !self.exp_not_null(),
+            },
             Self::Unknown => return true,
             Self::Union(types) => {
                 match self {
@@ -178,6 +196,12 @@ impl PartialEq for Type {
                     _ => false,
                 }
             },
+            Self::FnSig(params, ret) => {
+                match other {
+                    Self::FnSig(oparams, oret) => params.len() == oparams.len() && params.iter().zip(oparams.iter()).all(|(a, b)| a == b) && ret == oret,
+                    _ => false, // a function value is checked against its signature in cast (Val::fits_fn_sig)
+                }
+            },
             Self::Data(t) => {
                 match other {
                     Self::Data(ot) => t.eq(ot),
@@ -228,6 +252,55 @@ impl PartialEq for Type {
 }
 impl Eq for Type {}
 impl Type {
+    /// Does a function fit a signature type (`fn(P..) -> R`)? A compatible match, not an exact one:
+    /// - it can be called with the signature's arguments: as many as the signature has, and any parameters past
+    ///   those have defaults (Ex. `fn(str)` fits `fn(name: str, greeting: str = 'hi')`);
+    /// - each parameter accepts the signature's type for it (the same type, a wider one such as `unknown`, a union
+    ///   that includes it, a number for a number, or a prototype the signature's type extends);
+    /// - its return type fits the signature's (the same, or narrower), unless the signature leaves it out (any return).
+    ///   An async function fits by what it returns (no `Promise<..>` in the signature).
+    ///
+    /// `func_params` are the function's parameter types, each with whether it has a default. Object type names in both
+    /// should already be prototypes (`obj_to_proto`), so a prototype that extends another is seen.
+    pub fn fits_fn(params: &Vector<Type>, ret: &Type, func_params: &[(Type, bool)], func_ret: &Type, graph: &Graph) -> bool {
+        if params.len() > func_params.len() { return false; }
+        if func_params.iter().skip(params.len()).any(|(_, has_default)| !has_default) { return false; }
+        for (expected, (param_type, _)) in params.iter().zip(func_params.iter()) {
+            if !Self::accepts(param_type, expected, graph) { return false; }
+        }
+        match ret {
+            Self::Unknown => true,
+            ret => Self::accepts(ret, func_ret, graph),
+        }
+    }
+
+    /// Can a value of type `given` go where `declared` is expected (for a function signature)?
+    fn accepts(declared: &Type, given: &Type, graph: &Graph) -> bool {
+        match (declared, given) {
+            // a not-null parameter needs a not-null argument (a plain type can be null); a not-null value goes
+            // anywhere its type does
+            (Self::NotNull(declared), Self::NotNull(given)) => Self::accepts(declared, given, graph),
+            (Self::NotNull(_), _) => false,
+            (declared, Self::NotNull(given)) => Self::accepts(declared, given, graph),
+            (Self::Num(NumT::Int | NumT::Float), Self::Num(NumT::Int | NumT::Float)) => true,
+            (Self::Obj(declared), Self::Obj(given)) => {
+                if declared == given || declared.as_ref() == OBJ.as_str() { return true; }
+                given.node_exists(graph) && declared.node_exists(graph) &&
+                    Val::Obj(given.clone()).instance_of(declared, graph).unwrap_or(false)
+            },
+            (Self::FnSig(dparams, dret), Self::FnSig(gparams, gret)) => {
+                // a function parameter: what's passed must work everywhere the declared one would be called
+                dparams.len() == gparams.len() &&
+                    dparams.iter().zip(gparams.iter()).all(|(d, g)| Self::accepts(g, d, graph)) &&
+                    (matches!(dret.as_ref(), Self::Unknown) || Self::accepts(dret, gret, graph))
+            },
+            (Self::Fn, Self::FnSig(..)) => true,
+            (Self::Union(types), given) => types.iter().any(|ty| Self::accepts(ty, given, graph)),
+            (declared, Self::Union(types)) if !matches!(declared, Self::Unknown) => types.iter().all(|ty| Self::accepts(declared, ty, graph)),
+            (declared, given) => declared == given,
+        }
+    }
+
     #[inline]
     pub fn empty(&self) -> bool {
         match self {
@@ -269,6 +342,10 @@ impl Type {
             Self::Tup(types) => {
                 for ty in types { ty.obj_to_proto(graph, context.clone()); }
             },
+            Self::FnSig(params, ret) => {
+                for ty in params { ty.obj_to_proto(graph, context.clone()); }
+                ret.obj_to_proto(graph, context);
+            },
             Self::Obj(name_or_id) => {
                 if !name_or_id.node_exists(graph) { // not a node ref, so must be a name
                     let mut path = name_or_id.as_ref().to_string();
@@ -309,10 +386,15 @@ impl Type {
             Self::Union(types) => {
                 let mut geo = String::default();
                 for ty in types {
+                    // a function with a return type in a union is in parentheses (its return type would take the rest)
+                    let text = match ty {
+                        Self::FnSig(_, ret) if !matches!(ret.as_ref(), Self::Unknown) => format!("({})", ty.type_of()),
+                        _ => ty.type_of().to_string(),
+                    };
                     if geo.len() < 1 {
-                        geo.push_str(&ty.type_of());
+                        geo.push_str(&text);
                     } else {
-                        geo.push_str(&format!(" | {}", ty.type_of()));
+                        geo.push_str(&format!(" | {}", text));
                     }
                 }
                 geo.into()
@@ -324,6 +406,13 @@ impl Type {
             Self::Bool => BOOL,
             Self::Blob => BLOB,
             Self::Fn => FUNC,
+            Self::FnSig(params, ret) => {
+                let params = params.iter().map(|ty| ty.type_of().to_string()).collect::<Vec<_>>().join(", ");
+                match ret.as_ref() {
+                    Self::Unknown => format!("fn({params})").into(),
+                    ret => format!("fn({params}) -> {}", ret.type_of()).into(),
+                }
+            },
             Self::Data(tname) => {
                 let dta = DATA;
                 if tname == &dta {
@@ -332,7 +421,11 @@ impl Type {
                 format!("Data<{}>", tname).into()
             },
             Self::Null => NULL,
-            Self::NotNull(t) => t.type_of(),
+            Self::NotNull(t) => match t.as_ref() {
+                Self::Union(_) => format!("({})!", t.type_of()).into(),
+                Self::NotNull(_) => t.type_of(),
+                t => format!("{}!", t.type_of()).into(),
+            },
             Self::Num(num) => num.type_of(),
             Self::Ver => VER,
             Self::Str => STR,
@@ -362,10 +455,15 @@ impl Type {
             Self::Union(types) => {
                 let mut geo = String::default();
                 for ty in types {
+                    // a function with a return type in a union is in parentheses (its return type would take the rest)
+                    let text = match ty {
+                        Self::FnSig(_, ret) if !matches!(ret.as_ref(), Self::Unknown) => format!("({})", ty.rt_type_of(graph)),
+                        _ => ty.rt_type_of(graph).to_string(),
+                    };
                     if geo.len() < 1 {
-                        geo.push_str(&ty.rt_type_of(graph));
+                        geo.push_str(&text);
                     } else {
-                        geo.push_str(&format!(" | {}", ty.rt_type_of(graph)));
+                        geo.push_str(&format!(" | {}", text));
                     }
                 }
                 geo.into()
@@ -377,6 +475,13 @@ impl Type {
             Self::Bool => BOOL,
             Self::Blob => BLOB,
             Self::Fn => FUNC,
+            Self::FnSig(params, ret) => {
+                let params = params.iter().map(|ty| ty.rt_type_of(graph).to_string()).collect::<Vec<_>>().join(", ");
+                match ret.as_ref() {
+                    Self::Unknown => format!("fn({params})").into(),
+                    ret => format!("fn({params}) -> {}", ret.rt_type_of(graph)).into(),
+                }
+            },
             Self::Data(tname) => {
                 let dta = DATA;
                 if tname == &dta {
@@ -385,7 +490,11 @@ impl Type {
                 format!("Data<{}>", tname).into()
             },
             Self::Null => NULL,
-            Self::NotNull(t) => t.rt_type_of(graph),
+            Self::NotNull(t) => match t.as_ref() {
+                Self::Union(_) => format!("({})!", t.rt_type_of(graph)).into(),
+                Self::NotNull(_) => t.rt_type_of(graph),
+                t => format!("{}!", t.rt_type_of(graph)).into(),
+            },
             Self::Num(num) => num.type_of(),
             Self::Ver => VER,
             Self::Str => STR,
@@ -440,7 +549,8 @@ impl Type {
             Self::Set => literal!("Set"),
             Self::Blob => literal!("Blob"),
             Self::Bool => literal!("Bool"),
-            Self::Fn => literal!("Fn"),
+            Self::Fn |
+            Self::FnSig(..) => literal!("Fn"),
             Self::Num(_) => literal!("Num"),
             Self::Data(_) => literal!("Data"),
             Self::Str => literal!("Str"),
@@ -508,5 +618,77 @@ impl NumT {
             Self::Int => INT,
             Self::Units(units) => units.to_string(),
         }
+    }
+}
+
+#[cfg(test)]
+mod not_null_tests {
+    use super::*;
+    use imbl::vector;
+
+    fn nn(ty: Type) -> Type { Type::NotNull(Box::new(ty)) }
+
+    #[test]
+    fn not_null_equality() {
+        let int = Type::Num(NumT::Int);
+        // two not-null types compare their types
+        assert!(nn(int.clone()) == nn(int.clone()));
+        assert!(nn(int.clone()) != nn(Type::Str));
+        assert!(nn(nn(int.clone())) == nn(int.clone()));
+        // a not-null type and a plain one compare the types, either way around
+        assert!(nn(int.clone()) == int.clone());
+        assert!(int.clone() == nn(int.clone()));
+        assert!(nn(int.clone()) != Type::Str);
+        assert!(Type::Str != nn(int.clone()));
+        // null never matches a not-null type, either way around (even not-null unknown)
+        assert!(nn(int.clone()) != Type::Null);
+        assert!(Type::Null != nn(int.clone()));
+        assert!(nn(Type::Unknown) != Type::Null);
+        assert!(Type::Null != nn(Type::Unknown));
+        // unknown still matches the type
+        assert!(Type::Unknown == nn(int.clone()));
+        assert!(nn(int.clone()) == Type::Unknown);
+        assert!(nn(Type::Unknown) == Type::Str);
+        // plain types still take null
+        assert!(int.clone() == Type::Null);
+        assert!(Type::Null == int.clone());
+        // inside unions, tuples, promises, and signatures
+        let union = Type::Union(vector![nn(int.clone()), Type::Str]);
+        assert!(union == int.clone());
+        assert!(union == Type::Null); // str can be null
+        assert!(Type::Union(vector![nn(int.clone()), nn(Type::Str)]) != Type::Null);
+        assert!(Type::Null != Type::Union(vector![nn(int.clone()), nn(Type::Str)]));
+        assert!(nn(Type::Union(vector![int.clone(), Type::Str])) != Type::Null);
+        assert!(nn(Type::Union(vector![int.clone(), Type::Str])) == Type::Str);
+        assert!(Type::Tup(vector![nn(int.clone()), Type::Str]) == Type::Tup(vector![nn(int.clone()), Type::Str]));
+        assert!(Type::Tup(vector![nn(int.clone()), Type::Str]) == Type::Tup(vector![int.clone(), Type::Str]));
+        assert!(Type::Tup(vector![nn(int.clone())]) != Type::Tup(vector![Type::Null]));
+        assert!(Type::Promise(Box::new(nn(int.clone()))) == Type::Promise(Box::new(nn(int.clone()))));
+        let sig = Type::FnSig(vector![nn(int.clone())], Box::new(nn(Type::Str)));
+        assert!(sig == sig.clone());
+    }
+}
+
+#[cfg(test)]
+mod bstf_tests {
+    use super::*;
+
+    #[test]
+    /// BSTF (bincode) stores a type by its position in the enum. Moving a variant changes what every stored
+    /// document's types mean (Ex. a `list` read back as a `blob`), so new types go at the end.
+    fn type_positions_are_stable() {
+        let position = |ty: Type| u32::from_le_bytes(bincode::serialize(&ty).unwrap()[..4].try_into().unwrap());
+        assert_eq!(position(Type::Void), 0);
+        assert_eq!(position(Type::Null), 1);
+        assert_eq!(position(Type::Bool), 4);
+        assert_eq!(position(Type::Str), 6);
+        assert_eq!(position(Type::Fn), 10);
+        assert_eq!(position(Type::Blob), 12);
+        assert_eq!(position(Type::List), 13);
+        assert_eq!(position(Type::Map), 15);
+        assert_eq!(position(Type::Set), 16);
+        assert_eq!(position(Type::Unknown), 17);
+        assert_eq!(position(Type::Union(Vector::default())), 18);
+        assert_eq!(position(Type::FnSig(Vector::default(), Box::new(Type::Unknown))), 19);
     }
 }

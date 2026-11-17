@@ -443,7 +443,7 @@ export interface SealInfo {
  * Stof document.
  */
 export class StofDoc {
-    static readonly VERSION = '0.11.5';
+    static readonly VERSION = '0.11.6';
     private static initialized?: Promise<unknown>;
     private static wasmMutex = new WasmMutex();
     stof: Stof;

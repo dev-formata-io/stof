@@ -20,7 +20,7 @@ use imbl::{Vector, vector};
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use crate::{model::{Graph, string::ops::{str_at, str_contains, str_ends_with, str_find_matches, str_first, str_index_of, str_last, str_len, str_lower, str_matches, str_push, str_replace, str_split, str_starts_with, str_substr, str_trim, str_trim_end, str_trim_start, str_upper}}, runtime::{Error, Num, Val, ValRef, Variable, instruction::{Instruction, Instructions}, memory, proc::ProcEnv}};
+use crate::{model::{Graph, string::ops::{str_at, str_contains, str_ends_with, str_find_matches, str_first, str_index_of, str_last, str_len, str_lower, str_matches, str_push, str_replace, str_split, str_starts_with, str_substr, str_trim, str_trim_end, str_trim_start, str_upper, str_chars, str_char_len, str_char_at, str_char_index_of, str_char_substring}}, runtime::{Error, Num, Val, ValRef, Variable, instruction::{Instruction, Instructions}, memory, proc::ProcEnv}};
 
 mod ops;
 
@@ -49,6 +49,11 @@ pub fn insert_string_lib(graph: &mut Graph) {
     graph.insert_libfunc(str_substr());
     graph.insert_libfunc(str_matches());
     graph.insert_libfunc(str_find_matches());
+    graph.insert_libfunc(str_chars());
+    graph.insert_libfunc(str_char_len());
+    graph.insert_libfunc(str_char_at());
+    graph.insert_libfunc(str_char_index_of());
+    graph.insert_libfunc(str_char_substring());
 }
 
 
@@ -72,6 +77,11 @@ lazy_static! {
     pub(self) static ref SUBSTRING: Arc<dyn Instruction> = Arc::new(StrIns::Substring);
     pub(self) static ref IS_MATCH: Arc<dyn Instruction> = Arc::new(StrIns::IsMatch);
     pub(self) static ref FIND_ALL: Arc<dyn Instruction> = Arc::new(StrIns::FindAll);
+    pub(self) static ref CHARS: Arc<dyn Instruction> = Arc::new(StrIns::Chars);
+    pub(self) static ref CHAR_LEN: Arc<dyn Instruction> = Arc::new(StrIns::CharLen);
+    pub(self) static ref CHAR_AT: Arc<dyn Instruction> = Arc::new(StrIns::CharAt);
+    pub(self) static ref CHAR_INDEX_OF: Arc<dyn Instruction> = Arc::new(StrIns::CharIndexOf);
+    pub(self) static ref CHAR_SUBSTRING: Arc<dyn Instruction> = Arc::new(StrIns::CharSubstring);
 }
 
 
@@ -99,6 +109,13 @@ pub enum StrIns {
     // REGEX
     IsMatch,
     FindAll,
+
+    // by character (Unicode scalar values) instead of byte
+    Chars,
+    CharLen,
+    CharAt,
+    CharIndexOf,
+    CharSubstring,
 }
 #[typetag::serde(name = "StrIns")]
 impl Instruction for StrIns {
@@ -409,6 +426,51 @@ impl Instruction for StrIns {
                 }
                 Err(Error::StrTrimEnd)
             },
+            Self::Chars => {
+                let text = pop_str(env, "chars")?;
+                let count = text.chars().count();
+                memory::check_elements(env.max_memory, count, memory::ELEMENT_COST)?;
+                let list = text.chars().map(|c| ValRef::new(Val::Str(String::from(c).into()))).collect::<Vector<ValRef<Val>>>();
+                env.stack.push(Variable::val(Val::List(list)));
+                Ok(None)
+            },
+            Self::CharLen => {
+                let text = pop_str(env, "char_len")?;
+                env.stack.push(Variable::val(Val::Num(Num::Int(text.chars().count() as i64))));
+                Ok(None)
+            },
+            Self::CharAt => {
+                let index = pop_int(env, "char_at")?;
+                let text = pop_str(env, "char_at")?;
+                let found = if index < 0 {
+                    let back = index.unsigned_abs() as usize;
+                    text.chars().rev().nth(back - 1)
+                } else {
+                    text.chars().nth(index as usize)
+                };
+                env.stack.push(Variable::val(Val::Str(found.map(|c| ArcStr::from(String::from(c))).unwrap_or_default())));
+                Ok(None)
+            },
+            Self::CharIndexOf => {
+                let seq = pop_str(env, "char_index_of")?;
+                let text = pop_str(env, "char_index_of")?;
+                let index = text.find(seq.as_str()).map(|byte| text[..byte].chars().count() as i64).unwrap_or(-1);
+                env.stack.push(Variable::val(Val::Num(Num::Int(index))));
+                Ok(None)
+            },
+            Self::CharSubstring => {
+                let end = pop_int(env, "char_substring")?;
+                let start = pop_int(env, "char_substring")?;
+                let text = pop_str(env, "char_substring")?;
+                // character indexes to byte offsets (one pass), then the same clamping as substring
+                let count = text.chars().count();
+                let start = start.clamp(0, count as i64) as usize;
+                let end = if end < 0 { count } else { (end as usize).min(count) }.max(start);
+                let offset = |chars: usize| text.char_indices().nth(chars).map(|(byte, _)| byte).unwrap_or(text.len());
+                let (from, to) = (offset(start), offset(end));
+                env.stack.push(Variable::val(Val::Str(ArcStr::from(&text[from..to]))));
+                Ok(None)
+            },
             Self::Substring => {
                 if let Some(end_var) = env.stack.pop() {
                     if let Some(start_var) = env.stack.pop() {
@@ -524,4 +586,21 @@ fn floor_char_boundary(text: &str, offset: usize) -> usize {
     let mut offset = offset.min(text.len());
     while offset > 0 && !text.is_char_boundary(offset) { offset -= 1; }
     offset
+}
+
+
+/// The string argument of a `char_` function (popped from the stack).
+fn pop_str(env: &mut ProcEnv, name: &str) -> Result<ArcStr, Error> {
+    if let Some(var) = env.stack.pop() {
+        if let Val::Str(text) = var.val.read().deref() { return Ok(text.clone()); }
+    }
+    Err(Error::Custom(format!("Str.{name}: expected a string").into()))
+}
+
+/// An int argument of a `char_` function (popped from the stack).
+fn pop_int(env: &mut ProcEnv, name: &str) -> Result<i64, Error> {
+    if let Some(var) = env.stack.pop() {
+        if let Val::Num(num) = var.val.read().deref() { return Ok(num.int()); }
+    }
+    Err(Error::Custom(format!("Str.{name}: expected an int index").into()))
 }

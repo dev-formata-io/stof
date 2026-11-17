@@ -17,6 +17,7 @@
 
 import './union' as self.Union;
 import './notnull' as self.NotNull;
+import './fnsig' as self.FnSig;
 
 
 /// typeof and typename are unary: they bind to the value right after them, not the whole expression.

@@ -46,6 +46,27 @@ async function rejects(promise, pattern) {
 }
 const doubling = 'fn probe() { let s = "aaaaaaaaaaaaaaaa"; loop { s = s + s; } }';
 
+// a document made with no source is an empty object: every host method works on it (0.11.5 and earlier panicked)
+await check('empty document (StofDoc.new() with no source)', async () => {
+    let doc = await StofDoc.new();
+    assert(doc.get('count') === null, 'get on an empty document');
+    assert(doc.set('count', 1) === true, 'set the first field');
+    doc.set('count', doc.get('count') + 1);
+    assert(doc.get('count') === 2, 'get after set');
+    assert(doc.set('a.b', 3) === true && doc.get('a.b') === 3, 'set a nested path');
+    assert(doc.stringify('json') === '{"count":2}', `stringify: ${doc.stringify('json')}`);
+    assert(JSON.stringify(doc.record()) === '{"count":2}', 'record');
+    assert(await doc.callSource('fn f() -> int { self.count * 10 }') === 20, 'callSource on the root');
+    assert((await doc.clone()).get('count') === 2, 'clone');
+    doc = await StofDoc.new();
+    assert(doc.stringify('json') === '{}', 'stringify an empty document');
+    assert(doc.remove('missing') === false, 'remove on an empty document');
+    assert(typeof (await doc.run()) === 'string', 'run on an empty document');
+    doc = await StofDoc.new({ x: 1 });
+    doc.remove('root');
+    assert(doc.set('y', 2) === true && doc.get('y') === 2, 'set after the root was removed');
+});
+
 // calls, library functions, and calling back into the document
 await check('call, callSource, run', async () => {
     const doc = await StofDoc.new('x: 20\nfn add(n: int) -> int { self.x + n }\n#[main] fn main() -> int { 1 }');

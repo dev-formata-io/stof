@@ -1,5 +1,72 @@
 # Changelog
 
+## 0.11.6
+
+### Function signature types
+
+`fn` still takes any function. A signature takes only the functions that fit it, checked where the value is passed,
+assigned, or cast, so a wrong function fails where it's handed over instead of somewhere deep inside:
+
+```stof
+fn apply(f: fn(int) -> int, x: int) -> int { f(x) }
+fn(str) -> str handler: (s: str): str => s.upper()   // a typed field
+let each: fn(str) = (s: str) => pln(s);              // no return type: any return
+```
+
+- **Compatible, not identical.** Parameters past the signature's need defaults (or `?`). A parameter can take more
+  than the signature passes (`unknown`, a union that includes the type, a `float` for an `int`, a prototype the
+  signature's type extends). The return type can be the same or narrower. An async function fits by what it
+  returns (no `Promise<..>` in the signature).
+- **The return type takes the rest of the type:** `fn(int) -> int | null` returns an int or null. Parentheses group
+  any type, so `(fn(str) -> str) | int` is a function or an int, and `fn(int) -> (int | null)` spells out the return.
+  One type in parentheses is that type (`(int)` was a one-element tuple type); two or more are a tuple.
+- **Errors show both signatures:** `cannot cast fn(str) -> str to fn(int) -> int`.
+- `typeof` is still `'fn'`; `typename` gives the signature (`typename self.double` is `'fn(int) -> int'`), as it gives
+  the prototype for an object. Library functions aren't values, so they never meet a signature.
+- **No cost for `fn`:** only a declared signature looks up the function's parameters, once per check.
+- A document that uses a signature type needs Stof 0.11.6 or later to load (older versions don't know the type).
+
+### Not-null types, everywhere a type goes
+
+- **`!` now parses inside tuples and on union members:** `(int!, str)` (only the int can't be null), `int! | str!`
+  (never null). A whole union takes it with parentheses: `(int | str)!`. Before, these were parse errors.
+- **Comparing types with `!` works as expected:** two not-null types compare their types (`int! == int!` was false),
+  a not-null type matches its plain type, null never matches a not-null type, and a union matches null only if one of
+  its types can be null. This is what makes `(int!, str)` and signatures with `!` check correctly.
+- **In signatures:** a function with a `str!` parameter only fits a signature that passes a `str!` (a plain `str`
+  could be null); a function returning `str!` fits a signature returning `str`, not the other way around.
+- **Types print with their `!`** (errors, `typename`, docs, and the readable export of a typed field such as
+  `(int!, str) pair`), and with parentheses where a union or a function in a union needs them, so a printed type
+  parses back to the same type.
+
+### Strings by character
+
+`len`, `at`, `index_of`, and `substring` count bytes. New functions count characters (Unicode scalar values), so text
+with accents, emoji, or other non-ASCII characters indexes the way it reads: `Str::char_len`, `Str::chars` (a list of
+characters), `Str::char_at` (a negative index counts from the end), `Str::char_index_of`, and `Str::char_substring`.
+The docs for `len` and `index_of` now say they count bytes.
+
+### Fix: names that start with `null`, `true`, or `false`
+
+A variable named `nullable`, `trueish`, or `falsey` failed to parse where it was used as a value
+(`pln(nullable)` read as `null` followed by `able`). The literals now match whole words only.
+
+### Fix: get and set on a new empty document
+
+Setting or getting a field on a document made with no source crashed the engine (`panicked at src/runtime/proc.rs`):
+`await StofDoc.new()` then `doc.set('count', 1)` in JavaScript, and `Doc()` then `doc.set('count', 1)` in Python. In
+JavaScript the crash also ended the document (`the Stof document crashed and can't be used again`). It came in with
+0.10.0, when host paths became relative to the main root: a document with no source had no main root to start from.
+
+- **A new document is an empty object** (JavaScript and Python), the same as `StofDoc.new({})`: it has a main root, so
+  `get`, `set`, `call`, `stringify`, `record`, and `clone` work on it from the start, and it exports as `{}`.
+- **`get` and `set` always have a root to start from:** if the main root was removed (`doc.remove('root')`), they make
+  a new empty one instead of crashing.
+- **Tests:** the JavaScript and Python package checks now run every host method on an empty document.
+
+For Rust, the empty-document fix changes nothing: a Rust `Graph` has no host `get`/`set`, and `Runtime::call` already
+handled a graph with no root.
+
 ## 0.11.5
 
 ### Python: share a document across threads, and other threads run during a call

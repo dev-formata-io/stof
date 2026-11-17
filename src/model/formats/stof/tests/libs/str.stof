@@ -166,3 +166,30 @@ fn non_ascii_and_empty() {
     assert_eq(''.at(-1), '');
     assert_eq(''.substring(1, 5), '');
 }
+
+#[test]
+/// The char_ functions and chars count characters, not bytes.
+fn by_character() {
+    const val = '日本語 é';
+    assert_eq(val.char_len(), 5);
+    assert_eq(val.chars(), ['日', '本', '語', ' ', 'é']);
+    assert_eq(val.char_at(1), '本');
+    assert_eq(val.char_at(-1), 'é');
+    assert_eq(val.char_at(-5), '日');
+    assert_eq(val.char_at(5), '');
+    assert_eq(val.char_at(-6), '');
+    assert_eq(val.char_index_of('é'), 4);
+    assert_eq(val.char_index_of('語 '), 2);
+    assert_eq(val.char_index_of('x'), -1);
+    assert_eq(val.char_substring(), val);
+    assert_eq(val.char_substring(1, 3), '本語');
+    assert_eq(val.char_substring(4), 'é');
+    assert_eq(val.char_substring(3, 1), '');
+    assert_eq(val.char_substring(-2, 100), val);
+    assert_eq(''.char_len(), 0);
+    assert_eq(''.chars(), []);
+    assert_eq(''.char_at(0), '');
+    assert_eq(''.char_substring(1, 5), '');
+    assert_eq('héllo, wörld'.char_substring(7), 'wörld');
+    assert_eq('hello'.char_len(), 'hello'.len());
+}

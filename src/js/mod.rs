@@ -134,9 +134,12 @@ impl Stof {
     #[wasm_bindgen(constructor)]
     /// Construct a new document.
     pub fn new() -> Self {
+        // a new document is an empty object, like `new({})`: host paths (get, set, call) start at its main root
+        let mut graph = Graph::default();
+        graph.ensure_main_root();
         Self {
             docid: nanoid!(10),
-            graph: RefCell::new(Graph::default()),
+            graph: RefCell::new(graph),
         }
     }
 
@@ -149,9 +152,9 @@ impl Stof {
     pub fn get(&self, path: &str, start: JsValue) -> Result<JsValue, String> {
         let mut proc_env = ProcEnv::default();
         let mut graph = self.graph_mut()?;
-        if let Some(main) = graph.main_root() {
-            proc_env.self_stack.push(main);
-        }
+        // always a main root to start from (an empty document, or one whose root was removed): never a missing self
+        let main = graph.ensure_main_root();
+        proc_env.self_stack.push(main);
         match to_graph_value(start, &graph) {
             Val::Obj(start) => {
                 proc_env.self_stack.push(start);
@@ -174,9 +177,9 @@ impl Stof {
     pub fn set(&self, path: &str, value: JsValue, start: JsValue) -> Result<bool, String> {
         let mut proc_env = ProcEnv::default();
         let mut graph = self.graph_mut()?;
-        if let Some(main) = graph.main_root() {
-            proc_env.self_stack.push(main);
-        }
+        // always a main root to start from (an empty document, or one whose root was removed): never a missing self
+        let main = graph.ensure_main_root();
+        proc_env.self_stack.push(main);
         match to_graph_value(start, &graph) {
             Val::Obj(start) => {
                 proc_env.self_stack.push(start);

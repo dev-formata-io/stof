@@ -1,0 +1,214 @@
+//
+// Copyright 2025 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+/*!
+ * Function signature types: `fn(str) -> str` matches compatible functions, `fn` matches every function.
+ */
+
+fn double(x: int) -> int { x * 2 }
+fn shout(s: str) -> str { s.upper() }
+fn greet(name: str, greeting: str = 'hi') -> str { `${greeting} ${name}` }
+fn maybe(name: str, title?: str) -> str { title ?? name }
+fn nothing(x: int) { }
+fn half(x: float) -> float { x / 2 }
+async fn later(x: int) -> int { x + 1 }
+
+fn apply(f: fn(int) -> int, x: int) -> int { f(x) }
+fn apply_str(f: fn(str) -> str, s: str) -> str { f(s) }
+fn any_return(f: fn(int), x: int) { f(x); }
+fn general(f: fn) -> str { 'any function' }
+
+#[type]
+Shape: {
+    fn area() -> float { 0 }
+}
+#[type]
+#[extends('Shape')]
+Square: {
+    float side: 2
+    fn area() -> float { self.side * self.side }
+}
+fn shape_area(s: Shape) -> float { s.area() }
+fn square_area(s: Square) -> float { s.area() }
+fn measure(f: fn(Square) -> float, s: Square) -> float { f(s) }
+
+#[test]
+fn named_and_arrow_functions_fit() {
+    assert_eq(self.apply(self.double, 4), 8);
+    assert_eq(self.apply((x: int): int => x + 1, 4), 5);
+    assert_eq(self.apply_str(self.shout, 'hey'), 'HEY');
+    assert_eq(self.general(self.double), 'any function');
+}
+
+#[test]
+fn defaults_and_optional_params_fit() {
+    assert_eq(self.apply_str(self.greet, 'cj'), 'hi cj');
+    assert_eq(self.apply_str(self.maybe, 'cj'), 'cj');
+}
+
+#[test]
+fn a_missing_return_type_is_any_return() {
+    self.any_return(self.double, 1);
+    self.any_return(self.nothing, 1);
+}
+
+#[test]
+fn numbers_fit_numbers() {
+    let f: fn(int) -> float = self.half;
+    assert_eq(f(3), 1.5);
+}
+
+#[test]
+fn a_parameter_can_take_a_wider_prototype() {
+    // a function that takes any Shape works where a Square is passed
+    assert_eq(self.measure(self.shape_area, new Square {}), 4);
+    assert_eq(self.measure(self.square_area, new Square {}), 4);
+}
+
+#[test]
+#[errors]
+fn a_narrower_prototype_parameter_does_not_fit() {
+    let f: fn(Shape) -> float = self.square_area;
+}
+
+#[test]
+fn async_functions_fit_by_what_they_return() {
+    let f: fn(int) -> int = self.later;
+    assert_eq(await f(1), 2);
+}
+
+#[test]
+fn typed_variables_check_on_every_assignment() {
+    let f: fn(int) -> int = self.double;
+    f = (x: int): int => x * 3;
+    assert_eq(f(2), 6);
+    let failed = false;
+    try { f = self.shout; }
+    catch { failed = true; }
+    assert(failed);
+    assert_eq(f(2), 6);
+}
+
+#[test]
+fn unions_and_casts() {
+    let f: fn(int) -> int | null = (x: int): int => x;
+    assert_eq(f(1), 1);
+    // the return type takes the rest: this returns an int or a str
+    let g: fn(str) -> int | str = self.shout;
+    assert_eq(g('a'), 'A');
+    const h = self.double as fn(int) -> int;
+    assert_eq(h(5), 10);
+    // a function or something else: put the function last
+    let either: int | fn(str) -> str = 5;
+    assert_eq(either, 5);
+    either = self.shout;
+    assert_eq(either('x'), 'X');
+}
+
+#[test]
+/// Parentheses group a type: a function or something else, or a union return.
+fn parentheses_group() {
+    let either: (fn(str) -> str) | int = 5;
+    either = self.shout;
+    assert_eq(either('x'), 'X');
+    let nullable: fn(int) -> (int | null) = (x: int): int => x;
+    assert_eq(nullable(2), 2);
+    let failed = false;
+    try { either = (x: int): int => x; }
+    catch { failed = true; }
+    assert(failed);
+}
+
+#[test]
+fn functions_as_parameters_of_signatures() {
+    const twice = (f: fn(int) -> int, x: int): int => f(f(x));
+    let t: fn(fn(int) -> int, int) -> int = twice;
+    assert_eq(t(self.double, 3), 12);
+}
+
+#[test]
+fn typeof_is_still_fn() {
+    const f: fn(int) -> int = self.double;
+    assert_eq(typeof f, 'fn');
+}
+
+#[test]
+/// typename gives a function's signature, as it's declared (like a prototype's name for an object).
+fn typename_is_the_signature() {
+    assert_eq(typename self.double, 'fn(int) -> int');
+    assert_eq(typename self.greet, 'fn(str, str) -> str');
+    assert_eq(typename self.nothing, 'fn(int) -> void');
+    assert_eq(typename self.later, 'fn(int) -> int');
+    assert_eq(typename self.square_area, 'fn(Square) -> float');
+    assert_eq(typename ((x: int): int => x), 'fn(int) -> int');
+    assert_eq(typename self.apply, 'fn(fn(int) -> int, int) -> int');
+    assert_eq(typename 5, 'int');
+    // a typed variable still takes any function that fits
+    let f: fn = self.double;
+    f = self.shout;
+    assert_eq(typename f, 'fn(str) -> str');
+}
+
+#[test]
+#[errors]
+fn wrong_parameter_type() {
+    self.apply(self.shout, 1);
+}
+
+#[test]
+#[errors]
+fn wrong_return_type() {
+    let f: fn(str) -> int = self.shout;
+}
+
+#[test]
+#[errors]
+fn too_many_required_parameters() {
+    let f: fn(str) -> str = (a: str, b: str): str => a + b;
+}
+
+#[test]
+#[errors]
+fn more_arguments_than_parameters() {
+    let f: fn(int, int) -> int = self.double;
+}
+
+#[test]
+#[errors]
+fn void_means_void() {
+    let f: fn(int) -> void = self.double;
+}
+
+#[test]
+#[errors]
+fn not_a_function() {
+    let f: fn(int) -> int = 5;
+}
+
+HoldsHandler: {
+    fn(int) -> int handler: (x: int): int => x + 100
+
+    #[test]
+    fn typed_fields_hold_signatures() {
+        assert_eq(self.handler(1), 101);
+        self.handler = (x: int): int => x - 1;
+        assert_eq(self.handler(1), 0);
+        let failed = false;
+        try { self.handler = (s: str): str => s; }
+        catch { failed = true; }
+        assert(failed);
+    }
+}

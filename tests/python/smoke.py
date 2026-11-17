@@ -28,6 +28,22 @@ def check(name, fn):
         failed += 1
         print('FAIL', name, '-', str(error).split('\n')[0])
 
+def empty_document():
+    # a document made with no source is an empty object: get and set work on it (0.11.5 and earlier panicked)
+    doc = Doc()
+    assert doc.get('count') is None
+    assert doc.set('count', 1) is True
+    doc.set('count', doc.get('count') + 1)
+    assert doc.get('count') == 2
+    assert doc.set('a.b', 3) is True and doc.get('a.b') == 3
+    assert doc.string_export('json') == '{"count":2}', doc.string_export('json')
+    assert doc.call_source('fn f() -> int { self.count * 10 }') == 20
+    assert Doc().string_export('json') == '{}'
+    doc = Doc()
+    doc.parse('x: 1')
+    doc.remove('root', False)
+    assert doc.set('y', 2) is True and doc.get('y') == 2
+
 def calls():
     doc = Doc()
     doc.parse('x: 20\nfn add(n: int) -> int { self.x + n }')
@@ -303,7 +319,7 @@ def keys():
     doc = Doc(); doc.parse("fn check(m: str, k: str, s: str) -> bool { Key::verify(k, 'orders/v1', m, s) }")
     assert doc.call('check', [order, public, signature]) is True
 
-for name, fn in [('calls', calls), ('sealing', sealing), ('confined', confined), ('untrusted', untrusted), ('gates', gates), ('keys', keys), ('library functions', library_functions), ('library functions per doc', library_functions_per_doc), ('library functions across threads', library_functions_threads), ('shared across threads', shared_across_threads), ('GIL released', gil_released), ('in-process server', in_process_server), ('reentry', reentry), ('values', values), ('memory limit', memory_limit),
+for name, fn in [('empty document', empty_document), ('calls', calls), ('sealing', sealing), ('confined', confined), ('untrusted', untrusted), ('gates', gates), ('keys', keys), ('library functions', library_functions), ('library functions per doc', library_functions_per_doc), ('library functions across threads', library_functions_threads), ('shared across threads', shared_across_threads), ('GIL released', gil_released), ('in-process server', in_process_server), ('reentry', reentry), ('values', values), ('memory limit', memory_limit),
                  ('sandbox', sandbox), ('network', network), ('html', html)]:
     check(name, fn)
 print(f'{failed} failed' if failed else 'all ok')

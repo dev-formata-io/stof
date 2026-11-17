@@ -15,7 +15,7 @@
 //
 
 use arcstr::literal;
-use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, opt, recognize, value}, multi::separated_list1, sequence::{delimited, preceded, terminated}, IResult, Parser};
+use nom::{branch::alt, bytes::complete::tag, character::complete::{char, multispace0}, combinator::{map, opt, recognize, value}, multi::{separated_list0, separated_list1}, sequence::{delimited, preceded, terminated}, IResult, Parser};
 use crate::{model::SId, parser::{doc::StofParseError, ident::ident_type}, runtime::{NumT, Type, Units}};
 
 
@@ -43,14 +43,14 @@ pub fn parse_type(input: &str) -> IResult<&str, Type, StofParseError> {
             value(Type::List, tag("list")),
             value(Type::Unknown, tag("unknown")),
             value(Type::Data(literal!("data")), tag("data")),
-            value(Type::Fn, tag("fn")),
+            alt((parse_fn_sig, value(Type::Fn, tag("fn")))),
             value(Type::Obj(SId::from("obj")), tag("obj")),
             value(Type::Set, tag("set")),
             value(Type::Map, tag("map")),
             parse_custom_data,
             parse_promise,
             parse_obj_or_units,
-            parse_tuple,
+            alt((parse_group, parse_tuple)),
         ))
     ), |(_, ty)| ty).parse(input)?;
 
@@ -79,16 +79,17 @@ fn parse_inner_union(input: &str) -> IResult<&str, Type, StofParseError> {
             value(Type::List, tag("list")),
             value(Type::Unknown, tag("unknown")),
             value(Type::Data(literal!("data")), tag("data")),
-            value(Type::Fn, tag("fn")),
+            alt((parse_fn_sig, value(Type::Fn, tag("fn")))),
             value(Type::Obj(SId::from("obj")), tag("obj")),
             value(Type::Set, tag("set")),
             value(Type::Map, tag("map")),
             parse_custom_data,
             parse_promise,
             parse_obj_or_units,
-            parse_tuple,
-        ))
-    ), |(_, ty)| ty).parse(input)
+            alt((parse_group, parse_tuple)),
+        )),
+        opt(char('!')), // a not-null member (Ex. `int! | str`, `(int!, str)`)
+    ), |(_, ty, nn)| if nn.is_some() { Type::NotNull(Box::new(ty)) } else { ty }).parse(input)
 }
 
 /// Parse object or units type.
@@ -101,6 +102,12 @@ fn parse_obj_or_units(input: &str) -> IResult<&str, Type, StofParseError> {
     } else {
         Ok((input, Type::Obj(parsed.into())))
     }
+}
+
+/// Parse a type in parentheses, for grouping: `(fn(int) -> int) | str`, `fn(int) -> (int | null)`.
+/// One type in parentheses is that type; two or more are a tuple (`(int, str)`).
+fn parse_group(input: &str) -> IResult<&str, Type, StofParseError> {
+    delimited(char('('), parse_type, preceded(multispace0, char(')'))).parse(input)
 }
 
 /// Parse tuple type.
@@ -135,6 +142,19 @@ fn parse_union_list(input: &str) -> IResult<&str, Vec<Type>, StofParseError> {
     }
 }
 
+/// Parse a function signature type: `fn(str, int) -> str`, or `fn(str)` for any return type.
+/// The return type takes the rest of the type (`fn(int) -> int | null` returns an int or null).
+fn parse_fn_sig(input: &str) -> IResult<&str, Type, StofParseError> {
+    let (input, _) = tag("fn").parse(input)?;
+    let (input, params) = preceded(multispace0, delimited(
+        char('('),
+        separated_list0(delimited(multispace0, char(','), multispace0), parse_type),
+        preceded(multispace0, char(')'))
+    )).parse(input)?;
+    let (input, ret) = opt(preceded(delimited(multispace0, tag("->"), multispace0), parse_type)).parse(input)?;
+    Ok((input, Type::FnSig(params.into_iter().collect(), Box::new(ret.unwrap_or(Type::Unknown)))))
+}
+
 /// Parse custom data type.
 fn parse_custom_data(input: &str) -> IResult<&str, Type, StofParseError> {
     map(
@@ -165,13 +185,13 @@ fn parse_inner_promise(input: &str) -> IResult<&str, Type, StofParseError> {
         value(Type::List, tag("list")),
         value(Type::Unknown, tag("unknown")),
         value(Type::Data(literal!("data")), tag("data")),
-        value(Type::Fn, tag("fn")),
+        alt((parse_fn_sig, value(Type::Fn, tag("fn")))),
         value(Type::Obj(SId::from("obj")), tag("obj")),
         value(Type::Set, tag("set")),
         value(Type::Map, tag("map")),
         parse_custom_data,
         parse_obj_or_units,
-        parse_tuple,
+        alt((parse_group, parse_tuple)),
     )).parse(input)
 }
 
@@ -206,6 +226,56 @@ mod tests {
         assert_eq!(parse_type_complete("(int,str)").unwrap(), Type::Tup(vector![Type::Num(NumT::Int), Type::Str]));
         assert_eq!(parse_type_complete("(  str    \n,  \n\tstr    )").unwrap(), Type::Tup(vector![Type::Str, Type::Str]));
         assert_eq!(parse_type_complete("((bool, (str, str), blob), fn)").unwrap(), Type::Tup(vector![Type::Tup(vector![Type::Bool, Type::Tup(vector![Type::Str, Type::Str]), Type::Blob]), Type::Fn]));
+    }
+
+    #[test]
+    fn parse_fn_signatures() {
+        let int = Type::Num(NumT::Int);
+        assert_eq!(parse_type_complete("fn").unwrap(), Type::Fn);
+        assert_eq!(parse_type_complete("fn()").unwrap(), Type::FnSig(vector![], Box::new(Type::Unknown)));
+        assert_eq!(parse_type_complete("fn(str) -> str").unwrap(), Type::FnSig(vector![Type::Str], Box::new(Type::Str)));
+        assert_eq!(parse_type_complete("fn( int ,str )->void").unwrap(), Type::FnSig(vector![int.clone(), Type::Str], Box::new(Type::Void)));
+        // the return type takes the rest of the type
+        assert_eq!(parse_type_complete("fn(int) -> int | null").unwrap(), Type::FnSig(vector![int.clone()], Box::new(Type::Union(vector![int.clone(), Type::Null]))));
+        assert_eq!(parse_type_complete("int | fn(str)").unwrap(), Type::Union(vector![int.clone(), Type::FnSig(vector![Type::Str], Box::new(Type::Unknown))]));
+        assert_eq!(parse_type_complete("fn(fn(int) -> int, int) -> int").unwrap(), Type::FnSig(vector![Type::FnSig(vector![int.clone()], Box::new(int.clone())), int.clone()], Box::new(int.clone())));
+        assert_eq!(parse_type_complete("(fn(int), str)").unwrap(), Type::Tup(vector![Type::FnSig(vector![int.clone()], Box::new(Type::Unknown)), Type::Str]));
+        assert_eq!(parse_type_complete("Promise<fn(str) -> str>").unwrap(), Type::Promise(Box::new(Type::FnSig(vector![Type::Str], Box::new(Type::Str)))));
+        // written back the same way
+        assert_eq!(parse_type_complete("fn(int, str) -> int | null").unwrap().type_of(), "fn(int, str) -> int | null");
+        assert_eq!(parse_type_complete("fn(str)").unwrap().type_of(), "fn(str)");
+    }
+
+    #[test]
+    fn parse_groups() {
+        let int = Type::Num(NumT::Int);
+        assert_eq!(parse_type_complete("(int)").unwrap(), int.clone());
+        assert_eq!(parse_type_complete("( str | int )").unwrap(), Type::Union(vector![Type::Str, int.clone()]));
+        assert_eq!(parse_type_complete("(fn(int) -> int) | str").unwrap(), Type::Union(vector![Type::FnSig(vector![int.clone()], Box::new(int.clone())), Type::Str]));
+        assert_eq!(parse_type_complete("fn(int) -> (int | null)").unwrap(), Type::FnSig(vector![int.clone()], Box::new(Type::Union(vector![int.clone(), Type::Null]))));
+        assert_eq!(parse_type_complete("((fn(str)), int)").unwrap(), Type::Tup(vector![Type::FnSig(vector![Type::Str], Box::new(Type::Unknown)), int.clone()]));
+        assert_eq!(parse_type_complete("(int, str)").unwrap(), Type::Tup(vector![int.clone(), Type::Str]));
+        assert!(matches!(parse_type_complete("(int)!").unwrap(), Type::NotNull(inner) if matches!(*inner, Type::Num(NumT::Int))));
+    }
+
+    #[test]
+    fn parse_not_null_members() {
+        let nn = |ty: Type| Type::NotNull(Box::new(ty));
+        let shape = |ty: &Type| format!("{ty:?}");
+        let int = Type::Num(NumT::Int);
+        assert_eq!(shape(&parse_type_complete("(int!, str)").unwrap()), shape(&Type::Tup(vector![nn(int.clone()), Type::Str])));
+        assert_eq!(shape(&parse_type_complete("int! | str!").unwrap()), shape(&Type::Union(vector![nn(int.clone()), nn(Type::Str)])));
+        assert_eq!(shape(&parse_type_complete("int | str!").unwrap()), shape(&Type::Union(vector![int.clone(), nn(Type::Str)])));
+        assert_eq!(shape(&parse_type_complete("(int | str)!").unwrap()), shape(&nn(Type::Union(vector![int.clone(), Type::Str]))));
+        assert_eq!(shape(&parse_type_complete("fn(int!) -> str!").unwrap()), shape(&Type::FnSig(vector![nn(int.clone())], Box::new(nn(Type::Str)))));
+        assert_eq!(shape(&parse_type_complete("int!").unwrap()), shape(&nn(int.clone())));
+        // written back so they parse the same
+        for text in ["(int!, str)", "int! | str!", "(int | str)!", "fn(int!) -> str!", "int!", "(fn(str) -> str) | int",
+                     "fn(str) | int", "int | (fn(int) -> int)", "fn(int) -> int | null", "(fn(int!) -> int, str!)"] {
+            let ty = parse_type_complete(text).unwrap();
+            assert_eq!(ty.type_of(), text);
+            assert_eq!(shape(&parse_type_complete(&ty.type_of()).unwrap()), shape(&ty), "{text}");
+        }
     }
 
     #[test]

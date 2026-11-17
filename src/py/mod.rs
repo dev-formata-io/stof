@@ -102,7 +102,10 @@ impl Doc {
     #[new]
     /// Create a new document.
     fn new() -> Self {
-        Self { inner: Mutex::new(DocInner { graph: Graph::default() }), owner: AtomicU64::new(0) }
+        // a new document is an empty object: host paths (get, set, call) start at its main root
+        let mut graph = Graph::default();
+        graph.ensure_main_root();
+        Self { inner: Mutex::new(DocInner { graph }), owner: AtomicU64::new(0) }
     }
 
     #[pyo3(signature = (path, start = None))]
@@ -110,9 +113,9 @@ impl Doc {
     pub fn get<'py>(&self, py: Python<'py>, path: &str, start: Option<&Bound<'py, PyAny>>) -> PyResult<Bound<'py, PyAny>> {
         let mut doc = self.lock(py)?;
         let mut proc_env = ProcEnv::default();
-        if let Some(main) = doc.graph.main_root() {
-            proc_env.self_stack.push(main);
-        }
+        // always a main root to start from (an empty document, or one whose root was removed): never a missing self
+        let main = doc.graph.ensure_main_root();
+        proc_env.self_stack.push(main);
         if let Some(Val::Obj(start)) = start.map(|start| py_any_to_val(start, &doc.graph)) {
             proc_env.self_stack.push(start);
         }
@@ -131,9 +134,9 @@ impl Doc {
     pub fn set<'py>(&self, py: Python<'_>, path: &str, value: &Bound<'py, PyAny>, start: Option<&Bound<'py, PyAny>>) -> PyResult<bool> {
         let mut doc = self.lock(py)?;
         let mut proc_env = ProcEnv::default();
-        if let Some(main) = doc.graph.main_root() {
-            proc_env.self_stack.push(main);
-        }
+        // always a main root to start from (an empty document, or one whose root was removed): never a missing self
+        let main = doc.graph.ensure_main_root();
+        proc_env.self_stack.push(main);
         if let Some(Val::Obj(start)) = start.map(|start| py_any_to_val(start, &doc.graph)) {
             proc_env.self_stack.push(start);
         }

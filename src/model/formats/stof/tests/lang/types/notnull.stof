@@ -98,3 +98,60 @@ Types: {
         self.push_msg_null(null, "hello");
     }
 }
+
+
+NotNullEverywhere: {
+    fn count(n: int!) -> int { n }
+    fn loose(n: int) -> int { n ?? 0 }
+    fn name() -> str! { 'cj' }
+
+    #[test]
+    fn typed_variables() {
+        let x: int! = 3;
+        x = 4.7;                           // still converts to the type
+        assert_eq(x, 4);
+        let failed = false;
+        try { x = null; } catch { failed = true; }
+        assert(failed);
+        assert_eq(x, 4);
+    }
+
+    #[test]
+    fn tuples() {
+        let pair: (int!, str) = (1, null);  // the str can be null, the int can't
+        assert_eq(pair, (1, null));
+        let failed = false;
+        try { pair = (null, 'a'); } catch { failed = true; }
+        assert(failed);
+    }
+
+    #[test]
+    fn unions() {
+        let either: int! | str! = 1;
+        either = 'a';
+        let failed = false;
+        try { either = null; } catch { failed = true; }
+        assert(failed);
+        let some: int! | str = null;        // str can be null
+        assert_eq(some, null);
+    }
+
+    #[test]
+    fn signatures() {
+        // a not-null parameter needs a not-null argument; a plain one takes either
+        let strict: fn(int!) -> int = self.count;
+        let also: fn(int!) -> int = self.loose;
+        assert_eq(strict(2) + also(3), 5);
+        let failed = false;
+        try { let f: fn(int) -> int = self.count; } catch { failed = true; }
+        assert(failed);
+        // a not-null return fits a plain return, not the other way around
+        let named: fn() -> str = self.name;
+        let sure: fn() -> str! = self.name;
+        assert_eq(named() + sure(), 'cjcj');
+        let refused = false;
+        try { let g: fn() -> str! = (): str => 'x'; } catch { refused = true; }
+        assert(refused);
+        assert_eq(typename self.count, 'fn(int!) -> int');
+    }
+}

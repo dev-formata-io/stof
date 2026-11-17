@@ -124,9 +124,10 @@ root Settings { theme: 'dark' }
 ```
 
 **Types:** `null`, `bool`, `int`, `float`, `str`, `ver`, `blob`, `list`, `map`, `set`, tuples (`(int, str)`),
-`obj`, `fn`, `data`, `Promise<T>`, `unknown`, unions (`int | str`), units, and custom types (`Rect`,
-`Geometry.Point`). `typeof v` gives the base type (`'obj'`, `'float'`); `typename v` gives the specific one
-(`'Rect'`, `'cm'`).
+`obj`, `fn`, function signatures (`fn(str, int) -> str`), `data`, `Promise<T>`, `unknown`, unions (`int | str`),
+units, and custom types (`Rect`, `Geometry.Point`). `T!` is not null anywhere a type goes: `(int!, str)`,
+`int! | str!`, `(int | str)!`, `fn(str!) -> str`. `typeof v` gives the base type (`'obj'`, `'float'`, `'fn'`); `typename v` gives the specific one
+(`'Rect'`, `'cm'`, `'fn(int) -> int'`).
 
 **Units:** length `km hm dcm m dm cm mm um nm mi yd ft in`; time `day hr min s ms us ns`; temperature `K C F`;
 mass `Gt Mt t kg g mg ug ng pg Ton lb oz`; data `bit byte KB MB GB TB PB … KiB MiB GiB TiB …`; angles
@@ -154,6 +155,23 @@ const double = (x: int): int => x * 2;    // arrow function (sees the variables 
 const f = self.add;         // functions are values
 f(2, 3); f.call(2, 3);
 ```
+
+**Function types:** `fn` takes any function. `fn(str) -> str` takes only a function that can be called with a
+`str` and returns a `str`, checked when the value is passed, assigned, or cast:
+
+```stof
+fn apply(f: fn(int) -> int, x: int) -> int { f(x) }
+self.apply((x: int): int => x * 2, 4)   // 8
+self.apply(self.add, 4)                 // fits: a float parameter takes an int, and b has a default
+fn(str) -> str handler: (s: str): str => s.upper()   // a typed field
+let each: fn(str) = (s: str) => pln(s); // no return type: any return
+```
+
+The check is for compatible functions, not identical ones: extra parameters need defaults (or `?`), a parameter
+can be wider than the signature's (`unknown`, a union, `float` for `int`, a prototype the signature's type extends),
+the return type can be narrower, and an async function fits by what it returns (no `Promise<..>`). An arrow with
+no return type returns `void`, so give it one (`(x: int): int => ..`). The return type takes the rest of the type
+(`fn(int) -> int | null` returns an int or null); parentheses group: `(fn(str) -> str) | int` is a function or an int. `typeof` is still `'fn'`; `typename` gives the signature. Library functions aren't values; wrap one in an arrow to pass it.
 
 **Library calls:** name a library with `::`, always: `Num::abs(-3)`, `Http::fetch(url)`, `Obj::fields(o)`,
 `Time::now()`, `App::notify(msg)` (a host's library). Don't write `Num.abs(-3)`: a `.` is a path, so it looks
@@ -656,7 +674,7 @@ Read `references/libs/<file>` for full signatures and examples.
 |---|---|---|
 | Std | `Std.md` | Called bare: `pln`, `assert*`, `throw`, `parse`, `stringify`, `blobify`, `copy`, `drop`, `swap`, `funcs`, `sleep`, `env`, `format`, `nanoid`, `min`/`max`, `seal`/`digest`/`sealed` |
 | Obj | `Obj.md` | Objects: `fields`, `insert`, `get`, `set`/`unset` (by name, not path), `contains`, `parent`, `children`, `schemafy`, `instance_of`, `run`, `to_map`, `move`, `attributes`/`set_attribute`/`remove_attribute` |
-| Str | `Str.md` | Strings: `len`, `split`, `lower`, `upper`, `trim`, `replace`, `contains`, `starts_with`, `substring` |
+| Str | `Str.md` | Strings: `len`, `split`, `lower`, `upper`, `trim`, `replace`, `contains`, `starts_with`, `substring`; by character (not byte): `char_len`, `chars`, `char_at`, `char_index_of`, `char_substring` |
 | Num | `Num.md` | Numbers and units: `abs`, `round`, `floor`, `sqrt`, `pow`, `min`, `max`, `to_units`, `has_units` |
 | List, Map, Set, Tup | `List.md` `Map.md` `Set.md` `Tup.md` | Collections (lists: `map`, `filter`, `any`, `sort_by`, ...) |
 | Fn | `Fn.md` | Functions as values: `call`, `params`, `attributes`/`set_attribute`/`remove_attribute`, `obj`, `bind` |

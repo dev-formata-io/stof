@@ -1271,6 +1271,13 @@ impl Val {
         }
     }
 
+    /// A function value's signature type (Ex. `fn(int, str) -> str`), with the types as the function declares them.
+    pub fn fn_signature(&self, graph: &Graph) -> Option<Type> {
+        let Self::Fn(func) = self else { return None; };
+        let func = graph.get_stof_data::<Func>(&func.dref)?;
+        Some(Type::FnSig(func.params.iter().map(|param| param.param_type.clone()).collect(), Box::new(func.return_type.clone())))
+    }
+
     #[inline]
     /// Is this value of a type?
     pub fn is_type(&self, target: &Type, graph: &Graph) -> bool {
@@ -1327,6 +1334,38 @@ impl Val {
                     return Err(Error::CastVal(self.spec_type(graph), target.clone()));
                 }
                 return self.cast(t.deref(), graph, context);
+            },
+            Type::FnSig(params, ret) => {
+                // a function fits a signature when it's compatible (Type::fits_fn); built-in library functions and
+                // anything else only fit the general `fn`
+                let dref = match &*self {
+                    Self::Fn(func) => Some(func.dref.clone()),
+                    Self::Data(dref) => Some(dref.clone()), // function data (as with a cast to `fn`)
+                    _ => None,
+                };
+                if let Some(dref) = dref {
+                    if let Some(func) = graph.get_stof_data::<Func>(&dref) {
+                        // object type names become prototypes: the signature's from where it's used, the
+                        // function's from where it's defined
+                        let mut func_params = func.params.iter().map(|param| (param.param_type.clone(), param.default.is_some())).collect::<Vec<_>>();
+                        let mut func_ret = func.return_type.clone();
+                        let owner = dref.data_nodes(graph).into_iter().next();
+                        for (ty, _) in func_params.iter_mut() { ty.obj_to_proto(graph, owner.clone()); }
+                        func_ret.obj_to_proto(graph, owner);
+                        let mut params = params.clone();
+                        let mut ret = ret.as_ref().clone();
+                        for ty in params.iter_mut() { ty.obj_to_proto(graph, context.clone()); }
+                        ret.obj_to_proto(graph, context.clone());
+
+                        if Type::fits_fn(&params, &ret, &func_params, &func_ret, graph) {
+                            if self.data() { *self = Self::Fn(dref.into()); }
+                            return Ok(());
+                        }
+                        let actual = Type::FnSig(func_params.into_iter().map(|(ty, _)| ty).collect(), Box::new(func_ret));
+                        return Err(Error::CastVal(actual, target.clone()));
+                    }
+                }
+                return Err(Error::CastVal(self.spec_type(graph), target.clone()));
             },
             _ => {}
         }

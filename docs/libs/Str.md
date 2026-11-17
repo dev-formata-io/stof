@@ -17,6 +17,47 @@ assert_eq(val[1], "e");
 ```
 
 
+# Str::char_at(val: str, index: int) -> str
+The character at a character index. A negative index counts from the end (-1 is the last character). An index past either end gives an empty string.
+```rust
+assert_eq("héllo".char_at(1), "é");
+assert_eq("héllo".char_at(-1), "o");
+assert_eq("héllo".char_at(9), "");
+```
+
+
+# Str::char_index_of(val: str, seq: str) -> int
+The character index where a sequence first appears in this string, or -1 if it isn't found.
+```rust
+assert_eq("héllo, world".char_index_of("world"), 7);
+assert_eq("héllo, world".index_of("world"), 8); // bytes
+```
+
+
+# Str::char_len(val: str) -> int
+The number of characters in this string (`len` is the number of bytes).
+```rust
+assert_eq("héllo".char_len(), 5);
+assert_eq("héllo".len(), 6);
+```
+
+
+# Str::char_substring(val: str, start: int = 0, end: int = -1) -> str
+The part of this string from a start character index up to, but not including, an end character index. Like `substring`, but indexes count characters. The default end (-1) is the end of the string.
+```rust
+const val = "héllo, wörld";
+assert_eq(val.char_substring(7), "wörld");
+assert_eq(val.char_substring(1, 4), "éll");
+```
+
+
+# Str::chars(val: str) -> list
+The characters of this string, each as a string. Unlike `len`, `at`, `index_of`, and `substring`, which count bytes, the `char_` functions and `chars` count characters (Unicode scalar values), so text with accents, emoji, or other non-ASCII characters indexes the way it reads.
+```rust
+assert_eq("héllo".chars(), ["h", "é", "l", "l", "o"]);
+```
+
+
 # Str::contains(val: str, seq: str) -> bool
 Return true if the sequence is found at least once anywhere in this string.
 ```rust
@@ -51,7 +92,7 @@ assert_eq(val.first(), "h");
 
 
 # Str::index_of(val: str, seq: str) -> int
-Find the first occurrance of the given sequence in this string, returning the index of the first char. If not found, returns -1.
+Find the first occurrence of the given sequence in this string, returning its byte index (like `len`). If not found, returns -1. For a character index, use `Str::char_index_of`.
 ```rust
 const val = "hello, world";
 assert_eq(val.index_of(", w"), 5);
@@ -67,9 +108,10 @@ assert_eq(val.last(), "o");
 
 
 # Str::len(val: str) -> int
-Returns the length (number of characters) in this string.
+Returns the length of this string in bytes (UTF-8). For the number of characters, use `Str::char_len`.
 ```rust
 assert_eq("hello".len(), 5);
+assert_eq("héllo".len(), 6);
 ```
 
 

@@ -988,7 +988,10 @@ impl Instruction for Base {
             },
             Self::TypeName => {
                 if let Some(var) = env.stack.pop() {
-                    let vt = var.spec_type(&graph);
+                    // a function's specific type is its signature (Ex. 'fn(int) -> int'); a function value's spec type
+                    // stays `fn`, so a typed variable isn't held to one signature
+                    let signature = var.val.read().fn_signature(&graph);
+                    let vt = signature.unwrap_or_else(|| var.spec_type(&graph));
                     env.stack.push(Variable::val(Val::Str(vt.rt_type_of(&graph))));
                 } else {
                     return Err(Error::StackError);
