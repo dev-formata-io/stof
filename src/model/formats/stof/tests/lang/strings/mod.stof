@@ -92,3 +92,124 @@ fn template_string_method_calls() {
     assert_eq(`hi ${name}`.upper(), 'HI ADA');
     assert_eq(`a,b,c`.split(',').len(), 3);
 }
+
+
+#[test]
+/// """ strings are raw: quotes, braces, and backslashes are text, and they end at the next """.
+fn triple_string_raw() {
+    assert_eq("""say "hi" to {everyone} \n""", 'say "hi" to {everyone} \\n');
+    assert_eq("""""", '');
+    assert_eq(typeof """x""", 'str');
+}
+
+#[test]
+/// ${expr} runs in a """ string like a template string, printed like str(expr).
+fn triple_string_interpolation() {
+    const name = 'Acme';
+    const limit = 100;
+    const text = """
+        Summarize ${name}'s usage,
+          flagging anything over ${limit * 2} calls.
+        """;
+    assert_eq(text, "Summarize Acme's usage,\n  flagging anything over 200 calls.");
+    assert_eq("""${1}${2}""", '12');
+    assert_eq("""${[1, 2]}""", '[1, 2]');
+}
+
+#[test]
+/// \${ is a literal ${; any other backslash is text.
+fn triple_string_escaped_dollar() {
+    const a = 1;
+    assert_eq("""\${a} is ${a}""", '$' + '{a} is 1');
+    assert_eq("""C:\temp costs $5""", 'C:\\temp costs $5');
+}
+
+#[test]
+/// Indentation is removed from the written text, not from the values put into it.
+fn triple_string_interpolated_lines_keep_their_indentation() {
+    const list = 'a\n    b';
+    const text = """
+        items:
+        ${list}
+        """;
+    assert_eq(text, 'items:\na\n    b');
+}
+
+fn triple_greet(name: str) -> str {
+    """
+    Hello, ${name}!
+    """
+}
+
+#[test]
+fn triple_string_with_params() {
+    assert_eq(self.triple_greet('CJ'), 'Hello, CJ!');
+}
+
+#[test]
+/// The closing """ on its own line sets the indentation removed from every line.
+fn triple_string_indentation() {
+    const text = """
+        Summarize this customer's usage,
+          flagging anything over their limits.
+
+        Keep it short.
+        """;
+    assert_eq(text, "Summarize this customer's usage,\n  flagging anything over their limits.\n\nKeep it short.");
+}
+
+#[test]
+/// A closing """ indented less than the text keeps the difference.
+fn triple_string_relative_indentation() {
+    const text = """
+            indented by four
+        """;
+    assert_eq(text, '    indented by four');
+}
+
+#[test]
+/// A closing """ at the end of a line of text removes the indentation every line shares.
+fn triple_string_closing_after_text() {
+    const text = """
+        first
+          second""";
+    assert_eq(text, 'first\n  second');
+}
+
+triple_field: """
+    A field's value,
+    written as prose.
+    """
+
+#[test]
+fn triple_string_field() {
+    assert_eq(self.triple_field, "A field's value,\nwritten as prose.");
+}
+
+fn triple_default(text: str = """
+    default
+    """) -> str { text }
+
+#[test]
+fn triple_string_default_param() {
+    assert_eq(self.triple_default(), 'default');
+    assert_eq(self.triple_default("""given"""), 'given');
+}
+
+#[test]
+fn triple_string_method_calls() {
+    assert_eq("""
+        a,b,c
+        """.split(',').len(), 3);
+    const x = 'b';
+    assert_eq("""a,${x},c""".split(',').len(), 3);
+}
+
+#[test]
+/// A line indented less than the closing """ is a parse error, not a guess.
+fn triple_string_under_indented() {
+    let message = '';
+    try parse('field: """\n    fine\n  too far left\n    """', new {});
+    catch (e, msg) message = msg;
+    assert(message.contains('indented less'), message);
+}

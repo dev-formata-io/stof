@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased
+
+### Triple quoted strings
+
+A `"""` string is raw text that can sit indented in code, with `${expr}` parts like a template string, for prose
+such as prompts, descriptions, and templates:
+
+```stof
+fn summarize(name: str, limit: int) -> str {
+    """
+    Summarize ${name}'s usage,
+      flagging anything over ${limit} calls.
+    """
+}
+```
+
+- **Raw:** quotes, braces, and backslashes are written as they are. It ends at the next `"""`.
+- **`${expr}`** is printed into the text like a template string (`str(expr)`), and `\${` is a literal `${`. Values
+  are put in after the indentation is removed, so a value with line breaks keeps its own indentation.
+- **Indentation:** when the closing `"""` is on its own line, its indentation is removed from every line (above, with
+  `'Acme'` and `100`: `"Summarize Acme's usage,\n  flagging anything over 100 calls."`). A line indented less than the
+  closing `"""` is a parse error, and a blank line is empty however it's indented. When the closing `"""` ends a line
+  of text, the indentation every non-blank line shares is removed.
+- **Edges:** the line break after the opening `"""` is dropped, and so is the closing `"""` line. Text right after the
+  opening `"""` is kept as written, and a one-line `"""a "quoted" word"""` is exactly what's between the quotes.
+- **Line breaks are `\n`,** also in a file saved with Windows line endings, so the value doesn't change with the editor
+  or git settings that saved it. `r#"..."#` is unchanged and still keeps the text byte for byte.
+
 ## 0.11.6
 
 ### Function signature types

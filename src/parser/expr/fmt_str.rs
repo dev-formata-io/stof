@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use nom::{branch::alt, bytes::complete::{escaped_transform, tag, take_until}, character::complete::{char, none_of}, combinator::{map, opt, value}, multi::{fold_many0, separated_list1}, sequence::{delimited, preceded}, IResult, Parser};
-use crate::{model::libraries::stof_std::StdIns, parser::{doc::StofParseError, expr::{expr, graph::chained_var_func}, string::unknown_escape, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, Base, BINARY_ADD}, Val}};
+use crate::{model::libraries::stof_std::StdIns, parser::{doc::StofParseError, expr::{expr, graph::chained_var_func}, string::{triple_string, unknown_escape}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, Base, BINARY_ADD}, Val}};
 
 
 /// Formatted string expression.
@@ -42,6 +42,37 @@ pub fn formatted_string_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>,
             Err(error.map(|mut error| {
                 error.pos = Some(start.as_ptr() as usize);
                 if error.message.is_empty() { error.message = "invalid expression in template string".into(); }
+                error
+            }))
+        }
+    }
+}
+
+
+/// Triple quoted string expression: raw text, with its indentation removed (see parser::string::triple_string), and
+/// `${expr}` parts printed into it like a template string. `\${` is a literal `${`; other backslashes are text.
+/// Ex: """
+///         Summarize ${name}'s usage.
+///         """
+pub fn triple_string_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
+    let (input, _) = whitespace(input)?;
+    let start = input;
+    let (input, text) = triple_string(input)?;
+    let text = text.replace("\\$", ESCAPED_DOLLAR_STR);
+
+    match parse_inner(&text) {
+        Ok((_, expr)) => {
+            let (input, additional) = opt(preceded(char('.'), separated_list1(char('.'), chained_var_func))).parse(input)?;
+            let Some(additional) = additional else { return Ok((input, expr)); };
+            let mut block = Block::default();
+            block.ins.push_back(expr);
+            for ins in additional { block.ins.push_back(ins); }
+            Ok((input, Arc::new(block) as Arc<dyn Instruction>))
+        },
+        Err(error) => {
+            Err(error.map(|mut error| {
+                error.pos = Some(start.as_ptr() as usize);
+                if error.message.is_empty() { error.message = "invalid expression in \"\"\" string".into(); }
                 error
             }))
         }

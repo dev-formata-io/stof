@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 use nom::{IResult, Parser, branch::alt, bytes::complete::tag, character::complete::{char, space0}, combinator::map, multi::{many0, many0_count}, sequence::{pair, preceded}};
-use crate::{parser::{doc::StofParseError, expr::{async_expr, await_expr, block_expr, fmt_str::formatted_string_expr, graph::graph_expr, list_expr, literal::literal_expr, map_expr, set_expr, switch_expr, paren_expr, typename_expr, typeof_expr}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, empty::value_of, ops::{Op, OpIns}, Base, NOOP, NOT_TRUTHY, TRUTHY}, Num, Val}};
+use crate::{parser::{doc::StofParseError, expr::{async_expr, await_expr, block_expr, fmt_str::{formatted_string_expr, triple_string_expr}, graph::graph_expr, list_expr, literal::literal_expr, map_expr, set_expr, switch_expr, paren_expr, typename_expr, typeof_expr}, whitespace::whitespace}, runtime::{instruction::Instruction, instructions::{block::Block, empty::value_of, ops::{Op, OpIns}, Base, NOOP, NOT_TRUTHY, TRUTHY}, Num, Val}};
 
 
 /// Parse a math expr.
@@ -200,6 +200,7 @@ fn atom(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseError> {
         map_expr,
         block_expr,
         switch_expr,
+        triple_string_expr, // before literal_expr, whose "" would read `"""` as an empty string
         literal_expr,
         formatted_string_expr,
         graph_expr,
