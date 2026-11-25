@@ -15,7 +15,8 @@
 //
 
 use std::sync::Arc;
-use nom::{bytes::complete::tag, branch::alt, character::complete::{char, multispace0}, combinator::opt, sequence::{delimited, preceded, terminated}, IResult, Parser};
+use imbl::{vector, Vector};
+use nom::{bytes::complete::tag, branch::alt, character::complete::{char, multispace0, satisfy}, combinator::{not, opt, peek}, sequence::{delimited, preceded, terminated}, IResult, Parser};
 use crate::{model::{Func, FuncDoc, Param, SId, ASYNC_FUNC_ATTR}, parser::{source, context::ParseContext, info::{Def, DefKind, DefSpan}, doc::{err_fail, StofParseError}, expr::expr, ident::ident, parse_attributes, statement::{block, declare::{clear_used_names, take_declared_names, take_referenced_names}}, types::parse_type, whitespace::{doc_comment, paren_list, whitespace}}, runtime::{instruction::Instruction, instructions::Base, Val}};
 
 
@@ -56,8 +57,9 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
     take_declared_names(); // drop anything declared outside of this function body
     take_referenced_names();
     clear_used_names();
-    let (input, instructions) = block(input).map_err(err_fail)?;
+    let (input, instructions) = function_body(input).map_err(err_fail)?;
     let value_end = input;
+    let (input, _) = opt(preceded(multispace0, alt((char(';'), char(','))))).parse(input)?; // like a field's value
     let mut var_names = take_declared_names();
     var_names.extend(params.iter().map(|param| param.name.as_ref().to_string()));
     let referenced = take_referenced_names();
@@ -121,6 +123,40 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
         }), None);
     }
 
+    Ok((input, ()))
+}
+
+
+/// A function's body: a block, or one expression whose value is returned (like an arrow function's).
+/// `fn add(a: float, b: float) -> float a + b`, or with an optional `return`: `fn hello() -> str return 'hello';`
+/// - A body that starts with `{` is always a block, so `{ 'a': 1 }` is never read as a map (return a map from a block).
+/// - An expression starts on the signature's line (it can run onto more lines, Ex. a `"""` string). A function with
+///   no body is then an error instead of taking what comes next as its body (`fn a() -> int` then `str name: 'x'`
+///   would read `str` as the body and `name` as a field).
+pub fn function_body(input: &str) -> IResult<&str, Vector<Arc<dyn Instruction>>, StofParseError> {
+    let before = input;
+    let (input, _) = whitespace(input)?;
+    if input.starts_with('{') {
+        return block(input);
+    }
+    let missing = || {
+        let mut error = StofParseError::from("expected the function's body: a block { .. }, or an expression on the same line".to_string());
+        error.pos = Some(input.as_ptr() as usize);
+        nom::Err::Failure(error)
+    };
+    if before[..before.len() - input.len()].contains('\n') {
+        return Err(missing());
+    }
+    let (input, _) = return_keyword(input)?;
+    let Ok((input, body)) = expr(input) else { return Err(missing()); };
+    Ok((input, vector![body]))
+}
+
+
+/// An optional `return` before an expression body (`fn hello() -> str return 'hello';`, `(x) => return x * 2`), as a
+/// whole word (a body named `returned` is a name).
+pub fn return_keyword(input: &str) -> IResult<&str, (), StofParseError> {
+    let (input, _) = opt(terminated(tag("return"), not(peek(satisfy(|c: char| c.is_alphanumeric() || c == '_'))))).parse(input)?;
     Ok((input, ()))
 }
 

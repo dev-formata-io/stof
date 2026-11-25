@@ -18,7 +18,7 @@ use std::sync::Arc;
 use imbl::vector;
 use nom::{branch::alt, bytes::complete::tag, character::complete::multispace0, combinator::{map, opt}, sequence::{delimited, preceded, terminated}, IResult, Parser};
 use rustc_hash::FxHashMap;
-use crate::{parser::statement::declare::{note_declared, used_names_len, used_names_since}, model::{DataRef, Func, ARROW_FUNC_ATTR, ASYNC_FUNC_ATTR}, parser::{source, doc::StofParseError, expr::expr, func::any_parameter, statement::block, types::parse_type, whitespace::{paren_list, whitespace}}, runtime::{instruction::{Instruction, Instructions}, instructions::func::FuncLit, Type, Val}};
+use crate::{parser::statement::declare::{note_declared, used_names_len, used_names_since}, model::{DataRef, Func, ARROW_FUNC_ATTR, ASYNC_FUNC_ATTR}, parser::{source, doc::StofParseError, expr::expr, func::{any_parameter, return_keyword}, statement::block, types::parse_type, whitespace::{paren_list, whitespace}}, runtime::{instruction::{Instruction, Instructions}, instructions::func::FuncLit, Type, Val}};
 
 
 /// Arrow function "literal" value.
@@ -33,7 +33,7 @@ pub fn func_expr(input: &str) -> IResult<&str, Arc<dyn Instruction>, StofParseEr
     let used_start = used_names_len();
     let (input, instructions) = alt((
         block,
-        map(expr, |ins| vector![ins])
+        map(preceded(return_keyword, expr), |ins| vector![ins]) // an optional `return` (Ex. `(x) => return x * 2`)
     )).parse(input)?;
 
     let mut rtype = Type::Void;

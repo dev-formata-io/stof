@@ -1,0 +1,193 @@
+//
+// Copyright 2025 Formata, Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+/*!
+ * Functions with one expression as their body: `fn add(a: float, b: float) -> float a + b`.
+ */
+
+fn add(a: float, b: float) -> float a + b
+touched: 0
+fn touch() { self.touched += 1; }
+fn no_return_type() self.touch()
+fn void_with_value() 'value'
+fn with_semicolon() -> int 1;
+fn with_comma() -> int 2,
+fn greeting(name: str = 'world') -> str `hello, ${name}`
+fn prose(name: str) -> str """
+    Summarize ${name}'s usage.
+    """
+fn casts() -> float 1
+fn union_return(flag: bool) -> int | str flag ? 1 : 'one'
+fn makes_obj() -> obj new { a: 1 }
+fn makes_doubler() -> fn(int) -> int (x: int): int => x * 2
+fn calls_another() -> float self.add(1, 2) * 10
+async fn async_body() -> int 42
+fn with_return() -> str return 'hello';
+fn sum_lines(a: int, b: int, c: int) -> int a +
+    b +
+    c
+fn both(a: bool, b: bool) -> bool a &&
+    b
+fn block_with_separator() -> int { 5 };
+fn block_on_next_line() -> int
+{
+    6
+}
+
+after_functions: 3
+int typed_after: 4
+
+#[test]
+fn expression_bodies() {
+    assert_eq(self.add(1, 2), 3);
+    self.no_return_type();
+    assert_eq(self.touched, 1, 'a void expression body runs');
+    assert_eq(self.with_semicolon(), 1);
+    assert_eq(self.with_comma(), 2);
+    assert_eq(self.greeting(), 'hello, world');
+    assert_eq(self.greeting('CJ'), 'hello, CJ');
+    assert_eq(self.prose('Acme'), "Summarize Acme's usage.");
+    assert_eq(self.calls_another(), 30);
+}
+
+#[test]
+/// The return type applies to an expression body like a block's.
+fn expression_body_return_types() {
+    assert_eq(typeof self.casts(), 'float');
+    assert_eq(self.union_return(true), 1);
+    assert_eq(self.union_return(false), 'one');
+    assert_eq(self.makes_obj().a, 1);
+    const doubler = self.makes_doubler();
+    assert_eq(doubler(4), 8);
+    assert_eq(typename self.add, 'fn(float, float) -> float');
+}
+
+#[test]
+/// The field after a run of expression bodies is still its own field.
+fn expression_bodies_end_where_they_should() {
+    assert_eq(self.after_functions, 3);
+    assert_eq(self.typed_after, 4);
+}
+
+#[test]
+/// With no return type a function is void, whatever its body: a value is an error, as from a block.
+fn expression_body_void_with_value() {
+    let message = '';
+    try self.void_with_value();
+    catch (e, msg) message = msg;
+    assert(message.contains("doesn't match the function's return type"), message);
+}
+
+#[test]
+async fn expression_body_async() {
+    assert_eq(await self.async_body(), 42);
+}
+
+#[test]
+fn expression_body_test() assert_eq(self.add(2, 2), 4)
+
+#[test]
+/// A body that starts with { is always a block: a map is returned from a block (or in parentheses).
+fn brace_is_always_a_block() {
+    let message = '';
+    try parse("fn m() -> map { 'a': 1 }", new {});
+    catch (e, msg) message = msg;
+    assert(message.len() > 0, 'a map literal is not a function body');
+
+    const holder = new {};
+    parse("fn m() -> map { { 'a': 1 } }", holder);
+    assert_eq(holder.m().get('a'), 1);
+}
+
+#[test]
+/// A separator after a function is optional, like after a field's value.
+fn separators_and_blocks() {
+    assert_eq(self.block_with_separator(), 5);
+    assert_eq(self.block_on_next_line(), 6);
+}
+
+#[test]
+/// An expression body starts on the signature's line, so a function with no body is an error instead of taking the
+/// next field as its body.
+fn missing_body_is_an_error() {
+    for (const src in ["fn a() -> int\ncount: 1", "fn a() -> int\nstr name: 'x'", "fn a() -> int\n5", "fn a()"]) {
+        let message = '';
+        try parse(src, new {});
+        catch (e, msg) message = msg;
+        assert(message.contains("expected the function's body"), src + ': ' + message);
+    }
+}
+
+#[test]
+/// An optional return before the expression, and an expression that continues after an operator.
+fn return_and_line_breaks() {
+    assert_eq(self.with_return(), 'hello');
+    assert_eq(self.sum_lines(1, 2, 3), 6);
+    assert(self.both(true, true));
+    assert_not(self.both(true, false));
+}
+
+#[type]
+ExprPoint: {
+    float x: 1
+    float y: 2
+    fn sum() -> float self.x + self.y
+    fn scaled(by: float) -> ExprPoint new ExprPoint { x: self.x * by, y: self.y * by }
+}
+
+nested_exprs: {
+    fn one() -> int 1, fn two() -> int 2; three: 3
+    fn commented() -> int /* before */ 4 // after
+}
+
+#[test]
+/// Expression bodies on a type's functions, in nested objects, and with comments around them.
+fn expression_bodies_everywhere() {
+    const point = new ExprPoint {};
+    assert_eq(point.sum(), 3);
+    assert_eq(point.scaled(2).sum(), 6);
+    assert_eq(self.nested_exprs.one(), 1);
+    assert_eq(self.nested_exprs.two(), 2);
+    assert_eq(self.nested_exprs.three, 3);
+    assert_eq(self.nested_exprs.commented(), 4);
+
+    // a comment ending the signature's line leaves no body on it
+    let message = '';
+    try parse("fn a() -> int // note\n5", new {});
+    catch (e, msg) message = msg;
+    assert(message.contains("expected the function's body"), message);
+}
+
+arrow_field: (a: int, b: int): int => return a + b;
+
+#[test]
+/// Arrow functions take the same optional return before an expression body.
+async fn arrow_return() {
+    const double = (x: int): int => return x * 2;
+    assert_eq(double(4), 8);
+    assert_eq(self.arrow_field(1, 2), 3);
+
+    const offset = 10;
+    const add_offset = (x: int): int => return x + offset; // still sees the variables it uses
+    assert_eq(add_offset(1), 11);
+
+    const returned = 5;
+    const named = (): int => returned; // a name that starts with return
+    assert_eq(named(), 5);
+
+    const later = async (): int => return 7;
+    assert_eq(await later(), 7);
+}

@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+### Expression bodies for functions
+
+A function's body can be one expression, whose value is returned, like an arrow function's:
+
+```stof
+fn add(a: float, b: float) -> float a + b
+fn greet(name: str) -> str `hello, ${name}`
+fn describe(name: str) -> str """
+    ${name} is a customer.
+    """
+```
+
+- **An optional `return`:** `fn hello() -> str return 'hello';`, and the same for arrow functions:
+  `(x: int): int => return x * 2`.
+- **A long expression continues on the next line after an operator,** as anywhere else (`a +` or `a &&`
+  at the end of a line, then `b`).
+- **The return type works as it does for a block,** including no return type (void: returning a value is an
+  error, as it is from a block), unions, signature types, and `async fn`.
+- **A body that starts with `{` is always a block,** so `fn m() -> map { 'a': 1 }` is not a map. Return a map from a
+  block: `fn m() -> map { { 'a': 1 } }`.
+- **An expression body starts on the signature's line** (it can run onto more lines, Ex. a `"""` string or an
+  expression in parentheses). A block can still start on the next line. A function with no body is an error
+  (`expected the function's body`), instead of taking the next line as its body.
+- **A separator after a function is optional,** like after a field's value: `fn a() -> int 1;`, `fn b() { .. },`.
+
 ### Triple quoted strings
 
 A `"""` string is raw text that can sit indented in code, with `${expr}` parts like a template string, for prose
