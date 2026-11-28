@@ -135,11 +135,9 @@ fn triple_string_interpolated_lines_keep_their_indentation() {
     assert_eq(text, 'items:\na\n    b');
 }
 
-fn triple_greet(name: str) -> str {
-    """
+fn triple_greet(name: str) -> str """
     Hello, ${name}!
     """
-}
 
 #[test]
 fn triple_string_with_params() {

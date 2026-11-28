@@ -26,6 +26,7 @@ pub fn fs_library(graph: &mut Graph) {
     graph.insert_libfunc(read());
     graph.insert_libfunc(write());
     graph.insert_libfunc(read_string());
+    graph.insert_libfunc(create_dir());
 }
 
 
@@ -108,11 +109,39 @@ fs::write("src/text.txt", "testing");
 }
 
 
+/// Create a directory (and the directories it's in).
+pub(self) fn create_dir() -> LibFunc {
+    LibFunc {
+        library: FS_LIB.clone(),
+        name: "create_dir".into(),
+        is_async: false,
+        docs: r#"# fs::create_dir(path: str) -> void
+If available, will create a directory at the given path, and the directories it's in that don't exist yet. Nothing happens if it already exists.
+```rust
+fs::create_dir("out/reports");
+fs::write("out/reports/today.txt", "testing");
+```"#.into(),
+        params: crate::params![
+            Param { name: "path".into(), param_type: Type::Str, default: None }
+        ],
+        return_type: None,
+        unbounded_args: false,
+        args_to_symbol_table: false,
+        func: Arc::new(|_as_ref, _arg_count, _env, _graph| {
+            let mut instructions = Instructions::default();
+            instructions.push(Arc::new(FsIns::CreateDir));
+            Ok(instructions)
+        })
+    }
+}
+
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FsIns {
     Read,
     ReadString,
     Write,
+    CreateDir, // at the end, so BSTF's variant indexes for the others never shift
 }
 #[typetag::serde(name = "FsIns")]
 impl Instruction for FsIns {
@@ -179,7 +208,49 @@ impl Instruction for FsIns {
                 }
                 return Err(Error::FsWriteStackError);
             },
+            Self::CreateDir => {
+                let Some(path) = env.stack.pop() else { return Err(Error::FsWriteStackError); };
+                let path = path.val.read().to_string();
+                if let Err(error) = fs::create_dir_all(path) {
+                    return Err(Error::FsWriteError(error.to_string()));
+                }
+            },
         }
         Ok(None)   
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use crate::{model::{Graph, Profile}, runtime::Val};
+
+    #[test]
+    /// fs::create_dir makes the directories a path needs (and is fine when they're there); fs::write then works.
+    fn create_dir() {
+        let dir = format!("target/fs_test_{}", nanoid::nanoid!(8, &nanoid::alphabet::SAFE[2..]));
+        let mut graph = Graph::default();
+        graph.allow_system();
+        graph.parse_stof_src(r#"
+            fn make(dir: str) -> str {
+                fs::create_dir(dir + '/a/b');
+                fs::create_dir(dir + '/a/b'); // already there
+                fs::write(dir + '/a/b/c.txt', 'hi');
+                fs::read_string(dir + '/a/b/c.txt')
+            }
+        "#, None, Profile::default()).unwrap();
+        let res = graph.call("make", None, vec![Val::from(dir.as_str())]);
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(res.unwrap(), Val::from("hi"));
+    }
+
+    #[test]
+    /// Without the host allowing the file system, there's no fs library.
+    fn not_allowed() {
+        let mut graph = Graph::default();
+        graph.quiet(true);
+        graph.parse_stof_src("fn make() -> str { try { fs::create_dir('target/never'); return 'made'; } catch { return 'no fs'; } }", None, Profile::default()).unwrap();
+        assert_eq!(graph.call("make", None, vec![]).unwrap(), Val::from("no fs"));
+        assert!(!std::path::Path::new("target/never").exists());
     }
 }

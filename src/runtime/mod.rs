@@ -48,3 +48,5 @@ pub mod waker;
 pub use waker::*;
 
 pub mod memory;
+
+pub mod semver;

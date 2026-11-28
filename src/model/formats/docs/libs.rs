@@ -116,7 +116,12 @@ fn main() {
 fn ver_lib(graph: &mut Graph) {
     graph.insert_libdoc(literal!("Ver"), 
 r#"# Semantic Version Library (Ver)
-Library for working with semantic versioning. Versions are a base type in Stof (ver).
+Library for working with semantic versioning. Versions are a base type in Stof (ver), and they follow semver.org:
+
+- **Order:** comparisons use semver precedence: major, minor, and patch as numbers, then a pre-release before its release (`1.0.0-rc.1 < 1.0.0`), its dot-separated identifiers compared numbers as numbers, below words. Build metadata doesn't count for `<`, `>`, `<=`, and `>=`; `==` also compares it.
+- **Strings:** a string compares with a version as a version (`1.2.3 == '1.2.3'`), and casts to one (`'v1.2.3' as ver`: a leading `v` is fine, as tags have it).
+- **Wildcards:** a part can be `*` (`'1.2.*' as ver`, or `x`), which compares equal to any number.
+- **Requirements:** `ver.matches('^1.2')`, as Cargo's (`^`, `~`, `=`, `>`, `>=`, `<`, `<=`, `*`, separated by commas); `ver.compatible(other)`; and `bump_major`, `bump_minor`, `bump_patch`.
 
 ## Example Usage
 ```rust

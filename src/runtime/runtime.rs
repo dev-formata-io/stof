@@ -46,6 +46,10 @@ pub struct Runtime {
     pub done_callback: Option<Box<dyn FnMut(&Graph, &Process)->bool>>,
     pub err_callback: Option<Box<dyn FnMut(&Graph, &Process)->bool>>,
 
+    /// This runtime's token: every process it runs holds it (`ProcEnv::alive`), so what they leave in the graph is
+    /// known to be abandoned once the runtime is dropped.
+    alive: std::sync::Arc<()>,
+
     #[cfg(feature = "tokio")]
     /// Optional tokio runtime handle (default exists, but still optional for flexibility & best practice in lib development).
     /// Processes can use this handle to spawn background tasks (ex. HTTP, Database Ops, etc.).
@@ -64,6 +68,7 @@ impl Default for Runtime {
             done_callback: Default::default(),
             err_callback: Default::default(),
             tokio_runtime: Default::default(),
+            alive: Default::default(),
         };
 
         // all Stof runtimes share the same background tokio runtime (thread pool)
@@ -97,6 +102,7 @@ impl Default for Runtime {
             wakers: Default::default(),
             done_callback: Default::default(),
             err_callback: Default::default(),
+            alive: Default::default(),
         }
     }
 }
@@ -112,6 +118,7 @@ impl Runtime {
         }
         proc.env.max_execution_time = graph.max_execution_time; // the host's limits
         proc.env.max_memory = graph.max_memory;
+        proc.env.alive = self.alive.clone();
         
         self.running.push(proc);
         id

@@ -227,6 +227,15 @@ pub trait Format: std::fmt::Debug + Send + Sync {
         Ok(Bytes::from(self.string_export_computed(graph, format, node, computed)?))
     }
 
+    /// Parser import of bytes already in hand (Ex. a file in a package being parsed): parsed into the context's
+    /// current object. By default, a binary import there; formats that import other files (stof, pkg) parse in the
+    /// context, so those imports resolve the same way.
+    fn parser_bytes_import(&self, format: &str, bytes: Bytes, context: &mut ParseContext) -> Result<(), Error> {
+        let node = context.self_ptr();
+        let profile = context.profile.clone();
+        self.binary_import(&mut context.graph, format, bytes, Some(node), &profile)
+    }
+
     #[allow(unused)]
     /// Parser import.
     fn parser_import(&self, format: &str, path: &str, context: &mut ParseContext) -> Result<(), Error> {

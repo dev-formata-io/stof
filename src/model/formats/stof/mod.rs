@@ -15,6 +15,7 @@
 //
 
 use std::fs;
+use bytes::Bytes;
 use rustc_hash::FxHashSet;
 use crate::{model::{FS_LIB, Format, Graph, NodeRef, Profile, stof::export::StofExportContext}, parser::{context::ParseContext, doc::document}, runtime::Error};
 mod export;
@@ -43,6 +44,11 @@ impl Format for StofFormat {
     fn file_import(&self, graph: &mut Graph, format: &str, path: &str, node: Option<NodeRef>, profile: &Profile) -> Result<(), Error> {
         let mut context = ParseContext::new(graph, profile.clone());
         context.parse_from_file(format, path, node)
+    }
+    fn parser_bytes_import(&self, _format: &str, bytes: Bytes, context: &mut ParseContext) -> Result<(), Error> {
+        let Ok(src) = std::str::from_utf8(&bytes) else { return Err(Error::FormatBinaryImportUtf8Error); };
+        if !src.is_empty() { document(src, context)?; }
+        Ok(())
     }
     fn parser_import(&self, _format: &str, path: &str, context: &mut ParseContext) -> Result<(), Error> {
         // editor tooling: an open document's text instead of the file (see parser::info)

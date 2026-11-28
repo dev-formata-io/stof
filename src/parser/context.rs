@@ -15,6 +15,7 @@
 //
 
 use std::{path::{Component, Path, PathBuf}, sync::Arc};
+use bytes::Bytes;
 use colored::Colorize;
 use imbl::vector;
 use lazy_static::lazy_static;
@@ -54,6 +55,10 @@ pub struct ParseContext<'ctx> {
 
     /// Resolved path of the last file imported (for import definitions).
     pub(crate) last_import: Option<String>,
+
+    /// The files of packages being parsed from their bytes (a .pkg), innermost last: (the package's directory, which
+    /// isn't on any disk, and its files by path). Imports under that directory come from these files.
+    pub(crate) package_files: Vec<(PathBuf, Arc<FxHashMap<PathBuf, Bytes>>)>,
 }
 impl<'ctx> ParseContext<'ctx> {
     /// Create a new parse context with a default config.
@@ -84,6 +89,7 @@ impl<'ctx> ParseContext<'ctx> {
             pending_names: Default::default(),
             info: None,
             last_import: None,
+            package_files: Vec::new(),
         }
     }
 
@@ -93,9 +99,31 @@ impl<'ctx> ParseContext<'ctx> {
             return Err(Error::Custom(format!("unknown import format '{format}' for '{path}'").into()));
         };
         let node = node.unwrap_or(self.self_ptr());
+        let requested = path.trim().to_string();
         let path = self.create_import_path(format, path)?;
         if let Some(info) = &mut self.info { info.files.push(path.clone()); }
         self.last_import = Some(path.clone());
+
+        // in a package parsed from its bytes, its own files come from the package (and only a package, '@name', from
+        // somewhere else)
+        let mut package_bytes = None;
+        if let Some((dir, files)) = self.package_files.last().cloned() {
+            let resolved = PathBuf::from(&path);
+            if resolved.starts_with(&dir) {
+                match files.get(&resolved) {
+                    Some(bytes) => package_bytes = Some(bytes.clone()),
+                    None => {
+                        self.pop_relative_import_stack();
+                        let name = resolved.strip_prefix(&dir).map(|name| name.to_string_lossy().replace('\\', "/")).unwrap_or_default();
+                        return Err(Error::PKGImport(format!("'{requested}' isn't in the package (no {name})")));
+                    },
+                }
+            } else if !requested.starts_with('@') {
+                self.pop_relative_import_stack();
+                return Err(Error::PKGImport(format!("'{requested}' is outside the package: a package imports its own files (relative paths) and other packages ('@name')")));
+            }
+        }
+
         if !self.fresh_import_for_node(&node, &path, format) {
             self.pop_relative_import_stack();
             return Ok(()); // already parsed this path
@@ -103,7 +131,10 @@ impl<'ctx> ParseContext<'ctx> {
 
         self.push_self_node(node);
         self.file_stack.push(path.clone());
-        let res = format_impl.parser_import(format, &path, self);
+        let res = match package_bytes {
+            Some(bytes) => format_impl.parser_bytes_import(format, bytes, self),
+            None => format_impl.parser_import(format, &path, self),
+        };
         self.last_import = Some(path.clone()); // nested imports set it too
         self.file_stack.pop();
         self.pop_self();
@@ -115,7 +146,32 @@ impl<'ctx> ParseContext<'ctx> {
             }
             return Err(error);
         }
+        if requested.starts_with('@') { self.record_package_file(&requested, &path); }
         Ok(())
+    }
+
+    /// A package read from the package directory (`import '@name'`) is recorded, so a #[load] import of the same
+    /// package (Std.import into '@name') uses it instead of parsing it again.
+    #[allow(unused)]
+    fn record_package_file(&mut self, requested: &str, path: &str) {
+        #[cfg(feature = "system")]
+        {
+            use crate::model::{FS_LIB, stof_std::import::record_package_file};
+            if !self.graph.has_libfunc(&FS_LIB, "read") { return; }
+            // the package's name: without its file's extension (Ex. '@x/rates.csv' is "x/rates", as Std.import writes
+            // '@x/rates' to stof/x/rates.csv)
+            // (only an extension the file has: '@x/intent.v2' is the package "x/intent.v2", in stof/x/intent.v2.stof)
+            let name = requested.trim_start_matches('@');
+            let file_ext = Path::new(path).extension().and_then(|ext| ext.to_str()).unwrap_or_default();
+            let name = match name.rsplit_once('/').map(|(_, last)| last).unwrap_or(name).rsplit_once('.') {
+                Some((stem, ext)) if !stem.is_empty() && ext == file_ext => &name[..name.len() - ext.len() - 1],
+                _ => name,
+            };
+            if name.is_empty() || name.contains('@') || name.split('/').any(|part| part.is_empty() || part == "." || part == "..") { return; }
+            if let Ok(bytes) = std::fs::read(path) {
+                record_package_file(self.graph, name, path, &bytes);
+            }
+        }
     }
 
     /// Import a file with an explicit format, or the format implied by its extension.
@@ -128,13 +184,59 @@ impl<'ctx> ParseContext<'ctx> {
         }
         let extension = Path::new(path.trim()).extension().and_then(|ext| ext.to_str()).map(|ext| ext.to_string());
         match extension {
+            None if path.trim().starts_with('@') => {
+                // a package: its file in the package directory, in whichever format it was written (Std.import writes
+                // a package with its format's extension, Ex. stof/formata/intent.pkg)
+                let format = self.package_format(path.trim());
+                if format == "stof" { return self.parse_from_file("stof", path, node); }
+                self.parse_from_file(&format, &format!("{}.{format}", path.trim()), node)
+            },
             None => self.parse_from_file("stof", path, node),
-            Some(ext) if self.graph.get_format(&ext).is_some() => self.parse_from_file(&ext, path, node),
+            Some(ext) if self.graph.get_format(&ext).is_some() => match self.parse_from_file(&ext, path, node.clone()) {
+                // a format that only exports (Ex. html): its file is text, or bytes
+                Err(Error::FormatStringImportNotImplemented(_)) => match self.parse_from_file("text", path, node.clone()) {
+                    Ok(()) => Ok(()),
+                    Err(text_error) => self.parse_from_file("bytes", path, node).map_err(|_| text_error),
+                },
+                res => res,
+            },
             Some(_) => match self.parse_from_file("text", path, node.clone()) {
                 Ok(()) => Ok(()),
                 Err(text_error) => self.parse_from_file("bytes", path, node).map_err(|_| text_error),
             },
         }
+    }
+
+    /// The format of a package's file in the package directory ('@name' without an extension): stof when there's a
+    /// .stof file (or nothing to look at), else .pkg, else .bstf, else the first other format with a file there (by
+    /// name; Std.import writes a package with its format's extension, Ex. stof/formata/intent.pkg).
+    #[allow(unused)]
+    fn package_format(&self, path: &str) -> String {
+        #[cfg(feature = "system")]
+        {
+            use crate::model::FS_LIB;
+            if self.package_files.is_empty() && self.graph.has_libfunc(&FS_LIB, "read") {
+                if let Ok(base) = resolve_import_path(None, "text", path) {
+                    let stem = base.file_name().map(|name| name.to_string_lossy().to_string()).unwrap_or_default();
+                    let dir = base.parent().map(|dir| dir.to_path_buf()).unwrap_or_default();
+                    let mut found: Vec<String> = Vec::new();
+                    if let Ok(entries) = std::fs::read_dir(if dir.as_os_str().is_empty() { Path::new(".") } else { dir.as_path() }) {
+                        for entry in entries.flatten() {
+                            let name = entry.file_name().to_string_lossy().to_string();
+                            let Some(ext) = name.strip_prefix(&format!("{stem}.")) else { continue };
+                            if ext.contains('.') || !entry.path().is_file() { continue; }
+                            if self.graph.get_format(ext).is_some() { found.push(ext.to_string()); }
+                        }
+                    }
+                    found.sort();
+                    for preferred in ["stof", "pkg", "bstf"] {
+                        if found.iter().any(|ext| ext == preferred) { return preferred.into(); }
+                    }
+                    if let Some(first) = found.first() { return first.clone(); }
+                }
+            }
+        }
+        "stof".into()
     }
 
     /// File being parsed (innermost import), if any.

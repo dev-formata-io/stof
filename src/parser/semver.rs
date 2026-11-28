@@ -15,24 +15,9 @@
 //
 
 use arcstr::ArcStr;
-use nom::{branch::alt, bytes::complete::take_while, character::complete::{char, digit1, space0}, combinator::{all_consuming, map_res, map}, sequence::{delimited, preceded}, AsChar, IResult, Parser};
+use nom::{branch::alt, bytes::complete::take_while, character::complete::{char, digit1, space0}, combinator::{map_res, map}, sequence::{delimited, preceded}, AsChar, IResult, Parser};
 use crate::{parser::doc::StofParseError, runtime::Val};
 
-
-/// Parse a Semantic Version alone.
-pub fn parse_semver_alone(input: &str) -> Option<Val> {
-    match semver_complete(input) {
-        Ok(val) => {
-            Some(val.1)
-        },
-        Err(_) => {
-            None
-        }
-    }
-}
-fn semver_complete(input: &str) -> IResult<&str, Val, StofParseError> {
-    all_consuming(parse_semver).parse(input)
-}
 
 /// Parse a Semantic Version value.
 pub fn parse_semver(input: &str) -> IResult<&str, Val, StofParseError> {
@@ -100,25 +85,30 @@ fn parse_ver_release(input: &str) -> IResult<&str, &str, StofParseError> {
     ).parse(input)
 }
 fn parse_ver_build(input: &str) -> IResult<&str, &str, StofParseError> {
+    // build metadata: dot-separated identifiers, as semver's (Ex. +sha.5114f85)
     preceded(
         char('+'),
-        take_while(|c| AsChar::is_alphanum(c) || c == '-')
+        take_while(|c| AsChar::is_alphanum(c) || c == '-' || c == '.')
     ).parse(input)
 }
 
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::semver::parse_semver_alone;
+    use nom::{combinator::all_consuming, Parser};
+    use crate::parser::semver::parse_semver;
+
+    fn literal(text: &str) -> bool { all_consuming(parse_semver).parse(text).is_ok() }
 
     #[test]
     fn semver() {
-        assert!(parse_semver_alone("  0.0.5  ").unwrap().ver());
-        assert!(parse_semver_alone("1.43.5-beta+123").unwrap().ver());
-        assert!(parse_semver_alone("1.43.5-beta.3456+123").unwrap().ver());
+        assert!(literal("  0.0.5  "));
+        assert!(literal("1.43.5-beta+123"));
+        assert!(literal("1.43.5-beta.3456+123"));
+        assert!(literal("1.43.5-beta.3456+sha.5114f85"));
 
-        assert!(parse_semver_alone("1.43.5-beta +123").is_none());
-        assert!(parse_semver_alone("   1.4 3.5    - b eta  ").is_none());
-        assert!(parse_semver_alone("1.43").is_none());
+        assert!(!literal("1.43.5-beta +123"));
+        assert!(!literal("   1.4 3.5    - b eta  "));
+        assert!(!literal("1.43"));
     }
 }

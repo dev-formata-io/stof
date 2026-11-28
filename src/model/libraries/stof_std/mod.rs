@@ -36,6 +36,8 @@ mod containers;
 mod ops;
 mod computed;
 mod sealing;
+pub mod import;
+pub mod load;
 
 
 /// Add the std library to a graph.
@@ -84,6 +86,9 @@ pub fn stof_std_lib(graph: &mut Graph) {
     graph.insert_libfunc(sealing::std_seal());
     graph.insert_libfunc(sealing::std_digest());
     graph.insert_libfunc(sealing::std_sealed());
+    graph.insert_libfunc(import::std_import());
+    graph.insert_libfunc(import::std_imported());
+    graph.insert_libfunc(load::std_load());
     graph.insert_libfunc(std_graph_id());
     graph.insert_libfunc(std_inf());
     graph.insert_libfunc(std_nan());
@@ -827,42 +832,10 @@ impl Instruction for StdIns {
                                     }
                                 }
 
-                                // confined code parses only declarations: an import would read files (with
-                                // allow_system), and #[init] functions and field expressions would run. Nor does it
-                                // parse whole graphs or packages: bstf adds its types to the document, and pkg
-                                // unpacks to the file system.
-                                if !graph.confined.is_empty() {
-                                    let fmt = graph.get_format(&format).or_else(|| graph.get_format_by_content_type(&format));
-                                    if fmt.is_some_and(|fmt| fmt.identifiers().iter().any(|id| id == "bstf" || id == "pkg")) {
-                                        return Err(Error::Sealed(format!("this sealed part can't parse {format}")));
-                                    }
-                                }
-                                let profile = if !graph.confined.is_empty() { Profile::untrusted() } else { match profile_var.val.read().to_string().as_str() {
-                                    "test" => Profile::test(),
-                                    "prod" => Profile::prod(),
-                                    "prod_docs" => Profile::docs(false),
-                                    "untrusted" => Profile::untrusted(),
-                                    "docs" => Profile::docs(true),
-                                    _ => Profile::default(),
-                                } };
-
-                                match source_var.val.read().deref() {
-                                    Val::Str(src) => {
-                                        memory::check_elements(env.max_memory, src.len(), memory::PARSE_COST)?;
-                                        graph.string_import(&format, src.as_str(), Some(context), &profile)?;
-                                        env.stack.push(Variable::val(Val::Bool(true)));
-                                        return Ok(None);
-                                    },
-                                    Val::Blob(bytes) => {
-                                        memory::check_elements(env.max_memory, bytes.len(), memory::PARSE_COST)?;
-                                        graph.binary_import(&format, bytes.clone(), Some(context), &profile)?;
-                                        env.stack.push(Variable::val(Val::Bool(true)));
-                                        return Ok(None);
-                                    },
-                                    _ => {
-                                        return Err(Error::StdParse("parse source data must be a string or blob".to_string()));
-                                    }
-                                }
+                                let profile = profile_var.val.read().to_string();
+                                parse_source(graph, env, &format, &profile, source_var.val.read().deref(), context)?;
+                                env.stack.push(Variable::val(Val::Bool(true)));
+                                return Ok(None);
                             }
                         }
                     }
@@ -1376,5 +1349,37 @@ fn with_message(message: Option<String>, detail: String) -> String {
     match message {
         Some(message) => format!("{message}: {detail}"),
         None => detail,
+    }
+}
+
+/// Parse source (text or a blob) into an object with a format and profile name, as Std.parse does (Std.import too).
+/// Confined code parses only declarations: an import would read files (with allow_system), and #[init] functions and
+/// field expressions would run. Nor does it parse whole graphs or packages: bstf adds its types to the document, and
+/// pkg unpacks to the file system.
+pub(crate) fn parse_source(graph: &mut Graph, env: &ProcEnv, format: &str, profile: &str, source: &Val, context: crate::model::NodeRef) -> Result<(), Error> {
+    if !graph.confined.is_empty() {
+        let fmt = graph.get_format(format).or_else(|| graph.get_format_by_content_type(format));
+        if fmt.is_some_and(|fmt| fmt.identifiers().iter().any(|id| id == "bstf" || id == "pkg")) {
+            return Err(Error::Sealed(format!("this sealed part can't parse {format}")));
+        }
+    }
+    let profile = if !graph.confined.is_empty() { Profile::untrusted() } else { match profile {
+        "test" => Profile::test(),
+        "prod" => Profile::prod(),
+        "prod_docs" => Profile::docs(false),
+        "untrusted" => Profile::untrusted(),
+        "docs" => Profile::docs(true),
+        _ => Profile::default(),
+    } };
+    match source {
+        Val::Str(src) => {
+            memory::check_elements(env.max_memory, src.len(), memory::PARSE_COST)?;
+            graph.string_import(format, src.as_str(), Some(context), &profile)
+        },
+        Val::Blob(bytes) => {
+            memory::check_elements(env.max_memory, bytes.len(), memory::PARSE_COST)?;
+            graph.binary_import(format, bytes.clone(), Some(context), &profile)
+        },
+        _ => Err(Error::StdParse("parse source data must be a string or blob".to_string())),
     }
 }

@@ -443,7 +443,7 @@ export interface SealInfo {
  * Stof document.
  */
 export class StofDoc {
-    static readonly VERSION = '0.11.6';
+    static readonly VERSION = '0.12.0';
     private static initialized?: Promise<unknown>;
     private static wasmMutex = new WasmMutex();
     stof: Stof;
@@ -849,6 +849,19 @@ export class StofDoc {
         await Promise.resolve(); // start after the current step, like before (a library function can call back)
         const task = this.stof.start_call_source(src, args, node);
         return await this.drive(task, (task) => this.stof.result(task));
+    }
+
+
+    /**
+     * Run this document's #[load] functions (in node and the objects in it, an object path or ID, or the whole
+     * document), which bring in its dependencies (Ex. with import), and wait for them. Returns how many ran.
+     * Call it after parsing; it's safe to call again (imports already there aren't fetched). Imports use this
+     * document's Http.fetch, so allow the hosts they need first (allowHttp).
+     * Ex. const doc = await StofDoc.new(src); doc.allowHttp(['example.com']); await doc.load();
+     */
+    async load(node: string | null = null): Promise<number> {
+        const src = node === null ? 'fn load_all() -> int await load()' : 'fn load_here() -> int await load(self)';
+        return await this.callSource(src, [], node) as number;
     }
 
 

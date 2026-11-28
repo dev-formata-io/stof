@@ -227,6 +227,31 @@ impl Doc {
         }
     }
 
+    #[pyo3(signature = (node = None))]
+    /// Run the document's #[load] functions (in node and the objects in it, an object path or ID, or the whole
+    /// document), which bring in its dependencies (Ex. with import), and wait for them. Returns how many ran. Call it
+    /// after parsing; it's safe to call again (imports already there aren't fetched).
+    pub fn load(&self, py: Python<'_>, node: Option<&Bound<'_, PyAny>>) -> PyResult<i64> {
+        let mut doc = self.lock(py)?;
+        let context = match node.map(|node| py_any_to_val(node, &doc.graph)).unwrap_or(Val::Null) {
+            Val::Null | Val::Void => None,
+            Val::Obj(node) if node.node_exists(&doc.graph) => Some(node),
+            Val::Str(path) => match doc.graph.host_node(&path) {
+                Some(node) => Some(node),
+                None => return Err(PyValueError::new_err(format!("object '{path}' not found"))),
+            },
+            _ => return Err(PyValueError::new_err("node must be an object path or ID")),
+        };
+        // without the GIL while it runs (see call): imports fetch, and a server in this process may be answering
+        let graph = &mut doc.graph;
+        let res = py.detach(move || graph.load(context));
+        match res {
+            Ok(Val::Num(num)) => Ok(num.int()),
+            Ok(other) => Err(PyValueError::new_err(format!("load returned {other:?}"))),
+            Err(err) => Err(PyValueError::new_err(err.to_string()))
+        }
+    }
+
     #[pyo3(signature = (src, args = None, node = None))]
     /// Call a function from Stof source without adding it to the document (Ex. a one-off script or check).
     /// The source's first function runs as if it were defined on node (an object path or ID, the root by

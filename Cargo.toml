@@ -2,7 +2,7 @@
 # RUN "stof run project.stof" TO REGENERATE.
 [package]
 name = "stof"
-version = "0.11.6"
+version = "0.12.0"
 authors = ["CJ Cummings <cj@formata.io>"]
 description = "JSON that runs: JSON with functions, run in a sandbox that can only touch what you hand it. In Rust, JavaScript, and Python."
 license = "Apache-2.0"
@@ -36,7 +36,7 @@ age_encrypt = ["dep:age"]
 xml = ["dep:quick-xml"]
 mimalloc = ["dep:mimalloc"]
 py = ["full", "dep:pyo3"]
-js = ["stof_std", "age_encrypt", "xml", "dep:js-sys", "dep:wasm-bindgen", "dep:serde-wasm-bindgen", "dep:getrandom", "dep:wasm-bindgen-futures", "dep:web-sys", "dep:console_error_panic_hook"]
+js = ["stof_std", "pkg", "age_encrypt", "xml", "dep:js-sys", "dep:wasm-bindgen", "dep:serde-wasm-bindgen", "dep:getrandom", "dep:wasm-bindgen-futures", "dep:web-sys", "dep:console_error_panic_hook"]
 
 [profile.release]
 lto = "fat"

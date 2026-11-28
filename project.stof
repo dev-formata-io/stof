@@ -5,7 +5,7 @@ import '@cargo' as Rust;
 import pkg '@github' as GitHub;
 
 /// Current version.
-const version: 0.11.6
+const version: 0.12.0
 
 /// Cargo.toml definition.
 Cargo cargo: {
@@ -96,6 +96,7 @@ Cargo cargo: {
         /// should be the only feature enabled when building for the wasm target
         js: [
             'stof_std',
+            'pkg',
             'age_encrypt',
             'xml',
             'dep:js-sys',

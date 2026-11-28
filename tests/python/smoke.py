@@ -140,6 +140,50 @@ def in_process_server():
     finally:
         server.shutdown()
 
+def loading():
+    # doc.load() runs #[load] functions, whose imports fetch pinned bytes once (a server on a thread in this process)
+    import hashlib, http.server, threading
+    pkg = b"fn hello() -> str 'hello'\n#[load] fn deps() { self.loads += 1; }\nloads: 0\n"
+    hits = []
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == '/pkg.stof':
+                hits.append(1)
+                self.send_response(200); self.send_header('Content-Type', 'text/plain'); self.end_headers(); self.wfile.write(pkg)
+            else:
+                self.send_response(404); self.end_headers()
+        def log_message(self, *args): pass
+    server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        src = """
+            #[load] fn deps() { await import('http://127.0.0.1:%d/pkg.stof', '%s', 'root.deps.pkg'); }
+            fn hello() -> str root.deps.pkg.hello()
+        """ % (server.server_address[1], hashlib.sha256(pkg).hexdigest())
+        doc = Doc(); doc.allow_http_hosts(['127.0.0.1']); doc.parse(src)
+        assert doc.load() == 1
+        assert doc.call('hello') == 'hello'
+        assert doc.get('deps.pkg.loads') == 1, doc.get('deps.pkg.loads')
+        assert doc.load() == 2 and len(hits) == 1, len(hits)  # the package's #[load] too, now it's in the document
+        assert doc.load('deps.pkg') == 1 and doc.get('deps.pkg.loads') == 3
+        wrong = Doc(); wrong.quiet(); wrong.allow_http_hosts(['127.0.0.1']); wrong.parse(src.replace(hashlib.sha256(pkg).hexdigest(), 'a' * 64))
+        try:
+            wrong.load(); raise AssertionError('loaded a wrong hash')
+        except ValueError as error:
+            assert 'not the pinned' in str(error), str(error)
+    finally:
+        server.shutdown()
+
+def packages():
+    # a .pkg's bytes import in memory (no file system), with its pkg.stof's #[load] functions
+    import os
+    with open(os.path.join(os.path.dirname(__file__), '..', 'js', 'fixtures', 'tools.pkg'), 'rb') as file:
+        pkg = file.read()
+    doc = Doc(); doc.parse('tools: {}')
+    doc.binary_import(pkg, 'pkg', 'tools')
+    assert doc.call('tools.tool') == 'tool util', doc.call('tools.tool')
+    assert doc.load() == 1 and doc.get('tools.tools_loaded') is True
+
 def reentry():
     # a library function calling back into the document that called it is an error (never a deadlock), and the
     # document works after; calling another document is fine
@@ -319,7 +363,7 @@ def keys():
     doc = Doc(); doc.parse("fn check(m: str, k: str, s: str) -> bool { Key::verify(k, 'orders/v1', m, s) }")
     assert doc.call('check', [order, public, signature]) is True
 
-for name, fn in [('empty document', empty_document), ('calls', calls), ('sealing', sealing), ('confined', confined), ('untrusted', untrusted), ('gates', gates), ('keys', keys), ('library functions', library_functions), ('library functions per doc', library_functions_per_doc), ('library functions across threads', library_functions_threads), ('shared across threads', shared_across_threads), ('GIL released', gil_released), ('in-process server', in_process_server), ('reentry', reentry), ('values', values), ('memory limit', memory_limit),
+for name, fn in [('empty document', empty_document), ('calls', calls), ('sealing', sealing), ('confined', confined), ('untrusted', untrusted), ('gates', gates), ('keys', keys), ('library functions', library_functions), ('library functions per doc', library_functions_per_doc), ('library functions across threads', library_functions_threads), ('shared across threads', shared_across_threads), ('GIL released', gil_released), ('in-process server', in_process_server), ('loading', loading), ('packages', packages), ('reentry', reentry), ('values', values), ('memory limit', memory_limit),
                  ('sandbox', sandbox), ('network', network), ('html', html)]:
     check(name, fn)
 print(f'{failed} failed' if failed else 'all ok')

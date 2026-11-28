@@ -192,6 +192,31 @@ assert(graph_id().len() > 10);
 ```
 
 
+# async Std::import(url: str, sha256: str, into: str | obj, format: str = null, profile: str = "prod", headers: map = null) -> Promise<bool>
+Load a dependency into this document at runtime: fetch `url`, check that its bytes have the pinned `sha256`, and parse them into `into` (a path or an object; a missing path is created). Returns true when it loaded them, or false when they're there already (nothing is fetched). Usually called from a `#[load]` function, which the host runs with `load()`: await it there, so a failed import fails `load()` (an import that isn't awaited fails on its own).
+
+- **Pinned:** bytes with a different hash are an error, and nothing is parsed. The hash is of the bytes as fetched (`sha256(bytes)`). Pin a URL that never changes (Ex. a GitHub release's `/releases/download/v1.4.0/intent.pkg`, not `/releases/latest/...`).
+- **Once per object:** the import is recorded on `into` (its `imports` attribute: hash to `{ url, package, version }`), so importing the same hash there again is skipped. The same hash into another object is a separate copy, and different hashes can go into one object. The record moves with the object, and goes when it's dropped.
+- **Network:** it uses this document's `Http.fetch`, so it reaches only what the host allows (`allow_http`, `allow_http_hosts`, and a sealed part's `hosts`, checked again after redirects: GitHub release files redirect to `release-assets.githubusercontent.com`). `headers` go with the request (Ex. `{ 'Authorization': 'Bearer ' + env('GITHUB_TOKEN') }` for a private file). Without `Http` it's an error.
+- **Packages:** an `into` like `'@formata/intent'` is a package, parsed into the root (where `import '@formata/intent'` would put it). With this document's file system (`fs`, allowed here), the checked bytes are also written to `stof/formata/intent.stof` (with the format's extension), where `import '@formata/intent'` reads them, and a later import uses that file instead of fetching (a changed file is fetched again). A host that only installs packages (the CLI) writes them without parsing.
+- **Versions:** `'@formata/intent@1.4.0'` (a `ver`) is version 1.4.0 or a newer compatible one (the same major version; for 0.x, the same minor version; a pre-release only with its own version's pre-releases and later releases), and a `.pkg` must be the version its `pkg.stof` says. A document has one version of a package, the highest one its imports require: a lower one is skipped (false) when a higher compatible one is loaded or loading, and a higher one is parsed over a lower one. Two incompatible versions (Ex. 1.x and 2.x), or one version with different bytes, are errors. A package without a version uses whatever's there, and a version replaces it. A package your code imports from `stof/` (`import '@formata/intent'`) is the one used, whatever the version.
+- **Cache:** a host can give documents a cache of fetched bytes by hash (Ex. the CLI); bytes from it are checked like fetched ones.
+- **Any file:** data, code, text, images, documents. The format is `format`, else the URL's file extension when it's a format this document has (Ex. `.stof`, `.bstf`, `.pkg`, `.json`, `.toml`, `.png`), else the response's content type (a generic one, like `application/octet-stream` or `text/plain`, is ignored), else `bytes` when it isn't UTF-8, else `text` for another extension or content type (Ex. `.csv`), else `stof` (no extension). A format that only exports (Ex. `html`) is imported as text.
+- **Its own `#[load]` functions** run once it's parsed and recorded (`load(into)`), so its dependencies load too (a `.pkg` brings the `#[load]` functions in its `pkg.stof`). A dependency two packages share loads once.
+- **Errors** are thrown (the fetch, the response's status, the hash, a version conflict, the parse, or its `#[load]` functions), so true and false only mean loaded or already there. A failed parse records nothing, and parsing the same bytes again replaces what was parsed.
+```rust
+#[load] fn intent() { await import('https://github.com/formata/intent/releases/download/v1.4.0/intent.pkg', '9f2c...', '@formata/intent@1.4.0'); }
+#[load] fn rules() { await import('https://example.com/rules.bstf', '4b1e...', 'root.deps.rules'); }
+```
+
+
+# Std::imported(obj: obj = null) -> list
+What's been imported (with `import`, or a package with `import '@name'`) into this object and the objects in it, or into the whole document: a list of maps with `url`, `sha256`, and `into` (the object it went into), plus `package` and `version` for packages (`version` when it has one), read from the objects' records.
+```rust
+for (const dep in imported()) pln(dep.get('url'), dep.get('sha256'));
+```
+
+
 # Std::inf() -> float
 Positive infinity (negate it for negative infinity). To check whether a number is infinite, use Num::inf(val) (Ex. val.inf()).
 ```rust
@@ -223,6 +248,28 @@ assert(libs().superset({"Std", "Fn", "Num", "Set"}));
 Construct a new list with the given arguments.
 ```rust
 assert_eq(list(1, 2, 3), [1, 2, 3]);
+```
+
+
+# async Std::load(obj: obj = null) -> Promise<int>
+Run the `#[load]` functions in this object and the objects in it, or in the whole document, and wait for them (and everything they start) to finish. Returns how many it ran. A host runs it after parsing (`doc.load()`), and the CLI before `stof run` and `stof test`.
+
+A `#[load]` function brings in what the document depends on, usually with `import`, which skips what's already there without fetching. So `load` is safe to run any number of times. Each `import` that loads something runs `load` on what it loaded, so dependencies of dependencies load too.
+
+- The functions run at the same time, and a function that's already running (Ex. one that calls `load` on its own object) isn't started again.
+- Other work in a `#[load]` function runs again each time.
+- Await what it starts (Ex. `await import(..)`): an error in something it didn't await doesn't fail `load`.
+- A sealed part's functions are run only by code in that part.
+```rust
+#[load]
+fn deps() {
+    await import('https://example.com/intent.bstf', '9f2c...', 'root.deps.intent');
+}
+
+#[main]
+fn main() {
+    await load(); // the CLI does this for you
+}
 ```
 
 

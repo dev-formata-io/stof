@@ -223,6 +223,16 @@ the data it works on. (The Stof runtime itself is compiled to WebAssembly for br
 **How fast is it?**
 A small document parses and runs in under a millisecond, and calls after that take microseconds.
 
+**Can a document depend on other documents, or on remote data?**
+Yes, with one pinned line that works the same in every host, the browser included. The host calls `load()` after
+parsing, and the document fetches what it depends on through the host's own network rules, checks it against its
+sha256, and parses it in: Stof, a package, JSON, CSV, an image, any file. Packages have versions (the highest one
+required wins), and the `stof` CLI pins, installs, and updates them:
+
+```rust
+#[load] fn intent() { await import('https://github.com/formata/intent/releases/download/v1.4.0/intent.pkg', '9f2c...', '@formata/intent@1.4.0'); }
+```
+
 **Do I have to replace JSON, YAML, or TOML?**
 No. Stof imports and exports them, so you can add logic to the data you already have.
 

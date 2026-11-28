@@ -512,6 +512,9 @@ pub enum Error {
 
     /// Invalid call arguments, with what's wrong (catch blocks still see 'FuncArgs'). Added at the end for rev-compatibility.
     FuncArgsInfo(String),
+
+    /// Std.import failed (fetch, hash, or parse), with what went wrong. Added at the end for rev-compatibility.
+    Import(String),
 }
 impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -694,6 +697,7 @@ impl Error {
             Self::Custom(message) => message.to_string(),
             Self::NullArithmetic(message) => message.clone(),
             Self::FuncArgsInfo(message) => message.clone(),
+            Self::Import(message) => message.clone(),
             Self::NotImplemented => "not implemented".into(),
             Self::ParseError(_) => self.to_string(),
             Self::Located(error, _) => error.message(),

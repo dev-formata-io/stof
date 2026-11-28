@@ -7,7 +7,7 @@ description: >
   converting JSON/YAML/TOML to Stof, self-validating configs (#[schema]), prototype types (#[type]),
   #[main]/#[test]/#[run] functions, the `stof` CLI, or embedding Stof with StofDoc (JS), Doc (Python),
   or Graph/Runtime (Rust). Also use when code shows `self.`, `#[type]`, `new X {}`, `schemafy`,
-  `Lib::func`, `funcs(attributes = ...)`, or `stof test`.
+  `Lib::func`, `funcs(attributes = ...)`, `#[load]`, `import(url, sha256, ...)`, or `stof test`/`stof add`.
 ---
 
 # Stof
@@ -136,8 +136,16 @@ mass `Gt Mt t kg g mg ug ng pg Ton lb oz`; data `bit byte KB MB GB TB PB … KiB
 value compares bare numbers: `Time::now() + 1hr` is in hours, so give a time from JSON its units first
 (`const at: ms = record.expires;`) before comparing.
 
-**Literals:** `'single'`, `"double"`, `` `template ${expr}` ``, `r#"raw"#`, `[list]`, `{'map': 1}`, `{1, 2}`
-(set), `(1, 'two')` (tuple), `1_000`, `0xFF`, `1e3`, `Infinity`, `-Infinity`, `NaN`, `1.2.3` (version).
+**Literals:** `'single'`, `"double"`, `` `template ${expr}` ``, `r#"raw"#`, `"""triple"""` (raw multi-line text with
+`${expr}` parts, `\${` for a literal one: the closing `"""`'s indentation is removed from every line, and the line
+breaks after the opening `"""` and before the closing one are dropped), `[list]`,
+`{'map': 1}`, `{1, 2}` (set), `(1, 'two')` (tuple), `1_000`, `0xFF`, `1e3`, `Infinity`, `-Infinity`, `NaN`,
+`1.2.3-rc.1+build.5` (version).
+
+**Versions** (`ver`) follow semver: `<`, `>`, and sorting use precedence (`1.0.0-rc.1 < 1.0.0 < 1.10.0`; build
+metadata doesn't count), a version string compares as a version (`ver == 'v1.2.3'`), `'1.2.*' as ver` has a
+wildcard part, and `ver.matches('^1.2')` checks a Cargo-style requirement (`^`, `~`, `=`, `>`, `>=`, `<`, `<=`, `*`,
+comma-separated). See `references/libs/Ver.md` for `compatible`, `is_prerelease`, and `bump_*`.
 
 ## Functions
 
@@ -146,6 +154,7 @@ fn add(a: float, b: float = 1) -> float { a + b }                 // default par
 fn greet(name: str = 'world') -> str { return `Hello, ${name}!`; }
 fn maybe(id: str, limit?: int) -> int { limit ?? 10 }            // optional parameter (null when omitted)
 fn fib(n: int) -> int { if (n <= 1) return n; this(n - 1) + this(n - 2) }   // `this` = current function
+fn area(w: float, h: float) -> float w * h                        // an expression body (on the signature's line)
 ```
 
 ```stof
@@ -292,6 +301,8 @@ checked, whatever it's named; with more, they're matched by name: `target_val` (
   written).
 - `#[run({'args': [5]})]`: pass arguments to a run step.
 - `#[init]`: runs once after the document is parsed (setup).
+- `#[load]`: runs when the host loads the document after parsing (`doc.load()`, or `load()` in Stof), to bring in
+  dependencies (see Dependencies).
 - `#[constructor]` / `#[dropped]` (in a type): run on `new` and on `drop(instance)`.
 - On fields: `#[readonly]`, `#[private]` (only the object's own functions can read it; still exported),
   `#[no-export]` (left out of `stringify`), `#[schema(...)]`, `#[attr]`/`#[text]`/`#[tag]` (html and xml, see
@@ -378,6 +389,32 @@ dashboard: {
   only text is a string field, repeated elements are a list, and other text is a `#[text]` field named `text`.
   Values stay strings. The root element's content goes into `obj` (which gets `#[tag]` when the names differ).
 
+## Dependencies (#[load] and import)
+
+A document brings in what it depends on at runtime with a pinned line, the same in every host (the browser too):
+
+```stof
+#[load] fn intent() { await import('https://github.com/formata/intent/releases/download/v1.4.0/intent.pkg', '9f2c...', '@formata/intent@1.4.0'); }
+#[load] fn rates() { await import('https://example.com/rates.json', '4b1e...', 'root.deps.rates'); }
+```
+
+- `import(url, sha256, into, format = null, profile = 'prod', headers = null)` is async: it fetches with the document's
+  own `Http.fetch` (the host's network rules), checks the bytes' sha256 (required), parses them into `into` (a path,
+  created if missing, or an object), and records it there, so the same import again returns false without fetching.
+  **Await it** in a `#[load]` function, so a failure fails the load.
+- **Any file:** the format is the URL's extension, else the content type, else text or bytes (Ex. `.csv` is text),
+  else stof. A `.pkg` brings its `pkg.stof`'s `#[load]` functions, so its dependencies load too.
+- **Packages:** `into: '@formata/intent'` parses into the root (with the file system, it's also written to
+  `stof/formata/intent.<ext>`, where `import '@formata/intent'` reads it). `'@name@1.4.0'` means that version or a
+  newer compatible one (same major; for 0.x, same minor). A document has one version of each package, the highest
+  required; incompatible versions are an error.
+- **Running loads:** `await doc.load()` (JS), `doc.load()` (Python), `graph.load(None)` (Rust), or `await load(obj?)`
+  in Stof; each returns how many `#[load]` functions ran. `imported()` lists what's been imported. Untrusted source
+  can't have `#[load]` functions.
+- **CLI:** `stof add <url> [name@version]` writes the line into `pkg.stof` and installs it; `stof run`/`test`
+  install and load first; `stof install`, `stof remove`, `stof update`, `stof outdated`, `stof hash <url>`. Pin
+  URLs that never change (a release's `/releases/download/v1.4.0/...`, never `/latest/`).
+
 ## Async
 
 ```stof
@@ -415,7 +452,9 @@ stof test --leaks file.stof    # one at a time, also failing tests that leave ob
 stof test ./dir                # a package directory
 stof run file.stof             # run #[main] functions
 stof run file.stof -a nightly  # run #[nightly] functions instead
-stof pkg ./dir                 # build a .pkg from a directory with pkg.stof
+stof pkg ./dir                 # build a .pkg from a directory with pkg.stof (or `stof pkg . dist/x.bstf`)
+stof init                      # a package: pkg.stof and main.stof
+stof add <url> [name@version]  # pin a dependency in pkg.stof and install it (see Dependencies)
 ```
 
 Errors print the message, the failing line with a caret, and the Stof call stack:
@@ -453,6 +492,7 @@ doc.get('rate'); doc.set('rate', 3);
 doc.lib('Host', 'now', () => Date.now());        // Stof calls Host::now()
 doc.parse({ extra: true });                      // add more (Stof source, a JS object, or bytes)
 await doc.run();                                 // #[main] functions
+await doc.load();                                // #[load] functions (dependencies), after parsing
 doc.stringify('json'); doc.blobify('bstf'); doc.record();   // export (record = plain JS object)
 await doc.callSource('fn check(x: int) -> bool { x < self.rate }', [1]);   // run once, nothing kept
 doc.remove('rate');                              // remove by path, like drop()
@@ -471,6 +511,7 @@ doc.parse("rate: 2\nfn total(units: int) -> float { units * self.rate }")
 doc.call('total', [21])        # args: a list, a single value, or none (doc.call('fn'))
 doc.get('rate'); doc.set('rate', 3)   # optional start object id as a last argument
 doc.run()
+doc.load()                     # #[load] functions (dependencies), after parsing
 doc.string_export('json'); doc.binary_export()   # bstf of the main root
 doc.call_source('fn check(x: int) -> bool { x < self.rate }', [1])   # run once, nothing kept
 doc.remove('rate')
@@ -491,6 +532,7 @@ let mut graph = Graph::default();
 graph.parse_stof_src("rate: 2\nfn total(units: int) -> float { units * self.rate }", None, Default::default())?;
 let total = Runtime::call(&mut graph, "total", vec![Val::from(21i64)])?;   // 42
 Runtime::run(&mut graph, None, true)?;                                     // #[main]
+graph.load(None)?;                                                          // #[load] functions (dependencies)
 let json = graph.string_export("json", None)?;   // graph.stringify("html", node) also calls computed values
 Runtime::call_source(&mut graph, "fn check(x: int) -> bool { x < self.rate }", None, vec![Val::from(1i64)])?;
 graph.remove("rate", false);
@@ -679,7 +721,7 @@ Read `references/libs/<file>` for full signatures and examples.
 | List, Map, Set, Tup | `List.md` `Map.md` `Set.md` `Tup.md` | Collections (lists: `map`, `filter`, `any`, `sort_by`, ...) |
 | Fn | `Fn.md` | Functions as values: `call`, `params`, `attributes`/`set_attribute`/`remove_attribute`, `obj`, `bind` |
 | Time | `Time.md` | `Time::now()`, RFC-3339/2822, date math |
-| Ver | `Ver.md` | Semantic versions |
+| Ver | `Ver.md` | Semantic versions: `matches` (requirements), `compatible`, `bump_*`, `is_prerelease`, parts |
 | Blob | `Blob.md` | Binary data |
 | Data | `Data.md` | Opaque data components (PDFs, images, custom host data) |
 | Prompt | `Prompt.md` | Prompt trees for AI workflows |

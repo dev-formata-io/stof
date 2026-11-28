@@ -112,6 +112,27 @@ pub struct Graph {
     #[serde(skip)]
     pub confined: Vec<Arc<crate::model::seal::Reach>>,
 
+    /// The #[load] functions running now (Std.load), so one isn't started again while it runs (Ex. a #[load] function
+    /// that calls load on its own object). Never stored in documents.
+    #[serde(skip)]
+    pub loading: rustc_hash::FxHashMap<DataRef, std::sync::Weak<()>>,
+
+    /// Where Std.import keeps and finds the bytes it fetches, by their sha256 (None: no cache). Set by the host (Ex.
+    /// the CLI's cache directory). Bytes from the cache are checked against the pinned hash like fetched ones.
+    #[serde(skip)]
+    pub import_cache: Option<Arc<dyn crate::model::stof_std::import::ImportCache>>,
+
+    /// Std.import only writes packages ('@name' destinations) to the package directory, without parsing them (the CLI
+    /// installing a pkg.stof's dependencies, so no package code runs). Off by default.
+    #[serde(skip)]
+    pub import_vendor_only: bool,
+
+    /// The package ('@name') each name resolves to in this document now, loading or loaded (see Std.import's version
+    /// rules). Never stored in documents: a document's records (its root's `imports` attribute) are read when a name
+    /// isn't here.
+    #[serde(skip)]
+    pub packages: rustc_hash::FxHashMap<arcstr::ArcStr, crate::model::stof_std::import::PackageState>,
+
     /// Attributes the html format writes only when allowed (`style`, `action`, `formaction`). Set by the host with
     /// `allow_html_attributes`.
     #[serde(skip)]
@@ -158,6 +179,10 @@ impl Default for Graph {
             http_private: false,
             seals: Default::default(),
             confined: Vec::new(),
+            loading: Default::default(),
+            import_cache: None,
+            import_vendor_only: false,
+            packages: Default::default(),
             html_tags: None,
             html_attributes: None,
             keep_source: false,
@@ -1939,6 +1964,29 @@ impl Graph {
         }
 
         Runtime::call(self, &search, args)
+    }
+
+    /// Run the document's #[load] functions (Std.load), in the object given and the objects in it, or in the whole
+    /// document, and wait for them and everything they start (Ex. imports). Returns how many ran. Hosts call this after
+    /// parsing a document that brings in dependencies; it's safe to call again (imports already there aren't fetched).
+    pub fn load(&mut self, node: Option<NodeRef>) -> Result<Val, Error> {
+        use crate::runtime::instructions::{Base, AWAIT, block::Block, call::FuncCall};
+        let target = match node {
+            Some(node) => Val::Obj(node),
+            None => Val::Null,
+        };
+        let mut block = Block::default();
+        block.ins.push_back(Arc::new(FuncCall {
+            as_ref: false,
+            cnull: false,
+            stack: false,
+            func: None,
+            search: Some(literal!("Std::load")),
+            args: imbl::vector![Arc::new(Base::Literal(target)) as Arc<dyn crate::runtime::instruction::Instruction>],
+            oself: None,
+        }));
+        block.ins.push_back(AWAIT.clone());
+        Runtime::eval(self, Arc::new(block))
     }
 
     #[inline]

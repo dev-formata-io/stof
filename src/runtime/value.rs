@@ -23,7 +23,7 @@ use arcstr::{literal, ArcStr};
 use bytes::Bytes;
 use imbl::{vector, OrdMap, OrdSet, Vector};
 use serde::{Deserialize, Serialize};
-use crate::{model::{export::json_value_from_node, Data, DataRef, Field, Func, Graph, FieldHolders, Node, NodeRef, PROTOTYPE_DATA_NAME, Prototype, SId}, parser::{number::number, semver::parse_semver_alone}, runtime::{Error, Num, NumT, Prompt, Type, Units, Variable, DATA, OBJ}};
+use crate::{model::{export::json_value_from_node, Data, DataRef, Field, Func, Graph, FieldHolders, Node, NodeRef, PROTOTYPE_DATA_NAME, Prototype, SId}, parser::number::number, runtime::{semver, Error, Num, NumT, Prompt, Type, Units, Variable, DATA, OBJ}};
 
 
 /// The variables an arrow function captured where it was evaluated.
@@ -488,22 +488,8 @@ impl Ord for Val {
             },
             Self::Ver(maj, min, pat, rel, bld) => {
                 match other {
-                    Self::Ver(omaj, omin, opat, orel, obld) => {
-                        let mut cmp = maj.cmp(omaj);
-                        if cmp == Ordering::Equal {
-                            cmp = min.cmp(omin);
-                            if cmp == Ordering::Equal {
-                                cmp = pat.cmp(opat);
-                                if cmp == Ordering::Equal {
-                                    cmp = rel.cmp(orel);
-                                    if cmp == Ordering::Equal {
-                                        cmp = bld.cmp(obld);
-                                    }
-                                }
-                            }
-                        }
-                        cmp
-                    },
+                    // semver precedence, then the text, so only identical versions are equal
+                    Self::Ver(omaj, omin, opat, orel, obld) => semver::total_cmp((*maj, *min, *pat, rel.as_deref(), bld.as_deref()), (*omaj, *omin, *opat, orel.as_deref(), obld.as_deref())),
                     Self::Void |
                     Self::Bool(_) |
                     Self::Num(_) |
@@ -1545,7 +1531,7 @@ impl Val {
                         Ok(())
                     },
                     Type::Ver => {
-                        if let Some(ver) = parse_semver_alone(&val) {
+                        if let Some(ver) = semver::parse_ver(&val) {
                             *self = ver;
                             Ok(())
                         } else {
@@ -1607,7 +1593,7 @@ impl Val {
                         Ok(())
                     },
                     Type::Ver => {
-                        if let Some(ver) = parse_semver_alone(&prompt.to_string()) {
+                        if let Some(ver) = semver::parse_ver(&prompt.to_string()) {
                             *self = ver;
                             Ok(())
                         } else {
@@ -1935,53 +1921,9 @@ impl Val {
 
     /// Runtime equality?
     pub fn equal(&self, other: &Self) -> Result<Self, Error> {
-        // SemVer equality: SemVer == SemVer || SemVer == String (does not parse String to SemVer for performance reasons)
+        // versions: the same precedence and build (a ver and a version string compare as versions, either way)
+        if let Some((order, same_build)) = ver_order(self, other) { return Ok((order.is_eq() && same_build).into()); }
         match self {
-            Self::Ver(major, minor, patch, release, build ) => {
-                match other {
-                    Self::Str(semver) => {
-                        if let Some(semver) = parse_semver_alone(semver) {
-                            match semver {
-                                Self::Ver(omajor, ominor, opatch, orelease, obuild ) => {
-                                    let mut cmp = major.cmp(&omajor);
-                                    if *major < 0 || omajor < 0 || cmp == Ordering::Equal {
-                                        cmp = minor.cmp(&ominor);
-                                        if *minor < 0 || ominor < 0 || cmp == Ordering::Equal {
-                                            cmp = patch.cmp(&opatch);
-                                            if *patch < 0 || opatch < 0 || cmp == Ordering::Equal {
-                                                cmp = release.cmp(&orelease);
-                                                if cmp == Ordering::Equal {
-                                                    cmp = build.cmp(&obuild);
-                                                }
-                                            }
-                                        }
-                                    }
-                                    return Ok(cmp.is_eq().into());
-                                },
-                                _ => {}
-                            }
-                        }
-                        return Ok(Val::Bool(false));
-                    },
-                    Self::Ver(omajor, ominor, opatch, orelease, obuild ) => {
-                        let mut cmp = major.cmp(omajor);
-                        if *major < 0 || *omajor < 0 || cmp == Ordering::Equal {
-                            cmp = minor.cmp(ominor);
-                            if *minor < 0 || *ominor < 0 || cmp == Ordering::Equal {
-                                cmp = patch.cmp(opatch);
-                                if *patch < 0 || *opatch < 0 || cmp == Ordering::Equal {
-                                    cmp = release.cmp(orelease);
-                                    if cmp == Ordering::Equal {
-                                        cmp = build.cmp(obuild);
-                                    }
-                                }
-                            }
-                        }
-                        return Ok(cmp.is_eq().into());
-                    },
-                    _ => {}
-                }
-            },
             Self::Fn(dref) =>{
                 match other {
                     Self::Data(odref) => {
@@ -2011,6 +1953,7 @@ impl Val {
 
     /// Runtime greater than another value?
     pub fn gt(&self, other: &Self, graph: &Graph) -> Result<Self, Error> {
+        if let Some((order, _)) = ver_order(self, other) { return Ok(order.is_gt().into()); } // semver precedence
         match self {
             Self::List(_) |
             Self::Tup(_) |
@@ -2072,56 +2015,14 @@ impl Val {
                     _ => Ok(Self::Bool(false)),
                 }
             },
-            Self::Ver(major, minor, patch, release, build ) => {
-                match other {
-                    Self::Str(semver) => {
-                        if let Some(semver) = parse_semver_alone(semver) {
-                            match &semver {
-                                Self::Ver(omajor, ominor, opatch, orelease, obuild ) => {
-                                    let mut cmp = major.cmp(omajor);
-                                    if *major < 0 || *omajor < 0 || cmp == Ordering::Equal {
-                                        cmp = minor.cmp(ominor);
-                                        if *minor < 0 || *ominor < 0 || cmp == Ordering::Equal {
-                                            cmp = patch.cmp(opatch);
-                                            if *patch < 0 || *opatch < 0 || cmp == Ordering::Equal {
-                                                cmp = release.cmp(orelease);
-                                                if cmp == Ordering::Equal {
-                                                    cmp = build.cmp(obuild);
-                                                }
-                                            }
-                                        }
-                                    }
-                                    return Ok(cmp.is_gt().into());
-                                },
-                                _ => {}
-                            }
-                        }
-                        Ok(Self::Bool(false))
-                    },
-                    Self::Ver(omajor, ominor, opatch, orelease, obuild ) => {
-                        let mut cmp = major.cmp(omajor);
-                        if *major < 0 || *omajor < 0 || cmp == Ordering::Equal {
-                            cmp = minor.cmp(ominor);
-                            if *minor < 0 || *ominor < 0 || cmp == Ordering::Equal {
-                                cmp = patch.cmp(opatch);
-                                if *patch < 0 || *opatch < 0 || cmp == Ordering::Equal {
-                                    cmp = release.cmp(orelease);
-                                    if cmp == Ordering::Equal {
-                                        cmp = build.cmp(obuild);
-                                    }
-                                }
-                            }
-                        }
-                        Ok(cmp.is_gt().into())
-                    },
-                    _ => Ok(Self::Bool(false)),
-                }
-            },
+            Self::Ver(..) => Ok(Self::Bool(false)), // compared with something that isn't a version
+
         }
     }
 
     /// Runtime less than another value?
     pub fn lt(&self, other: &Self, graph: &Graph) -> Result<Self, Error> {
+        if let Some((order, _)) = ver_order(self, other) { return Ok(order.is_lt().into()); } // semver precedence
         match self {
             Self::List(_) |
             Self::Tup(_) |
@@ -2183,56 +2084,14 @@ impl Val {
                     _ => Ok(Self::Bool(false)),
                 }
             },
-            Self::Ver(major, minor, patch, release, build ) => {
-                match other {
-                    Self::Str(semver) => {
-                        if let Some(semver) = parse_semver_alone(semver) {
-                            match &semver {
-                                Self::Ver(omajor, ominor, opatch, orelease, obuild ) => {
-                                    let mut cmp = major.cmp(omajor);
-                                    if *major < 0 || *omajor < 0 || cmp == Ordering::Equal {
-                                        cmp = minor.cmp(ominor);
-                                        if *minor < 0 || *ominor < 0 || cmp == Ordering::Equal {
-                                            cmp = patch.cmp(opatch);
-                                            if *patch < 0 || *opatch < 0 || cmp == Ordering::Equal {
-                                                cmp = release.cmp(orelease);
-                                                if cmp == Ordering::Equal {
-                                                    cmp = build.cmp(obuild);
-                                                }
-                                            }
-                                        }
-                                    }
-                                    return Ok(cmp.is_lt().into());
-                                },
-                                _ => {}
-                            }
-                        }
-                        Ok(Self::Bool(false))
-                    },
-                    Self::Ver(omajor, ominor, opatch, orelease, obuild ) => {
-                        let mut cmp = major.cmp(omajor);
-                        if *major < 0 || *omajor < 0 || cmp == Ordering::Equal {
-                            cmp = minor.cmp(ominor);
-                            if *minor < 0 || *ominor < 0 || cmp == Ordering::Equal {
-                                cmp = patch.cmp(opatch);
-                                if *patch < 0 || *opatch < 0 || cmp == Ordering::Equal {
-                                    cmp = release.cmp(orelease);
-                                    if cmp == Ordering::Equal {
-                                        cmp = build.cmp(obuild);
-                                    }
-                                }
-                            }
-                        }
-                        Ok(cmp.is_lt().into())
-                    },
-                    _ => Ok(Self::Bool(false)),
-                }
-            },
+            Self::Ver(..) => Ok(Self::Bool(false)), // compared with something that isn't a version
+
         }
     }
 
     /// Runtime greater or equal?
     pub fn gte(&self, other: &Self, graph: &Graph) -> Result<Self, Error> {
+        if let Some((order, _)) = ver_order(self, other) { return Ok(order.is_ge().into()); } // precedence (builds don't count)
         let res = self.gt(other, graph)?;
         if res.truthy() { return Ok(res); }
         self.equal(other)
@@ -2240,6 +2099,7 @@ impl Val {
 
     /// Runtime less than or equal?
     pub fn lte(&self, other: &Self, graph: &Graph) -> Result<Self, Error> {
+        if let Some((order, _)) = ver_order(self, other) { return Ok(order.is_le().into()); } // precedence (builds don't count)
         let res = self.lt(other, graph)?;
         if res.truthy() { return Ok(res); }
         self.equal(other)
@@ -3099,4 +2959,13 @@ impl Val {
         for val in vals { res = Self::min_of(res, val, graph)?; }
         Ok(res)
     }
+}
+
+
+/// Two values compared as versions, when one is a `ver` and the other a `ver` or a string that parses as one:
+/// their semver precedence (a wildcard part matching any number), and whether their builds are the same.
+fn ver_order(a: &Val, b: &Val) -> Option<(Ordering, bool)> {
+    if !matches!(a, Val::Ver(..)) && !matches!(b, Val::Ver(..)) { return None; }
+    let (Some(Val::Ver(a0, a1, a2, a_pre, a_build)), Some(Val::Ver(b0, b1, b2, b_pre, b_build))) = (semver::as_ver(a), semver::as_ver(b)) else { return None };
+    Some((semver::cmp_precedence((a0, a1, a2, a_pre.as_deref()), (b0, b1, b2, b_pre.as_deref())), a_build == b_build))
 }

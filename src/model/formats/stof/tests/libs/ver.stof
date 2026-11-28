@@ -93,3 +93,106 @@ fn clear_build() {
     v.clear_build();
     assert_eq(v, 4.5.6-release);
 }
+
+#[test]
+/// Semver precedence (semver.org's example order): pre-releases before their release, identifiers compared
+/// numbers as numbers, below words. Sorting uses the same order.
+fn precedence() {
+    const ordered = [1.0.0-alpha, 1.0.0-alpha.1, 1.0.0-alpha.beta, 1.0.0-beta, 1.0.0-beta.2, 1.0.0-beta.11, 1.0.0-rc.1, 1.0.0, 1.0.1, 1.2.0, 1.10.0, 2.0.0];
+    for (let i = 1; i < ordered.len(); i += 1) {
+        assert(ordered[i - 1] < ordered[i]);
+        assert(ordered[i] > ordered[i - 1]);
+    }
+    const shuffled = [2.0.0, 1.0.0, 1.0.0-rc.1, 1.10.0, 1.2.0, 1.0.0-alpha];
+    shuffled.sort();
+    assert_eq(shuffled, [1.0.0-alpha, 1.0.0-rc.1, 1.0.0, 1.2.0, 1.10.0, 2.0.0]);
+}
+
+#[test]
+/// Build metadata doesn't count for order, but == compares it.
+fn builds() {
+    const a = 1.0.0+sha.5114f85;
+    const b = 1.0.0+other;
+    assert(!(a < b) && !(a > b) && a <= b && a >= b);
+    assert_neq(a, b);
+    assert_eq(a, 1.0.0+sha.5114f85);
+    assert_eq(a.build(), 'sha.5114f85');
+}
+
+#[test]
+/// A string compares and casts as a version, on either side, with a leading v.
+fn strings() {
+    const ver = 1.2.3;
+    assert(ver == '1.2.3' && '1.2.3' == ver && ver == 'v1.2.3');
+    assert(ver < '1.10.0' && '1.10.0' > ver && ver >= '1.2.3' && '1.2.3' <= ver);
+    assert_eq('v2.0.0-rc.1+build.5' as ver, 2.0.0-rc.1+build.5);
+    assert(ver != 'not a version');
+}
+
+#[test]
+/// A wildcard part matches any number.
+fn wildcards() {
+    const any_patch = '1.2.*' as ver;
+    assert_eq(any_patch as str, '1.2.*');
+    assert(any_patch == 1.2.9 && any_patch == 1.2.0);
+    assert(any_patch != 1.3.0);
+    assert_eq('1.x' as ver, '1.*.*' as ver);
+    assert(('*' as ver) == 9.9.9);
+}
+
+#[test]
+/// Requirements, as Cargo's.
+fn matches() {
+    const ver = 1.4.2;
+    assert(ver.matches('^1.2') && ver.matches('1.2.3') && ver.matches('~1.4') && ver.matches('>=1.0.0, <2.0.0') && ver.matches('1.*') && ver.matches('*'));
+    assert(!ver.matches('~1.3') && !ver.matches('>1.4.2') && !ver.matches('=1.4.3') && !ver.matches('<1.4'));
+    const zero = 0.3.1;
+    assert(zero.matches('^0.3') && !zero.matches('^0.2'));
+    const pre = 1.5.0-rc.2;
+    assert(!pre.matches('^1.4') && pre.matches('>=1.5.0-rc.1') && !pre.matches('*'));
+    let msg = '';
+    try { ver.matches('>=nope'); } catch (e, message) { msg = message; }
+    assert(msg.contains("isn't a version requirement"));
+}
+
+#[test]
+fn compatible() {
+    const ver = 1.2.0;
+    assert(ver.compatible(1.9.3) && !ver.compatible(2.0.0));
+    const zero = 0.3.1;
+    assert(zero.compatible(0.3.9) && !zero.compatible(0.4.0));
+    const pre = 1.5.0-rc.1;
+    assert(pre.compatible(1.5.0) && pre.compatible(1.6.0) && !pre.compatible(1.4.0));
+}
+
+#[test]
+fn is_prerelease() {
+    const pre = 1.0.0-rc.1;
+    assert(pre.is_prerelease());
+    const release = 1.0.0+build;
+    assert(!release.is_prerelease());
+}
+
+#[test]
+/// Bumps clear the release and build; a pre-release bumps to its own version.
+fn bumps() {
+    let ver = 1.2.3-rc.1+build;
+    ver.bump_patch();
+    assert_eq(ver, 1.2.3);
+    ver.bump_patch();
+    assert_eq(ver, 1.2.4);
+    ver.bump_minor();
+    assert_eq(ver, 1.3.0);
+    ver.bump_major();
+    assert_eq(ver, 2.0.0);
+    let pre = 3.0.0-rc.1;
+    pre.bump_major();
+    assert_eq(pre, 3.0.0);
+    let minor_pre = 3.1.0-beta;
+    minor_pre.bump_minor();
+    assert_eq(minor_pre, 3.1.0);
+    let wild = '1.*' as ver;
+    let msg = '';
+    try { wild.bump_patch(); } catch (e, message) { msg = message; }
+    assert(msg.contains('wildcard'));
+}

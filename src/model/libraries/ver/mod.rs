@@ -18,7 +18,7 @@ use std::{ops::{Deref, DerefMut}, sync::Arc};
 use arcstr::{literal, ArcStr};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::{model::{ver::ops::{ver_build, ver_clear_build, ver_clear_release, ver_major, ver_minor, ver_patch, ver_release, ver_set_build, ver_set_major, ver_set_minor, ver_set_patch, ver_set_release}, Graph}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, Error, Num, Val, Variable}};
+use crate::{model::{ver::ops::{ver_build, ver_clear_build, ver_clear_release, ver_major, ver_minor, ver_patch, ver_release, ver_set_build, ver_set_major, ver_set_minor, ver_set_patch, ver_set_release, ver_matches, ver_compatible, ver_is_prerelease, ver_bump_major, ver_bump_minor, ver_bump_patch}, Graph}, runtime::{instruction::{Instruction, Instructions}, proc::ProcEnv, semver::{Version, VersionReq}, Error, Num, Val, Variable}};
 
 mod ops;
 
@@ -41,6 +41,12 @@ pub fn insert_semver_lib(graph: &mut Graph) {
     graph.insert_libfunc(ver_set_build());
     graph.insert_libfunc(ver_clear_release());
     graph.insert_libfunc(ver_clear_build());
+    graph.insert_libfunc(ver_matches());
+    graph.insert_libfunc(ver_compatible());
+    graph.insert_libfunc(ver_is_prerelease());
+    graph.insert_libfunc(ver_bump_major());
+    graph.insert_libfunc(ver_bump_minor());
+    graph.insert_libfunc(ver_bump_patch());
 }
 
 
@@ -57,6 +63,12 @@ lazy_static! {
     pub(self) static ref SET_BUILD: Arc<dyn Instruction> = Arc::new(VerIns::SetBuild);
     pub(self) static ref CLEAR_RELEASE: Arc<dyn Instruction> = Arc::new(VerIns::ClearRelease);
     pub(self) static ref CLEAR_BUILD: Arc<dyn Instruction> = Arc::new(VerIns::ClearBuild);
+    pub(self) static ref MATCHES: Arc<dyn Instruction> = Arc::new(VerIns::Matches);
+    pub(self) static ref COMPATIBLE: Arc<dyn Instruction> = Arc::new(VerIns::Compatible);
+    pub(self) static ref IS_PRERELEASE: Arc<dyn Instruction> = Arc::new(VerIns::IsPrerelease);
+    pub(self) static ref BUMP_MAJOR: Arc<dyn Instruction> = Arc::new(VerIns::BumpMajor);
+    pub(self) static ref BUMP_MINOR: Arc<dyn Instruction> = Arc::new(VerIns::BumpMinor);
+    pub(self) static ref BUMP_PATCH: Arc<dyn Instruction> = Arc::new(VerIns::BumpPatch);
 }
 
 
@@ -79,6 +91,14 @@ pub enum VerIns {
     Build,
     SetBuild,
     ClearBuild,
+
+    // (new ones at the end: BSTF stores instructions by their index)
+    Matches,
+    Compatible,
+    IsPrerelease,
+    BumpMajor,
+    BumpMinor,
+    BumpPatch,
 }
 #[typetag::serde(name = "VerIns")]
 impl Instruction for VerIns {
@@ -271,6 +291,64 @@ impl Instruction for VerIns {
                 }
                 Err(Error::VerClearBuild)
             },
+            Self::Matches => {
+                let req = env.stack.pop().map(|var| var.val.read().clone());
+                let ver = env.stack.pop().map(|var| var.val.read().clone());
+                let Some(Val::Str(req)) = req else { return Err(Error::FuncArgsInfo("Ver.matches takes a requirement (Ex. '^1.2', '>=1.0.0, <2.0.0')".into())) };
+                let req = VersionReq::parse(&req).map_err(|error| Error::FuncArgsInfo(error))?;
+                let ver = whole_version(ver, "matches")?;
+                env.stack.push(Variable::val(Val::Bool(req.matches(&ver))));
+                Ok(None)
+            },
+            Self::Compatible => {
+                let other = env.stack.pop().map(|var| var.val.read().clone());
+                let ver = env.stack.pop().map(|var| var.val.read().clone());
+                let (ver, other) = (whole_version(ver, "compatible")?, whole_version(other, "compatible")?);
+                env.stack.push(Variable::val(Val::Bool(ver.compatible(&other))));
+                Ok(None)
+            },
+            Self::IsPrerelease => {
+                match env.stack.pop().map(|var| var.val.read().clone()) {
+                    Some(Val::Ver(_, _, _, release, _)) => {
+                        env.stack.push(Variable::val(Val::Bool(release.is_some())));
+                        Ok(None)
+                    },
+                    _ => Err(Error::FuncArgsInfo("Ver.is_prerelease takes a version".into())),
+                }
+            },
+            Self::BumpMajor | Self::BumpMinor | Self::BumpPatch => {
+                let Some(var) = env.stack.pop() else { return Err(Error::FuncArgsInfo("bump takes a version".into())) };
+                let mut val = var.val.write();
+                let Val::Ver(major, minor, patch, release, build) = val.deref_mut() else { return Err(Error::FuncArgsInfo("bump takes a version".into())) };
+                if *major < 0 || *minor < 0 || *patch < 0 { return Err(Error::FuncArgsInfo("can't bump a version with a wildcard part".into())); }
+                // as npm and Cargo bump: a pre-release's own version is next (1.2.0-rc.1 bumps its minor to 1.2.0)
+                let pre = release.is_some();
+                match self {
+                    Self::BumpMajor => {
+                        if !(pre && *minor == 0 && *patch == 0) { *major += 1; }
+                        *minor = 0; *patch = 0;
+                    },
+                    Self::BumpMinor => {
+                        if !(pre && *patch == 0) { *minor += 1; }
+                        *patch = 0;
+                    },
+                    _ => {
+                        if !pre { *patch += 1; }
+                    },
+                }
+                *release = None;
+                *build = None;
+                Ok(None)
+            },
         }
+    }
+}
+
+
+/// A function's version argument as a whole version (no wildcards).
+fn whole_version(val: Option<Val>, func: &str) -> Result<Version, Error> {
+    match val {
+        Some(val) => Version::from_val(&val).ok_or_else(|| Error::FuncArgsInfo(format!("Ver.{func} takes a whole version (not one with a wildcard part)"))),
+        None => Err(Error::FuncArgsInfo(format!("Ver.{func} takes a version"))),
     }
 }

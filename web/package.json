@@ -1,6 +1,6 @@
 {
     "name": "@formata/stof",
-    "version": "0.11.6",
+    "version": "0.12.0",
     "description": "JSON that runs: JSON with functions, run in a sandbox that can only touch what you hand it. In Rust, JavaScript, and Python.",
     "type": "module",
     "main": "./dist/doc.js",

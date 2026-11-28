@@ -17,6 +17,8 @@
 // Checks for the JavaScript build (the wasm engine and doc.ts): build web/dist, then `node tests/js/check.mjs`.
 // Pass a dist folder to check another build (Ex. node tests/js/check.mjs path/to/dist).
 import http from 'node:http';
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 
@@ -127,7 +129,19 @@ await check('memory limit: one big step ("a" * n) and setMaxMemory', async () =>
 });
 
 // network
+const pkgSrc = "fn hello() -> str 'hello'\n#[load] fn deps() { self.loads += 1; }\nloads: 0\n";
+const pkgSha = createHash('sha256').update(pkgSrc).digest('hex');
+let pkgHits = 0;
+const toolsPkg = readFileSync(new URL('./fixtures/tools.pkg', import.meta.url));
+const toolsSha = createHash('sha256').update(toolsPkg).digest('hex');
+const lib12 = "fn version() -> str '1.2'\n";
+const lib14 = "fn version() -> str '1.4'\n";
+const sha = (text) => createHash('sha256').update(text).digest('hex');
 const server = http.createServer((req, res) => {
+    if (req.url === '/pkg.stof') { pkgHits++; res.writeHead(200, { 'content-type': 'text/plain' }); res.end(pkgSrc); return; }
+    if (req.url === '/tools.pkg') { res.writeHead(200, { 'content-type': 'application/octet-stream' }); res.end(toolsPkg); return; }
+    if (req.url === '/lib12.stof') { res.end(lib12); return; }
+    if (req.url === '/lib14.stof') { res.end(lib14); return; }
     if (req.url === '/redirect') { res.writeHead(302, { location: `http://localhost:${server.address().port}/` }); res.end(); return; }
     if (req.url === '/big') { res.end('x'.repeat(3 * 1024 * 1024)); return; }
     res.end('hi');
@@ -183,6 +197,54 @@ await check('network: a response is read up to max (by default the memory limit)
     assert(String(await doc.call('f', null)).includes('larger than 1048576 bytes'), 'the memory limit');
     doc.setMaxMemory(null);
 });
+await check('load: #[load] imports through the host\'s fetch, pinned, once', async () => {
+    const src = `
+        #[load] fn deps() { await import('${local}pkg.stof', '${pkgSha}', 'root.deps.pkg'); }
+        fn hello() -> str root.deps.pkg.hello()
+        fn loads() -> int root.deps.pkg.loads
+        fn listed() -> int imported().len()`;
+    const doc = await StofDoc.new(src);
+    doc.allowHttp(['127.0.0.1']);
+    const before = pkgHits;
+    assert(await doc.load() === 1, 'ran the document\'s #[load]');
+    assert(await doc.call('hello') === 'hello', 'imported');
+    assert(await doc.call('loads') === 1, 'the package\'s own #[load] ran');
+    assert(await doc.load() === 2, 'load again: the package\'s #[load] too, now it\'s in the document');
+    assert(pkgHits - before === 1, `fetched once (${pkgHits - before})`);
+    assert(await doc.call('loads') === 2, 'its #[load] runs each load');
+    assert(await doc.load('deps.pkg') === 1, 'one object');
+    assert(await doc.call('listed') === 1, 'imported()');
+
+    const wrong = await StofDoc.new(src.replace(pkgSha, 'a'.repeat(64)));
+    wrong.quiet(); wrong.allowHttp(['127.0.0.1']);
+    await rejects(wrong.load(), /not the pinned/);
+    const offline = await StofDoc.new(src);
+    offline.quiet();
+    await rejects(offline.load(), /network access|not an allowed host|Http/);
+});
+
+await check('load: a .pkg imports in memory, with its pkg.stof\'s #[load] functions', async () => {
+    const doc = await StofDoc.new(`
+        #[load] fn tools() { await import('${local}tools.pkg', '${toolsSha}', '@formata/tools@1.0.0'); }
+        fn check() -> str \`\${root.tool()} \${root.tools_loaded}\`
+        fn packages() -> str imported().map((dep: map): str => dep.get('package') + '@' + dep.get('version')).join(',')`);
+    doc.allowHttp(['127.0.0.1']);
+    assert(await doc.load() === 1, 'loaded');
+    assert(await doc.call('check') === 'tool util true', await doc.call('check'));
+    assert(await doc.call('packages') === '@formata/tools@1.0.0', await doc.call('packages'));
+});
+await check('load: one version of a package, the highest required', async () => {
+    const doc = await StofDoc.new(`
+        #[load] fn low() { await import('${local}lib12.stof', '${sha(lib12)}', '@lib@1.2.0'); }
+        #[load] fn high() { await import('${local}lib14.stof', '${sha(lib14)}', '@lib@1.4.0'); }
+        fn version() -> str root.version()
+        fn conflict() -> str { try { await import('${local}lib12.stof', '${sha(lib12)}', '@lib@2.0.0'); return 'imported'; } catch (e, msg) { return msg; } }`);
+    doc.allowHttp(['127.0.0.1']);
+    await doc.load();
+    assert(await doc.call('version') === '1.4', await doc.call('version'));
+    assert((await doc.call('conflict')).includes("aren't compatible"), 'a major version conflict');
+});
+
 server.close();
 
 // html

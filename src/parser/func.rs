@@ -84,6 +84,12 @@ pub fn parse_function<'a>(input: &'a str, context: &mut ParseContext) -> IResult
     if init_func && context.profile.untrusted {
         return Err(nom::Err::Failure(StofParseError::from(format!("untrusted source can't have #[init] functions (nothing runs while it's parsed): fn {name}"))));
     }
+    if context.profile.untrusted && func.attributes.contains_key("load") && context.graph.confined.is_empty() {
+        // a #[load] function brings in more code when the host calls load(): code from somewhere else would choose what
+        // runs with the document's own access. Allowed when the parse runs in a sealed part (Ex. its own import),
+        // where whatever it loads is confined by the same seal.
+        return Err(nom::Err::Failure(StofParseError::from(format!("untrusted source can't have #[load] functions (they'd load more code when the host calls load()): fn {name}"))));
+    }
     if context.profile.untrusted && func.attributes.contains_key("dropped") {
         // a #[dropped] function runs when its object is dropped: code from somewhere else would run (and could refuse
         // to go) when the host removes it

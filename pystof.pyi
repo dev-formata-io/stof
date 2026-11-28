@@ -59,6 +59,14 @@ class Doc:
         everything the source declares is removed after the call.
         """
 
+    def load(self, node: Optional[str] = None) -> int:
+        """
+        Run the document's #[load] functions (in node and the objects in it, an object path or ID, or the whole
+        document), which bring in its dependencies (Ex. with import), and wait for them. Returns how many ran. Call it
+        after parsing; it's safe to call again (imports already there aren't fetched). Imports use the document's
+        Http.fetch, so allow the hosts they need first (allow_http_hosts).
+        """
+
     def run(self, attributes: Union[str, Sequence[str], None] = None) -> str:
         """Run the functions with the given attribute(s) (#[main] when None)."""
 

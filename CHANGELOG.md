@@ -1,6 +1,164 @@
 # Changelog
 
-## Unreleased
+## 0.12.0
+
+### Breaking
+
+- **`ver` order:** comparisons and sorting follow semver precedence: a pre-release now comes before its release
+  (`1.0.0-rc.1 < 1.0.0`), pre-release identifiers compare numbers as numbers (`rc.2 < rc.11`), and build metadata no
+  longer counts for `<`, `>`, `<=`, `>=` (`==` still compares it). See "Semantic versions (ver) follow semver".
+- **Version literals** take dotted build metadata (`1.0.0+build.5`), so a call right after a literal's build
+  (`1.0.0+abc.method()`) now reads `abc.method` as the build. Calls on a variable aren't affected.
+- **`.pkg` imports** read the package in memory: a package's own imports stay inside it (a relative path outside the
+  package, or a rooted one, is an error, where it used to read the disk), and its `pkg.stof` `#[load]` functions now
+  come with it.
+- **Rust API:**
+  - `StofPackageFormat` is a unit struct: the `tmp` field and the temp-folder helpers (`unzip_bytes`,
+    `unzip_bytes_to_temp`, `create_temp_package_file`, `remove`) are gone. `StofPackageFormat::files(bytes)` and
+    `file(bytes, name)` read a package in memory; `create_package_file` and `unzip_file` are unchanged.
+  - `parser::semver::parse_semver_alone` is gone: `runtime::semver::parse_ver` parses a version from text (with a
+    leading `v`, wildcards, and dotted build metadata).
+  - `Graph::loading` is a map (a #[load] function to the runtime running it), and `ProcEnv` has an `alive` field
+    (its runtime's token).
+  - New: `runtime::semver` (`Version`, `VersionReq`, `cmp_pre`, `parse_ver`), `Format::parser_bytes_import`, and
+    `Graph::packages`.
+
+### Runtime dependencies: #[load], Std::load, and Std::import
+
+A document brings in what it depends on at runtime with one attribute and one function, the same way in every host:
+
+```stof
+#[load]
+fn deps() {
+    await import('https://example.com/intent.bstf', '9f2c...', 'root.deps.intent');
+}
+```
+
+The host runs the `#[load]` functions after parsing: `graph.load(node)` in Rust, `await doc.load(node)` in JavaScript,
+and `doc.load(node)` in Python (node: an object path or ID, or none for the whole document; each returns how many ran).
+Parsing never touches the network, so it stays the same everywhere, JavaScript included.
+
+**`load(obj = null)`** runs the `#[load]` functions in an object and the objects in it, or in the whole document, at
+the same time, and waits for them and everything they start. It returns how many ran.
+
+- **Safe to repeat:** imports that are already there are skipped without fetching. Other work in a `#[load]` function
+  runs again each time.
+- **A function that's already running isn't started again** (Ex. one that calls `load` on its own object), so it
+  can't recurse forever. The running set is kept in memory, not in the document.
+- **A failing `#[load]`** fails `load` (`load failed: ...`), and can run again on the next `load`.
+- **Sealed parts:** code outside a sealed part never runs its `#[load]` functions (as a scan by attribute never finds
+  them); code in the part runs its own.
+- **Untrusted source can't have `#[load]` functions,** like `#[init]` and `#[dropped]`, unless it's parsed by code in a
+  sealed part, where whatever it loads is confined by the same seal. To keep a part's dependencies inside it, seal it
+  with `reads` (which limits its changes to its own part).
+
+**`import(url, sha256, into, format = null, profile = 'prod', headers = null)`** loads a pinned dependency: it fetches
+a URL, checks the bytes against a sha256, and parses them into an object. It's async, like `Http::fetch`, and returns
+true, or false if it's there already.
+
+- **Pinned:** bytes with a different hash are an error, and nothing is parsed. The hash is required. Pin a URL that
+  never changes, like a GitHub release's file (`/releases/download/v1.4.0/intent.pkg`, not `/releases/latest/...`).
+- **Once per object:** the import is recorded on the object it went into (an `imports` attribute: hash to
+  `{ url, package, version }`), so
+  importing the same hash there again returns false without fetching. The same hash elsewhere is a separate copy, and
+  different hashes can go into one object. The record is kept by BSTF, moves with the object, and goes when the object
+  is dropped.
+- **Network:** it calls the document's own `Http.fetch`, so the host's rules apply as they do to any fetch
+  (`allow_http`, `allow_http_hosts`, a sealed part's `hosts`), and in JavaScript it uses the host's fetch. A document
+  without network access gets an error that says so. Redirects are checked too: a GitHub release's file redirects to
+  `release-assets.githubusercontent.com`, so a sealed part's `hosts` needs both. `headers` go with the request (Ex.
+  `headers = { 'Authorization': 'Bearer ' + env('GITHUB_TOKEN') }` for a private file).
+- **`into`:** an object or a path. A missing path is created (`parse` doesn't create paths); a field that doesn't hold
+  an object is an error.
+- **Packages (`'@formata/intent'`):** with the document's file system (`fs`, allowed by the host), the checked bytes are
+  written to `stof/formata/intent.stof` (the format's extension), where `import '@formata/intent'` reads them, and a
+  later import uses that file instead of fetching (a file that changed is fetched again and written over). With or
+  without the file system, they're parsed into the root, where that `import` statement would put them, so one
+  `#[load]` line works the same in the CLI and in the browser. The writes go through the document's own `fs` library,
+  so a sealed part writes only when its `libs` include `fs`. Package names are plain names (letters, digits, `_`, `-`,
+  `.`, separated by `/`), so nothing is written outside `stof/`. A host that only installs packages
+  (`graph.import_vendor_only`, the CLI) writes them without parsing, so no package code runs, and errors without the
+  file system.
+- **Versions (`'@formata/intent@1.4.0'`):** 1.4.0 or a newer compatible version (the same major version; for 0.x,
+  the same minor version, as Cargo's default rules). A document has one version of a package, the highest one its
+  imports require, in whatever order they run: a lower one is skipped (false) when a higher compatible one is loaded or
+  loading, a higher one is parsed over a lower one (an older one still fetching does nothing when it arrives), and the
+  root records only the version that stands. Incompatible versions (Ex. 1.x and 2.x), and one version with different
+  bytes, are errors that name both. A package without a version uses whatever's there, and a version replaces it. A
+  saved document keeps its versions (the root's records). Versions are Stof's `ver` (`MAJOR.MINOR.PATCH`, an
+  optional `-pre.release`; a leading `v` is fine), compared with semver's precedence (a pre-release comes before its
+  release), in Rust as `stof::runtime::semver::Version`. A pre-release is compatible only with its own
+  version's pre-releases and the releases from it on (Ex. 1.5.0-rc.1 with 1.5.0-rc.2 and 1.6.0, not 1.4.0), as Cargo
+  matches them. A `.pkg` must be the version its `pkg.stof` says (`'@x@2.0.0'` pinned to a 1.0.0 package is an
+  error).
+- **Any file:** a dependency can be data, text, an image, or a document, not only Stof: the format is the URL's
+  extension, else the response's content type, else `bytes` (not UTF-8), `text` (another extension or content type,
+  Ex. `.csv`), or `stof` (no extension), as an `import` statement takes a file. A format that only exports (Ex.
+  `html`) is imported as text, here and by `import` statements. A package keeps its file's extension in `stof/` (Ex.
+  `stof/data/rates.csv`).
+- **Abandoned loads don't stick:** a call that's dropped while it imports or runs `#[load]` functions (Ex. a
+  JavaScript host that stops stepping it) leaves nothing marked as loading or running, so the next call imports the
+  package and runs the function. Every process holds its runtime's token (`ProcEnv::alive`), and what it starts in
+  the graph keeps a weak reference to it.
+- **Package files your code imports win:** `import '@formata/intent'` (reading `stof/`) records the file, so a
+  `#[load]` import of that package uses it instead of parsing it again, whatever its version (the CLI's `stof install`
+  puts the resolved version there). The package's name is its path without the file's extension (`'@data/rates.csv'`
+  is `@data/rates`). Without an extension, `import '@name'` finds the package's file in whichever format it was
+  written (`.stof` first, then `.pkg`, `.bstf`, then any other format with a file there).
+- **A cache:** a host can give a document a cache of fetched bytes by hash (`graph.import_cache`, Ex.
+  `DirImportCache::new(dir)` in Rust). Bytes from it are checked against the pin like fetched ones, so a cache can't
+  change what's imported.
+- **Format:** `format` if given, else the URL's file extension when it names a format the document has, else the
+  response's content type (generic ones like `application/octet-stream` and `text/plain` are ignored), else `stof`.
+  `profile` defaults to `'prod'`; `'untrusted'` refuses code that would run while it's parsed.
+- **The `#[load]` functions it brought run** once it's parsed and recorded, so dependencies of dependencies load
+  too (a `.pkg` brings the `#[load]` functions in its `pkg.stof`). A dependency two packages share, imported into the same object, loads once. (Pinned imports can't form a
+  cycle: a package would need the hash of a package that contains its own hash.)
+- **Errors are thrown** (a failed fetch or status, a hash mismatch, a parse error, its `#[load]` functions, a seal),
+  with a new `Import` error that names the URL, so true and false only mean loaded or already there. A failed parse
+  records nothing; a package whose `#[load]` fails is still recorded, and the next `load()` runs that `#[load]` again.
+- **`imported(obj = null)`** lists the recorded imports (`url`, `sha256`, `into`, and `package` and `version` for
+  packages) in an object and the objects in it, or in the whole document.
+
+### Packages (.pkg) in every host
+
+A `.pkg` is now read in memory, so it imports without a file system: in JavaScript (the `js` build includes the `pkg`
+format now), in Python, and from `Std::import` anywhere. Before, a package was unzipped to a temporary folder, which
+needed the file system and read files outside the sandbox's `fs` library.
+
+- **A package's `#[load]` functions come with it:** the `#[load]` functions in its `pkg.stof` (its dependencies) are
+  added to the object the package goes into, after its files, so they load with it. One whose name the package's own
+  data has (Ex. its `greet` function and a `#[load] fn greet()`) gets another name (`greet_load`). Its other fields
+  (`name`, `version`, `import`) stay out, as before.
+- **A package's imports stay in the package:** a relative import is a file in the package, and only another package
+  (`'@name'`) comes from somewhere else; a missing file, or a path outside the package (`../x`, `/x`), is an error. A
+  package in a package works.
+- **Limits:** a package's files can't unzip to more than the document's memory limit (256 MB without one), so a zip
+  bomb is an error. An untrusted package can't bring `#[load]` functions, like any untrusted source.
+- **`StofPackageFormat::files(bytes)`** reads a package's files in memory (Rust), and a package directory given as a
+  path (Ex. `.`) finds its `pkg.stof`.
+
+### Semantic versions (ver) follow semver
+
+- **Order (a change):** `<`, `>`, `<=`, `>=`, and sorting use semver precedence: a pre-release comes before its release
+  (`1.0.0-rc.1 < 1.0.0`; it was after), and its dot-separated identifiers compare numbers as numbers, below words
+  (`rc.2 < rc.11`; it was by text). Build metadata doesn't count for order (`1.0.0+a <= 1.0.0+b`); `==` still compares
+  it. A wildcard part (`*`) matches any number, as before.
+- **Strings:** a version string compares as a version on either side (`'1.2.3' == ver`, not only `ver == '1.2.3'`),
+  and casting one to `ver` takes a leading `v` (`'v1.2.3' as ver`), dotted build metadata (`+sha.5114f85`), and
+  wildcard parts (`'1.2.*'`, `'1.x'`, `'*'`). Literals take dotted build metadata too (`1.0.0+build.5`).
+- **New functions:** `Ver.matches(ver, req)` (Cargo's requirements: `^1.2`, `~1.2.3`, `=`, `>`, `>=`, `<`, `<=`,
+  `1.2.*`, `*`, separated by commas; a pre-release matches only a requirement with a pre-release of its own version),
+  `Ver.compatible(ver, other)` (the newer can stand in for the older), `Ver.is_prerelease(ver)`, and
+  `Ver.bump_major`, `bump_minor`, `bump_patch` (in place, clearing the release and build; a pre-release bumps to its
+  own version, as npm and Cargo do).
+- **Rust:** `stof::runtime::semver` has the same rules (`Version`, `VersionReq`, `cmp_pre`, `parse_ver`), and the
+  runtime's comparisons share them.
+
+### fs::create_dir
+
+`fs::create_dir(path)` creates a directory and the directories it's in (nothing happens if it's there), so `fs::write`
+can write into a new folder.
 
 ### Expression bodies for functions
 

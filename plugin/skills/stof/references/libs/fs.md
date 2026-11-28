@@ -1,6 +1,13 @@
 # File System Library (fs)
 Functions for working with the file system. Off by default: documents are sandboxed until the host opts in with `allow_system()` (Rust, Python), which also enables `env` functions and file imports. Requires the "system" feature. The `stof` CLI enables it.
 
+# fs::create_dir(path: str) -> void
+If available, will create a directory at the given path, and the directories it's in that don't exist yet. Nothing happens if it already exists.
+```rust
+fs::create_dir("out/reports");
+fs::write("out/reports/today.txt", "testing");
+```
+
 # fs::read(path: str) -> blob
 If available, will read a file from a path into a binary blob.
 ```rust

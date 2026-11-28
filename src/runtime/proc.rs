@@ -78,6 +78,11 @@ pub struct ProcEnv {
 
     #[cfg(feature = "tokio")]
     pub tokio_runtime: Option<tokio::runtime::Handle>,
+
+    /// Held while the runtime this process runs in lives (the runtime's token). Work a process leaves in the graph
+    /// (Ex. a package it's importing, a #[load] function it's running) keeps a weak reference to it, so it's known
+    /// to be abandoned once the runtime is gone, even when the process never finished (Ex. a call that timed out).
+    pub alive: std::sync::Arc<()>,
 }
 impl ProcEnv {
     /// The environment for a process this one spawns: its variables (the parent's `using` values stay the parent's
@@ -111,6 +116,7 @@ impl ProcEnv {
             spawn: None,
             #[cfg(feature = "tokio")]
             tokio_runtime: self.tokio_runtime.clone(),
+            alive: self.alive.clone(),
         }
     }
 }
@@ -141,6 +147,7 @@ impl Default for ProcEnv {
 
             #[cfg(feature = "tokio")]
             tokio_runtime: None,
+            alive: Default::default(),
         }
     }
 }
